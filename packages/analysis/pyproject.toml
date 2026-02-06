@@ -1,0 +1,21 @@
+[project]
+name = "judge-gym"
+version = "0.1.0"
+description = "Statistical analysis for judge-gym: JSD polarization, DST aggregation, OLS regression"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "convex>=0.7.0",
+    "httpx>=0.27.0",
+    "jupyter>=1.0.0",
+    "matplotlib>=3.9.0",
+    "numpy>=2.0.0",
+    "pandas>=2.2.0",
+    "scipy>=1.14.0",
+    "seaborn>=0.13.0",
+    "statsmodels>=0.14.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "convex": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "convex@latest",
+        "mcp",
+        "start",
+        "--url",
+        "https://patient-wolverine-343.convex.cloud"
+      ],
+      "env": {}
+    }
+  }
+}
