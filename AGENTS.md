@@ -33,14 +33,9 @@ Read `blueprint.md` for the full architecture and research protocol.
 Before running any experiment:
 
 1. `convex-status` → get the dev deployment selector
-2. `convex-envList` → verify API keys are set (validated at runtime by `convex/env.ts`):
-   - `OPENAI_API_KEY` (required)
-   - `ANTHROPIC_API_KEY` (required)
-   - `FIRECRAWL_API_KEY` (required)
-   - `XAI_API_KEY` (optional)
-   - `GOOGLE_API_KEY` (optional)
-   - `OPENROUTER_API_KEY` (optional)
-3. `convex-tables` → verify schema is deployed
+2. `convex-tables` → verify schema is deployed
+
+Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `FIRECRAWL_API_KEY`. Optional: `XAI_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`.
 
 ### Public Mutations (Write Operations — only when explicitly instructed)
 
