@@ -1,16 +1,21 @@
 {
   "mcpServers": {
     "convex": {
+      "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
         "convex@latest",
         "mcp",
         "start",
-        "--url",
-        "https://patient-wolverine-343.convex.cloud"
+        "--project-dir",
+        "${workspaceFolder}/packages/engine",
+        "--disable-tools",
+        "envList,envGet,envSet,envRemove"
       ],
-      "env": {}
+      "env": {
+        "CONVEX_DEPLOYMENT": "dev:patient-wolverine-343"
+      }
     }
   }
 }
