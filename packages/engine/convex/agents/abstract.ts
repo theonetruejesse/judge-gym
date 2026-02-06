@@ -14,18 +14,19 @@ export type ThreadMeta = {
 };
 
 export abstract class AbstractJudgeAgent {
-  protected abstract readonly stageName: string;
+  protected readonly stageName: string;
   protected readonly agent: Agent;
   protected readonly modelId: ModelType;
 
-  constructor(modelId: ModelType, instructions: string) {
+  constructor(modelId: ModelType, instructions: string, stageName: string) {
     this.modelId = modelId;
+    this.stageName = stageName;
     this.agent = new Agent(components.agent, {
-      name: `${this.stageName}:${modelId}`,
+      name: `${stageName}:${modelId}`,
       instructions,
       languageModel: MODEL_MAP[modelId],
       ...experimentConfig,
-    });
+    } as any);
   }
 
   /** Create a tagged thread for this operation. */

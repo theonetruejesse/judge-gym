@@ -52,6 +52,18 @@ export const ExperimentConfigSchema = z.object({
 
 export type ExperimentConfig = z.infer<typeof ExperimentConfigSchema>;
 
+// --- Experiment status ---
+export const ExperimentStatusSchema = z.union([
+  z.literal("pending"),
+  z.literal("evidence-done"),
+  z.literal("rubric-done"),
+  z.literal("scoring"),
+  z.literal("probing"),
+  z.literal("complete"),
+]);
+
+export type ExperimentStatus = z.infer<typeof ExperimentStatusSchema>;
+
 // --- Table schemas ---
 export const ExperimentsTableSchema = z.object({
   experimentId: z.string(),
@@ -61,14 +73,7 @@ export const ExperimentsTableSchema = z.object({
   concept: z.string(),
   groundTruth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
-  status: z.union([
-    z.literal("pending"),
-    z.literal("evidence-done"),
-    z.literal("rubric-done"),
-    z.literal("scoring"),
-    z.literal("probing"),
-    z.literal("complete"),
-  ]),
+  status: ExperimentStatusSchema,
 });
 
 export const WindowsTableSchema = z.object({
