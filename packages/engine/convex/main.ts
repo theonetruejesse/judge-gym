@@ -2,6 +2,8 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zMutation } from "./utils";
 import { ExperimentsTableSchema, WindowsTableSchema } from "./schema";
+import { internal } from "./_generated/api";
+import { workflow } from "./workflow_manager";
 
 // --- Setup ---
 
@@ -17,8 +19,6 @@ export const createExperiment = zMutation({
 });
 
 // --- Workflow triggers ---
-// These will be wired up as stages are implemented.
-// Each trigger starts a workflow from the workflow-manager.
 
 // W1: Evidence collection
 export const startEvidencePipeline = zMutation({
@@ -27,18 +27,24 @@ export const startEvidencePipeline = zMutation({
     experimentId: z.string(),
     limit: z.number().optional(),
   }),
-  handler: async (ctx, args) => {
-    // TODO: wire to evidenceWorkflow
-    throw new Error("Not yet implemented — build stages/1_evidence/ first");
+  handler: async (ctx, { windowId, experimentId, limit }) => {
+    await workflow.start(
+      ctx,
+      internal.stages["1_evidence"].evidence_workflow.evidenceWorkflow,
+      { windowId, experimentId, limit },
+    );
   },
 });
 
 // W2: Rubric generation
 export const startRubricGeneration = zMutation({
   args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, args) => {
-    // TODO: wire to rubricWorkflow
-    throw new Error("Not yet implemented — build stages/2_rubric/ first");
+  handler: async (ctx, { experimentId }) => {
+    await workflow.start(
+      ctx,
+      internal.stages["2_rubric"].rubric_workflow.rubricWorkflow,
+      { experimentId },
+    );
   },
 });
 
@@ -48,9 +54,12 @@ export const startScoringTrial = zMutation({
     experimentId: z.string(),
     samples: z.number().optional(),
   }),
-  handler: async (ctx, args) => {
-    // TODO: wire to scoringWorkflow
-    throw new Error("Not yet implemented — build stages/3_scoring/ first");
+  handler: async (ctx, { experimentId, samples }) => {
+    await workflow.start(
+      ctx,
+      internal.stages["3_scoring"].scoring_workflow.scoringWorkflow,
+      { experimentId, samples },
+    );
   },
 });
 
@@ -60,17 +69,23 @@ export const startSwapTrial = zMutation({
     experimentId: z.string(),
     swapRubricFrom: z.string(),
   }),
-  handler: async (ctx, args) => {
-    // TODO: wire to swapWorkflow
-    throw new Error("Not yet implemented — build stages/3_scoring/ first");
+  handler: async (ctx, { experimentId, swapRubricFrom }) => {
+    await workflow.start(
+      ctx,
+      internal.stages["3_scoring"].scoring_workflow.swapWorkflow,
+      { experimentId, swapRubricFrom },
+    );
   },
 });
 
 // W5: Epistemic probing
 export const startProbingTrial = zMutation({
   args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, args) => {
-    // TODO: wire to probeWorkflow
-    throw new Error("Not yet implemented — build stages/4_probe/ first");
+  handler: async (ctx, { experimentId }) => {
+    await workflow.start(
+      ctx,
+      internal.stages["4_probe"].probe_workflow.probeWorkflow,
+      { experimentId },
+    );
   },
 });

@@ -1,0 +1,62 @@
+export const RUBRIC_GENERATION_INSTRUCTIONS = `
+You are a political scientist designing an evaluative rubric for
+assessing evidence about a political concept. Your rubric must be
+neutral, observable, and produce stages that are clearly distinguishable.
+`;
+
+export const rubricGenerationPrompt = (
+  concept: string,
+  country: string,
+  scaleSize: number,
+) => `
+Design a ${scaleSize}-stage evaluative rubric for assessing the degree to
+which news evidence reflects "${concept}" in ${country}.
+
+REQUIREMENTS:
+- Exactly ${scaleSize} stages, numbered 1 through ${scaleSize}.
+- Stage 1 = weakest signal (minimal/absent). Stage ${scaleSize} = strongest signal.
+${scaleSize % 2 === 1
+    ? `- Stage ${Math.ceil(scaleSize / 2)} must be "Ambiguous / Mixed Evidence."`
+    : "- No midpoint stage — every stage must commit to a direction."
+  }
+- Each stage needs:
+  - label: A concise 3-5 word label (e.g., "Isolated Incidents", "Systematic Pattern")
+  - criteria: 3-5 observable indicators that would place evidence at this stage.
+    Each criterion must be verifiable from news reporting (not opinion).
+- Adjacent stages must be clearly distinguishable. A reader should be able to
+  classify evidence into exactly one stage without ambiguity.
+- Criteria must be NEUTRAL — they describe institutional behaviors, not moral judgments.
+  Use: "shift", "alignment", "pattern", "frequency". Avoid: "threat", "danger", "erosion".
+
+Also provide reasoning: explain why these ${scaleSize} stages form a coherent
+spectrum for evaluating "${concept}".
+
+Return JSON matching the schema.
+`;
+
+export const CRITIC_INSTRUCTIONS = `
+You are a measurement quality auditor. You evaluate rubrics for
+scientific rigor: can the criteria be observed, and can the stages
+be discriminated from each other?
+`;
+
+export const rubricCriticPrompt = (rubric: {
+  stages: Array<{ label: string; criteria: string[] }>;
+}) => `
+Evaluate this rubric for two qualities:
+
+RUBRIC:
+${rubric.stages.map((s, i) => `Stage ${i + 1} — "${s.label}": ${s.criteria.join("; ")}`).join("\n")}
+
+QUALITY 1: Observability (0.0 to 1.0)
+- Can each criterion be verified from news evidence?
+- Are criteria specific enough to be falsifiable?
+- Deduct for vague terms like "significant", "notable", "concerning".
+
+QUALITY 2: Discriminability (0.0 to 1.0)
+- Are adjacent stages clearly distinguishable?
+- Could a trained rater reliably sort evidence into exactly one stage?
+- Deduct for overlapping criteria between adjacent stages.
+
+Return JSON: { "observabilityScore": number, "discriminabilityScore": number }
+`;

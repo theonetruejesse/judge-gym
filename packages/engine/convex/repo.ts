@@ -3,6 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation, zInternalQuery } from "./utils";
 import {
   EvidenceTableSchema,
+  ExperimentStatusSchema,
   RubricsTableSchema,
   SamplesTableSchema,
   ProbesTableSchema,
@@ -24,7 +25,7 @@ export const getExperiment = zInternalQuery({
 });
 
 export const patchExperiment = zInternalMutation({
-  args: z.object({ experimentId: z.string(), status: z.string() }),
+  args: z.object({ experimentId: z.string(), status: ExperimentStatusSchema }),
   handler: async (ctx, { experimentId, status }) => {
     const experiment = await ctx.db
       .query("experiments")

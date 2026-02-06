@@ -5,7 +5,8 @@ import {
 import type { ExperimentConfig } from "../schema";
 
 export interface ScoringStrategy {
-  promptSuffix: string;
+  /** Build the verdict suffix line given the actual labels for this sample. */
+  buildPromptSuffix: (labels: string[]) => string;
   systemInstruction: string;
   parseVerdict: (
     raw: string,
@@ -23,22 +24,23 @@ export function resolveScoringStrategy(
 ): ScoringStrategy {
   const strategies: Record<string, ScoringStrategy> = {
     "freeform-suffix-single": {
-      promptSuffix: "VERDICT: [A/B/C/D] or ABSTAIN",
-      systemInstruction: "Conclude with a single letter verdict.",
+      buildPromptSuffix: (labels) =>
+        `VERDICT: [${labels.join("/")}] or ABSTAIN`,
+      systemInstruction: "Conclude with a single verdict from the options above.",
       parseVerdict: parseSingleVerdict,
       useGenerateObject: false,
     },
     "freeform-suffix-subset": {
-      promptSuffix:
-        "VERDICT: [comma-separated letters, e.g. B,D] or ABSTAIN",
+      buildPromptSuffix: (labels) =>
+        `VERDICT: [comma-separated IDs, e.g. ${labels.slice(0, 2).join(",")}] or ABSTAIN`,
       systemInstruction:
-        "List ALL stage labels whose criteria are supported by the evidence. " +
+        "List ALL stage identifiers whose criteria are supported by the evidence. " +
         "You may select one or more stages.",
       parseVerdict: parseSubsetVerdict,
       useGenerateObject: false,
     },
     "structured-json": {
-      promptSuffix: "",
+      buildPromptSuffix: () => "",
       systemInstruction: "Return your verdict as structured output.",
       parseVerdict: parseSingleVerdict,
       useGenerateObject: true,
