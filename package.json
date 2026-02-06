@@ -1,0 +1,18 @@
+{
+  "name": "judge-gym",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.1.27",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "turbo": "^2.3.0",
+    "typescript": "^5.0.0"
+  }
+}

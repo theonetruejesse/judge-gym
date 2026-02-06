@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.turbo/
+
+# Convex generated
+packages/engine/convex/_generated/
+
+# Python
+packages/analysis/.venv/
+packages/analysis/__pycache__/
+packages/analysis/src/**/__pycache__/
+*.pyc
+*.egg-info/
+
+# Environment
+.env
+.env.local
+.env.local.*
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+
+# Bun
+bun.lockb
