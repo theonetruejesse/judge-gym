@@ -5,7 +5,6 @@ An open-source LLM-as-Judge design space engine. Systematically explore how mode
 Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
 
 Read [`paper.md`](./paper.md) for the research motivation and theoretical framework.
-Read [`blueprint.md`](./blueprint.md) for the full architecture, code-level build plan, and literature annotations.
 
 ---
 
@@ -34,7 +33,6 @@ judge-gym/
 │       ├── notebooks/             # Jupyter: polarization, entrenchment, swap, regression
 │       └── src/judge_gym/         # JSD, DST aggregation, OLS, data collection from Convex
 │
-├── blueprint.md                   # Architecture reference (defense document)
 ├── paper.md                       # Working paper (theory + methodology)
 └── turbo.json                     # Turborepo config
 ```

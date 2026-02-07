@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseSingleVerdict,
   parseSubsetVerdict,
+  parseJsonVerdict,
 } from "../convex/utils/verdict_parser";
 
 describe("verdict_parser", () => {
@@ -42,6 +43,15 @@ describe("verdict_parser", () => {
     });
   });
 
+  test("parseSingleVerdict is case-insensitive", () => {
+    const result = parseSingleVerdict("verdict: d");
+    expect(result).toEqual({
+      rawVerdict: "d",
+      decodedScores: [4],
+      abstained: false,
+    });
+  });
+
   test("parseSingleVerdict ignores trailing content after verdict line", () => {
     const result = parseSingleVerdict("VERDICT: C\nBecause...");
     expect(result).toEqual({
@@ -60,12 +70,16 @@ describe("verdict_parser", () => {
     });
   });
 
-  test("parseSubsetVerdict ignores unknown labels", () => {
+  test("parseSubsetVerdict rejects unknown labels", () => {
     const mapping = { abc123: 2 };
-    const result = parseSubsetVerdict("VERDICT: abc123, nope", mapping);
+    expect(() => parseSubsetVerdict("VERDICT: abc123, nope", mapping)).toThrow();
+  });
+
+  test("parseSubsetVerdict handles slashes and spaces", () => {
+    const result = parseSubsetVerdict("VERDICT: A / C");
     expect(result).toEqual({
-      rawVerdict: "abc123, nope",
-      decodedScores: [2],
+      rawVerdict: "A / C",
+      decodedScores: [1, 3],
       abstained: false,
     });
   });
@@ -77,5 +91,68 @@ describe("verdict_parser", () => {
       decodedScores: [1, 4],
       abstained: false,
     });
+  });
+
+  test("parseSingleVerdict throws on missing verdict line", () => {
+    expect(() => parseSingleVerdict("No verdict here")).toThrow();
+  });
+
+  test("parseSingleVerdict throws on unknown label with mapping", () => {
+    const mapping = { abc123: 1 };
+    expect(() => parseSingleVerdict("VERDICT: nope", mapping)).toThrow();
+  });
+
+  test("parseSubsetVerdict throws on empty verdict", () => {
+    expect(() => parseSubsetVerdict("VERDICT: []")).toThrow();
+  });
+
+  test("parseSubsetVerdict throws on abstain mismatch", () => {
+    const result = parseSubsetVerdict("VERDICT: ABSTAIN");
+    expect(result).toEqual({
+      rawVerdict: "ABSTAIN",
+      decodedScores: null,
+      abstained: true,
+    });
+  });
+
+  test("parseJsonVerdict parses verdict JSON", () => {
+    const result = parseJsonVerdict(
+      'Reasoning...\nVERDICT_JSON: {"verdict":"C"}',
+    );
+    expect(result).toEqual({
+      rawVerdict: "C",
+      decodedScores: [3],
+      abstained: false,
+    });
+  });
+
+  test("parseJsonVerdict handles abstain", () => {
+    const result = parseJsonVerdict('VERDICT_JSON: {"verdict":"ABSTAIN"}');
+    expect(result).toEqual({
+      rawVerdict: "ABSTAIN",
+      decodedScores: null,
+      abstained: true,
+    });
+  });
+
+  test("parseJsonVerdict supports label mappings", () => {
+    const mapping = { x1Y2z3: 4 };
+    const result = parseJsonVerdict(
+      'VERDICT_JSON: {"verdict":"x1Y2z3"}',
+      mapping,
+    );
+    expect(result).toEqual({
+      rawVerdict: "x1Y2z3",
+      decodedScores: [4],
+      abstained: false,
+    });
+  });
+
+  test("parseJsonVerdict throws on invalid payload", () => {
+    expect(() => parseJsonVerdict("VERDICT_JSON: {bad}")).toThrow();
+  });
+
+  test("parseJsonVerdict throws on missing verdict field", () => {
+    expect(() => parseJsonVerdict('VERDICT_JSON: {"nope":1}')).toThrow();
   });
 });

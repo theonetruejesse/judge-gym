@@ -2,13 +2,11 @@
 
 An open-source LLM-as-Judge design space engine. Turborepo monorepo with bun (engine) and uv (analysis).
 
-Read `blueprint.md` for the full architecture and research protocol.
 
 ## Structure
 
 - `packages/engine/convex/` — Convex backend (schema, workflows, agents, strategies)
 - `packages/analysis/` — Python analysis (uv + Jupyter). DST, JSD, OLS.
-- `blueprint.md` — Architecture reference and research protocol
 
 ## Convex Code Style
 

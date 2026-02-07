@@ -169,7 +169,7 @@ The experimental pipeline proceeds in five stages:
 
 **Stage 1 — Evidence Collection.** For ECC and Control tasks: scrape news articles matching (concept, country, date window) via Firecrawl, then optionally neutralize tone via a fixed utility model (GPT-4.1 Mini). The neutralizer strips rhetorical devices, emotional language, and editorializing, producing 150-word clinical summaries. For Benchmark tasks: load pre-curated evidence. Evidence is shared across all experiments on the same window.
 
-**Stage 2 — Rubric Generation.** For ECC and Control tasks: the experiment's model generates an $n$-stage evaluative rubric (default $n=4$, even-numbered to eliminate center bias). A critic agent (fixed utility model) scores the rubric for observability and discriminability. For Benchmark tasks: load pre-defined rubrics.
+**Stage 2 — Rubric Generation.** For ECC and Control tasks: the experiment's model generates an $n$-stage evaluative rubric for the concept only (default $n=4$, even-numbered to eliminate center bias). A critic agent (fixed utility model) scores the rubric for observability and discriminability. For Benchmark tasks: load pre-defined rubrics.
 
 **Stage 3 — Scoring.** Each evidence item is scored multiple times (default 5) with varying random seeds. Strategy resolvers translate experiment configuration into concrete behavior: which content field (raw or neutralized), which prompt suffix (single or subset verdict), which output mode (free-form text or structured JSON), and which parser. Double randomization shuffles both label-to-stage mappings and display order to wash out position and anchor bias.
 
