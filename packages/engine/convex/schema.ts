@@ -66,7 +66,7 @@ export type ExperimentStatus = z.infer<typeof ExperimentStatusSchema>;
 
 // --- Table schemas ---
 export const ExperimentsTableSchema = z.object({
-  experimentId: z.string(),
+  experimentTag: z.string(),
   windowId: zid("windows"),
   modelId: modelTypeSchema,
   taskType: TaskTypeSchema,
@@ -96,7 +96,7 @@ const StageSchema = z.object({
 });
 
 export const RubricsTableSchema = z.object({
-  experimentId: z.string(),
+  experimentTag: z.string(),
   modelId: modelTypeSchema,
   concept: z.string(),
   scaleSize: z.number(),
@@ -109,7 +109,7 @@ export const RubricsTableSchema = z.object({
 });
 
 export const SamplesTableSchema = z.object({
-  experimentId: z.string(),
+  experimentTag: z.string(),
   modelId: modelTypeSchema,
   rubricId: zid("rubrics"),
   evidenceId: zid("evidence"),
@@ -143,7 +143,7 @@ export const UsageTableSchema = z.object({
 // --- Schema definition ---
 export default defineSchema({
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
-    .index("by_experiment_id", ["experimentId"])
+    .index("by_experiment_tag", ["experimentTag"])
     .index("by_task_type", ["taskType"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
   evidence: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
@@ -152,10 +152,10 @@ export default defineSchema({
   ),
   rubrics: defineTable(zodOutputToConvex(RubricsTableSchema)).index(
     "by_experiment_model",
-    ["experimentId", "modelId"],
+    ["experimentTag", "modelId"],
   ),
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
-    .index("by_experiment", ["experimentId"])
+    .index("by_experiment", ["experimentTag"])
     .index("by_rubric", ["rubricId"]),
   probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_sample", [
     "sampleId",

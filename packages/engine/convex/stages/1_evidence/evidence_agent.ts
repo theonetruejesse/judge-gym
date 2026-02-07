@@ -17,7 +17,7 @@ export class Neutralizer extends AbstractJudgeAgent {
 
   async neutralize(ctx: ActionCtx, rawContent: string): Promise<string> {
     await this.checkRateLimit(ctx);
-    // No experimentId for thread — utility operation, not experiment-specific
+    // No experimentTag for thread — utility operation, not experiment-specific
     const threadId = await this.createThread(ctx, "system:neutralization");
     const { text } = await this.agent.generateText(
       ctx,

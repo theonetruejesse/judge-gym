@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["bun.lockb"],
   "tasks": {
     "dev": {
       "cache": false,
@@ -11,6 +12,9 @@
     },
     "test": {
       "dependsOn": ["^test"],
+      "cache": false
+    },
+    "typecheck": {
       "cache": false
     }
   }

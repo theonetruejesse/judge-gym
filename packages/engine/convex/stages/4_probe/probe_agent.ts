@@ -16,7 +16,7 @@ export class Prober extends AbstractJudgeAgent {
   async probe(
     ctx: ActionCtx,
     args: {
-      experimentId: string;
+      experimentTag: string;
       sampleId: string;
       stageLabel: string;
       stageCriteria: string[];
@@ -26,7 +26,7 @@ export class Prober extends AbstractJudgeAgent {
     await this.checkRateLimit(ctx);
 
     // CRITICAL: fresh thread — no prior context from the scoring conversation
-    const threadId = await this.createThread(ctx, args.experimentId, {
+    const threadId = await this.createThread(ctx, args.experimentTag, {
       sampleId: args.sampleId,
       probeType: "expert-agreement",
     });

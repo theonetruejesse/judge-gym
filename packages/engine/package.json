@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "convex dev",
     "predev": "convex dev --until-success",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "trial": "bun scripts/trial.ts",
     "test": "bun test"
   },

@@ -36,14 +36,14 @@ export class Rubricer extends AbstractJudgeAgent {
   async generateRubric(
     ctx: ActionCtx,
     args: {
-      experimentId: string;
+      experimentTag: string;
       concept: string;
       country: string;
       scaleSize: number;
     },
   ) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, args.experimentId, {
+    const threadId = await this.createThread(ctx, args.experimentTag, {
       concept: args.concept,
     });
     const { object } = await this.agent.generateObject(
@@ -72,7 +72,7 @@ export class Critic extends AbstractJudgeAgent {
 
   async evaluate(ctx: ActionCtx, rubric: Doc<"rubrics">) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, rubric.experimentId, {
+    const threadId = await this.createThread(ctx, rubric.experimentTag, {
       rubricId: rubric._id.toString(),
     });
     const { object } = await this.agent.generateObject(

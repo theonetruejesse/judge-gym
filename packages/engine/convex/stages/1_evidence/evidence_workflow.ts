@@ -6,15 +6,15 @@ import { workflow } from "../../workflow_manager";
 export const evidenceWorkflow = workflow.define({
   args: {
     windowId: v.id("windows"),
-    experimentId: v.string(),
+    experimentTag: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (
     step,
-    { windowId, experimentId, limit },
+    { windowId, experimentTag, limit },
   ): Promise<{ collected: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const lim = limit ?? 15;
 
@@ -59,7 +59,7 @@ export const evidenceWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "evidence-done",
     });
 

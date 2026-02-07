@@ -24,26 +24,26 @@ export const createExperiment = zMutation({
 export const startEvidencePipeline = zMutation({
   args: z.object({
     windowId: zid("windows"),
-    experimentId: z.string(),
+    experimentTag: z.string(),
     limit: z.number().optional(),
   }),
-  handler: async (ctx, { windowId, experimentId, limit }) => {
+  handler: async (ctx, { windowId, experimentTag, limit }) => {
     await workflow.start(
       ctx,
       internal.stages["1_evidence"].evidence_workflow.evidenceWorkflow,
-      { windowId, experimentId, limit },
+      { windowId, experimentTag, limit },
     );
   },
 });
 
 // W2: Rubric generation
 export const startRubricGeneration = zMutation({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     await workflow.start(
       ctx,
       internal.stages["2_rubric"].rubric_workflow.rubricWorkflow,
-      { experimentId },
+      { experimentTag },
     );
   },
 });
@@ -51,14 +51,14 @@ export const startRubricGeneration = zMutation({
 // W3: Scoring trial
 export const startScoringTrial = zMutation({
   args: z.object({
-    experimentId: z.string(),
+    experimentTag: z.string(),
     samples: z.number().optional(),
   }),
-  handler: async (ctx, { experimentId, samples }) => {
+  handler: async (ctx, { experimentTag, samples }) => {
     await workflow.start(
       ctx,
       internal.stages["3_scoring"].scoring_workflow.scoringWorkflow,
-      { experimentId, samples },
+      { experimentTag, samples },
     );
   },
 });
@@ -66,26 +66,26 @@ export const startScoringTrial = zMutation({
 // W4: Rubric swap trial
 export const startSwapTrial = zMutation({
   args: z.object({
-    experimentId: z.string(),
+    experimentTag: z.string(),
     swapRubricFrom: z.string(),
   }),
-  handler: async (ctx, { experimentId, swapRubricFrom }) => {
+  handler: async (ctx, { experimentTag, swapRubricFrom }) => {
     await workflow.start(
       ctx,
       internal.stages["3_scoring"].scoring_workflow.swapWorkflow,
-      { experimentId, swapRubricFrom },
+      { experimentTag, swapRubricFrom },
     );
   },
 });
 
 // W5: Epistemic probing
 export const startProbingTrial = zMutation({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     await workflow.start(
       ctx,
       internal.stages["4_probe"].probe_workflow.probeWorkflow,
-      { experimentId },
+      { experimentTag },
     );
   },
 });

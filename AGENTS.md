@@ -25,6 +25,7 @@ Read `blueprint.md` for the full architecture and research protocol.
 - Do not run `bun dev`, `npx convex dev`, or `uv run jupyter` unless explicitly instructed; assume they are already running.
 - Do not call write operations (`main:*` mutations) unless explicitly instructed.
 - Do not modify environment variables without explicit user approval.
+- After any Convex code or schema changes, run `bun run typecheck` (root) to validate TypeScript types.
 
 ## MCP Operations
 
@@ -42,23 +43,23 @@ Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPEN
 | Function                     | Args                                                                           | Purpose                                        |
 | :--------------------------- | :----------------------------------------------------------------------------- | :--------------------------------------------- |
 | `main:createWindow`          | `{ startDate, endDate, country }`                                              | Create a time window for evidence collection   |
-| `main:createExperiment`      | `{ experimentId, windowId, modelId, taskType, concept, groundTruth?, config }` | Create an experiment (point in design space)   |
-| `main:startEvidencePipeline` | `{ windowId, experimentId, limit? }`                                           | W1: Collect + neutralize evidence for a window |
-| `main:startRubricGeneration` | `{ experimentId }`                                                             | W2: Generate rubric from experiment config     |
-| `main:startScoringTrial`     | `{ experimentId, samples? }`                                                   | W3: Run scoring workflow                       |
-| `main:startSwapTrial`        | `{ experimentId, swapRubricFrom }`                                             | W4: Rubric swap trial                          |
-| `main:startProbingTrial`     | `{ experimentId }`                                                             | W5: Epistemic probes                           |
+| `main:createExperiment`      | `{ experimentTag, windowId, modelId, taskType, concept, groundTruth?, config }` | Create an experiment (point in design space)   |
+| `main:startEvidencePipeline` | `{ windowId, experimentTag, limit? }`                                           | W1: Collect + neutralize evidence for a window |
+| `main:startRubricGeneration` | `{ experimentTag }`                                                             | W2: Generate rubric from experiment config     |
+| `main:startScoringTrial`     | `{ experimentTag, samples? }`                                                   | W3: Run scoring workflow                       |
+| `main:startSwapTrial`        | `{ experimentTag, swapRubricFrom }`                                             | W4: Rubric swap trial                          |
+| `main:startProbingTrial`     | `{ experimentTag }`                                                             | W5: Epistemic probes                           |
 
 ### Public Queries (Read Operations)
 
 | Function                         | Args               | Returns                          |
 | :------------------------------- | :----------------- | :------------------------------- |
-| `data:getExperimentSummary`      | `{ experimentId }` | Counts, models, status, taskType |
-| `data:listExperimentRubrics`     | `{ experimentId }` | Rubrics with qualityStats        |
-| `data:listExperimentSamples`     | `{ experimentId }` | Samples with decodedScores       |
-| `data:listExperimentProbes`      | `{ experimentId }` | Probes with expertAgreementProb  |
+| `data:getExperimentSummary`      | `{ experimentTag }` | Counts, models, status, taskType |
+| `data:listExperimentRubrics`     | `{ experimentTag }` | Rubrics with qualityStats        |
+| `data:listExperimentSamples`     | `{ experimentTag }` | Samples with decodedScores       |
+| `data:listExperimentProbes`      | `{ experimentTag }` | Probes with expertAgreementProb  |
 | `data:listExperimentsByTaskType` | `{ taskType }`     | All experiments of a given type  |
-| `data:exportExperimentCSV`       | `{ experimentId }` | Flat denormalized rows           |
+| `data:exportExperimentCSV`       | `{ experimentTag }` | Flat denormalized rows           |
 
 ### Recipes
 
@@ -66,13 +67,13 @@ Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPEN
 
 1. `convex-run main:createWindow { ... }` → returns windowId
 2. `convex-run main:createExperiment { ... }` with full config
-3. `convex-run main:startEvidencePipeline { "windowId": "<id>", "experimentId": "...", "limit": 15 }`
+3. `convex-run main:startEvidencePipeline { "windowId": "<id>", "experimentTag": "...", "limit": 15 }`
 4. Monitor: `convex-logs` → watch for evidence pipeline complete
-5. `convex-run main:startRubricGeneration { "experimentId": "..." }`
-6. Verify: `convex-run data:listExperimentRubrics { "experimentId": "..." }`
-7. `convex-run main:startScoringTrial { "experimentId": "...", "samples": 5 }`
-8. Monitor: `convex-run data:getExperimentSummary { "experimentId": "..." }`
-9. `convex-run main:startProbingTrial { "experimentId": "..." }`
+5. `convex-run main:startRubricGeneration { "experimentTag": "..." }`
+6. Verify: `convex-run data:listExperimentRubrics { "experimentTag": "..." }`
+7. `convex-run main:startScoringTrial { "experimentTag": "...", "samples": 5 }`
+8. Monitor: `convex-run data:getExperimentSummary { "experimentTag": "..." }`
+9. `convex-run main:startProbingTrial { "experimentTag": "..." }`
 
 #### Quick data check
 

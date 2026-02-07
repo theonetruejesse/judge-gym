@@ -3,10 +3,10 @@ import { internal } from "../../_generated/api";
 import { workflow } from "../../workflow_manager";
 
 export const probeWorkflow = workflow.define({
-  args: { experimentId: v.string() },
-  handler: async (step, { experimentId }): Promise<{ probed: number }> => {
+  args: { experimentTag: v.string() },
+  handler: async (step, { experimentTag }): Promise<{ probed: number }> => {
     const samples = await step.runQuery(internal.repo.listNonAbstainedSamples, {
-      experimentId,
+      experimentTag,
     });
 
     const batchSize = 10;
@@ -25,7 +25,7 @@ export const probeWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "complete",
     });
 

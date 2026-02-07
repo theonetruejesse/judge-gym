@@ -18,7 +18,7 @@ export const probeOneSample = zInternalAction({
       evidenceId: sample.evidenceId,
     });
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId: sample.experimentId,
+      experimentTag: sample.experimentTag,
     });
 
     // Resolve the stage label that was selected
@@ -32,7 +32,7 @@ export const probeOneSample = zInternalAction({
     // Use the SAME model as the scorer, but in a FRESH thread
     const prober = new Prober(experiment.modelId);
     const result = await prober.probe(ctx, {
-      experimentId: sample.experimentId,
+      experimentTag: sample.experimentTag,
       sampleId: sample._id.toString(),
       stageLabel: stage.label,
       stageCriteria: stage.criteria,

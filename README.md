@@ -125,7 +125,7 @@ npx convex run main:createWindow \
 
 ```bash
 npx convex run main:createExperiment '{
-  "experimentId": "pilot_fascism_gpt4.1",
+  "experimentTag": "pilot_fascism_gpt4.1",
   "windowId": "<windowId>",
   "modelId": "gpt-4.1",
   "taskType": "ecc",
@@ -147,23 +147,23 @@ npx convex run main:createExperiment '{
 ```bash
 # W1: Collect + neutralize evidence
 npx convex run main:startEvidencePipeline \
-  '{"windowId":"<windowId>","experimentId":"pilot_fascism_gpt4.1","limit":15}'
+  '{"windowId":"<windowId>","experimentTag":"pilot_fascism_gpt4.1","limit":15}'
 
 # W2: Generate rubric
 npx convex run main:startRubricGeneration \
-  '{"experimentId":"pilot_fascism_gpt4.1"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1"}'
 
 # W3: Score (5 samples per evidence item)
 npx convex run main:startScoringTrial \
-  '{"experimentId":"pilot_fascism_gpt4.1","samples":5}'
+  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
 
 # W4: Rubric swap (optional — for high-divergence pairs)
 npx convex run main:startSwapTrial \
-  '{"experimentId":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4-5"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4-5"}'
 
 # W5: Epistemic probes
 npx convex run main:startProbingTrial \
-  '{"experimentId":"pilot_fascism_gpt4.1"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1"}'
 ```
 
 ### 4. Query results
@@ -171,11 +171,11 @@ npx convex run main:startProbingTrial \
 ```bash
 # Experiment summary
 npx convex run data:getExperimentSummary \
-  '{"experimentId":"pilot_fascism_gpt4.1"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1"}'
 
 # Export for analysis
 npx convex run data:exportExperimentCSV \
-  '{"experimentId":"pilot_fascism_gpt4.1"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1"}'
 ```
 
 ---

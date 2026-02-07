@@ -5,17 +5,17 @@ import { zQuery } from "./utils";
 // These are consumed by the Python analysis package via Convex HTTP API.
 
 export const getExperimentSummary = zQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
 
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
 
     const probes = await ctx.db.query("probes").collect();
@@ -23,7 +23,7 @@ export const getExperimentSummary = zQuery({
     const experimentProbes = probes.filter((p) => sampleIds.has(p.sampleId));
 
     return {
-      experimentId: experiment.experimentId,
+      experimentTag: experiment.experimentTag,
       modelId: experiment.modelId,
       concept: experiment.concept,
       taskType: experiment.taskType,
@@ -39,29 +39,29 @@ export const getExperimentSummary = zQuery({
 });
 
 export const listExperimentSamples = zQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     return ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
   },
 });
 
 export const listExperimentRubrics = zQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const rubrics = await ctx.db.query("rubrics").collect();
-    return rubrics.filter((r) => r.experimentId === experimentId);
+    return rubrics.filter((r) => r.experimentTag === experimentTag);
   },
 });
 
 export const listExperimentProbes = zQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
     const sampleIds = new Set(samples.map((s) => s._id));
 
@@ -81,22 +81,22 @@ export const listExperimentsByTaskType = zQuery({
 });
 
 export const exportExperimentCSV = zQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
 
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
 
     // Flat denormalized rows for pandas
     return samples.map((s) => ({
-      experimentId: s.experimentId,
+      experimentTag: s.experimentTag,
       modelId: s.modelId,
       concept: experiment.concept,
       taskType: experiment.taskType,

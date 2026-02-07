@@ -251,7 +251,7 @@ import type { ModelType } from "../schema";
 
 export type ThreadMeta = {
   stage: string;
-  experimentId: string;
+  experimentTag: string;
   modelId: string;
   [key: string]: string; // additional stage-specific metadata
 };
@@ -274,15 +274,15 @@ export abstract class AbstractJudgeAgent {
   /** Create a tagged thread for this operation. */
   protected async createThread(
     ctx: ActionCtx,
-    experimentId: string,
+    experimentTag: string,
     meta?: Record<string, string>,
   ): Promise<string> {
     return await createThread(ctx, components.agent, {
-      userId: experimentId, // groups threads by experiment for bulk cleanup
-      title: `${this.stageName}:${experimentId}:${this.modelId}`,
+      userId: experimentTag, // groups threads by experiment for bulk cleanup
+      title: `${this.stageName}:${experimentTag}:${this.modelId}`,
       summary: JSON.stringify({
         stage: this.stageName,
-        experimentId,
+        experimentTag,
         modelId: this.modelId,
         ...meta,
       } satisfies ThreadMeta),
@@ -478,9 +478,9 @@ export class Scorer extends AbstractJudgeAgent {
     this.strategies = resolveAll(config);
   }
 
-  async score(ctx, { experimentId, rubric, evidence, labelMapping }) {
+  async score(ctx, { experimentTag, rubric, evidence, labelMapping }) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, experimentId, {
+    const threadId = await this.createThread(ctx, experimentTag, {
       rubricId: rubric._id.toString(),
       scoringMethod: this.strategies.scoring.useGenerateObject
         ? "json"
@@ -533,13 +533,13 @@ export class Scorer extends AbstractJudgeAgent {
 
 export const scoreEvidence = zInternalAction({
   args: {
-    experimentId: z.string(),
+    experimentTag: z.string(),
     evidenceId: zid("evidence"),
     rubricId: zid("rubrics"),
   },
-  handler: async (ctx, { experimentId, evidenceId, rubricId }) => {
+  handler: async (ctx, { experimentTag, evidenceId, rubricId }) => {
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
     const evidence = await ctx.runQuery(internal.repo.getEvidence, {
@@ -554,14 +554,14 @@ export const scoreEvidence = zInternalAction({
       : undefined;
 
     const result = await scorer.score(ctx, {
-      experimentId,
+      experimentTag,
       rubric,
       evidence,
       labelMapping,
     });
 
     await ctx.runMutation(internal.repo.createSample, {
-      experimentId,
+      experimentTag,
       modelId: experiment.modelId,
       rubricId,
       evidenceId,
@@ -749,32 +749,32 @@ The abstract agent calls `checkRateLimit()` before every generation. The `usageH
 
 ```typescript
 // Setup
-main.createExperiment({ experimentId, windowId, modelId, taskType, concept, groundTruth?, config })
+main.createExperiment({ experimentTag, windowId, modelId, taskType, concept, groundTruth?, config })
 main.createWindow({ startDate, endDate, country })
 
 // Workflow triggers — config-driven, experiment carries all parameters
 main.startEvidencePipeline({ windowId, limit? })           // W1: shared per window
-main.startRubricGeneration({ experimentId })                // W2: reads config from experiment
-main.startScoringTrial({ experimentId, samples? })          // W3: reads model, rubric, config from experiment
-main.startSwapTrial({ experimentId, swapRubricFrom })       // W4: reads config, swaps rubric source
-main.startProbingTrial({ experimentId })                     // W5: probes all non-abstained samples
+main.startRubricGeneration({ experimentTag })                // W2: reads config from experiment
+main.startScoringTrial({ experimentTag, samples? })          // W3: reads model, rubric, config from experiment
+main.startSwapTrial({ experimentTag, swapRubricFrom })       // W4: reads config, swaps rubric source
+main.startProbingTrial({ experimentTag })                     // W5: probes all non-abstained samples
 
 // Benchmark data loading (taskType: "benchmark" only)
 main.loadBenchmarkEvidence({ windowId, datasetPath })
-main.loadBenchmarkRubric({ experimentId, rubricPath })
+main.loadBenchmarkRubric({ experimentTag, rubricPath })
 ```
 
 **`data.ts` — read queries for external consumption.** The analysis package (Python) calls these via Convex HTTP API. This is the interface contract between engine and analysis.
 
 ```typescript
 // Read queries — consumed by analysis package
-data.listExperimentRubrics({ experimentId })      → rubrics with qualityStats
-data.listExperimentSamples({ experimentId })       → samples with decoded scores
-data.listExperimentProbes({ experimentId })        → probes with expert agreement probs
-data.getExperimentSummary({ experimentId })        → counts, models, concepts, status, taskType
+data.listExperimentRubrics({ experimentTag })      → rubrics with qualityStats
+data.listExperimentSamples({ experimentTag })       → samples with decoded scores
+data.listExperimentProbes({ experimentTag })        → probes with expert agreement probs
+data.getExperimentSummary({ experimentTag })        → counts, models, concepts, status, taskType
 data.listExperimentsByTaskType({ taskType })       → all experiments of a given type
-data.exportExperimentCSV({ experimentId })         → flat denormalized rows for pandas
-data.exportDesignSpaceCSV({ experimentIds })       → pooled ablation export across experiments
+data.exportExperimentCSV({ experimentTag })         → flat denormalized rows for pandas
+data.exportDesignSpaceCSV({ experimentTags })       → pooled ablation export across experiments
 ```
 
 **v1 reference:** `ai-benchmarking/convex/app/main.ts` combined both concerns. v2 separates them.
@@ -803,7 +803,7 @@ export const GroundTruthSchema = z.object({
 });
 
 export const ExperimentsTableSchema = z.object({
-  experimentId: z.string(), // human-readable ID, e.g. "pilot_v2_2026-02"
+  experimentTag: z.string(), // human-readable ID, e.g. "pilot_v2_2026-02"
   windowId: zid("windows"),
   modelId: modelTypeSchema,
 
@@ -841,7 +841,7 @@ export const ExperimentsTableSchema = z.object({
 });
 ```
 
-**Index:** `by_experiment_id` on `["experimentId"]`, `by_task_type` on `["taskType"]`.
+**Index:** `by_experiment_tag` on `["experimentTag"]`, `by_task_type` on `["taskType"]`.
 
 #### Key Design Decisions
 
@@ -896,7 +896,7 @@ const StageSchema = z.object({
 });
 
 export const RubricsTableSchema = z.object({
-  experimentId: z.string(),
+  experimentTag: z.string(),
   modelId: modelTypeSchema,
   concept: z.string(), // free-form, inherited from experiment
   scaleSize: z.number(), // 4 (default), 3, 5, or 10 — matches experiment config
@@ -911,13 +911,13 @@ export const RubricsTableSchema = z.object({
 
 > **Design change from previous blueprint:** Stages are now a dynamic `z.array(StageSchema)` instead of `stage_1` through `stage_5` fixed fields. This supports `scaleSize` as an ablation axis (3, 4, 5, 10-point scales). The **default is 4 stages** (no midpoint), which eliminates center bias — models can't hedge on an "Ambiguous/Mixed Evidence" midpoint. For odd-numbered scales (3, 5), the midpoint is constrained as "Ambiguous/Mixed Evidence." The 4-point even scale forces a directional commitment, which produces cleaner signal for DST aggregation.
 
-**Index:** `by_experiment_model` on `["experimentId", "modelId"]`.
+**Index:** `by_experiment_model` on `["experimentTag", "modelId"]`.
 
 ### `samples`
 
 ```typescript
 export const SamplesTableSchema = z.object({
-  experimentId: z.string(),
+  experimentTag: z.string(),
   modelId: modelTypeSchema,
   rubricId: zid("rubrics"),
   evidenceId: zid("evidence"),
@@ -933,7 +933,7 @@ export const SamplesTableSchema = z.object({
 
 > **Design note:** `decodedScores` is always an array, even for `freeform-suffix-single` (just a singleton array). This keeps the schema uniform. For DST aggregation, each sample's `decodedScores` becomes the focal element $A \subseteq \Theta$ with $m(A) = 1$. For traditional analysis, take `decodedScores[0]` from singleton results.
 
-**Indexes:** `by_experiment` on `["experimentId"]`, `by_rubric` on `["rubricId"]`.
+**Indexes:** `by_experiment` on `["experimentTag"]`, `by_rubric` on `["rubricId"]`.
 
 ### `probes`
 
@@ -970,7 +970,7 @@ export const UsageTableSchema = z.object({
 ```typescript
 export default defineSchema({
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
-    .index("by_experiment_id", ["experimentId"])
+    .index("by_experiment_tag", ["experimentTag"])
     .index("by_task_type", ["taskType"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
   evidence: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
@@ -979,10 +979,10 @@ export default defineSchema({
   ),
   rubrics: defineTable(zodOutputToConvex(RubricsTableSchema)).index(
     "by_experiment_model",
-    ["experimentId", "modelId"],
+    ["experimentTag", "modelId"],
   ),
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
-    .index("by_experiment", ["experimentId"])
+    .index("by_experiment", ["experimentTag"])
     .index("by_rubric", ["rubricId"]),
   probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_sample", [
     "sampleId",
@@ -1007,7 +1007,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 
 2a. ECC experiments — one per (model, concept, config):
     main.createExperiment({
-      experimentId: "pilot_fascism_gpt4.1",
+      experimentTag: "pilot_fascism_gpt4.1",
       windowId: usaWindowId,
       modelId: "gpt-4.1",
       taskType: "ecc",
@@ -1022,7 +1022,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 
 2b. Control experiment — same pipeline, but we have a reference answer:
     main.createExperiment({
-      experimentId: "pilot_norway_gpt4.1",
+      experimentTag: "pilot_norway_gpt4.1",
       windowId: norwayWindowId,
       modelId: "gpt-4.1",
       taskType: "control",
@@ -1037,7 +1037,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 
 2c. Benchmark experiment (JudgeBench) — pre-loaded evidence + rubric, known answers:
     main.createExperiment({
-      experimentId: "bench_judgebench_gpt4.1",
+      experimentTag: "bench_judgebench_gpt4.1",
       windowId: benchWindowId,   // special window for benchmark data
       modelId: "gpt-4.1",
       taskType: "benchmark",
@@ -1083,13 +1083,13 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 
 ```
 5a. ECC / Control tasks:
-    main.startRubricGeneration({ experimentId })
+    main.startRubricGeneration({ experimentTag })
     → LLM generates rubric for concept × country with config.scaleSize stages
     → Prompt includes country-specific framing (e.g., "evaluating democracy quality in Norway")
     → The model does NOT know whether this is ECC or Control
 
 5b. Benchmark tasks:
-    main.loadBenchmarkRubric({ experimentId, rubricPath: "benchmarks/judgebench/rubric.json" })
+    main.loadBenchmarkRubric({ experimentTag, rubricPath: "benchmarks/judgebench/rubric.json" })
     → Loads pre-defined rubric into rubrics table
     → qualityStats set to { observabilityScore: 1.0, discriminabilityScore: 1.0 }
 
@@ -1099,7 +1099,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 ### Phase 3: Scoring (W3)
 
 ```
-7. main.startScoringTrial({ experimentId, samples: 5 })
+7. main.startScoringTrial({ experimentTag, samples: 5 })
    → Runs 5 × (evidence count) scoring workflows per experiment
    → Rate limiter prevents thundering herd
 
@@ -1112,7 +1112,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 9. Analyze Phase 3 → select high-divergence model pairs
 
 10. main.startSwapTrial({
-      experimentId: "pilot_fascism_gpt4.1",
+      experimentTag: "pilot_fascism_gpt4.1",
       swapRubricFrom: "claude-sonnet-4.5",
     })
 ```
@@ -1120,7 +1120,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 ### Phase 5: Epistemic Probe (W5)
 
 ```
-11. main.startProbingTrial({ experimentId })
+11. main.startProbingTrial({ experimentTag })
     → Probes all non-abstained samples
 ```
 
@@ -1138,7 +1138,7 @@ Create experiment records. Each is a point in the design space. **The `taskType`
 ### Phase 7: Cleanup
 
 ```
-13. debug.cleanupExperiment({ experimentId })
+13. debug.cleanupExperiment({ experimentTag })
     → Deletes agent threads, optionally keeps derived tables
 ```
 
@@ -1309,15 +1309,15 @@ stages/N_name/
 export const evidenceWorkflow = workflow.define({
   args: {
     windowId: v.id("windows"),
-    experimentId: v.string(),
+    experimentTag: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (
     step,
-    { windowId, experimentId, limit },
+    { windowId, experimentTag, limit },
   ): Promise<{ collected: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const lim = limit ?? 15;
 
@@ -1348,7 +1348,7 @@ export const evidenceWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "evidence-done",
     });
 
@@ -1449,7 +1449,7 @@ export class Neutralizer extends AbstractJudgeAgent {
 
   async neutralize(ctx: ActionCtx, rawContent: string): Promise<string> {
     await this.checkRateLimit(ctx);
-    // No experimentId for thread — utility operation, not experiment-specific
+    // No experimentTag for thread — utility operation, not experiment-specific
     const threadId = await this.createThread(ctx, "system:neutralization");
     const { text } = await this.agent.generateText(
       ctx,
@@ -1495,13 +1495,13 @@ CLINICAL SUMMARY:
 
 ```typescript
 export const rubricWorkflow = workflow.define({
-  args: { experimentId: v.string() },
+  args: { experimentTag: v.string() },
   handler: async (
     step,
-    { experimentId },
+    { experimentTag },
   ): Promise<{ rubricId: Id<"rubrics"> }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
 
     let rubricId: Id<"rubrics">;
@@ -1509,13 +1509,13 @@ export const rubricWorkflow = workflow.define({
     if (experiment.taskType === "benchmark") {
       rubricId = await step.runAction(
         internal.stages["2_rubric"].rubric_steps.loadBenchmarkRubric,
-        { experimentId },
+        { experimentTag },
       );
     } else {
       // ECC + Control: generate rubric then validate
       rubricId = await step.runAction(
         internal.stages["2_rubric"].rubric_steps.generateRubric,
-        { experimentId },
+        { experimentTag },
       );
 
       await step.runAction(
@@ -1525,7 +1525,7 @@ export const rubricWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "rubric-done",
     });
 
@@ -1539,10 +1539,10 @@ export const rubricWorkflow = workflow.define({
 ```typescript
 // --- Generate rubric via LLM ---
 export const generateRubric = zInternalAction({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }): Promise<Id<"rubrics">> => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }): Promise<Id<"rubrics">> => {
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const window = await ctx.runQuery(internal.repo.getWindow, {
       windowId: experiment.windowId,
@@ -1550,14 +1550,14 @@ export const generateRubric = zInternalAction({
 
     const rubricer = new Rubricer(experiment.modelId);
     const rubric = await rubricer.generateRubric(ctx, {
-      experimentId,
+      experimentTag,
       concept: experiment.concept,
       country: window.country,
       scaleSize: experiment.config.scaleSize,
     });
 
     const rubricId = await ctx.runMutation(internal.repo.createRubric, {
-      experimentId,
+      experimentTag,
       modelId: experiment.modelId,
       concept: experiment.concept,
       scaleSize: experiment.config.scaleSize,
@@ -1588,8 +1588,8 @@ export const validateRubric = zInternalAction({
 
 // --- Load pre-defined benchmark rubric ---
 export const loadBenchmarkRubric = zInternalAction({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }): Promise<Id<"rubrics">> => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }): Promise<Id<"rubrics">> => {
     // Load rubric from Convex storage — pre-uploaded during setup
     throw new Error("TODO: implement benchmark rubric loading");
   },
@@ -1634,14 +1634,14 @@ export class Rubricer extends AbstractJudgeAgent {
   async generateRubric(
     ctx: ActionCtx,
     args: {
-      experimentId: string;
+      experimentTag: string;
       concept: string;
       country: string;
       scaleSize: number;
     },
   ) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, args.experimentId, {
+    const threadId = await this.createThread(ctx, args.experimentTag, {
       concept: args.concept,
     });
     const { object } = await this.agent.generateObject(
@@ -1672,7 +1672,7 @@ export class Critic extends AbstractJudgeAgent {
 
   async evaluate(ctx: ActionCtx, rubric: Doc<"rubrics">) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, rubric.experimentId, {
+    const threadId = await this.createThread(ctx, rubric.experimentTag, {
       rubricId: rubric._id.toString(),
     });
     const { object } = await this.agent.generateObject(
@@ -1765,15 +1765,15 @@ Return JSON: { "observabilityScore": number, "discriminabilityScore": number }
 ```typescript
 export const scoringWorkflow = workflow.define({
   args: {
-    experimentId: v.string(),
+    experimentTag: v.string(),
     samples: v.optional(v.number()),
   },
   handler: async (
     step,
-    { experimentId, samples },
+    { experimentTag, samples },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
@@ -1782,7 +1782,7 @@ export const scoringWorkflow = workflow.define({
       },
     );
     const rubric = await step.runQuery(internal.repo.getRubricForExperiment, {
-      experimentId,
+      experimentTag,
     });
     const n = samples ?? 5;
 
@@ -1792,7 +1792,7 @@ export const scoringWorkflow = workflow.define({
         await step.runAction(
           internal.stages["3_scoring"].scoring_steps.scoreEvidence,
           {
-            experimentId,
+            experimentTag,
             evidenceId: evidence._id,
             rubricId: rubric._id,
             isSwap: false,
@@ -1804,7 +1804,7 @@ export const scoringWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "scoring",
     });
 
@@ -1814,15 +1814,15 @@ export const scoringWorkflow = workflow.define({
 
 export const swapWorkflow = workflow.define({
   args: {
-    experimentId: v.string(),
+    experimentTag: v.string(),
     swapRubricFrom: v.string(), // modelId of the rubric source
   },
   handler: async (
     step,
-    { experimentId, swapRubricFrom },
+    { experimentTag, swapRubricFrom },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
@@ -1845,7 +1845,7 @@ export const swapWorkflow = workflow.define({
       await step.runAction(
         internal.stages["3_scoring"].scoring_steps.scoreEvidence,
         {
-          experimentId,
+          experimentTag,
           evidenceId: evidence._id,
           rubricId: swapRubric._id,
           isSwap: true,
@@ -1865,7 +1865,7 @@ export const swapWorkflow = workflow.define({
 ```typescript
 export const scoreEvidence = zInternalAction({
   args: z.object({
-    experimentId: z.string(),
+    experimentTag: z.string(),
     evidenceId: zid("evidence"),
     rubricId: zid("rubrics"),
     isSwap: z.boolean(),
@@ -1873,10 +1873,10 @@ export const scoreEvidence = zInternalAction({
   }),
   handler: async (
     ctx,
-    { experimentId, evidenceId, rubricId, isSwap, displaySeed },
+    { experimentTag, evidenceId, rubricId, isSwap, displaySeed },
   ) => {
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
     const evidence = await ctx.runQuery(internal.repo.getEvidence, {
@@ -1892,14 +1892,14 @@ export const scoreEvidence = zInternalAction({
       : undefined;
 
     const result = await scorer.score(ctx, {
-      experimentId,
+      experimentTag,
       rubric,
       evidence,
       labelMapping,
     });
 
     await ctx.runMutation(internal.repo.createSample, {
-      experimentId,
+      experimentTag,
       modelId: experiment.modelId,
       rubricId,
       evidenceId,
@@ -2036,10 +2036,10 @@ export function generateLabelMapping(
 
 ```typescript
 export const probeWorkflow = workflow.define({
-  args: { experimentId: v.string() },
-  handler: async (step, { experimentId }): Promise<{ probed: number }> => {
+  args: { experimentTag: v.string() },
+  handler: async (step, { experimentTag }): Promise<{ probed: number }> => {
     const samples = await step.runQuery(internal.repo.listNonAbstainedSamples, {
-      experimentId,
+      experimentTag,
     });
 
     let probed = 0;
@@ -2052,7 +2052,7 @@ export const probeWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "complete",
     });
 
@@ -2075,7 +2075,7 @@ export const probeOneSample = zInternalAction({
       evidenceId: sample.evidenceId,
     });
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId: sample.experimentId,
+      experimentTag: sample.experimentTag,
     });
 
     // Resolve the stage label that was selected
@@ -2089,7 +2089,7 @@ export const probeOneSample = zInternalAction({
     // Use the SAME model as the scorer, but in a FRESH thread
     const prober = new Prober(experiment.modelId);
     const result = await prober.probe(ctx, {
-      experimentId: sample.experimentId,
+      experimentTag: sample.experimentTag,
       sampleId: sample._id.toString(),
       stageLabel: stage.label,
       stageCriteria: stage.criteria,
@@ -2128,7 +2128,7 @@ export class Prober extends AbstractJudgeAgent {
   async probe(
     ctx: ActionCtx,
     args: {
-      experimentId: string;
+      experimentTag: string;
       sampleId: string;
       stageLabel: string;
       stageCriteria: string[];
@@ -2138,7 +2138,7 @@ export class Prober extends AbstractJudgeAgent {
     await this.checkRateLimit(ctx);
 
     // CRITICAL: fresh thread — no prior context from the scoring conversation
-    const threadId = await this.createThread(ctx, args.experimentId, {
+    const threadId = await this.createThread(ctx, args.experimentTag, {
       sampleId: args.sampleId,
       probeType: "expert-agreement",
     });
@@ -2216,25 +2216,25 @@ Respond with ONLY a single number between 0.0 and 1.0.
 ```typescript
 // --- Experiments ---
 export const getExperiment = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     return experiment;
   },
 });
 
 export const patchExperiment = zInternalMutation({
-  args: z.object({ experimentId: z.string(), status: z.string() }),
-  handler: async (ctx, { experimentId, status }) => {
+  args: z.object({ experimentTag: z.string(), status: z.string() }),
+  handler: async (ctx, { experimentTag, status }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     await ctx.db.patch(experiment._id, { status });
   },
 });
@@ -2300,17 +2300,17 @@ export const getRubric = zInternalQuery({
 });
 
 export const getRubricForExperiment = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (!experiment) throw new Error("Experiment not found");
     const rubric = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
-        q.eq("experimentId", experimentId).eq("modelId", experiment.modelId),
+        q.eq("experimentTag", experimentTag).eq("modelId", experiment.modelId),
       )
       .first();
     if (!rubric) throw new Error("Rubric not found for experiment");
@@ -2347,11 +2347,11 @@ export const getSample = zInternalQuery({
 });
 
 export const listNonAbstainedSamples = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const all = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
     return all.filter((s) => !s.abstained);
   },
@@ -2387,7 +2387,7 @@ export const createExperiment = zMutation({
 export const startEvidencePipeline = zMutation({
   args: z.object({
     windowId: zid("windows"),
-    experimentId: z.string(),
+    experimentTag: z.string(),
     limit: z.number().optional(),
   }),
   handler: async (ctx, args) => {
@@ -2400,7 +2400,7 @@ export const startEvidencePipeline = zMutation({
 });
 
 export const startRubricGeneration = zMutation({
-  args: z.object({ experimentId: z.string() }),
+  args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, args) => {
     await workflow.start(
       ctx,
@@ -2411,7 +2411,7 @@ export const startRubricGeneration = zMutation({
 });
 
 export const startScoringTrial = zMutation({
-  args: z.object({ experimentId: z.string(), samples: z.number().optional() }),
+  args: z.object({ experimentTag: z.string(), samples: z.number().optional() }),
   handler: async (ctx, args) => {
     await workflow.start(
       ctx,
@@ -2422,7 +2422,7 @@ export const startScoringTrial = zMutation({
 });
 
 export const startSwapTrial = zMutation({
-  args: z.object({ experimentId: z.string(), swapRubricFrom: z.string() }),
+  args: z.object({ experimentTag: z.string(), swapRubricFrom: z.string() }),
   handler: async (ctx, args) => {
     await workflow.start(
       ctx,
@@ -2433,7 +2433,7 @@ export const startSwapTrial = zMutation({
 });
 
 export const startProbingTrial = zMutation({
-  args: z.object({ experimentId: z.string() }),
+  args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, args) => {
     await workflow.start(
       ctx,
@@ -2594,14 +2594,14 @@ These are the ONLY mutations the agent should call via `convex-run`:
 | Function                     | Args                                                                           | Purpose                                        |
 | :--------------------------- | :----------------------------------------------------------------------------- | :--------------------------------------------- |
 | `main:createWindow`          | `{ startDate, endDate, country }`                                              | Create a time window for evidence collection   |
-| `main:createExperiment`      | `{ experimentId, windowId, modelId, taskType, concept, groundTruth?, config }` | Create an experiment (point in design space)   |
+| `main:createExperiment`      | `{ experimentTag, windowId, modelId, taskType, concept, groundTruth?, config }` | Create an experiment (point in design space)   |
 | `main:startEvidencePipeline` | `{ windowId, limit? }`                                                         | W1: Collect + neutralize evidence for a window |
-| `main:startRubricGeneration` | `{ experimentId }`                                                             | W2: Generate rubric from experiment config     |
-| `main:startScoringTrial`     | `{ experimentId, samples? }`                                                   | W3: Run scoring workflow                       |
-| `main:startSwapTrial`        | `{ experimentId, swapRubricFrom }`                                             | W4: Rubric swap trial                          |
-| `main:startProbingTrial`     | `{ experimentId }`                                                             | W5: Epistemic probes                           |
+| `main:startRubricGeneration` | `{ experimentTag }`                                                             | W2: Generate rubric from experiment config     |
+| `main:startScoringTrial`     | `{ experimentTag, samples? }`                                                   | W3: Run scoring workflow                       |
+| `main:startSwapTrial`        | `{ experimentTag, swapRubricFrom }`                                             | W4: Rubric swap trial                          |
+| `main:startProbingTrial`     | `{ experimentTag }`                                                             | W5: Epistemic probes                           |
 | `main:loadBenchmarkEvidence` | `{ windowId, datasetPath }`                                                    | Load pre-curated evidence (benchmark tasks)    |
-| `main:loadBenchmarkRubric`   | `{ experimentId, rubricPath }`                                                 | Load pre-defined rubric (benchmark tasks)      |
+| `main:loadBenchmarkRubric`   | `{ experimentTag, rubricPath }`                                                 | Load pre-defined rubric (benchmark tasks)      |
 
 ### Public Queries (Read Operations)
 
@@ -2609,13 +2609,13 @@ These are the read queries the agent should call via `convex-run`:
 
 | Function                         | Args                | Returns                          |
 | :------------------------------- | :------------------ | :------------------------------- |
-| `data:getExperimentSummary`      | `{ experimentId }`  | Counts, models, status, taskType |
-| `data:listExperimentRubrics`     | `{ experimentId }`  | Rubrics with qualityStats        |
-| `data:listExperimentSamples`     | `{ experimentId }`  | Samples with decodedScores       |
-| `data:listExperimentProbes`      | `{ experimentId }`  | Probes with expertAgreementProb  |
+| `data:getExperimentSummary`      | `{ experimentTag }`  | Counts, models, status, taskType |
+| `data:listExperimentRubrics`     | `{ experimentTag }`  | Rubrics with qualityStats        |
+| `data:listExperimentSamples`     | `{ experimentTag }`  | Samples with decodedScores       |
+| `data:listExperimentProbes`      | `{ experimentTag }`  | Probes with expertAgreementProb  |
 | `data:listExperimentsByTaskType` | `{ taskType }`      | All experiments of a given type  |
-| `data:exportExperimentCSV`       | `{ experimentId }`  | Flat denormalized rows           |
-| `data:exportDesignSpaceCSV`      | `{ experimentIds }` | Pooled ablation export           |
+| `data:exportExperimentCSV`       | `{ experimentTag }`  | Flat denormalized rows           |
+| `data:exportDesignSpaceCSV`      | `{ experimentTags }` | Pooled ablation export           |
 
 ### Workflow Operation Recipes
 
@@ -2626,7 +2626,7 @@ These are the read queries the agent should call via `convex-run`:
    → returns windowId
 
 2. convex-run main:createExperiment {
-   "experimentId": "pilot_fascism_gpt4.1",
+   "experimentTag": "pilot_fascism_gpt4.1",
    "windowId": "<windowId>",
    "modelId": "gpt-4.1",
    "taskType": "ecc",
@@ -2645,17 +2645,17 @@ These are the read queries the agent should call via `convex-run`:
 
 4. Monitor: convex-logs → watch for "[W1] Evidence pipeline complete"
 
-5. convex-run main:startRubricGeneration { "experimentId": "pilot_fascism_gpt4.1" }
+5. convex-run main:startRubricGeneration { "experimentTag": "pilot_fascism_gpt4.1" }
 
-6. Verify: convex-run data:listExperimentRubrics { "experimentId": "pilot_fascism_gpt4.1" }
+6. Verify: convex-run data:listExperimentRubrics { "experimentTag": "pilot_fascism_gpt4.1" }
    → check qualityStats.observabilityScore > 0.5
 
-7. convex-run main:startScoringTrial { "experimentId": "pilot_fascism_gpt4.1", "samples": 5 }
+7. convex-run main:startScoringTrial { "experimentTag": "pilot_fascism_gpt4.1", "samples": 5 }
 
-8. Monitor: convex-run data:getExperimentSummary { "experimentId": "pilot_fascism_gpt4.1" }
+8. Monitor: convex-run data:getExperimentSummary { "experimentTag": "pilot_fascism_gpt4.1" }
    → wait for status: "complete" or check sample counts
 
-9. convex-run main:startProbingTrial { "experimentId": "pilot_fascism_gpt4.1" }
+9. convex-run main:startProbingTrial { "experimentTag": "pilot_fascism_gpt4.1" }
 
 ```
 

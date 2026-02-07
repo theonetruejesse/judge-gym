@@ -10,7 +10,7 @@ import { generateLabelMapping } from "./scoring_randomize";
 // --- Score a single evidence item against a rubric ---
 export const scoreEvidence = zInternalAction({
   args: z.object({
-    experimentId: z.string(),
+    experimentTag: z.string(),
     evidenceId: zid("evidence"),
     rubricId: zid("rubrics"),
     isSwap: z.boolean(),
@@ -18,10 +18,10 @@ export const scoreEvidence = zInternalAction({
   }),
   handler: async (
     ctx,
-    { experimentId, evidenceId, rubricId, isSwap, displaySeed },
+    { experimentTag, evidenceId, rubricId, isSwap, displaySeed },
   ) => {
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
     const evidence = await ctx.runQuery(internal.repo.getEvidence, {
@@ -37,14 +37,14 @@ export const scoreEvidence = zInternalAction({
       : undefined;
 
     const result = await scorer.score(ctx, {
-      experimentId,
+      experimentTag,
       rubric,
       evidence,
       labelMapping,
     });
 
     await ctx.runMutation(internal.repo.createSample, {
-      experimentId,
+      experimentTag,
       modelId: experiment.modelId,
       rubricId,
       evidenceId,
