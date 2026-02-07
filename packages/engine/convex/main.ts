@@ -13,6 +13,33 @@ export const initExperiment = zMutation({
     experiment: ExperimentsTableSchema.omit({ status: true, windowId: true }),
   }),
   handler: async (ctx, { window, experiment }) => {
+    const existingExperiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) =>
+        q.eq("experimentTag", experiment.experimentTag),
+      )
+      .unique();
+    if (existingExperiment) {
+      const existingWindow = await ctx.db.get(existingExperiment.windowId);
+      if (!existingWindow) throw new Error("Window not found");
+      if (
+        existingWindow.startDate !== window.startDate ||
+        existingWindow.endDate !== window.endDate ||
+        existingWindow.country !== window.country ||
+        existingWindow.concept !== window.concept
+      ) {
+        throw new Error(
+          `Window mismatch for experimentTag=${experiment.experimentTag}`,
+        );
+      }
+      return {
+        windowId: existingExperiment.windowId,
+        experimentId: existingExperiment._id,
+        reusedWindow: true,
+        reusedExperiment: true,
+      };
+    }
+
     const existingWindow = await ctx.db
       .query("windows")
       .withIndex("by_window_key", (q) =>
@@ -31,7 +58,12 @@ export const initExperiment = zMutation({
       status: "pending",
     });
 
-    return { windowId, experimentId, reusedWindow: Boolean(existingWindow) };
+    return {
+      windowId,
+      experimentId,
+      reusedWindow: Boolean(existingWindow),
+      reusedExperiment: false,
+    };
   },
 });
 
@@ -55,12 +87,12 @@ export const startEvidencePipeline = zMutation({
 
 // W2: Rubric generation
 export const startRubricGeneration = zMutation({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
+  args: z.object({ experimentTag: z.string(), samples: z.number().optional() }),
+  handler: async (ctx, { experimentTag, samples }) => {
     await workflow.start(
       ctx,
       internal.stages["2_rubric"].rubric_workflow.rubricWorkflow,
-      { experimentTag },
+      { experimentTag, samples },
     );
   },
 });

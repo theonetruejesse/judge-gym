@@ -6,6 +6,7 @@ import {
   ExperimentStatusSchema,
   RubricsTableSchema,
   SamplesTableSchema,
+  ScoresTableSchema,
   ProbesTableSchema,
   UsageTableSchema,
 } from "./schema";
@@ -135,6 +136,16 @@ export const getRubricForExperiment = zInternalQuery({
   },
 });
 
+export const listRubricsForExperiment = zInternalQuery({
+  args: z.object({ experimentId: zid("experiments") }),
+  handler: async (ctx, { experimentId }) => {
+    return ctx.db
+      .query("rubrics")
+      .withIndex("by_experiment_model", (q) => q.eq("experimentId", experimentId))
+      .collect();
+  },
+});
+
 export const getRubricByModelAndConcept = zInternalQuery({
   args: z.object({ modelId: z.string(), concept: z.string() }),
   handler: async (ctx, { modelId, concept }) => {
@@ -178,11 +189,37 @@ export const getSample = zInternalQuery({
   },
 });
 
-export const listNonAbstainedSamples = zInternalQuery({
+export const listSamplesByExperiment = zInternalQuery({
+  args: z.object({ experimentId: zid("experiments") }),
+  handler: async (ctx, { experimentId }) => {
+    return ctx.db
+      .query("samples")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .collect();
+  },
+});
+
+// --- Scores ---
+
+export const createScore = zInternalMutation({
+  args: ScoresTableSchema,
+  handler: async (ctx, args) => ctx.db.insert("scores", args),
+});
+
+export const getScore = zInternalQuery({
+  args: z.object({ scoreId: zid("scores") }),
+  handler: async (ctx, { scoreId }) => {
+    const score = await ctx.db.get(scoreId);
+    if (!score) throw new Error("Score not found");
+    return score;
+  },
+});
+
+export const listNonAbstainedScores = zInternalQuery({
   args: z.object({ experimentId: zid("experiments") }),
   handler: async (ctx, { experimentId }) => {
     const all = await ctx.db
-      .query("samples")
+      .query("scores")
       .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
       .collect();
     return all.filter((s) => !s.abstained);

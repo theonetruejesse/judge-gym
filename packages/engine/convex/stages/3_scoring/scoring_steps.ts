@@ -5,25 +5,21 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils";
 import { internal } from "../../_generated/api";
 import { Scorer } from "./scoring_agent";
-import { generateLabelMapping } from "../../utils/randomize";
 
 // --- Score a single evidence item against a rubric ---
 export const scoreEvidence = zInternalAction({
   args: z.object({
-    experimentTag: z.string(),
+    sampleId: zid("samples"),
     evidenceId: zid("evidence"),
-    rubricId: zid("rubrics"),
-    isSwap: z.boolean(),
-    displaySeed: z.number().optional(),
   }),
-  handler: async (
-    ctx,
-    { experimentTag, evidenceId, rubricId, isSwap, displaySeed },
-  ) => {
-    const experiment = await ctx.runQuery(internal.repo.getExperiment, {
-      experimentTag,
+  handler: async (ctx, { sampleId, evidenceId }) => {
+    const sample = await ctx.runQuery(internal.repo.getSample, { sampleId });
+    const experiment = await ctx.runQuery(internal.repo.getExperimentById, {
+      experimentId: sample.experimentId,
     });
-    const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
+    const rubric = await ctx.runQuery(internal.repo.getRubric, {
+      rubricId: sample.rubricId,
+    });
     const evidence = await ctx.runQuery(internal.repo.getEvidence, {
       evidenceId,
     });
@@ -31,27 +27,21 @@ export const scoreEvidence = zInternalAction({
     // Resolve strategies once at agent construction
     const scorer = new Scorer(experiment.modelId, experiment.config);
 
-    // Generate label mapping if randomization is enabled
-    const labelMapping = experiment.config.randomizeLabels
-      ? generateLabelMapping(experiment.config.scaleSize, displaySeed)
-      : undefined;
-
     const result = await scorer.score(ctx, {
-      experimentTag,
+      experimentTag: experiment.experimentTag,
       rubric,
       evidence,
-      labelMapping,
+      labelMapping: sample.labelMapping ?? undefined,
     });
 
-    await ctx.runMutation(internal.repo.createSample, {
+    await ctx.runMutation(internal.repo.createScore, {
+      sampleId: sample._id,
       experimentId: experiment._id,
       modelId: experiment.modelId,
-      rubricId,
+      rubricId: rubric._id,
       evidenceId,
       threadId: result.threadId,
-      isSwap,
-      labelMapping: labelMapping ?? undefined,
-      displaySeed,
+      isSwap: sample.isSwap,
       abstained: result.abstained,
       rawVerdict: result.rawVerdict,
       decodedScores: result.decodedScores,

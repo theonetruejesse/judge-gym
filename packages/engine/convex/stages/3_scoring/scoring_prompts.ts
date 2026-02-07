@@ -62,8 +62,10 @@ ${contextBlocks}
 
 TASK:
 1. Determine if the evidence allows for a judgment (Abstain if not).
-2. If yes, reason step-by-step about which criteria match the evidence.
+2. If yes, reason step-by-step about which criteria match the evidence (multiple stages may apply).
 3. ${systemInstruction}
+4. Use ONLY the stage identifiers shown before each stage (not the stage names).
+5. Your final line must contain ONLY the verdict template and nothing else.
 
 End your response exactly like this:
 ${promptSuffix}

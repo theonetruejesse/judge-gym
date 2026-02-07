@@ -20,9 +20,14 @@ export const getExperimentSummary = zQuery({
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
 
+    const scores = await ctx.db
+      .query("scores")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .collect();
+
     const probes = await ctx.db.query("probes").collect();
-    const sampleIds = new Set(samples.map((s) => s._id));
-    const experimentProbes = probes.filter((p) => sampleIds.has(p.sampleId));
+    const scoreIds = new Set(scores.map((s) => s._id));
+    const experimentProbes = probes.filter((p) => scoreIds.has(p.scoreId));
 
     return {
       experimentTag: experiment.experimentTag,
@@ -33,7 +38,8 @@ export const getExperimentSummary = zQuery({
       config: experiment.config,
       counts: {
         samples: samples.length,
-        abstained: samples.filter((s) => s.abstained).length,
+        scores: scores.length,
+        abstained: scores.filter((s) => s.abstained).length,
         probes: experimentProbes.length,
       },
     };
@@ -50,6 +56,21 @@ export const listExperimentSamples = zQuery({
     if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     return ctx.db
       .query("samples")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .collect();
+  },
+});
+
+export const listExperimentScores = zQuery({
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
+    const experiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .unique();
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
+    return ctx.db
+      .query("scores")
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
   },
@@ -80,14 +101,14 @@ export const listExperimentProbes = zQuery({
       .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
-    const samples = await ctx.db
-      .query("samples")
+    const scores = await ctx.db
+      .query("scores")
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
-    const sampleIds = new Set(samples.map((s) => s._id));
+    const scoreIds = new Set(scores.map((s) => s._id));
 
     const probes = await ctx.db.query("probes").collect();
-    return probes.filter((p) => sampleIds.has(p.sampleId));
+    return probes.filter((p) => scoreIds.has(p.scoreId));
   },
 });
 
@@ -116,11 +137,19 @@ export const exportExperimentCSV = zQuery({
       .query("samples")
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
+    const sampleById = new Map(samples.map((s) => [s._id, s]));
+
+    const scores = await ctx.db
+      .query("scores")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .collect();
 
     // Flat denormalized rows for pandas
-    return samples.map((s) => ({
+    return scores.map((score) => {
+      const sample = sampleById.get(score.sampleId);
+      return {
       experimentTag: experiment.experimentTag,
-      modelId: s.modelId,
+      modelId: score.modelId,
       concept: window.concept,
       taskType: experiment.taskType,
       scoringMethod: experiment.config.scoringMethod,
@@ -128,11 +157,16 @@ export const exportExperimentCSV = zQuery({
       randomizeLabels: experiment.config.randomizeLabels,
       neutralizeEvidence: experiment.config.neutralizeEvidence,
       promptOrdering: experiment.config.promptOrdering,
-      isSwap: s.isSwap,
-      abstained: s.abstained,
-      rawVerdict: s.rawVerdict,
-      decodedScores: s.decodedScores,
-      displaySeed: s.displaySeed,
-    }));
+      sampleId: score.sampleId,
+      rubricId: score.rubricId,
+      evidenceId: score.evidenceId,
+      isSwap: score.isSwap,
+      abstained: score.abstained,
+      rawVerdict: score.rawVerdict,
+      decodedScores: score.decodedScores,
+      displaySeed: sample?.displaySeed,
+      labelMapping: sample?.labelMapping,
+    };
+    });
   },
 });

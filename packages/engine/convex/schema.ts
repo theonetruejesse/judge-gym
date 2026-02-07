@@ -112,18 +112,26 @@ export const SamplesTableSchema = z.object({
   experimentId: zid("experiments"),
   modelId: modelTypeSchema,
   rubricId: zid("rubrics"),
-  evidenceId: zid("evidence"),
-  threadId: z.string(),
   isSwap: z.boolean(),
   labelMapping: z.record(z.string(), z.number()).optional(),
   displaySeed: z.number().optional(),
+});
+
+export const ScoresTableSchema = z.object({
+  sampleId: zid("samples"),
+  experimentId: zid("experiments"),
+  modelId: modelTypeSchema,
+  rubricId: zid("rubrics"),
+  evidenceId: zid("evidence"),
+  threadId: z.string(),
+  isSwap: z.boolean(),
   abstained: z.boolean(),
   rawVerdict: z.string().nullable(),
   decodedScores: z.array(z.number()).nullable(),
 });
 
 export const ProbesTableSchema = z.object({
-  sampleId: zid("samples"),
+  scoreId: zid("scores"),
   modelId: modelTypeSchema,
   threadId: z.string(),
   promptedStageLabel: z.string(),
@@ -160,8 +168,12 @@ export default defineSchema({
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
     .index("by_experiment", ["experimentId"])
     .index("by_rubric", ["rubricId"]),
-  probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_sample", [
-    "sampleId",
+  scores: defineTable(zodOutputToConvex(ScoresTableSchema))
+    .index("by_experiment", ["experimentId"])
+    .index("by_sample", ["sampleId"])
+    .index("by_rubric", ["rubricId"]),
+  probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_score", [
+    "scoreId",
   ]),
   usage: defineTable(zodOutputToConvex(UsageTableSchema)).index("by_provider", [
     "provider",
