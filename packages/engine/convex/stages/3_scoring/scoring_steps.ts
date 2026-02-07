@@ -44,7 +44,7 @@ export const scoreEvidence = zInternalAction({
     });
 
     await ctx.runMutation(internal.repo.createSample, {
-      experimentTag,
+      experimentId: experiment._id,
       modelId: experiment.modelId,
       rubricId,
       evidenceId,

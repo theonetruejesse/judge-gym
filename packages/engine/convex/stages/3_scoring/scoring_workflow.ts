@@ -14,12 +14,15 @@ export const scoringWorkflow = workflow.define({
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
     });
+    const window = await step.runQuery(internal.repo.getWindow, {
+      windowId: experiment.windowId,
+    });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
     );
     const rubric = await step.runQuery(internal.repo.getRubricForExperiment, {
-      experimentTag,
+      experimentId: experiment._id,
     });
     const n = samples ?? 5;
 
@@ -72,6 +75,9 @@ export const swapWorkflow = workflow.define({
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
     });
+    const windowDoc = await step.runQuery(internal.repo.getWindow, {
+      windowId: experiment.windowId,
+    });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
@@ -82,7 +88,7 @@ export const swapWorkflow = workflow.define({
       internal.repo.getRubricByModelAndConcept,
       {
         modelId: swapRubricFrom,
-        concept: experiment.concept,
+        concept: windowDoc.concept,
       },
     );
 

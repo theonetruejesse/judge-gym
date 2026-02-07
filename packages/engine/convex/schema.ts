@@ -70,7 +70,6 @@ export const ExperimentsTableSchema = z.object({
   windowId: zid("windows"),
   modelId: modelTypeSchema,
   taskType: TaskTypeSchema,
-  concept: z.string(),
   groundTruth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
   status: ExperimentStatusSchema,
@@ -80,6 +79,7 @@ export const WindowsTableSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   country: z.string(),
+  concept: z.string(),
 });
 
 export const EvidenceTableSchema = z.object({
@@ -96,7 +96,7 @@ const StageSchema = z.object({
 });
 
 export const RubricsTableSchema = z.object({
-  experimentTag: z.string(),
+  experimentId: zid("experiments"),
   modelId: modelTypeSchema,
   concept: z.string(),
   scaleSize: z.number(),
@@ -109,7 +109,7 @@ export const RubricsTableSchema = z.object({
 });
 
 export const SamplesTableSchema = z.object({
-  experimentTag: z.string(),
+  experimentId: zid("experiments"),
   modelId: modelTypeSchema,
   rubricId: zid("rubrics"),
   evidenceId: zid("evidence"),
@@ -145,17 +145,20 @@ export default defineSchema({
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
     .index("by_experiment_tag", ["experimentTag"])
     .index("by_task_type", ["taskType"]),
-  windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
+  windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index(
+    "by_window_key",
+    ["startDate", "endDate", "country", "concept"],
+  ),
   evidence: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
     "by_window_id",
     ["windowId"],
   ),
   rubrics: defineTable(zodOutputToConvex(RubricsTableSchema)).index(
     "by_experiment_model",
-    ["experimentTag", "modelId"],
+    ["experimentId", "modelId"],
   ),
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
-    .index("by_experiment", ["experimentTag"])
+    .index("by_experiment", ["experimentId"])
     .index("by_rubric", ["rubricId"]),
   probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_sample", [
     "sampleId",

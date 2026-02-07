@@ -12,10 +12,12 @@ export const getExperimentSummary = zQuery({
       .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
+    const window = await ctx.db.get(experiment.windowId);
+    if (!window) throw new Error("Window not found");
 
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
 
     const probes = await ctx.db.query("probes").collect();
@@ -25,7 +27,7 @@ export const getExperimentSummary = zQuery({
     return {
       experimentTag: experiment.experimentTag,
       modelId: experiment.modelId,
-      concept: experiment.concept,
+      concept: window.concept,
       taskType: experiment.taskType,
       status: experiment.status,
       config: experiment.config,
@@ -41,9 +43,14 @@ export const getExperimentSummary = zQuery({
 export const listExperimentSamples = zQuery({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
+    const experiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .unique();
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     return ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
   },
 });
@@ -51,17 +58,31 @@ export const listExperimentSamples = zQuery({
 export const listExperimentRubrics = zQuery({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
-    const rubrics = await ctx.db.query("rubrics").collect();
-    return rubrics.filter((r) => r.experimentTag === experimentTag);
+    const experiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .unique();
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
+    return ctx.db
+      .query("rubrics")
+      .withIndex("by_experiment_model", (q) =>
+        q.eq("experimentId", experiment._id),
+      )
+      .collect();
   },
 });
 
 export const listExperimentProbes = zQuery({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
+    const experiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .unique();
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
     const sampleIds = new Set(samples.map((s) => s._id));
 
@@ -88,17 +109,19 @@ export const exportExperimentCSV = zQuery({
       .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
+    const window = await ctx.db.get(experiment.windowId);
+    if (!window) throw new Error("Window not found");
 
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
 
     // Flat denormalized rows for pandas
     return samples.map((s) => ({
-      experimentTag: s.experimentTag,
+      experimentTag: experiment.experimentTag,
       modelId: s.modelId,
-      concept: experiment.concept,
+      concept: window.concept,
       taskType: experiment.taskType,
       scoringMethod: experiment.config.scoringMethod,
       scaleSize: experiment.config.scaleSize,
