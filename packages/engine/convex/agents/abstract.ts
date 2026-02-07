@@ -4,7 +4,6 @@ import type { ActionCtx } from "../_generated/server";
 import { MODEL_MAP } from "../utils";
 import {
   rateLimiter,
-  RATE_LIMIT_CONFIGS,
   RATE_LIMITED_MODELS,
   REQUEST_LIMIT_KEYS,
   type RateLimitedModel,

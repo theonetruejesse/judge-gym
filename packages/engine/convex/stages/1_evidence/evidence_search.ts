@@ -1,8 +1,8 @@
 "use node";
 
 import Firecrawl from "@mendable/firecrawl-js";
-import { env } from "./env";
-import { zInternalAction } from "./utils";
+import { env } from "../../env";
+import { zInternalAction } from "../../utils";
 import z from "zod";
 
 const firecrawl = new Firecrawl({ apiKey: env.FIRECRAWL_API_KEY });
