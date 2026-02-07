@@ -29,7 +29,7 @@ export const evidenceWorkflow = workflow.define({
     // ECC + Control: search news → insert evidence → optionally neutralize
     const window = await step.runQuery(internal.repo.getWindow, { windowId });
 
-    const results = await step.runAction(internal.search.searchNews, {
+    const results = await step.runAction(internal.stages["1_evidence"].evidence_search.searchNews, {
       concept: experiment.concept,
       country: window.country,
       startDate: window.startDate,
