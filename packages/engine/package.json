@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "convex dev",
-    "predev": "convex dev --until-success"
+    "predev": "convex dev --until-success",
+    "trial": "bun scripts/trial.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",

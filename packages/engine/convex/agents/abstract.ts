@@ -1,8 +1,14 @@
 import { Agent, createThread } from "@convex-dev/agent";
 import { components } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
-import { MODEL_MAP, providerFor } from "../utils";
-import { rateLimiter } from "../rate_limiter";
+import { MODEL_MAP } from "../utils";
+import {
+  rateLimiter,
+  RATE_LIMIT_CONFIGS,
+  RATE_LIMITED_MODELS,
+  REQUEST_LIMIT_KEYS,
+  type RateLimitedModel,
+} from "../rate_limiter";
 import { experimentConfig } from "../agent_config";
 import type { ModelType } from "../schema";
 
@@ -49,8 +55,9 @@ export abstract class AbstractJudgeAgent {
 
   /** Pre-flight rate limit check. Call before any generation. */
   protected async checkRateLimit(ctx: ActionCtx): Promise<void> {
-    const provider = providerFor(this.modelId);
-    await rateLimiter.limit(ctx, `${provider}:requests`, { throws: true });
-    await rateLimiter.limit(ctx, "global:requests", { throws: true });
+    if (!RATE_LIMITED_MODELS.has(this.modelId as RateLimitedModel)) return;
+    const model = this.modelId as RateLimitedModel;
+    const key = REQUEST_LIMIT_KEYS[model];
+    await rateLimiter.limit(ctx, key, { throws: true });
   }
 }

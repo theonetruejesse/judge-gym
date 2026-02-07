@@ -23,21 +23,32 @@ export const scoringWorkflow = workflow.define({
     });
     const n = samples ?? 5;
 
+    const workItems = evidenceList.flatMap((evidence) =>
+      Array.from({ length: n }, (_, i) => ({
+        evidenceId: evidence._id,
+        displaySeed: i,
+      })),
+    );
+    const batchSize = 10;
+
     let scored = 0;
-    for (const evidence of evidenceList) {
-      for (let i = 0; i < n; i++) {
-        await step.runAction(
-          internal.stages["3_scoring"].scoring_steps.scoreEvidence,
-          {
-            experimentId,
-            evidenceId: evidence._id,
-            rubricId: rubric._id,
-            isSwap: false,
-            displaySeed: i,
-          },
-        );
-        scored++;
-      }
+    for (let i = 0; i < workItems.length; i += batchSize) {
+      const chunk = workItems.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map((item) =>
+          step.runAction(
+            internal.stages["3_scoring"].scoring_steps.scoreEvidence,
+            {
+              experimentId,
+              evidenceId: item.evidenceId,
+              rubricId: rubric._id,
+              isSwap: false,
+              displaySeed: item.displaySeed,
+            },
+          ),
+        ),
+      );
+      scored += chunk.length;
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
@@ -75,19 +86,30 @@ export const swapWorkflow = workflow.define({
       },
     );
 
+    const workItems = evidenceList.map((evidence) => ({
+      evidenceId: evidence._id,
+      displaySeed: 0,
+    }));
+    const batchSize = 10;
+
     let scored = 0;
-    for (const evidence of evidenceList) {
-      await step.runAction(
-        internal.stages["3_scoring"].scoring_steps.scoreEvidence,
-        {
-          experimentId,
-          evidenceId: evidence._id,
-          rubricId: swapRubric._id,
-          isSwap: true,
-          displaySeed: 0,
-        },
+    for (let i = 0; i < workItems.length; i += batchSize) {
+      const chunk = workItems.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map((item) =>
+          step.runAction(
+            internal.stages["3_scoring"].scoring_steps.scoreEvidence,
+            {
+              experimentId,
+              evidenceId: item.evidenceId,
+              rubricId: swapRubric._id,
+              isSwap: true,
+              displaySeed: item.displaySeed,
+            },
+          ),
+        ),
       );
-      scored++;
+      scored += chunk.length;
     }
 
     return { scored };

@@ -11,7 +11,7 @@
         "--project-dir",
         "${workspaceFolder}/packages/engine",
         "--disable-tools",
-        "envList,envGet,envSet,envRemove"
+        "envList,envGet,envSet,envRemove,tables"
       ],
       "env": {
         "CONVEX_DEPLOYMENT": "dev:patient-wolverine-343"

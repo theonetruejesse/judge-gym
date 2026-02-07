@@ -26,16 +26,29 @@ export const evidenceWorkflow = workflow.define({
       return { collected: count };
     }
 
-    // ECC + Control: scrape → optionally neutralize
+    // ECC + Control: search news → insert evidence → optionally neutralize
     const window = await step.runQuery(internal.repo.getWindow, { windowId });
-    const evidenceIds: Id<"evidence">[] = await step.runAction(
-      internal.stages["1_evidence"].evidence_steps.scrapeNews,
-      {
-        windowId,
-        concept: experiment.concept,
-        country: window.country,
-        limit: lim,
-      },
+
+    const results = await step.runAction(internal.search.searchNews, {
+      concept: experiment.concept,
+      country: window.country,
+      startDate: window.startDate,
+      endDate: window.endDate,
+      limit: lim,
+    });
+    console.info(`[Evidence] Found ${results.length} articles`);
+
+    // Insert each result as evidence
+    const evidenceIds: Id<"evidence">[] = await Promise.all(
+      results.map(
+        (result: { title: string; url: string; rawContent: string }) =>
+          step.runMutation(internal.repo.createEvidence, {
+            windowId,
+            title: result.title,
+            url: result.url,
+            rawContent: result.rawContent,
+          }),
+      ),
     );
 
     if (experiment.config.neutralizeEvidence) {
@@ -49,6 +62,10 @@ export const evidenceWorkflow = workflow.define({
       experimentId,
       status: "evidence-done",
     });
+
+    console.info(
+      `[Evidence] Workflow complete — ${evidenceIds.length} articles collected`,
+    );
 
     return { collected: evidenceIds.length };
   },
