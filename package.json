@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build"
+    "build": "turbo build",
+    "test": "turbo test"
   },
   "devDependencies": {
     "@types/bun": "latest",
