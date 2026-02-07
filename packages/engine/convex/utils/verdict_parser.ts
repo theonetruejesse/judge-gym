@@ -14,14 +14,19 @@ export function parseSingleVerdict(
   decodedScores: number[] | null;
   abstained: boolean;
 } {
-  // Match alphanumeric token (letters or nanoid IDs)
-  const match = raw.match(/VERDICT:\s*([A-Za-z0-9]+)/i);
-  if (!match)
+  const lineMatch = raw.match(/VERDICT:\s*(.+)/i);
+  if (!lineMatch)
     return { rawVerdict: null, decodedScores: null, abstained: false };
 
-  const token = match[1];
-  if (token.toUpperCase() === "ABSTAIN")
+  const line = lineMatch[1].split("\n")[0].trim();
+  if (line.toUpperCase() === "ABSTAIN")
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
+
+  const tokenMatch = line.match(/[A-Za-z0-9]+/);
+  if (!tokenMatch)
+    return { rawVerdict: line, decodedScores: null, abstained: false };
+
+  const token = tokenMatch[0];
 
   const decoded = labelMapping
     ? labelMapping[token]
@@ -45,17 +50,21 @@ export function parseSubsetVerdict(
   if (!match)
     return { rawVerdict: null, decodedScores: null, abstained: false };
 
-  const verdict = match[1].trim();
-  if (verdict.toUpperCase() === "ABSTAIN")
+  const verdictLine = match[1].split("\n")[0].trim();
+  if (verdictLine.toUpperCase() === "ABSTAIN")
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
 
-  const tokens = verdict.split(",").map((t) => t.trim());
+  const cleaned = verdictLine.replace(/[\[\]]/g, "");
+  const tokens = cleaned
+    .split(/[,\s/]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
   const decoded = tokens
     .map((t) => (labelMapping ? labelMapping[t] : t.charCodeAt(0) - 64))
     .filter((d): d is number => d !== undefined);
 
   return {
-    rawVerdict: verdict,
+    rawVerdict: verdictLine,
     decodedScores: decoded.length > 0 ? decoded : null,
     abstained: false,
   };

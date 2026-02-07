@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "convex dev",
     "predev": "convex dev --until-success",
-    "trial": "bun scripts/trial.ts"
+    "trial": "bun scripts/trial.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",
