@@ -48,7 +48,11 @@ export class Prober extends AbstractJudgeAgent {
 
     // Parse the probability from the response
     const match = text.match(/([01](?:\.\d+)?)/);
-    const prob = match ? parseFloat(match[1]) : 0.5; // default 0.5 if parse fails
+
+    if (!match) throw new Error(`Failed to parse probability from probe response: ${text}`);
+    const prob = parseFloat(match[1]);
+    if (isNaN(prob)) throw new Error(`Invalid probability value parsed: ${match[1]}`);
+
     const clamped = Math.min(1.0, Math.max(0.0, prob));
 
     return { threadId, expertAgreementProb: clamped };

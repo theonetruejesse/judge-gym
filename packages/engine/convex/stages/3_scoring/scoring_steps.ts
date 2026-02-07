@@ -5,7 +5,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils";
 import { internal } from "../../_generated/api";
 import { Scorer } from "./scoring_agent";
-import { generateLabelMapping } from "./scoring_randomize";
+import { generateLabelMapping } from "../../utils/randomize";
 
 // --- Score a single evidence item against a rubric ---
 export const scoreEvidence = zInternalAction({
