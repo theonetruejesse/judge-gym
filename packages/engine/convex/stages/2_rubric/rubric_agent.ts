@@ -72,7 +72,7 @@ export class Critic extends AbstractJudgeAgent {
 
   async evaluate(ctx: ActionCtx, rubric: Doc<"rubrics">) {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, rubric.experimentTag, {
+    const threadId = await this.createThread(ctx, rubric.experimentId, {
       rubricId: rubric._id.toString(),
     });
     const { object } = await this.agent.generateObject(

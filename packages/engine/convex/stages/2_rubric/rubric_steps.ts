@@ -21,15 +21,15 @@ export const generateRubric = zInternalAction({
     const rubricer = new Rubricer(experiment.modelId);
     const rubric = await rubricer.generateRubric(ctx, {
       experimentTag,
-      concept: experiment.concept,
+      concept: window.concept,
       country: window.country,
       scaleSize: experiment.config.scaleSize,
     });
 
     const rubricId = await ctx.runMutation(internal.repo.createRubric, {
-      experimentTag,
+      experimentId: experiment._id,
       modelId: experiment.modelId,
-      concept: experiment.concept,
+      concept: window.concept,
       scaleSize: experiment.config.scaleSize,
       stages: rubric.stages,
       reasoning: rubric.reasoning,

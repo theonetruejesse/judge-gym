@@ -36,10 +36,17 @@ export const nukeTables = zInternalMutation({
 export const cleanupExperiment = zMutation({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
+    const experiment = await ctx.db
+      .query("experiments")
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .unique();
+
+    if (!experiment) return;
+
     // Delete samples
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
 
     for (const sample of samples) {
@@ -55,20 +62,17 @@ export const cleanupExperiment = zMutation({
     }
 
     // Delete rubrics
-    const rubrics = await ctx.db.query("rubrics").collect();
+    const rubrics = await ctx.db
+      .query("rubrics")
+      .withIndex("by_experiment_model", (q) =>
+        q.eq("experimentId", experiment._id),
+      )
+      .collect();
     for (const rubric of rubrics) {
-      if (rubric.experimentTag === experimentTag) {
-        await ctx.db.delete(rubric._id);
-      }
+      await ctx.db.delete(rubric._id);
     }
 
     // Delete experiment
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
-      .unique();
-    if (experiment) {
-      await ctx.db.delete(experiment._id);
-    }
+    await ctx.db.delete(experiment._id);
   },
 });

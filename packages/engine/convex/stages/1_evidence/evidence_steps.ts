@@ -30,8 +30,10 @@ export const neutralizeBatch = zInternalAction({
 
 // --- Load pre-curated benchmark evidence ---
 export const loadBenchmarkEvidence = zInternalAction({
-  args: z.object({ windowId: zid("windows"), concept: z.string() }),
-  handler: async (ctx, { windowId, concept }): Promise<number> => {
+  args: z.object({ windowId: zid("windows") }),
+  handler: async (ctx, { windowId }): Promise<number> => {
+    const window = await ctx.runQuery(internal.repo.getWindow, { windowId });
+    const concept = window.concept;
     // Load from Convex file storage — dataset uploaded during setup
     // Implementation depends on how benchmark data is stored
     // Returns count of evidence items loaded

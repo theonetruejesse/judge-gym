@@ -7,15 +7,32 @@ import { workflow } from "./workflow_manager";
 
 // --- Setup ---
 
-export const createWindow = zMutation({
-  args: WindowsTableSchema,
-  handler: async (ctx, args) => ctx.db.insert("windows", args),
-});
+export const initExperiment = zMutation({
+  args: z.object({
+    window: WindowsTableSchema,
+    experiment: ExperimentsTableSchema.omit({ status: true, windowId: true }),
+  }),
+  handler: async (ctx, { window, experiment }) => {
+    const existingWindow = await ctx.db
+      .query("windows")
+      .withIndex("by_window_key", (q) =>
+        q
+          .eq("startDate", window.startDate)
+          .eq("endDate", window.endDate)
+          .eq("country", window.country)
+          .eq("concept", window.concept),
+      )
+      .first();
 
-export const createExperiment = zMutation({
-  args: ExperimentsTableSchema.omit({ status: true }),
-  handler: async (ctx, args) =>
-    ctx.db.insert("experiments", { ...args, status: "pending" }),
+    const windowId = existingWindow?._id ?? (await ctx.db.insert("windows", window));
+    const experimentId = await ctx.db.insert("experiments", {
+      ...experiment,
+      windowId,
+      status: "pending",
+    });
+
+    return { windowId, experimentId, reusedWindow: Boolean(existingWindow) };
+  },
 });
 
 // --- Workflow triggers ---

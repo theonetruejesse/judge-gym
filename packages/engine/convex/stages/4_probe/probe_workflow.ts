@@ -5,8 +5,11 @@ import { workflow } from "../../workflow_manager";
 export const probeWorkflow = workflow.define({
   args: { experimentTag: v.string() },
   handler: async (step, { experimentTag }): Promise<{ probed: number }> => {
-    const samples = await step.runQuery(internal.repo.listNonAbstainedSamples, {
+    const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
+    });
+    const samples = await step.runQuery(internal.repo.listNonAbstainedSamples, {
+      experimentId: experiment._id,
     });
 
     const batchSize = 10;
