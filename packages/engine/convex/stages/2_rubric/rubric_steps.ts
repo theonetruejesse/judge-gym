@@ -22,7 +22,6 @@ export const generateRubric = zInternalAction({
     const rubric = await rubricer.generateRubric(ctx, {
       experimentTag,
       concept: window.concept,
-      country: window.country,
       scaleSize: experiment.config.scaleSize,
     });
 

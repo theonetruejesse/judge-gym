@@ -1,4 +1,3 @@
-import z from "zod";
 import type { ActionCtx } from "../../_generated/server";
 import type { Doc } from "../../_generated/dataModel";
 import type { ModelType } from "../../schema";
@@ -9,21 +8,10 @@ import {
   CRITIC_INSTRUCTIONS,
   rubricCriticPrompt,
 } from "./rubric_prompts";
-
-const RubricGenerationOutputSchema = z.object({
-  stages: z.array(
-    z.object({
-      label: z.string(),
-      criteria: z.array(z.string()),
-    }),
-  ),
-  reasoning: z.string(),
-});
-
-const QualityStatsSchema = z.object({
-  observabilityScore: z.number().min(0).max(1),
-  discriminabilityScore: z.number().min(0).max(1),
-});
+import {
+  parseRubricResponse,
+  parseQualityResponse,
+} from "../../utils/rubric_parser";
 
 /**
  * Rubricer — generates evaluative rubrics. Uses the experiment's model.
@@ -38,7 +26,6 @@ export class Rubricer extends AbstractJudgeAgent {
     args: {
       experimentTag: string;
       concept: string;
-      country: string;
       scaleSize: number;
     },
   ) {
@@ -46,19 +33,14 @@ export class Rubricer extends AbstractJudgeAgent {
     const threadId = await this.createThread(ctx, args.experimentTag, {
       concept: args.concept,
     });
-    const { object } = await this.agent.generateObject(
+    const { text } = await this.agent.generateText(
       ctx,
       { threadId },
       {
-        prompt: rubricGenerationPrompt(
-          args.concept,
-          args.country,
-          args.scaleSize,
-        ),
-        schema: RubricGenerationOutputSchema,
-      },
+        prompt: rubricGenerationPrompt(args.concept, args.scaleSize),
+      } as any,
     );
-    return object;
+    return parseRubricResponse(text, args.scaleSize);
   }
 }
 
@@ -75,14 +57,11 @@ export class Critic extends AbstractJudgeAgent {
     const threadId = await this.createThread(ctx, rubric.experimentId, {
       rubricId: rubric._id.toString(),
     });
-    const { object } = await this.agent.generateObject(
+    const { text } = await this.agent.generateText(
       ctx,
       { threadId },
-      {
-        prompt: rubricCriticPrompt(rubric),
-        schema: QualityStatsSchema,
-      },
+      { prompt: rubricCriticPrompt(rubric) } as any,
     );
-    return object;
+    return parseQualityResponse(text);
   }
 }

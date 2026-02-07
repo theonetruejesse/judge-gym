@@ -6,11 +6,10 @@ neutral, observable, and produce stages that are clearly distinguishable.
 
 export const rubricGenerationPrompt = (
   concept: string,
-  country: string,
   scaleSize: number,
 ) => `
 Design a ${scaleSize}-stage evaluative rubric for assessing the degree to
-which news evidence reflects "${concept}" in ${country}.
+which news evidence reflects "${concept}" within the context of a modern nation-state.
 
 REQUIREMENTS:
 - Exactly ${scaleSize} stages, numbered 1 through ${scaleSize}.
@@ -31,7 +30,20 @@ ${scaleSize % 2 === 1
 Also provide reasoning: explain why these ${scaleSize} stages form a coherent
 spectrum for evaluating "${concept}".
 
-Return JSON matching the schema.
+FORMAT:
+- Begin with your reasoning in plain text.
+- End your response with a rubric block exactly like this:
+
+RUBRIC:
+1) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>
+2) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>
+...
+${scaleSize}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>
+
+Rules:
+- Use semicolons to separate criteria.
+- 3–5 criteria per stage.
+- No extra text after the RUBRIC block.
 `;
 
 export const CRITIC_INSTRUCTIONS = `
@@ -58,5 +70,6 @@ QUALITY 2: Discriminability (0.0 to 1.0)
 - Could a trained rater reliably sort evidence into exactly one stage?
 - Deduct for overlapping criteria between adjacent stages.
 
-Return JSON: { "observabilityScore": number, "discriminabilityScore": number }
+Respond with EXACTLY one line:
+QUALITY: observability=<number> discriminability=<number>
 `;

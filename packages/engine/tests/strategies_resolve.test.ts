@@ -24,7 +24,7 @@ describe("strategies resolve", () => {
     expect(resolved.ordering.rubricFirst).toBe(false);
     expect(resolved.probe.freshWindow).toBe(false);
     expect(resolved.probe.recentMessages).toBe(10);
-    expect(resolved.scoring.useGenerateObject).toBe(false);
+    expect(typeof resolved.scoring.parseVerdict).toBe("function");
     expect(resolved.scoring.buildPromptSuffix(["A", "B"]))
       .toContain("A,B");
   });

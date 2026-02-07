@@ -1,4 +1,3 @@
-import z from "zod";
 import type { ActionCtx } from "../../_generated/server";
 import type { Doc } from "../../_generated/dataModel";
 import type { ModelType, ExperimentConfig } from "../../schema";
@@ -8,11 +7,6 @@ import {
   type ResolvedStrategies,
 } from "../../strategies/resolve";
 import { SCORING_INSTRUCTIONS, buildScoringPrompt } from "./scoring_prompts";
-
-// Zod schema for structured-json scoring method
-const verdictSchema = z.object({
-  verdict: z.string(),
-});
 
 /**
  * Scorer — strategy-driven evidence scoring agent.
@@ -43,9 +37,7 @@ export class Scorer extends AbstractJudgeAgent {
     await this.checkRateLimit(ctx);
     const threadId = await this.createThread(ctx, args.experimentTag, {
       rubricId: args.rubric._id.toString(),
-      scoringMethod: this.strategies.scoring.useGenerateObject
-        ? "json"
-        : "suffix",
+      scoringMethod: "suffix",
     });
 
     // Strategy drives which content field to use
@@ -64,25 +56,12 @@ export class Scorer extends AbstractJudgeAgent {
       rubricFirst: this.strategies.ordering.rubricFirst,
     });
 
-    let rawText: string;
-    if (this.strategies.scoring.useGenerateObject) {
-      const { object } = await this.agent.generateObject(
-        ctx,
-        { threadId },
-        {
-          prompt,
-          schema: verdictSchema,
-        },
-      );
-      rawText = object.verdict;
-    } else {
-      const { text } = await this.agent.generateText(
-        ctx,
-        { threadId },
-        { prompt } as any,
-      );
-      rawText = text;
-    }
+    const { text } = await this.agent.generateText(
+      ctx,
+      { threadId },
+      { prompt } as any,
+    );
+    const rawText = text;
 
     // Strategy drives the parser
     const result = this.strategies.scoring.parseVerdict(

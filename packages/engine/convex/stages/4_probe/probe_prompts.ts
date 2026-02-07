@@ -30,5 +30,6 @@ Consider:
 - Whether adjacent stages could plausibly fit the evidence equally well
 - Whether the criteria are sufficiently specific to constrain expert judgment
 
-Respond with ONLY a single number between 0.0 and 1.0.
+Respond with EXACTLY one line:
+EXPERT_AGREEMENT: <number>
 `;

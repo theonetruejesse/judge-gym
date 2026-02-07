@@ -1,6 +1,7 @@
 import {
   parseSingleVerdict,
   parseSubsetVerdict,
+  parseJsonVerdict,
 } from "../utils/verdict_parser";
 import type { ExperimentConfig } from "../schema";
 
@@ -16,7 +17,6 @@ export interface ScoringStrategy {
     decodedScores: number[] | null;
     abstained: boolean;
   };
-  useGenerateObject: boolean;
 }
 
 export function resolveScoringStrategy(
@@ -28,7 +28,6 @@ export function resolveScoringStrategy(
         `VERDICT: [${labels.join("/")}] or ABSTAIN`,
       systemInstruction: "Conclude with a single verdict from the options above.",
       parseVerdict: parseSingleVerdict,
-      useGenerateObject: false,
     },
     "freeform-suffix-subset": {
       buildPromptSuffix: (labels) =>
@@ -37,13 +36,13 @@ export function resolveScoringStrategy(
         "List ALL stage identifiers whose criteria are supported by the evidence. " +
         "You may select one or more stages.",
       parseVerdict: parseSubsetVerdict,
-      useGenerateObject: false,
     },
     "structured-json": {
-      buildPromptSuffix: () => "",
-      systemInstruction: "Return your verdict as structured output.",
-      parseVerdict: parseSingleVerdict,
-      useGenerateObject: true,
+      buildPromptSuffix: (labels) =>
+        `VERDICT_JSON: {"verdict":"${labels[0]}"} or {"verdict":"ABSTAIN"}`,
+      systemInstruction:
+        "Return a structured JSON verdict on the final line only.",
+      parseVerdict: parseJsonVerdict,
     },
   };
   return strategies[config.scoringMethod];
