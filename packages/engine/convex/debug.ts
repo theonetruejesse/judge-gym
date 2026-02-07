@@ -20,6 +20,7 @@ export const nukeTables = zInternalMutation({
       "evidence",
       "rubrics",
       "samples",
+      "scores",
       "probes",
       "usage",
     ] as const;
@@ -43,6 +44,23 @@ export const cleanupExperiment = zMutation({
 
     if (!experiment) return;
 
+    // Delete scores + probes
+    const scores = await ctx.db
+      .query("scores")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .collect();
+
+    for (const score of scores) {
+      const probes = await ctx.db
+        .query("probes")
+        .withIndex("by_score", (q) => q.eq("scoreId", score._id))
+        .collect();
+      for (const probe of probes) {
+        await ctx.db.delete(probe._id);
+      }
+      await ctx.db.delete(score._id);
+    }
+
     // Delete samples
     const samples = await ctx.db
       .query("samples")
@@ -50,14 +68,6 @@ export const cleanupExperiment = zMutation({
       .collect();
 
     for (const sample of samples) {
-      // Delete probes for this sample
-      const probes = await ctx.db
-        .query("probes")
-        .withIndex("by_sample", (q) => q.eq("sampleId", sample._id))
-        .collect();
-      for (const probe of probes) {
-        await ctx.db.delete(probe._id);
-      }
       await ctx.db.delete(sample._id);
     }
 

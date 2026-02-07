@@ -4,33 +4,41 @@ import type { Id } from "../../_generated/dataModel";
 import { workflow } from "../../workflow_manager";
 
 export const rubricWorkflow = workflow.define({
-  args: { experimentTag: v.string() },
+  args: { experimentTag: v.string(), samples: v.optional(v.number()) },
   handler: async (
     step,
-    { experimentTag },
-  ): Promise<{ rubricId: Id<"rubrics"> }> => {
+    { experimentTag, samples },
+  ): Promise<{ rubricIds: Id<"rubrics">[] }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
     });
 
-    let rubricId: Id<"rubrics">;
+    const rubricIds: Id<"rubrics">[] = [];
+    const count = samples ?? 1;
 
     if (experiment.taskType === "benchmark") {
-      rubricId = await step.runAction(
+      if (count !== 1) {
+        throw new Error("Benchmark tasks only support samples=1 for rubrics.");
+      }
+      const rubricId = await step.runAction(
         internal.stages["2_rubric"].rubric_steps.loadBenchmarkRubric,
         { experimentTag },
       );
+      rubricIds.push(rubricId);
     } else {
       // ECC + Control: generate rubric then validate
-      rubricId = await step.runAction(
-        internal.stages["2_rubric"].rubric_steps.generateRubric,
-        { experimentTag },
-      );
+      for (let i = 0; i < count; i += 1) {
+        const rubricId = await step.runAction(
+          internal.stages["2_rubric"].rubric_steps.generateRubric,
+          { experimentTag },
+        );
 
-      await step.runAction(
-        internal.stages["2_rubric"].rubric_steps.validateRubric,
-        { rubricId },
-      );
+        await step.runAction(
+          internal.stages["2_rubric"].rubric_steps.validateRubric,
+          { rubricId },
+        );
+        rubricIds.push(rubricId);
+      }
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
@@ -38,6 +46,6 @@ export const rubricWorkflow = workflow.define({
       status: "rubric-done",
     });
 
-    return { rubricId };
+    return { rubricIds };
   },
 });

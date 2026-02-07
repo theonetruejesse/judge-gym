@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
 import { workflow } from "../../workflow_manager";
+import { generateLabelMapping } from "../../utils/randomize";
 
 export const scoringWorkflow = workflow.define({
   args: {
@@ -14,22 +15,46 @@ export const scoringWorkflow = workflow.define({
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
     });
-    const window = await step.runQuery(internal.repo.getWindow, {
+    const windowDoc = await step.runQuery(internal.repo.getWindow, {
       windowId: experiment.windowId,
     });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
     );
-    const rubric = await step.runQuery(internal.repo.getRubricForExperiment, {
+    const rubrics = await step.runQuery(internal.repo.listRubricsForExperiment, {
       experimentId: experiment._id,
     });
     const n = samples ?? 5;
+    if (rubrics.length < n) {
+      throw new Error(
+        `Not enough rubrics for ${experimentTag}: have ${rubrics.length}, need ${n}. ` +
+          "Run startRubricGeneration with samples=n first.",
+      );
+    }
 
-    const workItems = evidenceList.flatMap((evidence) =>
-      Array.from({ length: n }, (_, i) => ({
+    const selectedRubrics = rubrics.slice(0, n);
+    const sampleIds = [];
+    for (let i = 0; i < selectedRubrics.length; i += 1) {
+      const rubric = selectedRubrics[i];
+      const labelMapping = experiment.config.randomizeLabels
+        ? generateLabelMapping(experiment.config.scaleSize, i)
+        : undefined;
+      const sampleId = await step.runMutation(internal.repo.createSample, {
+        experimentId: experiment._id,
+        modelId: experiment.modelId,
+        rubricId: rubric._id,
+        isSwap: false,
+        labelMapping: labelMapping ?? undefined,
+        displaySeed: experiment.config.randomizeLabels ? i : undefined,
+      });
+      sampleIds.push(sampleId);
+    }
+
+    const workItems = sampleIds.flatMap((sampleId) =>
+      evidenceList.map((evidence) => ({
+        sampleId,
         evidenceId: evidence._id,
-        displaySeed: i,
       })),
     );
     const batchSize = 10;
@@ -42,11 +67,8 @@ export const scoringWorkflow = workflow.define({
           step.runAction(
             internal.stages["3_scoring"].scoring_steps.scoreEvidence,
             {
-              experimentTag,
+              sampleId: item.sampleId,
               evidenceId: item.evidenceId,
-              rubricId: rubric._id,
-              isSwap: false,
-              displaySeed: item.displaySeed,
             },
           ),
         ),
@@ -92,9 +114,21 @@ export const swapWorkflow = workflow.define({
       },
     );
 
+    const labelMapping = experiment.config.randomizeLabels
+      ? generateLabelMapping(experiment.config.scaleSize, 0)
+      : undefined;
+    const sampleId = await step.runMutation(internal.repo.createSample, {
+      experimentId: experiment._id,
+      modelId: experiment.modelId,
+      rubricId: swapRubric._id,
+      isSwap: true,
+      labelMapping: labelMapping ?? undefined,
+      displaySeed: experiment.config.randomizeLabels ? 0 : undefined,
+    });
+
     const workItems = evidenceList.map((evidence) => ({
       evidenceId: evidence._id,
-      displaySeed: 0,
+      sampleId,
     }));
     const batchSize = 10;
 
@@ -106,11 +140,8 @@ export const swapWorkflow = workflow.define({
           step.runAction(
             internal.stages["3_scoring"].scoring_steps.scoreEvidence,
             {
-              experimentTag,
+              sampleId: item.sampleId,
               evidenceId: item.evidenceId,
-              rubricId: swapRubric._id,
-              isSwap: true,
-              displaySeed: item.displaySeed,
             },
           ),
         ),

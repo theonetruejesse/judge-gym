@@ -34,7 +34,7 @@ export function resolveScoringStrategy(
         `VERDICT: [comma-separated IDs, e.g. ${labels.slice(0, 2).join(",")}] or ABSTAIN`,
       systemInstruction:
         "List ALL stage identifiers whose criteria are supported by the evidence. " +
-        "You may select one or more stages.",
+        "If multiple stages apply, include them all (do not collapse to a single stage).",
       parseVerdict: parseSubsetVerdict,
     },
     "structured-json": {

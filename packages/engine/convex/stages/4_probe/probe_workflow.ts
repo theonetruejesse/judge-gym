@@ -8,19 +8,19 @@ export const probeWorkflow = workflow.define({
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
     });
-    const samples = await step.runQuery(internal.repo.listNonAbstainedSamples, {
+    const scores = await step.runQuery(internal.repo.listNonAbstainedScores, {
       experimentId: experiment._id,
     });
 
     const batchSize = 10;
     let probed = 0;
-    for (let i = 0; i < samples.length; i += batchSize) {
-      const chunk = samples.slice(i, i + batchSize);
+    for (let i = 0; i < scores.length; i += batchSize) {
+      const chunk = scores.slice(i, i + batchSize);
       await Promise.all(
-        chunk.map((sample) =>
+        chunk.map((score) =>
           step.runAction(
             internal.stages["4_probe"].probe_steps.probeOneSample,
-            { sampleId: sample._id },
+            { scoreId: score._id },
           ),
         ),
       );
