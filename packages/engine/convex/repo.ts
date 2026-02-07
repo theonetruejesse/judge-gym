@@ -13,25 +13,25 @@ import {
 // --- Experiments ---
 
 export const getExperiment = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     return experiment;
   },
 });
 
 export const patchExperiment = zInternalMutation({
-  args: z.object({ experimentId: z.string(), status: ExperimentStatusSchema }),
-  handler: async (ctx, { experimentId, status }) => {
+  args: z.object({ experimentTag: z.string(), status: ExperimentStatusSchema }),
+  handler: async (ctx, { experimentTag, status }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentId}`);
+    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     await ctx.db.patch(experiment._id, { status });
   },
 });
@@ -100,17 +100,17 @@ export const getRubric = zInternalQuery({
 });
 
 export const getRubricForExperiment = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (!experiment) throw new Error("Experiment not found");
     const rubric = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
-        q.eq("experimentId", experimentId).eq("modelId", experiment.modelId),
+        q.eq("experimentTag", experimentTag).eq("modelId", experiment.modelId),
       )
       .first();
     if (!rubric) throw new Error("Rubric not found for experiment");
@@ -162,11 +162,11 @@ export const getSample = zInternalQuery({
 });
 
 export const listNonAbstainedSamples = zInternalQuery({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     const all = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
     return all.filter((s) => !s.abstained);
   },

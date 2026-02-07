@@ -36,12 +36,12 @@ const CONFIG = {
 // ── Main ─────────────────────────────────────────────────────────
 
 async function main() {
-  const experimentId = `ecc-${CONCEPT}-${WINDOW.country.toLowerCase()}-${nanoid(8)}`;
+  const experimentTag = `ecc-${CONCEPT}-${WINDOW.country.toLowerCase()}-${nanoid(8)}`;
 
   console.log("╔══════════════════════════════════════════╗");
   console.log("║        judge-gym · Trial Runner          ║");
   console.log("╚══════════════════════════════════════════╝\n");
-  console.log(`  Experiment : ${experimentId}`);
+  console.log(`  Experiment : ${experimentTag}`);
   console.log(`  Model      : ${MODEL}`);
   console.log(`  Concept    : ${CONCEPT}`);
   console.log(`  Window     : ${WINDOW.startDate} → ${WINDOW.endDate} (${WINDOW.country})`);
@@ -59,20 +59,20 @@ async function main() {
   // Step 2 — Create experiment
   log(2, "Creating experiment...");
   await client.mutation(api.main.createExperiment, {
-    experimentId,
+    experimentTag,
     windowId,
     modelId: MODEL,
     taskType: "ecc",
     concept: CONCEPT,
     config: CONFIG,
   });
-  log(2, `Experiment created → ${experimentId}\n`);
+  log(2, `Experiment created → ${experimentTag}\n`);
 
   // Step 3 — Start evidence pipeline
   log(3, `Starting evidence pipeline (limit: ${EVIDENCE_LIMIT})...`);
   await client.mutation(api.main.startEvidencePipeline, {
     windowId,
-    experimentId,
+    experimentTag,
     limit: EVIDENCE_LIMIT,
   });
   log(3, "Evidence pipeline kicked off. Polling for completion...\n");
@@ -80,7 +80,7 @@ async function main() {
   // Step 4 — Poll until evidence-done
   process.stdout.write("  Waiting");
   const summary = await poll(
-    () => client.query(api.data.getExperimentSummary, { experimentId }),
+    () => client.query(api.data.getExperimentSummary, { experimentTag }),
     (s) => s.status !== "pending",
     { interval: 5_000, maxAttempts: 120 }, // up to 10 min
   );
@@ -97,13 +97,13 @@ async function main() {
   // Next steps
   console.log("── Next Steps ──────────────────────────────");
   console.log(`  Rubric generation:`);
-  console.log(`    npx convex run main:startRubricGeneration '{"experimentId":"${experimentId}"}'`);
+  console.log(`    npx convex run main:startRubricGeneration '{"experimentTag":"${experimentTag}"}'`);
   console.log(`  Scoring trial:`);
-  console.log(`    npx convex run main:startScoringTrial '{"experimentId":"${experimentId}"}'`);
+  console.log(`    npx convex run main:startScoringTrial '{"experimentTag":"${experimentTag}"}'`);
   console.log(`  Probing trial:`);
-  console.log(`    npx convex run main:startProbingTrial '{"experimentId":"${experimentId}"}'`);
+  console.log(`    npx convex run main:startProbingTrial '{"experimentTag":"${experimentTag}"}'`);
   console.log(`  Check status:`);
-  console.log(`    npx convex run data:getExperimentSummary '{"experimentId":"${experimentId}"}'`);
+  console.log(`    npx convex run data:getExperimentSummary '{"experimentTag":"${experimentTag}"}'`);
 }
 
 main().catch((err) => {

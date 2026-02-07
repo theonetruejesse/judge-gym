@@ -13,7 +13,7 @@ import type { ModelType } from "../schema";
 
 export type ThreadMeta = {
   stage: string;
-  experimentId: string;
+  experimentTag: string;
   modelId: string;
   [key: string]: string;
 };
@@ -37,15 +37,15 @@ export abstract class AbstractJudgeAgent {
   /** Create a tagged thread for this operation. */
   protected async createThread(
     ctx: ActionCtx,
-    experimentId: string,
+    experimentTag: string,
     meta?: Record<string, string>,
   ): Promise<string> {
     return await createThread(ctx, components.agent, {
-      userId: experimentId,
-      title: `${this.stageName}:${experimentId}:${this.modelId}`,
+      userId: experimentTag,
+      title: `${this.stageName}:${experimentTag}:${this.modelId}`,
       summary: JSON.stringify({
         stage: this.stageName,
-        experimentId,
+        experimentTag,
         modelId: this.modelId,
         ...meta,
       } satisfies ThreadMeta),

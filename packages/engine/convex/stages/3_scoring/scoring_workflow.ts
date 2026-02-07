@@ -4,22 +4,22 @@ import { workflow } from "../../workflow_manager";
 
 export const scoringWorkflow = workflow.define({
   args: {
-    experimentId: v.string(),
+    experimentTag: v.string(),
     samples: v.optional(v.number()),
   },
   handler: async (
     step,
-    { experimentId, samples },
+    { experimentTag, samples },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
     );
     const rubric = await step.runQuery(internal.repo.getRubricForExperiment, {
-      experimentId,
+      experimentTag,
     });
     const n = samples ?? 5;
 
@@ -39,7 +39,7 @@ export const scoringWorkflow = workflow.define({
           step.runAction(
             internal.stages["3_scoring"].scoring_steps.scoreEvidence,
             {
-              experimentId,
+              experimentTag,
               evidenceId: item.evidenceId,
               rubricId: rubric._id,
               isSwap: false,
@@ -52,7 +52,7 @@ export const scoringWorkflow = workflow.define({
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
-      experimentId,
+      experimentTag,
       status: "scoring",
     });
 
@@ -62,15 +62,15 @@ export const scoringWorkflow = workflow.define({
 
 export const swapWorkflow = workflow.define({
   args: {
-    experimentId: v.string(),
+    experimentTag: v.string(),
     swapRubricFrom: v.string(), // modelId of the rubric source
   },
   handler: async (
     step,
-    { experimentId, swapRubricFrom },
+    { experimentTag, swapRubricFrom },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
-      experimentId,
+      experimentTag,
     });
     const evidenceList = await step.runQuery(
       internal.repo.listEvidenceByWindow,
@@ -100,7 +100,7 @@ export const swapWorkflow = workflow.define({
           step.runAction(
             internal.stages["3_scoring"].scoring_steps.scoreEvidence,
             {
-              experimentId,
+              experimentTag,
               evidenceId: item.evidenceId,
               rubricId: swapRubric._id,
               isSwap: true,

@@ -34,12 +34,12 @@ export const nukeTables = zInternalMutation({
 });
 
 export const cleanupExperiment = zMutation({
-  args: z.object({ experimentId: z.string() }),
-  handler: async (ctx, { experimentId }) => {
+  args: z.object({ experimentTag: z.string() }),
+  handler: async (ctx, { experimentTag }) => {
     // Delete samples
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment", (q) => q.eq("experimentTag", experimentTag))
       .collect();
 
     for (const sample of samples) {
@@ -57,7 +57,7 @@ export const cleanupExperiment = zMutation({
     // Delete rubrics
     const rubrics = await ctx.db.query("rubrics").collect();
     for (const rubric of rubrics) {
-      if (rubric.experimentId === experimentId) {
+      if (rubric.experimentTag === experimentTag) {
         await ctx.db.delete(rubric._id);
       }
     }
@@ -65,7 +65,7 @@ export const cleanupExperiment = zMutation({
     // Delete experiment
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_id", (q) => q.eq("experimentId", experimentId))
+      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
     if (experiment) {
       await ctx.db.delete(experiment._id);

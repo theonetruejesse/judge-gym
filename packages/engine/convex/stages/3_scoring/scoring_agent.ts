@@ -29,7 +29,7 @@ export class Scorer extends AbstractJudgeAgent {
   async score(
     ctx: ActionCtx,
     args: {
-      experimentId: string;
+      experimentTag: string;
       rubric: Doc<"rubrics">;
       evidence: Doc<"evidence">;
       labelMapping?: Record<string, number>;
@@ -41,7 +41,7 @@ export class Scorer extends AbstractJudgeAgent {
     abstained: boolean;
   }> {
     await this.checkRateLimit(ctx);
-    const threadId = await this.createThread(ctx, args.experimentId, {
+    const threadId = await this.createThread(ctx, args.experimentTag, {
       rubricId: args.rubric._id.toString(),
       scoringMethod: this.strategies.scoring.useGenerateObject
         ? "json"
