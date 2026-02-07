@@ -9,13 +9,19 @@ export const probeWorkflow = workflow.define({
       experimentId,
     });
 
+    const batchSize = 10;
     let probed = 0;
-    for (const sample of samples) {
-      await step.runAction(
-        internal.stages["4_probe"].probe_steps.probeOneSample,
-        { sampleId: sample._id },
+    for (let i = 0; i < samples.length; i += batchSize) {
+      const chunk = samples.slice(i, i + batchSize);
+      await Promise.all(
+        chunk.map((sample) =>
+          step.runAction(
+            internal.stages["4_probe"].probe_steps.probeOneSample,
+            { sampleId: sample._id },
+          ),
+        ),
       );
-      probed++;
+      probed += chunk.length;
     }
 
     await step.runMutation(internal.repo.patchExperiment, {

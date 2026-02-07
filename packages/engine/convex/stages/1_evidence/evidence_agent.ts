@@ -12,7 +12,7 @@ import {
 export class Neutralizer extends AbstractJudgeAgent {
   constructor() {
     // Fixed model — neutralization must be consistent across experiments
-    super("gpt-4.1-mini", NEUTRALIZE_INSTRUCTIONS, "neutralizer");
+    super("gpt-4.1", NEUTRALIZE_INSTRUCTIONS, "neutralizer");
   }
 
   async neutralize(ctx: ActionCtx, rawContent: string): Promise<string> {
