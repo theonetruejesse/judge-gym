@@ -1,5 +1,3 @@
-"use node";
-
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils";
