@@ -1,5 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import type { Id } from "./_generated/dataModel";
 import { components } from "./_generated/api";
 import { zInternalMutation, zMutation } from "./utils";
 
@@ -8,6 +9,12 @@ import { zInternalMutation, zMutation } from "./utils";
 /**
  * Dev utilities — use from dashboard or MCP during development.
  */
+
+type DeleteId =
+  | Id<"experiments">
+  | Id<"scores">
+  | Id<"samples">
+  | Id<"rubrics">;
 
 export const nukeTables = zInternalMutation({
   args: z.object({
@@ -118,11 +125,11 @@ async function cancelWorkflowsByExperimentTag(
 async function deleteExperimentData(
   ctx: {
     db: {
-      delete: (id: any) => Promise<void>;
+      delete: (id: DeleteId) => Promise<void>;
       query: (...args: any[]) => any;
     };
   },
-  experimentId: string,
+  experimentId: Id<"experiments">,
 ) {
   // Delete scores
   const scores = await ctx.db

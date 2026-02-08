@@ -8,6 +8,14 @@ import { resolveScaleStrategy } from "../../strategies/scale.strategy";
 import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
 import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
 
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 // --- Score a single evidence item against a rubric ---
 export const scoreEvidence = zInternalAction({
   args: z.object({
@@ -75,7 +83,7 @@ export const scoreEvidence = zInternalAction({
     }));
 
     const orderedStages = randomization.rubricOrderShuffle
-      ? [...stagesForPrompt].sort(() => Math.random() - 0.5)
+      ? shuffleArray([...stagesForPrompt])
       : stagesForPrompt;
 
     const verdictLabels = result.decodedScores.map((scoreValue) =>

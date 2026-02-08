@@ -29,9 +29,10 @@ async function runWithConcurrency<T>(
   const concurrency = Math.max(1, Math.min(limit, items.length));
   let index = 0;
   const workers = Array.from({ length: concurrency }, async () => {
-    while (index < items.length) {
+    while (true) {
       const current = index;
       index += 1;
+      if (current >= items.length) break;
       await worker(items[current]);
     }
   });

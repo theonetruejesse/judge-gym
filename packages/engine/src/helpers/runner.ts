@@ -45,7 +45,16 @@ export async function runExperiments(options: RunOptions) {
     });
   });
 
-  await Promise.all(runners);
+  const results = await Promise.allSettled(runners);
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failures.length > 0) {
+    console.error(
+      `${failures.length} experiment(s) failed:`,
+      failures.map((failure) => failure.reason),
+    );
+  }
 }
 
 async function ensureExperiment(options: {
