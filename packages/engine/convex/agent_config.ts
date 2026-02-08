@@ -15,6 +15,9 @@ import {
  */
 export const experimentConfig = {
   usageHandler: (async (ctx, args) => {
+    const reasoningTokens = args.usage.reasoningTokens ?? 0;
+    const cachedInputTokens = args.usage.cachedInputTokens ?? 0;
+
     // Record usage to DB
     await ctx.runMutation(internal.repo.createUsage, {
       threadId: args.threadId ?? "",
@@ -24,6 +27,8 @@ export const experimentConfig = {
       promptTokens: args.usage.inputTokens ?? 0,
       completionTokens: args.usage.outputTokens ?? 0,
       totalTokens: args.usage.totalTokens ?? 0,
+      reasoningTokens,
+      cachedInputTokens,
     });
 
     // Feed token consumption back to rate limiter
@@ -36,7 +41,7 @@ export const experimentConfig = {
         throws: false,
       });
       await rateLimiter.limit(ctx, outputKey, {
-        count: args.usage.outputTokens ?? 0,
+        count: (args.usage.outputTokens ?? 0) + reasoningTokens,
         throws: false,
       });
     }

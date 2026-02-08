@@ -13,6 +13,7 @@ interface ScoringPromptArgs {
   buildPromptSuffix: (labels: string[]) => string; // from strategy
   letterLabels: string[]; // from scale strategy (default A, B, C, D)
   rubricFirst: boolean; // from ordering strategy (Wei et al. ablation)
+  rubricOrderShuffle: boolean; // from randomization strategy
 }
 
 export const buildScoringPrompt = (args: ScoringPromptArgs): string => {
@@ -24,6 +25,7 @@ export const buildScoringPrompt = (args: ScoringPromptArgs): string => {
     buildPromptSuffix,
     letterLabels,
     rubricFirst,
+    rubricOrderShuffle,
   } = args;
 
   // Resolve the actual labels for this sample:
@@ -41,8 +43,7 @@ export const buildScoringPrompt = (args: ScoringPromptArgs): string => {
     return `${label}: "${stage.label}" — Criteria: ${stage.criteria.join("; ")}`;
   });
 
-  // If randomized, shuffle the presentation order
-  const orderedStages = labelMapping
+  const orderedStages = rubricOrderShuffle
     ? [...stages].sort(() => Math.random() - 0.5)
     : stages;
 

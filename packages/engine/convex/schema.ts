@@ -35,7 +35,9 @@ export const GroundTruthSchema = z.object({
 // --- Experiment config (design space axes) ---
 export const ExperimentConfigSchema = z.object({
   scaleSize: z.number(),
-  randomizeLabels: z.boolean(),
+  randomizations: z.array(
+    z.enum(["anon-label", "rubric-order-shuffle", "hide-label-name"]),
+  ),
   neutralizeEvidence: z.boolean(),
   scoringMethod: z.union([
     z.literal("freeform-suffix-single"),
@@ -146,6 +148,8 @@ export const UsageTableSchema = z.object({
   promptTokens: z.number(),
   completionTokens: z.number(),
   totalTokens: z.number(),
+  reasoningTokens: z.number().optional(),
+  cachedInputTokens: z.number().optional(),
 });
 
 // --- Schema definition ---

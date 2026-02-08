@@ -54,6 +54,7 @@ export class Scorer extends AbstractJudgeAgent {
       buildPromptSuffix: this.strategies.scoring.buildPromptSuffix,
       letterLabels: this.strategies.scale.letterLabels,
       rubricFirst: this.strategies.ordering.rubricFirst,
+      rubricOrderShuffle: this.strategies.randomization.rubricOrderShuffle,
     });
 
     const { text } = await this.agent.generateText(

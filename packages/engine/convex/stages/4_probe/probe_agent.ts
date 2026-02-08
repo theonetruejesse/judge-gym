@@ -18,9 +18,11 @@ export class Prober extends AbstractJudgeAgent {
     args: {
       experimentTag: string;
       scoreId: string;
-      stageLabel: string;
-      stageCriteria: string[];
+      rubric: Array<{ label: string; criteria: string[] }>;
       evidenceSummary: string;
+      modelOutput: string;
+      verdictLabels: string[];
+      labelsAnonymized: boolean;
     },
   ): Promise<{ threadId: string; expertAgreementProb: number }> {
     await this.checkRateLimit(ctx);
@@ -36,9 +38,11 @@ export class Prober extends AbstractJudgeAgent {
       { threadId },
       {
         prompt: probePrompt(
-          args.stageLabel,
-          args.stageCriteria,
+          args.rubric,
           args.evidenceSummary,
+          args.modelOutput,
+          args.verdictLabels,
+          args.labelsAnonymized,
         ),
       } as any,
       {
