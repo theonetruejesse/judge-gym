@@ -1,5 +1,3 @@
-"use node";
-
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils";
@@ -10,21 +8,83 @@ import {
   StructuralAbstractor,
 } from "./evidence_agent";
 
+const DEFAULT_CONCURRENCY = 10;
+const DEFAULT_RETRIES = 2;
+const DEFAULT_BACKOFF_MS = 500;
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) return;
+  const concurrency = Math.max(1, Math.min(limit, items.length));
+  let index = 0;
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      await worker(items[current]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function withRetries<T>(
+  fn: () => Promise<T>,
+  {
+    retries = DEFAULT_RETRIES,
+    baseDelayMs = DEFAULT_BACKOFF_MS,
+  }: { retries?: number; baseDelayMs?: number } = {},
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries) throw err;
+      const jitter = Math.floor(Math.random() * baseDelayMs);
+      const delay = baseDelayMs * 2 ** attempt + jitter;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      attempt += 1;
+    }
+  }
+}
+
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
 // --- Clean evidence (strip boilerplate) ---
 export const cleanBatch = zInternalAction({
   args: z.object({ evidenceIds: z.array(zid("evidence")) }),
   handler: async (ctx, { evidenceIds }) => {
     const cleaner = new EvidenceCleaner();
+    const failures: { evidenceId: string; error: string }[] = [];
 
-    for (const evidenceId of evidenceIds) {
-      const evidence = await ctx.runQuery(internal.repo.getEvidence, {
-        evidenceId,
-      });
-      const cleaned = await cleaner.clean(ctx, evidence.rawContent);
-      await ctx.runMutation(internal.repo.patchEvidence, {
-        evidenceId,
-        cleanedContent: cleaned,
-      });
+    await runWithConcurrency(evidenceIds, DEFAULT_CONCURRENCY, async (evidenceId) => {
+      try {
+        await withRetries(async () => {
+          const evidence = await ctx.runQuery(internal.repo.getEvidence, {
+            evidenceId,
+          });
+          const cleaned = await cleaner.clean(ctx, evidence.rawContent);
+          await ctx.runMutation(internal.repo.patchEvidence, {
+            evidenceId,
+            cleanedContent: cleaned,
+          });
+        });
+      } catch (err) {
+        failures.push({ evidenceId: evidenceId.toString(), error: formatError(err) });
+      }
+    });
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to clean ${failures.length}/${evidenceIds.length} evidence items. ` +
+        `First error: ${failures[0].error}`,
+      );
     }
   },
 });
@@ -34,17 +94,31 @@ export const neutralizeBatch = zInternalAction({
   args: z.object({ evidenceIds: z.array(zid("evidence")) }),
   handler: async (ctx, { evidenceIds }) => {
     const neutralizer = new Neutralizer();
+    const failures: { evidenceId: string; error: string }[] = [];
 
-    for (const evidenceId of evidenceIds) {
-      const evidence = await ctx.runQuery(internal.repo.getEvidence, {
-        evidenceId,
-      });
-      const input = evidence.cleanedContent ?? evidence.rawContent;
-      const neutralized = await neutralizer.neutralize(ctx, input);
-      await ctx.runMutation(internal.repo.patchEvidence, {
-        evidenceId,
-        neutralizedContent: neutralized,
-      });
+    await runWithConcurrency(evidenceIds, DEFAULT_CONCURRENCY, async (evidenceId) => {
+      try {
+        await withRetries(async () => {
+          const evidence = await ctx.runQuery(internal.repo.getEvidence, {
+            evidenceId,
+          });
+          const input = evidence.cleanedContent ?? evidence.rawContent;
+          const neutralized = await neutralizer.neutralize(ctx, input);
+          await ctx.runMutation(internal.repo.patchEvidence, {
+            evidenceId,
+            neutralizedContent: neutralized,
+          });
+        });
+      } catch (err) {
+        failures.push({ evidenceId: evidenceId.toString(), error: formatError(err) });
+      }
+    });
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to neutralize ${failures.length}/${evidenceIds.length} evidence items. ` +
+        `First error: ${failures[0].error}`,
+      );
     }
   },
 });
@@ -54,20 +128,34 @@ export const abstractBatch = zInternalAction({
   args: z.object({ evidenceIds: z.array(zid("evidence")) }),
   handler: async (ctx, { evidenceIds }) => {
     const abstractor = new StructuralAbstractor();
+    const failures: { evidenceId: string; error: string }[] = [];
 
-    for (const evidenceId of evidenceIds) {
-      const evidence = await ctx.runQuery(internal.repo.getEvidence, {
-        evidenceId,
-      });
-      const input =
-        evidence.neutralizedContent ??
-        evidence.cleanedContent ??
-        evidence.rawContent;
-      const abstracted = await abstractor.abstract(ctx, input);
-      await ctx.runMutation(internal.repo.patchEvidence, {
-        evidenceId,
-        abstractedContent: abstracted,
-      });
+    await runWithConcurrency(evidenceIds, DEFAULT_CONCURRENCY, async (evidenceId) => {
+      try {
+        await withRetries(async () => {
+          const evidence = await ctx.runQuery(internal.repo.getEvidence, {
+            evidenceId,
+          });
+          const input =
+            evidence.neutralizedContent ??
+            evidence.cleanedContent ??
+            evidence.rawContent;
+          const abstracted = await abstractor.abstract(ctx, input);
+          await ctx.runMutation(internal.repo.patchEvidence, {
+            evidenceId,
+            abstractedContent: abstracted,
+          });
+        });
+      } catch (err) {
+        failures.push({ evidenceId: evidenceId.toString(), error: formatError(err) });
+      }
+    });
+
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to abstract ${failures.length}/${evidenceIds.length} evidence items. ` +
+        `First error: ${failures[0].error}`,
+      );
     }
   },
 });
