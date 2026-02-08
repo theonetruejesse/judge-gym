@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "start": "turbo run start --filter=@judge-gym/engine",
     "test": "turbo test",
     "typecheck": "turbo run typecheck --filter=@judge-gym/engine"
   },

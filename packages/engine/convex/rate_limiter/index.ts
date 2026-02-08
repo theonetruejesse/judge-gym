@@ -27,7 +27,7 @@ const ACTIVE_PROVIDER_TIERS = {
 const ACTIVE_MODELS = {
   openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-5.2"] as const,
   anthropic: ["claude-sonnet-4.5", "claude-haiku-4.5"] as const,
-  google: ["gemini-3-flash"] as const,
+  google: ["gemini-3.0-flash"] as const,
   xai: ["grok-4.1-fast"] as const,
   openrouter: ["qwen3-235b"] as const,
 } satisfies Record<ProviderKey, readonly ModelType[]>;

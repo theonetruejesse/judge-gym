@@ -36,7 +36,7 @@ export const MODEL_MAP = {
   "gpt-5.2": openai("gpt-5.2-2025-12-11"),
   "claude-sonnet-4.5": anthropic("claude-sonnet-4-5-20250514"),
   "claude-haiku-4.5": anthropic("claude-haiku-4-5-20250514"),
-  "gemini-3-flash": google("gemini-3-flash-preview"),
+  "gemini-3.0-flash": google("gemini-3-flash-preview"),
   "grok-4.1-fast": xai("grok-4.1-fast"),
   "qwen3-235b": openrouter("qwen/qwen3-235b"),
 } satisfies Record<ModelType, LanguageModel>;
@@ -55,7 +55,7 @@ const PROVIDER_MAP: Record<ModelType, ProviderName> = {
   "gpt-5.2": "openai",
   "claude-sonnet-4.5": "anthropic",
   "claude-haiku-4.5": "anthropic",
-  "gemini-3-flash": "google",
+  "gemini-3.0-flash": "google",
   "grok-4.1-fast": "xai",
   "qwen3-235b": "openrouter",
 };
