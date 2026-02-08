@@ -56,6 +56,17 @@ export async function trackExperiment(options: {
   });
 }
 
+/**
+ * Initiates the next experiment progression step by sending the appropriate backend mutation based on the experiment summary.
+ *
+ * Determines which advancement action to take from `summary.status` ("pending", "evidence-done", "rubric-done") and issues the corresponding HTTP mutation (start evidence pipeline, start rubric generation, or start scoring trial). Uses `triggered` to ensure each stage is initiated at most once per run.
+ *
+ * @param summary - Current experiment summary containing status, windowId, and experimentTag
+ * @param options.experimentTag - Tag identifying the experiment to advance
+ * @param options.evidenceLimit - Optional limit for evidence window passed to evidence/scoring mutations
+ * @param options.sampleCount - Optional number of samples to request for rubric/scoring; defaults to 5
+ * @param triggered - Set used to record and prevent duplicate triggers for a given experiment stage
+ */
 async function maybeAdvance(
   summary: ExperimentSummary,
   options: {
