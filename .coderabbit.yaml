@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  high_level_summary_instructions: >
+    Summarize changes in 3-6 bullets focused on correctness risks, data integrity,
+    and workflow behavior. Call out any missing tests or schema impacts.
+  review_status: true
+  review_details: false
+  poem: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+  path_filters:
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/convex/_generated/**"
+  path_instructions:
+    - path: "packages/engine/convex/**"
+      instructions: >
+        Enforce Convex style: zod helpers from convex/utils.ts, explicit args/returns,
+        internal.* references for cross calls, 2-space indent, semicolons, trailing commas.
+    - path: "packages/analysis/**"
+      instructions: >
+        Prefer clear statistical assumptions, reproducible analysis, and note any data
+        leakage or selection bias risks.
