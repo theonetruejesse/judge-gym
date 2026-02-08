@@ -45,11 +45,11 @@ export class Rubricer extends AbstractJudgeAgent {
 }
 
 /**
- * Critic — evaluates rubric quality. Uses a fixed utility model.
+ * Critic — evaluates rubric quality. Uses the experiment's model.
  */
 export class Critic extends AbstractJudgeAgent {
-  constructor() {
-    super("gpt-4.1-mini", CRITIC_INSTRUCTIONS, "critic");
+  constructor(modelId: ModelType) {
+    super(modelId, CRITIC_INSTRUCTIONS, "critic");
   }
 
   async evaluate(ctx: ActionCtx, rubric: Doc<"rubrics">) {

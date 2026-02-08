@@ -9,10 +9,11 @@ export const scoringWorkflow = workflow.define({
   args: {
     experimentTag: v.string(),
     samples: v.optional(v.number()),
+    evidenceLimit: v.optional(v.number()),
   },
   handler: async (
     step,
-    { experimentTag, samples },
+    { experimentTag, samples, evidenceLimit },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
@@ -24,6 +25,10 @@ export const scoringWorkflow = workflow.define({
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
     );
+    const limitedEvidence =
+      evidenceLimit && evidenceLimit > 0
+        ? evidenceList.slice(0, evidenceLimit)
+        : evidenceList;
     const rubrics = await step.runQuery(internal.repo.listRubricsForExperiment, {
       experimentId: experiment._id,
     });
@@ -82,7 +87,7 @@ export const scoringWorkflow = workflow.define({
     );
 
     const workItems = sampleIds.flatMap((sampleId) =>
-      evidenceList
+      limitedEvidence
         .map((evidence) => ({
           sampleId,
           evidenceId: evidence._id,
@@ -110,7 +115,7 @@ export const scoringWorkflow = workflow.define({
 
     await step.runMutation(internal.repo.patchExperiment, {
       experimentTag,
-      status: "scoring",
+      status: "complete",
     });
 
     return { scored };
@@ -121,10 +126,11 @@ export const swapWorkflow = workflow.define({
   args: {
     experimentTag: v.string(),
     swapRubricFrom: v.string(), // modelId of the rubric source
+    evidenceLimit: v.optional(v.number()),
   },
   handler: async (
     step,
-    { experimentTag, swapRubricFrom },
+    { experimentTag, swapRubricFrom, evidenceLimit },
   ): Promise<{ scored: number }> => {
     const experiment = await step.runQuery(internal.repo.getExperiment, {
       experimentTag,
@@ -136,6 +142,10 @@ export const swapWorkflow = workflow.define({
       internal.repo.listEvidenceByWindow,
       { windowId: experiment.windowId },
     );
+    const limitedEvidence =
+      evidenceLimit && evidenceLimit > 0
+        ? evidenceList.slice(0, evidenceLimit)
+        : evidenceList;
 
     // Find the rubric from the swap source model's experiment
     const swapRubric = await step.runQuery(
@@ -159,7 +169,7 @@ export const swapWorkflow = workflow.define({
       displaySeed: randomization.anonLabel ? 0 : undefined,
     });
 
-    const workItems = evidenceList.map((evidence) => ({
+    const workItems = limitedEvidence.map((evidence) => ({
       evidenceId: evidence._id,
       sampleId,
     }));

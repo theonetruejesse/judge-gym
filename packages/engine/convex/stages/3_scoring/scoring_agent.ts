@@ -25,7 +25,7 @@ export class Scorer extends AbstractJudgeAgent {
     args: {
       experimentTag: string;
       rubric: Doc<"rubrics">;
-      evidence: Doc<"evidence">;
+      evidence: Doc<"evidences">;
       labelMapping?: Record<string, number>;
     },
   ): Promise<{

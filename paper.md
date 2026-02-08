@@ -136,9 +136,9 @@ Inspired by GraphGym (You et al., 2020), which explored 315,000 GNN designs by t
 | Label Randomization | On / Off                                                                                       |
 | Prompt Ordering     | Rubric-first / Evidence-first                                                                  |
 | Abstain Gate        | On / Off                                                                                       |
-| Fresh-Window Probe  | On / Off                                                                                       |
+| Fresh-Window Probe  | Always on (fresh-window probing is enforced)                                                     |
 
-An **experiment** is a single point in this space. A **sweep** is a batch of experiments covering a slice. The engine handles evidence collection, rubric generation, scoring, probing, rate limiting, and data export — all durable, all auditable. To run a new ablation, the researcher creates experiment records with different parameters. No code changes are required.
+An **experiment** is a single point in this space. A **sweep** is a batch of experiments covering a slice. The engine handles evidence collection, rubric generation, scoring (including inline probing), rate limiting, and data export — all durable, all auditable. To run a new ablation, the researcher creates experiment records with different parameters. No code changes are required.
 
 ### 5.2. Task Types and Dose-Response Design
 
@@ -175,7 +175,7 @@ The experimental pipeline proceeds in five stages:
 
 **Stage 4 — Rubric Swap.** For high-divergence model pairs identified in Stage 3: re-score evidence using a rival model's rubric. This tests whether confidence is evidence-based (survives swap) or framework-based (collapses under swap).
 
-**Stage 5 — Epistemic Probe.** In a fresh context window (no prior reasoning history), ask the same model: "What is the probability that independent experts would reach the same verdict?" This adapts Kadavath et al.'s (2022) calibration technique to measure consensus hallucination.
+**Stage 5 — Epistemic Probe.** Inline during scoring, in a fresh context window (no prior reasoning history), ask the same model: "What is the probability that independent experts would reach the same verdict?" This adapts Kadavath et al.'s (2022) calibration technique to measure consensus hallucination.
 
 ### 5.4. Controls
 

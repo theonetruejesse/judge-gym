@@ -15,6 +15,7 @@ export const rubricWorkflow = workflow.define({
 
     const rubricIds: Id<"rubrics">[] = [];
     const count = samples ?? 1;
+    const cap = 20;
 
     if (experiment.taskType === "benchmark") {
       if (count !== 1) {
@@ -27,17 +28,22 @@ export const rubricWorkflow = workflow.define({
       rubricIds.push(rubricId);
     } else {
       // ECC + Control: generate rubric then validate
-      for (let i = 0; i < count; i += 1) {
-        const rubricId = await step.runAction(
-          internal.stages["2_rubric"].rubric_steps.generateRubric,
-          { experimentTag },
-        );
+      for (let i = 0; i < count; i += cap) {
+        const batchSize = Math.min(cap, count - i);
+        const batch = Array.from({ length: batchSize }, async () => {
+          const rubricId = await step.runAction(
+            internal.stages["2_rubric"].rubric_steps.generateRubric,
+            { experimentTag },
+          );
 
-        await step.runAction(
-          internal.stages["2_rubric"].rubric_steps.validateRubric,
-          { rubricId },
-        );
-        rubricIds.push(rubricId);
+          await step.runAction(
+            internal.stages["2_rubric"].rubric_steps.validateRubric,
+            { rubricId },
+          );
+          return rubricId;
+        });
+        const batchIds = await Promise.all(batch);
+        rubricIds.push(...batchIds);
       }
     }
 

@@ -11,7 +11,6 @@ const config: ExperimentConfig = {
   scoringMethod: "freeform-suffix-subset",
   promptOrdering: "evidence-first",
   abstainEnabled: true,
-  freshWindowProbe: false,
 };
 
 describe("strategies resolve", () => {
@@ -23,8 +22,6 @@ describe("strategies resolve", () => {
     expect(resolved.scale.midpointLabel).toBe("C");
     expect(resolved.evidence.contentField).toBe("rawContent");
     expect(resolved.ordering.rubricFirst).toBe(false);
-    expect(resolved.probe.freshWindow).toBe(false);
-    expect(resolved.probe.recentMessages).toBe(10);
     expect(resolved.randomization.anonLabel).toBe(true);
     expect(resolved.randomization.rubricOrderShuffle).toBe(true);
     expect(resolved.randomization.hideLabelName).toBe(false);

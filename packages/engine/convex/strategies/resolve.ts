@@ -15,10 +15,6 @@ import {
   type OrderingStrategy,
 } from "./ordering.strategy";
 import {
-  resolveProbeStrategy,
-  type ProbeStrategy,
-} from "./probe.strategy";
-import {
   resolveRandomizationStrategy,
   type RandomizationStrategy,
 } from "./randomization.strategy";
@@ -29,7 +25,6 @@ export interface ResolvedStrategies {
   scale: ScaleStrategy;
   evidence: EvidenceStrategy;
   ordering: OrderingStrategy;
-  probe: ProbeStrategy;
   randomization: RandomizationStrategy;
 }
 
@@ -39,7 +34,6 @@ export function resolveAll(config: ExperimentConfig): ResolvedStrategies {
     scale: resolveScaleStrategy(config),
     evidence: resolveEvidenceStrategy(config),
     ordering: resolveOrderingStrategy(config),
-    probe: resolveProbeStrategy(config),
     randomization: resolveRandomizationStrategy(config),
   };
 }
