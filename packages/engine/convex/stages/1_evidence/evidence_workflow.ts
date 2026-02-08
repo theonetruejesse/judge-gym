@@ -19,6 +19,10 @@ export const evidenceWorkflow = workflow.define({
       experimentTag,
     });
     const lim = limit ?? DEFAULT_LIMIT;
+    const evidenceView = experiment.config.evidenceView;
+    const needsClean = evidenceView !== "raw";
+    const needsNeutralize = evidenceView === "neutralized" || evidenceView === "abstracted";
+    const needsAbstract = evidenceView === "abstracted";
 
     if (experiment.taskType === "benchmark") {
       const count = await step.runAction(
@@ -39,6 +43,15 @@ export const evidenceWorkflow = workflow.define({
     );
 
     if (existingPreview.length >= lim) {
+      const existingEvidence = await step.runQuery(
+        internal.repo.listEvidenceByWindow,
+        { windowId },
+      );
+      await runEvidenceProcessing(step, existingEvidence, {
+        needsClean,
+        needsNeutralize,
+        needsAbstract,
+      });
       await step.runMutation(internal.repo.patchExperiment, {
         experimentTag,
         status: "evidence-done",
@@ -61,6 +74,15 @@ export const evidenceWorkflow = workflow.define({
       `[Evidence] Existing evidence total: ${existingAll.length}; remaining: ${remaining}`,
     );
     if (remaining === 0) {
+      const existingEvidence = await step.runQuery(
+        internal.repo.listEvidenceByWindow,
+        { windowId },
+      );
+      await runEvidenceProcessing(step, existingEvidence, {
+        needsClean,
+        needsNeutralize,
+        needsAbstract,
+      });
       await step.runMutation(internal.repo.patchExperiment, {
         experimentTag,
         status: "evidence-done",
@@ -104,18 +126,20 @@ export const evidenceWorkflow = workflow.define({
       ),
     );
 
-    // Neutralize evidence by default. Use experiment config later to choose raw vs neutralized.
-    // comment this function out if you don't need to clean the data at all.
     if (evidenceIds.length > 0) {
-      await step.runAction(
-        internal.stages["1_evidence"].evidence_steps.neutralizeBatch,
-        { evidenceIds },
+      const insertedEvidence = await step.runQuery(
+        internal.repo.listEvidenceByWindow,
+        { windowId },
       );
-      console.info(
-        `[Evidence] Neutralized ${evidenceIds.length} evidence items`,
+      const insertedSet = new Set(evidenceIds.map((id) => id.toString()));
+      const newEvidence = insertedEvidence.filter((row) =>
+        insertedSet.has(row._id.toString()),
       );
-    } else {
-      console.info(`[Evidence] No new evidence to neutralize`);
+      await runEvidenceProcessing(step, newEvidence, {
+        needsClean,
+        needsNeutralize,
+        needsAbstract,
+      });
     }
 
     await step.runMutation(internal.repo.patchExperiment, {
@@ -130,6 +154,68 @@ export const evidenceWorkflow = workflow.define({
     return { collected: evidenceIds.length };
   },
 });
+
+type EvidenceRow = {
+  _id: Id<"evidence">;
+  cleanedContent?: string | null;
+  neutralizedContent?: string | null;
+  abstractedContent?: string | null;
+};
+
+async function runEvidenceProcessing(
+  step: { runAction: (...args: any[]) => Promise<any> },
+  evidence: EvidenceRow[],
+  options: {
+    needsClean: boolean;
+    needsNeutralize: boolean;
+    needsAbstract: boolean;
+  },
+) {
+  if (evidence.length === 0) return;
+
+  if (options.needsClean) {
+    const toClean = evidence
+      .filter((row) => !row.cleanedContent)
+      .map((row) => row._id);
+    if (toClean.length > 0) {
+      await step.runAction(
+        internal.stages["1_evidence"].evidence_steps.cleanBatch,
+        { evidenceIds: toClean },
+      );
+      console.info(`[Evidence] Cleaned ${toClean.length} evidence items`);
+    }
+  }
+
+  if (options.needsNeutralize) {
+    const toNeutralize = evidence
+      .filter((row) => !row.neutralizedContent)
+      .map((row) => row._id);
+    if (toNeutralize.length > 0) {
+      await step.runAction(
+        internal.stages["1_evidence"].evidence_steps.neutralizeBatch,
+        { evidenceIds: toNeutralize },
+      );
+      console.info(
+        `[Evidence] Neutralized ${toNeutralize.length} evidence items`,
+      );
+    }
+  }
+
+  if (options.needsAbstract) {
+    const toAbstract = evidence
+      .filter((row) => !row.abstractedContent)
+      .map((row) => row._id);
+    if (toAbstract.length > 0) {
+      await step.runAction(
+        internal.stages["1_evidence"].evidence_steps.abstractBatch,
+        { evidenceIds: toAbstract },
+      );
+      console.info(
+        `[Evidence] Abstracted ${toAbstract.length} evidence items`,
+      );
+    }
+  }
+}
 
 function normalizeUrl(url: string): string {
   try {

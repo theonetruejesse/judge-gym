@@ -97,7 +97,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Task Type           | `taskType`                  | `ecc`, `control`, `benchmark`                                                                                | —                        |
 | Scoring Method      | `config.scoringMethod`      | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                        | `freeform-suffix-subset` |
 | Scale Size          | `config.scaleSize`          | `3`, `4`, `5`                                                                                                | `4`                      |
-| Neutralize Evidence | `config.neutralizeEvidence` | `true` / `false`                                                                                             | `true`                   |
+| Evidence View       | `config.evidenceView`       | `raw` / `cleaned` / `neutralized` / `abstracted`                                                             | `neutralized`            |
 | Randomizations      | `config.randomizations`     | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                              | `["anon-label","rubric-order-shuffle"]` |
 | Prompt Ordering     | `config.promptOrdering`     | `rubric-first`, `evidence-first`                                                                             | `rubric-first`           |
 | Abstain Gate        | `config.abstainEnabled`     | `true` / `false`                                                                                             | `true`                   |
@@ -131,7 +131,7 @@ npx convex run main:createExperiment '{
   "config": {
     "scaleSize": 4,
     "randomizations": ["anon-label", "rubric-order-shuffle"],
-    "neutralizeEvidence": true,
+    "evidenceView": "neutralized",
     "scoringMethod": "freeform-suffix-subset",
     "promptOrdering": "rubric-first",
     "abstainEnabled": true,

@@ -7,6 +7,7 @@ import { internal } from "../../_generated/api";
 import { Prober } from "./probe_agent";
 import { resolveScaleStrategy } from "../../strategies/scale.strategy";
 import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
+import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
 
 // --- Probe a single score for epistemic calibration ---
 export const probeOneSample = zInternalAction({
@@ -33,6 +34,7 @@ export const probeOneSample = zInternalAction({
     const { letterLabels } = resolveScaleStrategy(experiment.config);
     const labelMapping = sample.labelMapping ?? undefined;
     const randomization = resolveRandomizationStrategy(experiment.config);
+    const evidenceStrategy = resolveEvidenceStrategy(experiment.config);
 
     const labelForIndex = (index: number) => {
       if (!randomization.hideLabelName) {
@@ -63,11 +65,13 @@ export const probeOneSample = zInternalAction({
 
     // Use the SAME model as the scorer, but in a FRESH thread
     const prober = new Prober(experiment.modelId);
+    const evidenceSummary =
+      evidence[evidenceStrategy.contentField] ?? evidence.rawContent;
     const result = await prober.probe(ctx, {
       experimentTag: experiment.experimentTag,
       scoreId: score._id.toString(),
       rubric: orderedStages,
-      evidenceSummary: evidence.neutralizedContent ?? evidence.rawContent,
+      evidenceSummary,
       modelOutput: score.rawVerdict ?? "",
       verdictLabels,
       labelsAnonymized: randomization.hideLabelName,

@@ -6,8 +6,8 @@ const ExperimentInputSchema = ExperimentsTableSchema.omit({
   windowId: true,
 });
 
-export type WindowInput = z.infer<typeof WindowsTableSchema>;
-export type ExperimentInput = z.infer<typeof ExperimentInputSchema>;
+type WindowInput = z.infer<typeof WindowsTableSchema>;
+type ExperimentInput = z.infer<typeof ExperimentInputSchema>;
 
 // UPDATE THIS TO YOUR OWN EXPERIMENT CONFIGURATION
 // types are automatically inferred from the schema.
@@ -25,7 +25,7 @@ export const TRIAL = {
     config: {
       scaleSize: 4,
       randomizations: ["anon-label", "rubric-order-shuffle"],
-      neutralizeEvidence: true,
+      evidenceView: "neutralized",
       scoringMethod: "freeform-suffix-subset",
       promptOrdering: "rubric-first",
       abstainEnabled: true,

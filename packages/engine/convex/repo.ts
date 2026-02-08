@@ -76,10 +76,13 @@ export const getEvidence = zInternalQuery({
 export const patchEvidence = zInternalMutation({
   args: z.object({
     evidenceId: zid("evidence"),
-    neutralizedContent: z.string(),
+    cleanedContent: z.string().optional(),
+    neutralizedContent: z.string().optional(),
+    abstractedContent: z.string().optional(),
   }),
-  handler: async (ctx, { evidenceId, neutralizedContent }) => {
-    await ctx.db.patch(evidenceId, { neutralizedContent });
+  handler: async (ctx, updates) => {
+    const { evidenceId, ...fields } = updates;
+    await ctx.db.patch(evidenceId, fields);
   },
 });
 
