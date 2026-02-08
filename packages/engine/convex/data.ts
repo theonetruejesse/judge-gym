@@ -31,6 +31,7 @@ export const getExperimentSummary = zQuery({
 
     return {
       experimentTag: experiment.experimentTag,
+      windowId: experiment.windowId,
       modelId: experiment.modelId,
       concept: window.concept,
       taskType: experiment.taskType,

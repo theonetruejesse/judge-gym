@@ -363,25 +363,25 @@ export const GOOGLE_RATE_CONFIGS = {
   [GOOGLE_TIERS.FREE]: { configs: {}, models: [] },
   [GOOGLE_TIERS.TIER_1]: {
     configs: {
-      "gemini-3-flash:requests": {
+      "gemini-3.0-flash:requests": {
         kind: "token bucket",
         rate: 1_000,
         period: MINUTE,
         capacity: 1_000,
       },
       // TPM limit provided; we mirror it for input/output to keep them non-binding.
-      "gemini-3-flash:input_tokens": {
+      "gemini-3.0-flash:input_tokens": {
         kind: "token bucket",
         rate: 1_000_000,
         period: MINUTE,
       },
-      "gemini-3-flash:output_tokens": {
+      "gemini-3.0-flash:output_tokens": {
         kind: "token bucket",
         rate: 1_000_000,
         period: MINUTE,
       },
     },
-    models: ["gemini-3-flash"],
+    models: ["gemini-3.0-flash"],
   },
   [GOOGLE_TIERS.TIER_2]: { configs: {}, models: [] },
   [GOOGLE_TIERS.TIER_3]: { configs: {}, models: [] },
