@@ -6,7 +6,7 @@ describe("strategies resolve", () => {
   test("resolveAll maps config to concrete strategies", () => {
     const config: ExperimentConfig = {
       scaleSize: 5,
-      randomizeLabels: true,
+      randomizations: ["anon-label", "rubric-order-shuffle"],
       neutralizeEvidence: false,
       scoringMethod: "freeform-suffix-subset",
       promptOrdering: "evidence-first",
@@ -24,6 +24,9 @@ describe("strategies resolve", () => {
     expect(resolved.ordering.rubricFirst).toBe(false);
     expect(resolved.probe.freshWindow).toBe(false);
     expect(resolved.probe.recentMessages).toBe(10);
+    expect(resolved.randomization.anonLabel).toBe(true);
+    expect(resolved.randomization.rubricOrderShuffle).toBe(true);
+    expect(resolved.randomization.hideLabelName).toBe(false);
     expect(typeof resolved.scoring.parseVerdict).toBe("function");
     expect(resolved.scoring.buildPromptSuffix(["A", "B"]))
       .toContain("A,B");

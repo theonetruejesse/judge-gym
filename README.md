@@ -98,7 +98,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Scoring Method      | `config.scoringMethod`      | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                        | `freeform-suffix-subset` |
 | Scale Size          | `config.scaleSize`          | `3`, `4`, `5`                                                                                                | `4`                      |
 | Neutralize Evidence | `config.neutralizeEvidence` | `true` / `false`                                                                                             | `true`                   |
-| Randomize Labels    | `config.randomizeLabels`    | `true` / `false`                                                                                             | `true`                   |
+| Randomizations      | `config.randomizations`     | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                              | `["anon-label","rubric-order-shuffle"]` |
 | Prompt Ordering     | `config.promptOrdering`     | `rubric-first`, `evidence-first`                                                                             | `rubric-first`           |
 | Abstain Gate        | `config.abstainEnabled`     | `true` / `false`                                                                                             | `true`                   |
 | Fresh-Window Probe  | `config.freshWindowProbe`   | `true` / `false`                                                                                             | `true`                   |
@@ -130,7 +130,7 @@ npx convex run main:createExperiment '{
   "concept": "fascism",
   "config": {
     "scaleSize": 4,
-    "randomizeLabels": true,
+    "randomizations": ["anon-label", "rubric-order-shuffle"],
     "neutralizeEvidence": true,
     "scoringMethod": "freeform-suffix-subset",
     "promptOrdering": "rubric-first",

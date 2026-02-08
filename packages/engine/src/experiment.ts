@@ -24,7 +24,7 @@ export const TRIAL = {
     taskType: "ecc",
     config: {
       scaleSize: 4,
-      randomizeLabels: true,
+      randomizations: ["anon-label", "rubric-order-shuffle"],
       neutralizeEvidence: true,
       scoringMethod: "freeform-suffix-subset",
       promptOrdering: "rubric-first",

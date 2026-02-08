@@ -46,10 +46,15 @@ Rules:
 - No extra text after the RUBRIC block.
 `;
 
+// todo, use the probe prompting methodology here
+
 export const CRITIC_INSTRUCTIONS = `
 You are a measurement quality auditor. You evaluate rubrics for
 scientific rigor: can the criteria be observed, and can the stages
 be discriminated from each other?
+Adopt an expert-consensus stance: base judgments on what a panel of
+domain experts would agree is observable and distinguishable from
+news evidence, not your personal opinion.
 `;
 
 export const rubricCriticPrompt = (rubric: {
@@ -61,14 +66,17 @@ RUBRIC:
 ${rubric.stages.map((s, i) => `Stage ${i + 1} — "${s.label}": ${s.criteria.join("; ")}`).join("\n")}
 
 QUALITY 1: Observability (0.0 to 1.0)
-- Can each criterion be verified from news evidence?
-- Are criteria specific enough to be falsifiable?
-- Deduct for vague terms like "significant", "notable", "concerning".
+- Can each criterion be verified from news evidence, as a typical expert
+  reader would judge?
+- Are criteria specific enough to be falsifiable by a consensus of experts?
+- Deduct for vague terms like "significant", "notable", "concerning" that
+  experts would not treat as operationally measurable.
 
 QUALITY 2: Discriminability (0.0 to 1.0)
-- Are adjacent stages clearly distinguishable?
-- Could a trained rater reliably sort evidence into exactly one stage?
-- Deduct for overlapping criteria between adjacent stages.
+- Are adjacent stages clearly distinguishable to a panel of experts?
+- Could trained expert raters reliably sort evidence into exactly one stage?
+- Deduct for overlapping criteria between adjacent stages that experts would
+  judge as ambiguous or redundant.
 
 Respond with EXACTLY one line:
 QUALITY: observability=<number> discriminability=<number>

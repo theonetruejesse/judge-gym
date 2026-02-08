@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 import { workflow } from "../../workflow_manager";
 import { generateLabelMapping } from "../../utils/randomize";
+import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
 
 export const scoringWorkflow = workflow.define({
   args: {
@@ -33,29 +35,59 @@ export const scoringWorkflow = workflow.define({
       );
     }
 
-    const selectedRubrics = rubrics.slice(0, n);
-    const sampleIds = [];
-    for (let i = 0; i < selectedRubrics.length; i += 1) {
-      const rubric = selectedRubrics[i];
-      const labelMapping = experiment.config.randomizeLabels
-        ? generateLabelMapping(experiment.config.scaleSize, i)
-        : undefined;
-      const sampleId = await step.runMutation(internal.repo.createSample, {
-        experimentId: experiment._id,
-        modelId: experiment.modelId,
-        rubricId: rubric._id,
-        isSwap: false,
-        labelMapping: labelMapping ?? undefined,
-        displaySeed: experiment.config.randomizeLabels ? i : undefined,
-      });
-      sampleIds.push(sampleId);
+    const existingSamples = await step.runQuery(
+      internal.repo.listSamplesByExperiment,
+      { experimentId: experiment._id },
+    );
+    const sampleIds: Array<Id<"samples">> = existingSamples
+      .slice(0, n)
+      .map((s) => s._id);
+    const usedRubricIds = new Set(existingSamples.map((s) => s.rubricId));
+    const needed = n - sampleIds.length;
+
+    if (needed > 0) {
+      const availableRubrics = rubrics.filter(
+        (r) => !usedRubricIds.has(r._id),
+      );
+      if (availableRubrics.length < needed) {
+        throw new Error(
+          `Insufficient unused rubrics for ${experimentTag}: need ${needed}, have ${availableRubrics.length}.`,
+        );
+      }
+      const randomization = resolveRandomizationStrategy(experiment.config);
+      for (let i = 0; i < needed; i += 1) {
+        const rubric = availableRubrics[i];
+        const seed = sampleIds.length + i;
+        const labelMapping = randomization.anonLabel
+          ? generateLabelMapping(experiment.config.scaleSize, seed)
+          : undefined;
+        const sampleId = await step.runMutation(internal.repo.createSample, {
+          experimentId: experiment._id,
+          modelId: experiment.modelId,
+          rubricId: rubric._id,
+          isSwap: false,
+          labelMapping: labelMapping ?? undefined,
+          displaySeed: randomization.anonLabel ? seed : undefined,
+        });
+        sampleIds.push(sampleId);
+      }
     }
 
+    const existingScores = await step.runQuery(
+      internal.repo.listScoresByExperiment,
+      { experimentId: experiment._id },
+    );
+    const scoredKeys = new Set(
+      existingScores.map((s) => `${s.sampleId}:${s.evidenceId}`),
+    );
+
     const workItems = sampleIds.flatMap((sampleId) =>
-      evidenceList.map((evidence) => ({
-        sampleId,
-        evidenceId: evidence._id,
-      })),
+      evidenceList
+        .map((evidence) => ({
+          sampleId,
+          evidenceId: evidence._id,
+        }))
+        .filter((item) => !scoredKeys.has(`${item.sampleId}:${item.evidenceId}`)),
     );
     const batchSize = 10;
 
@@ -114,7 +146,8 @@ export const swapWorkflow = workflow.define({
       },
     );
 
-    const labelMapping = experiment.config.randomizeLabels
+    const randomization = resolveRandomizationStrategy(experiment.config);
+    const labelMapping = randomization.anonLabel
       ? generateLabelMapping(experiment.config.scaleSize, 0)
       : undefined;
     const sampleId = await step.runMutation(internal.repo.createSample, {
@@ -123,7 +156,7 @@ export const swapWorkflow = workflow.define({
       rubricId: swapRubric._id,
       isSwap: true,
       labelMapping: labelMapping ?? undefined,
-      displaySeed: experiment.config.randomizeLabels ? 0 : undefined,
+      displaySeed: randomization.anonLabel ? 0 : undefined,
     });
 
     const workItems = evidenceList.map((evidence) => ({

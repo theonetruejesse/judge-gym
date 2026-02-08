@@ -29,8 +29,11 @@ async function main() {
   console.log(`  Evidence   : ${TRIAL.evidenceLimit} articles (Firecrawl)`);
   console.log(`  Samples    : ${TRIAL.sampleCount}`);
   console.log(`  Scoring    : ${TRIAL.experiment.config.scoringMethod}`);
+  const randomizations = TRIAL.experiment.config.randomizations;
+  const randomizationLabel =
+    randomizations.length > 0 ? randomizations.join(", ") : "none";
   console.log(
-    `  Scale      : ${TRIAL.experiment.config.scaleSize}-point, ${TRIAL.experiment.config.randomizeLabels ? "labels randomized" : "fixed labels"}`,
+    `  Scale      : ${TRIAL.experiment.config.scaleSize}-point, randomizations: ${randomizationLabel}`,
   );
   console.log(`  Neutralize : ${TRIAL.experiment.config.neutralizeEvidence}`);
   console.log("");

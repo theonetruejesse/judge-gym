@@ -71,17 +71,19 @@ export function parseSubsetVerdict(
   for (const token of tokens) {
     if (labelMapping) {
       const mapped = labelMapping[token];
-      if (mapped === undefined) {
-        throw new Error(`Unrecognized verdict label: ${token}`);
+      if (mapped !== undefined) {
+        decoded.push(mapped);
       }
-      decoded.push(mapped);
       continue;
     }
     const normalized = token.toUpperCase();
-    if (!/^[A-Z]$/.test(normalized)) {
-      throw new Error(`Unrecognized verdict label: ${token}`);
+    if (/^[A-Z]$/.test(normalized)) {
+      decoded.push(normalized.charCodeAt(0) - 64);
     }
-    decoded.push(normalized.charCodeAt(0) - 64);
+  }
+
+  if (decoded.length === 0) {
+    throw new Error(`Unrecognized verdict label: ${verdictLine}`);
   }
 
   return {

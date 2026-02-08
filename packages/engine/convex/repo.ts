@@ -226,6 +226,16 @@ export const listNonAbstainedScores = zInternalQuery({
   },
 });
 
+export const listScoresByExperiment = zInternalQuery({
+  args: z.object({ experimentId: zid("experiments") }),
+  handler: async (ctx, { experimentId }) => {
+    return ctx.db
+      .query("scores")
+      .withIndex("by_experiment", (q) => q.eq("experimentId", experimentId))
+      .collect();
+  },
+});
+
 // --- Probes ---
 
 export const createProbe = zInternalMutation({
