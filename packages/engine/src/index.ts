@@ -7,7 +7,7 @@
  *   bun src/index.ts
  */
 import { client, api, log, poll } from "./shared";
-import { TRIAL } from "./experiment";
+import { TRIAL } from "./trial";
 
 async function main() {
   const useNewRun =
@@ -35,7 +35,7 @@ async function main() {
   console.log(
     `  Scale      : ${TRIAL.experiment.config.scaleSize}-point, randomizations: ${randomizationLabel}`,
   );
-  console.log(`  Neutralize : ${TRIAL.experiment.config.neutralizeEvidence}`);
+  console.log(`  Evidence   : ${TRIAL.experiment.config.evidenceView}`);
   console.log("");
 
   // Step 1 — Init experiment (creates or reuses window/experiment)

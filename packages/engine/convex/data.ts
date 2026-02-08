@@ -155,7 +155,7 @@ export const exportExperimentCSV = zQuery({
       scoringMethod: experiment.config.scoringMethod,
       scaleSize: experiment.config.scaleSize,
       randomizations: experiment.config.randomizations,
-      neutralizeEvidence: experiment.config.neutralizeEvidence,
+      evidenceView: experiment.config.evidenceView,
       promptOrdering: experiment.config.promptOrdering,
       sampleId: score.sampleId,
       rubricId: score.rubricId,

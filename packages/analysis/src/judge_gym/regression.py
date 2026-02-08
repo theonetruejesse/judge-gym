@@ -25,7 +25,7 @@ def ablation_regression(df: pd.DataFrame) -> RegressionResultsWrapper:
     Pooled across task types for ablation analysis.
     """
     return smf.ols(
-        "score ~ C(modelId) + C(scoringMethod) + scaleSize + C(neutralizeEvidence)",
+        "score ~ C(modelId) + C(scoringMethod) + scaleSize + C(evidenceView)",
         data=df,
     ).fit()
 

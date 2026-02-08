@@ -38,7 +38,7 @@ export const ExperimentConfigSchema = z.object({
   randomizations: z.array(
     z.enum(["anon-label", "rubric-order-shuffle", "hide-label-name"]),
   ),
-  neutralizeEvidence: z.boolean(),
+  evidenceView: z.enum(["raw", "cleaned", "neutralized", "abstracted"]),
   scoringMethod: z.union([
     z.literal("freeform-suffix-single"),
     z.literal("freeform-suffix-subset"),
@@ -89,7 +89,9 @@ export const EvidenceTableSchema = z.object({
   title: z.string(),
   url: z.string(),
   rawContent: z.string(),
+  cleanedContent: z.string().optional(),
   neutralizedContent: z.string().optional(),
+  abstractedContent: z.string().optional(),
 });
 
 const StageSchema = z.object({

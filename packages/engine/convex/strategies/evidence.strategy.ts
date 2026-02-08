@@ -1,17 +1,29 @@
 import type { ExperimentConfig } from "../schema";
 
 export interface EvidenceStrategy {
-  neutralize: boolean;
-  contentField: "neutralizedContent" | "rawContent";
+  contentField:
+    | "rawContent"
+    | "cleanedContent"
+    | "neutralizedContent"
+    | "abstractedContent";
 }
 
 export function resolveEvidenceStrategy(
   config: ExperimentConfig,
 ): EvidenceStrategy {
+  const contentField = (() => {
+    switch (config.evidenceView) {
+      case "cleaned":
+        return "cleanedContent";
+      case "neutralized":
+        return "neutralizedContent";
+      case "abstracted":
+        return "abstractedContent";
+      default:
+        return "rawContent";
+    }
+  })();
   return {
-    neutralize: config.neutralizeEvidence,
-    contentField: config.neutralizeEvidence
-      ? "neutralizedContent"
-      : "rawContent",
+    contentField,
   };
 }
