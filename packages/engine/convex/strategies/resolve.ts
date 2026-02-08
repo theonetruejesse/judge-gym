@@ -28,6 +28,12 @@ export interface ResolvedStrategies {
   randomization: RandomizationStrategy;
 }
 
+/**
+ * Resolve and compose all experiment strategies from an ExperimentConfig.
+ *
+ * @param config - The experiment configuration used to determine each strategy
+ * @returns An object containing the resolved `scoring`, `scale`, `evidence`, `ordering`, and `randomization` strategies
+ */
 export function resolveAll(config: ExperimentConfig): ResolvedStrategies {
   return {
     scoring: resolveScoringStrategy(config),
