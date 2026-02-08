@@ -17,7 +17,7 @@ judge-gym/
 ├── packages/
 │   ├── engine/                    # Convex backend — the design space engine
 │   │   ├── convex/
-│   │   │   ├── schema.ts          # Tables: experiments, windows, evidence, rubrics, samples, scores, probes, usage
+│   │   │   ├── schema.ts          # Tables: experiments, windows, evidences, rubrics, samples, scores, usages
 │   │   │   ├── main.ts            # Public API — workflow triggers
 │   │   │   ├── data.ts            # Public API — read queries for analysis
 │   │   │   ├── repo.ts            # Internal CRUD
@@ -25,13 +25,12 @@ judge-gym/
 │   │   │   ├── workflow_manager.ts# Workflow pool + retry settings
 │   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
 │   │   │   ├── agents/            # AbstractJudgeAgent base class
-│   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering, probe)
+│   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
 │   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
 │   │   │   └── stages/            # Pipeline stages
 │   │   │       ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
 │   │   │       ├── 2_rubric/      # W2: Generate + validate (ECC/Control) or load (Benchmark)
 │   │   │       ├── 3_scoring/     # W3: Score evidence × rubric; W4: Rubric swap trials
-│   │   │       └── 4_probe/       # W5: Fresh-window epistemic probes
 │   │   └── src/                   # Automated runner + live tracker
 │   │       ├── experiments.ts     # Experiment settings (window + config)
 │   │       └── helpers/           # Convex clients, runner, tracker, console UI
@@ -108,19 +107,18 @@ CONVEX_URL=https://<your-deployment>.convex.cloud
 
 An **experiment** is a single point in the design space. Each axis is independently configurable:
 
-| Axis               | Config Field              | Values                                                                                                                           | Default                                 |
-| :----------------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Model Family       | `modelId`                 | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept            | `window.concept`          | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
-| Task Type          | `taskType`                | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method     | `config.scoringMethod`    | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                                            | `freeform-suffix-subset`                |
-| Scale Size         | `config.scaleSize`        | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View      | `config.evidenceView`     | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
-| Randomizations     | `config.randomizations`   | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
-| Prompt Ordering    | `config.promptOrdering`   | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
-| Abstain Gate       | `config.abstainEnabled`   | `true` / `false`                                                                                                                 | `true`                                  |
-| Fresh-Window Probe | `config.freshWindowProbe` | `true` / `false`                                                                                                                 | `true`                                  |
-| Ground Truth       | `groundTruth`             | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
+| Axis            | Config Field            | Values                                                                                                                           | Default                                 |
+| :-------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| Model Family    | `modelId`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Concept         | `window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
+| Task Type       | `taskType`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
+| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                                            | `freeform-suffix-subset`                |
+| Scale Size      | `config.scaleSize`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
+| Evidence View   | `config.evidenceView`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
+| Randomizations  | `config.randomizations` | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
+| Prompt Ordering | `config.promptOrdering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
+| Abstain Gate    | `config.abstainEnabled` | `true` / `false`                                                                                                                 | `true`                                  |
+| Ground Truth    | `groundTruth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
 Evidence windows are defined by `window.startDate`, `window.endDate`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
@@ -171,8 +169,7 @@ npx convex run main:initExperiment '{
       "evidenceView": "neutralized",
       "scoringMethod": "freeform-suffix-subset",
       "promptOrdering": "rubric-first",
-      "abstainEnabled": true,
-      "freshWindowProbe": true
+      "abstainEnabled": true
     }
   }
 }'
@@ -198,9 +195,6 @@ npx convex run main:startScoringTrial \
 npx convex run main:startSwapTrial \
   '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4.5"}'
 
-# W5: Epistemic probes
-npx convex run main:startProbingTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
 ```
 
 #### 3. Query results
@@ -229,7 +223,7 @@ npx convex run data:exportExperimentCSV \
 | W2    | Rubric      | Generate $n$-stage evaluative rubric (ECC/Control) or load pre-defined rubric (Benchmark). Validate with critic.                                          | Rubricer, Critic |
 | W3    | Scoring     | Score each evidence item against rubric, multiple times with varying random seeds. Strategy-driven: suffix parsing, label randomization, prompt ordering. | Scorer           |
 | W4    | Rubric Swap | Re-score evidence using a rival model's rubric. Tests framework sensitivity.                                                                              | Scorer           |
-| W5    | Probe       | In a fresh context window, ask the model for expert agreement probability.                                                                                | Prober           |
+| W5    | Probe       | Epistemic probing runs inline during scoring and is stored on each score row.                                                                             | Prober           |
 
 ---
 

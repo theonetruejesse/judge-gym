@@ -21,7 +21,6 @@ const STATUS_ORDER = [
   "evidence-done",
   "rubric-done",
   "scoring",
-  "probing",
   "complete",
 ] as const;
 
@@ -41,6 +40,12 @@ export function renderHeader(title: string): string {
   ].join("\n");
 }
 
+/**
+ * Render a human-readable, multi-line summary of an experiment configuration.
+ *
+ * @param config - Experiment configuration whose displayed fields include evidence view, scoring method, scale size, randomizations, prompt ordering, and abstain setting.
+ * @returns A multi-line string with the following entries: `Evidence`, `Scoring`, `Scale` (formatted as `<n>-point`), `Randomize` (comma-separated values or `none`), `Ordering`, and `Abstain` (`enabled` or `disabled`).
+ */
 export function renderConfigSummary(config: ExperimentConfig): string {
   const randomizations =
     config.randomizations.length > 0
@@ -53,17 +58,23 @@ export function renderConfigSummary(config: ExperimentConfig): string {
     `  Randomize  : ${randomizations}`,
     `  Ordering   : ${config.promptOrdering}`,
     `  Abstain    : ${config.abstainEnabled ? "enabled" : "disabled"}`,
-    `  Probe      : ${config.freshWindowProbe ? "fresh" : "contextual"}`,
   ].join("\n");
 }
 
+/**
+ * Render a textual checklist of experiment stages and a counts summary.
+ *
+ * Stages are marked completed or not based on the experiment's current status; the counts section lists sample and scoring metrics.
+ *
+ * @param summary - The experiment summary used to determine stage completion and to populate counts
+ * @returns A newline-delimited string containing a "Stages" checklist with completion marks and a "Counts" section for Samples, Scores, Abstained, and Probes
+ */
 export function renderChecklist(summary: ExperimentSummary): string {
   const current = statusIndex(summary.status);
   const checks = [
     { label: "Evidence", status: "evidence-done" },
     { label: "Rubric", status: "rubric-done" },
     { label: "Scoring", status: "scoring" },
-    { label: "Probing", status: "probing" },
     { label: "Complete", status: "complete" },
   ].map((stage) => {
     const done = current >= statusIndex(stage.status);

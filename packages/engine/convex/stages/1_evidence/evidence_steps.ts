@@ -12,6 +12,14 @@ const DEFAULT_CONCURRENCY = 10;
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_MS = 500;
 
+/**
+ * Process a list of items in parallel using a bounded number of concurrent workers.
+ *
+ * @param items - The array of items to process.
+ * @param limit - Maximum number of concurrent workers; treated as at least 1 and at most the number of items.
+ * @param worker - Async handler invoked for each item.
+ * @returns Void when all items have been processed.
+ */
 async function runWithConcurrency<T>(
   items: T[],
   limit: number,
@@ -21,15 +29,25 @@ async function runWithConcurrency<T>(
   const concurrency = Math.max(1, Math.min(limit, items.length));
   let index = 0;
   const workers = Array.from({ length: concurrency }, async () => {
-    while (index < items.length) {
+    while (true) {
       const current = index;
       index += 1;
+      if (current >= items.length) break;
       await worker(items[current]);
     }
   });
   await Promise.all(workers);
 }
 
+/**
+ * Retry an asynchronous function on failure using exponential backoff with jitter.
+ *
+ * @param fn - The async function to invoke
+ * @param retries - Maximum number of retry attempts after the initial try (total attempts = `retries + 1`)
+ * @param baseDelayMs - Base delay in milliseconds used to compute exponential backoff; a random jitter up to `baseDelayMs` is added to each delay
+ * @returns The resolved value from `fn` if a call succeeds
+ * @throws The last error thrown by `fn` if all attempts (initial + retries) fail
+ */
 async function withRetries<T>(
   fn: () => Promise<T>,
   {
@@ -51,6 +69,12 @@ async function withRetries<T>(
   }
 }
 
+/**
+ * Format an error-like value into a readable string.
+ *
+ * @param err - The value to format (an Error or any other value)
+ * @returns The error's `message` if `err` is an `Error`, otherwise `String(err)`
+ */
 function formatError(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
@@ -58,7 +82,7 @@ function formatError(err: unknown): string {
 
 // --- Clean evidence (strip boilerplate) ---
 export const cleanBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const cleaner = new EvidenceCleaner();
     const failures: { evidenceId: string; error: string }[] = [];
@@ -91,7 +115,7 @@ export const cleanBatch = zInternalAction({
 
 // --- Neutralize evidence (tone removal) ---
 export const neutralizeBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const neutralizer = new Neutralizer();
     const failures: { evidenceId: string; error: string }[] = [];
@@ -125,7 +149,7 @@ export const neutralizeBatch = zInternalAction({
 
 // --- Structural abstraction (entity anonymization) ---
 export const abstractBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const abstractor = new StructuralAbstractor();
     const failures: { evidenceId: string; error: string }[] = [];
