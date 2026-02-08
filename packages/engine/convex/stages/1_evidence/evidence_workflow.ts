@@ -114,7 +114,7 @@ export const evidenceWorkflow = workflow.define({
     console.info(`[Evidence] ${newResults.length} articles after URL dedupe`);
 
     // Insert each result as evidence
-    const evidenceIds: Id<"evidence">[] = await Promise.all(
+    const evidenceIds: Id<"evidences">[] = await Promise.all(
       newResults.map(
         (result: { title: string; url: string; rawContent: string }) =>
           step.runMutation(internal.repo.createEvidence, {
@@ -156,7 +156,7 @@ export const evidenceWorkflow = workflow.define({
 });
 
 type EvidenceRow = {
-  _id: Id<"evidence">;
+  _id: Id<"evidences">;
   cleanedContent?: string | null;
   neutralizedContent?: string | null;
   abstractedContent?: string | null;

@@ -44,9 +44,8 @@ Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPEN
 | `main:createExperiment`      | `{ experimentTag, windowId, modelId, taskType, concept, groundTruth?, config }` | Create an experiment (point in design space)   |
 | `main:startEvidencePipeline` | `{ windowId, experimentTag, limit? }`                                           | W1: Collect + neutralize evidence for a window |
 | `main:startRubricGeneration` | `{ experimentTag }`                                                             | W2: Generate rubric from experiment config     |
-| `main:startScoringTrial`     | `{ experimentTag, samples? }`                                                   | W3: Run scoring workflow                       |
+| `main:startScoringTrial`     | `{ experimentTag, samples? }`                                                   | W3: Run scoring workflow (includes probing)    |
 | `main:startSwapTrial`        | `{ experimentTag, swapRubricFrom }`                                             | W4: Rubric swap trial                          |
-| `main:startProbingTrial`     | `{ experimentTag }`                                                             | W5: Epistemic probes                           |
 
 ### Public Queries (Read Operations)
 
@@ -55,7 +54,7 @@ Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPEN
 | `data:getExperimentSummary`      | `{ experimentTag }` | Counts, models, status, taskType |
 | `data:listExperimentRubrics`     | `{ experimentTag }` | Rubrics with qualityStats        |
 | `data:listExperimentSamples`     | `{ experimentTag }` | Samples with decodedScores       |
-| `data:listExperimentProbes`      | `{ experimentTag }` | Probes with expertAgreementProb  |
+| `data:listExperimentProbes`      | `{ experimentTag }` | Scores with expertAgreementProb  |
 | `data:listExperimentsByTaskType` | `{ taskType }`     | All experiments of a given type  |
 | `data:exportExperimentCSV`       | `{ experimentTag }` | Flat denormalized rows           |
 
@@ -71,7 +70,7 @@ Note: API keys are validated at runtime by `convex/env.ts`. Required keys: `OPEN
 6. Verify: `convex-run data:listExperimentRubrics { "experimentTag": "..." }`
 7. `convex-run main:startScoringTrial { "experimentTag": "...", "samples": 5 }`
 8. Monitor: `convex-run data:getExperimentSummary { "experimentTag": "..." }`
-9. `convex-run main:startProbingTrial { "experimentTag": "..." }`
+9. Probing is run inline during scoring; no separate trigger.
 
 #### Quick data check
 

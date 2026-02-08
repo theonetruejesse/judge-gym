@@ -7,7 +7,6 @@ import {
   RubricsTableSchema,
   SamplesTableSchema,
   ScoresTableSchema,
-  ProbesTableSchema,
   UsageTableSchema,
 } from "./schema";
 
@@ -61,11 +60,11 @@ export const getWindow = zInternalQuery({
 
 export const createEvidence = zInternalMutation({
   args: EvidenceTableSchema,
-  handler: async (ctx, args) => ctx.db.insert("evidence", args),
+  handler: async (ctx, args) => ctx.db.insert("evidences", args),
 });
 
 export const getEvidence = zInternalQuery({
-  args: z.object({ evidenceId: zid("evidence") }),
+  args: z.object({ evidenceId: zid("evidences") }),
   handler: async (ctx, { evidenceId }) => {
     const evidence = await ctx.db.get(evidenceId);
     if (!evidence) throw new Error("Evidence not found");
@@ -75,7 +74,7 @@ export const getEvidence = zInternalQuery({
 
 export const patchEvidence = zInternalMutation({
   args: z.object({
-    evidenceId: zid("evidence"),
+    evidenceId: zid("evidences"),
     cleanedContent: z.string().optional(),
     neutralizedContent: z.string().optional(),
     abstractedContent: z.string().optional(),
@@ -90,7 +89,7 @@ export const listEvidenceByWindow = zInternalQuery({
   args: z.object({ windowId: zid("windows") }),
   handler: async (ctx, { windowId }) => {
     return ctx.db
-      .query("evidence")
+      .query("evidences")
       .withIndex("by_window_id", (q) => q.eq("windowId", windowId))
       .collect();
   },
@@ -100,7 +99,7 @@ export const listEvidenceByWindowSummary = zInternalQuery({
   args: z.object({ windowId: zid("windows"), limit: z.number().optional() }),
   handler: async (ctx, { windowId, limit }) => {
     const query = ctx.db
-      .query("evidence")
+      .query("evidences")
       .withIndex("by_window_id", (q) => q.eq("windowId", windowId));
     const rows = limit ? await query.take(limit) : await query.collect();
     return rows.map((row) => ({ title: row.title, url: row.url }));
@@ -229,6 +228,19 @@ export const listNonAbstainedScores = zInternalQuery({
   },
 });
 
+export const patchScore = zInternalMutation({
+  args: z.object({
+    scoreId: zid("scores"),
+    probeThreadId: z.string().optional(),
+    promptedStageLabel: z.string().optional(),
+    expertAgreementProb: z.number().optional(),
+  }),
+  handler: async (ctx, updates) => {
+    const { scoreId, ...fields } = updates;
+    await ctx.db.patch(scoreId, fields);
+  },
+});
+
 export const listScoresByExperiment = zInternalQuery({
   args: z.object({ experimentId: zid("experiments") }),
   handler: async (ctx, { experimentId }) => {
@@ -239,16 +251,9 @@ export const listScoresByExperiment = zInternalQuery({
   },
 });
 
-// --- Probes ---
-
-export const createProbe = zInternalMutation({
-  args: ProbesTableSchema,
-  handler: async (ctx, args) => ctx.db.insert("probes", args),
-});
-
 // --- Usage ---
 
 export const createUsage = zInternalMutation({
   args: UsageTableSchema,
-  handler: async (ctx, args) => ctx.db.insert("usage", args),
+  handler: async (ctx, args) => ctx.db.insert("usages", args),
 });

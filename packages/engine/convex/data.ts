@@ -25,9 +25,9 @@ export const getExperimentSummary = zQuery({
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
 
-    const probes = await ctx.db.query("probes").collect();
-    const scoreIds = new Set(scores.map((s) => s._id));
-    const experimentProbes = probes.filter((p) => scoreIds.has(p.scoreId));
+    const experimentProbes = scores.filter(
+      (s) => s.expertAgreementProb !== undefined,
+    );
 
     return {
       experimentTag: experiment.experimentTag,
@@ -106,10 +106,7 @@ export const listExperimentProbes = zQuery({
       .query("scores")
       .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
       .collect();
-    const scoreIds = new Set(scores.map((s) => s._id));
-
-    const probes = await ctx.db.query("probes").collect();
-    return probes.filter((p) => scoreIds.has(p.scoreId));
+    return scores.filter((s) => s.expertAgreementProb !== undefined);
   },
 });
 
@@ -165,6 +162,8 @@ export const exportExperimentCSV = zQuery({
       abstained: score.abstained,
       rawVerdict: score.rawVerdict,
       decodedScores: score.decodedScores,
+      expertAgreementProb: score.expertAgreementProb,
+      promptedStageLabel: score.promptedStageLabel,
       displaySeed: sample?.displaySeed,
       labelMapping: sample?.labelMapping,
     };

@@ -94,14 +94,7 @@ async function maybeAdvance(
       await httpClient.mutation(api.main.startScoringTrial, {
         experimentTag: summary.experimentTag,
         samples: sampleCount,
-      });
-      return;
-    }
-    case "scoring": {
-      if (triggered.has(key("probing"))) return;
-      triggered.add(key("probing"));
-      await httpClient.mutation(api.main.startProbingTrial, {
-        experimentTag: summary.experimentTag,
+        evidenceLimit: options.evidenceLimit,
       });
       return;
     }

@@ -21,7 +21,6 @@ const STATUS_ORDER = [
   "evidence-done",
   "rubric-done",
   "scoring",
-  "probing",
   "complete",
 ] as const;
 
@@ -53,7 +52,6 @@ export function renderConfigSummary(config: ExperimentConfig): string {
     `  Randomize  : ${randomizations}`,
     `  Ordering   : ${config.promptOrdering}`,
     `  Abstain    : ${config.abstainEnabled ? "enabled" : "disabled"}`,
-    `  Probe      : ${config.freshWindowProbe ? "fresh" : "contextual"}`,
   ].join("\n");
 }
 
@@ -63,7 +61,6 @@ export function renderChecklist(summary: ExperimentSummary): string {
     { label: "Evidence", status: "evidence-done" },
     { label: "Rubric", status: "rubric-done" },
     { label: "Scoring", status: "scoring" },
-    { label: "Probing", status: "probing" },
     { label: "Complete", status: "complete" },
   ].map((stage) => {
     const done = current >= statusIndex(stage.status);

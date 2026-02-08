@@ -58,7 +58,7 @@ function formatError(err: unknown): string {
 
 // --- Clean evidence (strip boilerplate) ---
 export const cleanBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const cleaner = new EvidenceCleaner();
     const failures: { evidenceId: string; error: string }[] = [];
@@ -91,7 +91,7 @@ export const cleanBatch = zInternalAction({
 
 // --- Neutralize evidence (tone removal) ---
 export const neutralizeBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const neutralizer = new Neutralizer();
     const failures: { evidenceId: string; error: string }[] = [];
@@ -125,7 +125,7 @@ export const neutralizeBatch = zInternalAction({
 
 // --- Structural abstraction (entity anonymization) ---
 export const abstractBatch = zInternalAction({
-  args: z.object({ evidenceIds: z.array(zid("evidence")) }),
+  args: z.object({ evidenceIds: z.array(zid("evidences")) }),
   handler: async (ctx, { evidenceIds }) => {
     const abstractor = new StructuralAbstractor();
     const failures: { evidenceId: string; error: string }[] = [];

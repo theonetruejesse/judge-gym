@@ -1,4 +1,6 @@
 import z from "zod";
+import { zid } from "convex-helpers/server/zod4";
+import { components } from "./_generated/api";
 import { zInternalMutation, zMutation } from "./utils";
 
 
@@ -17,12 +19,11 @@ export const nukeTables = zInternalMutation({
     const tables = [
       "experiments",
       "windows",
-      "evidence",
+      "evidences",
       "rubrics",
       "samples",
       "scores",
-      "probes",
-      "usage",
+      "usages",
     ] as const;
 
     for (const table of tables) {
@@ -34,7 +35,7 @@ export const nukeTables = zInternalMutation({
   },
 });
 
-export const cleanupExperiment = zMutation({
+export const nukeExperiment = zInternalMutation({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
@@ -42,47 +43,102 @@ export const cleanupExperiment = zMutation({
       .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
       .unique();
 
-    if (!experiment) return;
+    if (!experiment) return { canceled: 0, workflowIds: [] as string[] };
 
-    // Delete scores + probes
-    const scores = await ctx.db
-      .query("scores")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
-      .collect();
+    const workflowResult = await cancelWorkflowsByExperimentTag(
+      ctx,
+      experiment.experimentTag,
+    );
 
-    for (const score of scores) {
-      const probes = await ctx.db
-        .query("probes")
-        .withIndex("by_score", (q) => q.eq("scoreId", score._id))
-        .collect();
-      for (const probe of probes) {
-        await ctx.db.delete(probe._id);
-      }
-      await ctx.db.delete(score._id);
-    }
+    await deleteExperimentData(ctx, experiment._id);
 
-    // Delete samples
-    const samples = await ctx.db
-      .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
-      .collect();
-
-    for (const sample of samples) {
-      await ctx.db.delete(sample._id);
-    }
-
-    // Delete rubrics
-    const rubrics = await ctx.db
-      .query("rubrics")
-      .withIndex("by_experiment_model", (q) =>
-        q.eq("experimentId", experiment._id),
-      )
-      .collect();
-    for (const rubric of rubrics) {
-      await ctx.db.delete(rubric._id);
-    }
-
-    // Delete experiment
-    await ctx.db.delete(experiment._id);
+    return workflowResult;
   },
 });
+
+async function cancelWorkflowsByExperimentTag(
+  ctx: {
+    runQuery: (...args: any[]) => Promise<any>;
+    runMutation: (...args: any[]) => Promise<any>;
+  },
+  experimentTag: string,
+) {
+  const workflowIds = new Set<string>();
+  let cursor: string | null = null;
+  let isDone = false;
+
+  while (!isDone) {
+    const pageResult: {
+      continueCursor: string;
+      isDone: boolean;
+      page: Array<{
+        args: unknown;
+        runResult?: unknown;
+        workflowId: string;
+      }>;
+    } = await ctx.runQuery(components.workflow.workflow.list, {
+      order: "desc",
+      paginationOpts: { cursor, numItems: 100 },
+    });
+    for (const row of pageResult.page) {
+      const args = row.args as { experimentTag?: string } | undefined;
+      if (args?.experimentTag !== experimentTag) continue;
+      if (row.runResult) continue;
+      workflowIds.add(row.workflowId);
+    }
+    cursor = pageResult.continueCursor;
+    isDone = pageResult.isDone;
+  }
+
+  let canceled = 0;
+  for (const workflowId of workflowIds) {
+    await ctx.runMutation(components.workflow.workflow.cancel, { workflowId });
+    canceled += 1;
+  }
+
+  return { canceled, workflowIds: Array.from(workflowIds) };
+}
+
+async function deleteExperimentData(
+  ctx: {
+    db: {
+      delete: (id: any) => Promise<void>;
+      query: (...args: any[]) => any;
+    };
+  },
+  experimentId: string,
+) {
+  // Delete scores
+  const scores = await ctx.db
+    .query("scores")
+    .withIndex("by_experiment", (q: any) => q.eq("experimentId", experimentId))
+    .collect();
+
+  for (const score of scores) {
+    await ctx.db.delete(score._id);
+  }
+
+  // Delete samples
+  const samples = await ctx.db
+    .query("samples")
+    .withIndex("by_experiment", (q: any) => q.eq("experimentId", experimentId))
+    .collect();
+
+  for (const sample of samples) {
+    await ctx.db.delete(sample._id);
+  }
+
+  // Delete rubrics
+  const rubrics = await ctx.db
+    .query("rubrics")
+    .withIndex("by_experiment_model", (q: any) =>
+      q.eq("experimentId", experimentId),
+    )
+    .collect();
+  for (const rubric of rubrics) {
+    await ctx.db.delete(rubric._id);
+  }
+
+  // Delete experiment
+  await ctx.db.delete(experimentId);
+}

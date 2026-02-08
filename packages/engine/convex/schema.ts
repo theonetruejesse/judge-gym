@@ -49,7 +49,6 @@ export const ExperimentConfigSchema = z.object({
     z.literal("evidence-first"),
   ]),
   abstainEnabled: z.boolean(),
-  freshWindowProbe: z.boolean(),
 });
 
 export type ExperimentConfig = z.infer<typeof ExperimentConfigSchema>;
@@ -60,7 +59,6 @@ export const ExperimentStatusSchema = z.union([
   z.literal("evidence-done"),
   z.literal("rubric-done"),
   z.literal("scoring"),
-  z.literal("probing"),
   z.literal("complete"),
 ]);
 
@@ -126,20 +124,15 @@ export const ScoresTableSchema = z.object({
   experimentId: zid("experiments"),
   modelId: modelTypeSchema,
   rubricId: zid("rubrics"),
-  evidenceId: zid("evidence"),
+  evidenceId: zid("evidences"),
   threadId: z.string(),
   isSwap: z.boolean(),
   abstained: z.boolean(),
   rawVerdict: z.string().nullable(),
   decodedScores: z.array(z.number()).nullable(),
-});
-
-export const ProbesTableSchema = z.object({
-  scoreId: zid("scores"),
-  modelId: modelTypeSchema,
-  threadId: z.string(),
-  promptedStageLabel: z.string(),
-  expertAgreementProb: z.number(),
+  probeThreadId: z.string().optional(),
+  promptedStageLabel: z.string().optional(),
+  expertAgreementProb: z.number().optional(),
 });
 
 export const UsageTableSchema = z.object({
@@ -163,7 +156,7 @@ export default defineSchema({
     "by_window_key",
     ["startDate", "endDate", "country", "concept"],
   ),
-  evidence: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
+  evidences: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
     "by_window_id",
     ["windowId"],
   ),
@@ -178,10 +171,7 @@ export default defineSchema({
     .index("by_experiment", ["experimentId"])
     .index("by_sample", ["sampleId"])
     .index("by_rubric", ["rubricId"]),
-  probes: defineTable(zodOutputToConvex(ProbesTableSchema)).index("by_score", [
-    "scoreId",
-  ]),
-  usage: defineTable(zodOutputToConvex(UsageTableSchema)).index("by_provider", [
+  usages: defineTable(zodOutputToConvex(UsageTableSchema)).index("by_provider", [
     "provider",
   ]),
 });
