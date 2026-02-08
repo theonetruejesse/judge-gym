@@ -43,7 +43,7 @@ export const validateRubric = zInternalAction({
   handler: async (ctx, { rubricId }) => {
     const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
 
-    const critic = new Critic();
+    const critic = new Critic(rubric.modelId);
     const quality = await critic.evaluate(ctx, rubric);
 
     await ctx.runMutation(internal.repo.patchRubric, {

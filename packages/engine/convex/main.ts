@@ -102,12 +102,13 @@ export const startScoringTrial = zMutation({
   args: z.object({
     experimentTag: z.string(),
     samples: z.number().optional(),
+    evidenceLimit: z.number().optional(),
   }),
-  handler: async (ctx, { experimentTag, samples }) => {
+  handler: async (ctx, { experimentTag, samples, evidenceLimit }) => {
     await workflow.start(
       ctx,
       internal.stages["3_scoring"].scoring_workflow.scoringWorkflow,
-      { experimentTag, samples },
+      { experimentTag, samples, evidenceLimit },
     );
   },
 });
@@ -117,24 +118,13 @@ export const startSwapTrial = zMutation({
   args: z.object({
     experimentTag: z.string(),
     swapRubricFrom: z.string(),
+    evidenceLimit: z.number().optional(),
   }),
-  handler: async (ctx, { experimentTag, swapRubricFrom }) => {
+  handler: async (ctx, { experimentTag, swapRubricFrom, evidenceLimit }) => {
     await workflow.start(
       ctx,
       internal.stages["3_scoring"].scoring_workflow.swapWorkflow,
-      { experimentTag, swapRubricFrom },
-    );
-  },
-});
-
-// W5: Epistemic probing
-export const startProbingTrial = zMutation({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
-    await workflow.start(
-      ctx,
-      internal.stages["4_probe"].probe_workflow.probeWorkflow,
-      { experimentTag },
+      { experimentTag, swapRubricFrom, evidenceLimit },
     );
   },
 });

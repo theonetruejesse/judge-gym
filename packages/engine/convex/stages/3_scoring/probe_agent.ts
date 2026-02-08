@@ -51,10 +51,7 @@ export class Prober extends AbstractJudgeAgent {
     );
 
     // Parse the probability from the response
-    const match = text.match(
-      /EXPERT_AGREEMENT:\s*([01](?:\.\d+)?)/i,
-    );
-
+    const match = text.match(/EXPERT_AGREEMENT:\\s*([01](?:\\.\\d+)?)/i);
     if (!match) {
       throw new Error(
         `Failed to parse EXPERT_AGREEMENT line from probe response: ${text}`,
@@ -66,7 +63,6 @@ export class Prober extends AbstractJudgeAgent {
     }
 
     const clamped = Math.min(1.0, Math.max(0.0, prob));
-
     return { threadId, expertAgreementProb: clamped };
   }
 }

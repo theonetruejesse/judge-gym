@@ -12,7 +12,15 @@ type RunOptions = {
   runOnce: boolean;
 };
 
-// oops, fix runner lol
+/**
+ * Orchestrates and runs a batch of experiments according to the provided options.
+ *
+ * @param options - Configuration for the run:
+ *   - `settings`: array of ExperimentSettings to run.
+ *   - `useNewRun`: when true, appends a timestamp and 1-based index to each experiment's tag to create a new run-specific tag.
+ *   - `autoAdvance`: whether experiments should automatically advance between steps.
+ *   - `runOnce`: whether each experiment should execute only once.
+ */
 
 export async function runExperiments(options: RunOptions) {
   const { settings, useNewRun, autoAdvance, runOnce } = options;
@@ -37,7 +45,16 @@ export async function runExperiments(options: RunOptions) {
     });
   });
 
-  await Promise.all(runners);
+  const results = await Promise.allSettled(runners);
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failures.length > 0) {
+    console.error(
+      `${failures.length} experiment(s) failed:`,
+      failures.map((failure) => failure.reason),
+    );
+  }
 }
 
 async function ensureExperiment(options: {
