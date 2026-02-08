@@ -2,7 +2,7 @@
  * runner.ts — experiment runner helpers
  */
 import { api, httpClient } from "./clients";
-import { trackExperiment } from "../tracker";
+import { trackExperiment } from "./tracker";
 import type { ExperimentSettings } from "./types";
 
 type RunOptions = {
