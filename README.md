@@ -6,6 +6,8 @@ Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., N
 
 Read [`paper.md`](./paper.md) for the research motivation and theoretical framework.
 
+- [ ] todo: edit everything here lol
+
 ---
 
 ## Monorepo Structure
@@ -14,22 +16,29 @@ Read [`paper.md`](./paper.md) for the research motivation and theoretical framew
 judge-gym/
 ├── packages/
 │   ├── engine/                    # Convex backend — the design space engine
-│   │   └── convex/
-│   │       ├── schema.ts          # All tables: experiments, windows, evidence, rubrics, samples, probes, usage
-│   │       ├── main.ts            # Public API — workflow triggers
-│   │       ├── data.ts            # Public API — read queries for analysis
-│   │       ├── repo.ts            # Internal CRUD
-│   │       ├── agents/            # AbstractJudgeAgent base class
-│   │       ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering, probe)
-│   │       ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
-│   │       └── stages/            # Pipeline stages
-│   │           ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
-│   │           ├── 2_rubric/      # W2: Generate + validate (ECC/Control) or load (Benchmark)
-│   │           ├── 3_scoring/     # W3: Score evidence × rubric; W4: Rubric swap trials
-│   │           └── 4_probe/       # W5: Fresh-window epistemic probes
+│   │   ├── convex/
+│   │   │   ├── schema.ts          # Tables: experiments, windows, evidence, rubrics, samples, scores, probes, usage
+│   │   │   ├── main.ts            # Public API — workflow triggers
+│   │   │   ├── data.ts            # Public API — read queries for analysis
+│   │   │   ├── repo.ts            # Internal CRUD
+│   │   │   ├── agent_config.ts    # Shared usage handler + rate limit feedback
+│   │   │   ├── workflow_manager.ts# Workflow pool + retry settings
+│   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
+│   │   │   ├── agents/            # AbstractJudgeAgent base class
+│   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering, probe)
+│   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
+│   │   │   └── stages/            # Pipeline stages
+│   │   │       ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
+│   │   │       ├── 2_rubric/      # W2: Generate + validate (ECC/Control) or load (Benchmark)
+│   │   │       ├── 3_scoring/     # W3: Score evidence × rubric; W4: Rubric swap trials
+│   │   │       └── 4_probe/       # W5: Fresh-window epistemic probes
+│   │   └── src/                   # Automated runner + live tracker
+│   │       ├── experiments.ts     # Experiment settings (window + config)
+│   │       └── helpers/           # Convex clients, runner, tracker, console UI
 │   │
 │   └── analysis/                  # Python — statistical analysis + visualization
 │       ├── pyproject.toml         # uv project config
+│       ├── data/                  # Local exports from Convex
 │       ├── notebooks/             # Jupyter: polarization, entrenchment, swap, regression
 │       └── src/judge_gym/         # JSD, DST aggregation, OLS, data collection from Convex
 │
@@ -49,14 +58,14 @@ judge-gym/
 
 Set these in your Convex deployment environment:
 
-| Key                  | Required | Used By                             |
-| :------------------- | :------- | :---------------------------------- |
-| `OPENAI_API_KEY`     | Yes      | GPT-4.1, GPT-4.1 Mini, o4-mini      |
-| `ANTHROPIC_API_KEY`  | Yes      | Claude Sonnet 4, Sonnet 4.5         |
-| `FIRECRAWL_API_KEY`  | Yes      | Evidence collection (news scraping) |
-| `XAI_API_KEY`        | Optional | Grok 3                              |
-| `GOOGLE_API_KEY`     | Optional | Gemini 2.5 Pro, Gemini 2.5 Flash    |
-| `OPENROUTER_API_KEY` | Optional | Fallback / additional models        |
+| Key                  | Required | Used By                              |
+| :------------------- | :------- | :----------------------------------- |
+| `OPENAI_API_KEY`     | Yes      | GPT-4.1, GPT-4.1 Mini, GPT-5.2       |
+| `ANTHROPIC_API_KEY`  | Yes      | Claude Sonnet 4.5, Claude Haiku 4.5  |
+| `FIRECRAWL_API_KEY`  | Yes      | Evidence collection (news scraping)  |
+| `XAI_API_KEY`        | Optional | Grok 4.1 Fast                        |
+| `GOOGLE_API_KEY`     | Optional | Gemini 3.0 Flash                     |
+| `OPENROUTER_API_KEY` | Optional | OpenRouter models (e.g., Qwen3 235B) |
 
 ---
 
@@ -72,7 +81,7 @@ bun install
 
 # Start Convex dev server (in a separate terminal)
 cd packages/engine
-npx convex dev
+bun run dev
 
 # Set environment variables via Convex dashboard or CLI
 npx convex env set OPENAI_API_KEY sk-...
@@ -84,26 +93,37 @@ cd packages/analysis
 uv sync
 ```
 
+### Runner Environment
+
+The automated runner in `packages/engine/src/` uses the Convex HTTP API.
+Create `packages/engine/.env.local` with:
+
+```bash
+CONVEX_URL=https://<your-deployment>.convex.cloud
+```
+
 ---
 
 ## Design Space
 
 An **experiment** is a single point in the design space. Each axis is independently configurable:
 
-| Axis                | Config Field                | Values                                                                                                       | Default                  |
-| :------------------ | :-------------------------- | :----------------------------------------------------------------------------------------------------------- | :----------------------- |
-| Model Family        | `modelId`                   | `gpt-4.1`, `claude-sonnet-4`, `claude-sonnet-4-5`, `grok-3`, `gemini-2.5-pro`, `gemini-2.5-flash`, `o4-mini` | —                        |
-| Concept             | `concept`                   | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                             | —                        |
-| Task Type           | `taskType`                  | `ecc`, `control`, `benchmark`                                                                                | —                        |
-| Scoring Method      | `config.scoringMethod`      | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                        | `freeform-suffix-subset` |
-| Scale Size          | `config.scaleSize`          | `3`, `4`, `5`                                                                                                | `4`                      |
-| Evidence View       | `config.evidenceView`       | `raw` / `cleaned` / `neutralized` / `abstracted`                                                             | `neutralized`            |
-| Randomizations      | `config.randomizations`     | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                              | `["anon-label","rubric-order-shuffle"]` |
-| Prompt Ordering     | `config.promptOrdering`     | `rubric-first`, `evidence-first`                                                                             | `rubric-first`           |
-| Abstain Gate        | `config.abstainEnabled`     | `true` / `false`                                                                                             | `true`                   |
-| Fresh-Window Probe  | `config.freshWindowProbe`   | `true` / `false`                                                                                             | `true`                   |
+| Axis               | Config Field              | Values                                                                                                                           | Default                                 |
+| :----------------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| Model Family       | `modelId`                 | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Concept            | `window.concept`          | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
+| Task Type          | `taskType`                | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
+| Scoring Method     | `config.scoringMethod`    | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                                            | `freeform-suffix-subset`                |
+| Scale Size         | `config.scaleSize`        | `3`, `4`, `5`                                                                                                                    | `4`                                     |
+| Evidence View      | `config.evidenceView`     | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
+| Randomizations     | `config.randomizations`   | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
+| Prompt Ordering    | `config.promptOrdering`   | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
+| Abstain Gate       | `config.abstainEnabled`   | `true` / `false`                                                                                                                 | `true`                                  |
+| Fresh-Window Probe | `config.freshWindowProbe` | `true` / `false`                                                                                                                 | `true`                                  |
+| Ground Truth       | `groundTruth`             | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
+Evidence windows are defined by `window.startDate`, `window.endDate`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
 
 ---
 
@@ -111,36 +131,55 @@ To run a new ablation, create experiment records with different parameter values
 
 All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP from within Cursor.
 
-### 1. Create a time window
+### Option A — Automated runner (recommended)
+
+1. Edit `packages/engine/src/experiments.ts` with your experiment settings.
+2. Ensure `packages/engine/.env.local` has `CONVEX_URL=...` for your deployment.
+3. Run the runner from `packages/engine/`:
 
 ```bash
-npx convex run main:createWindow \
-  '{"startDate":"2026-01-01","endDate":"2026-01-31","country":"USA"}'
-# → returns windowId
+bun run start
 ```
 
-### 2. Create an experiment
+Runner flags are environment variables:
 
 ```bash
-npx convex run main:createExperiment '{
-  "experimentTag": "pilot_fascism_gpt4.1",
-  "windowId": "<windowId>",
-  "modelId": "gpt-4.1",
-  "taskType": "ecc",
-  "concept": "fascism",
-  "config": {
-    "scaleSize": 4,
-    "randomizations": ["anon-label", "rubric-order-shuffle"],
-    "evidenceView": "neutralized",
-    "scoringMethod": "freeform-suffix-subset",
-    "promptOrdering": "rubric-first",
-    "abstainEnabled": true,
-    "freshWindowProbe": true
+NEW_RUN=1 bun run start       # suffix experiment tags with timestamp
+AUTO_ADVANCE=0 bun run start  # only track, do not auto-advance stages
+ONCE=1 bun run start          # render once and exit
+```
+
+### Option B — Manual workflow (CLI)
+
+#### 1. Initialize window + experiment
+
+```bash
+npx convex run main:initExperiment '{
+  "window": {
+    "startDate": "2026-01-01",
+    "endDate": "2026-01-31",
+    "country": "USA",
+    "concept": "fascism"
+  },
+  "experiment": {
+    "experimentTag": "pilot_fascism_gpt4.1",
+    "modelId": "gpt-4.1",
+    "taskType": "ecc",
+    "config": {
+      "scaleSize": 4,
+      "randomizations": ["anon-label", "rubric-order-shuffle"],
+      "evidenceView": "neutralized",
+      "scoringMethod": "freeform-suffix-subset",
+      "promptOrdering": "rubric-first",
+      "abstainEnabled": true,
+      "freshWindowProbe": true
+    }
   }
 }'
+# → returns windowId + experimentId (reused if they already exist)
 ```
 
-### 3. Run the pipeline
+#### 2. Run the pipeline
 
 ```bash
 # W1: Collect + neutralize evidence
@@ -149,7 +188,7 @@ npx convex run main:startEvidencePipeline \
 
 # W2: Generate rubric
 npx convex run main:startRubricGeneration \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
 
 # W3: Score (5 samples per evidence item)
 npx convex run main:startScoringTrial \
@@ -157,18 +196,22 @@ npx convex run main:startScoringTrial \
 
 # W4: Rubric swap (optional — for high-divergence pairs)
 npx convex run main:startSwapTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4-5"}'
+  '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4.5"}'
 
 # W5: Epistemic probes
 npx convex run main:startProbingTrial \
   '{"experimentTag":"pilot_fascism_gpt4.1"}'
 ```
 
-### 4. Query results
+#### 3. Query results
 
 ```bash
 # Experiment summary
 npx convex run data:getExperimentSummary \
+  '{"experimentTag":"pilot_fascism_gpt4.1"}'
+
+# Scores (raw + decoded)
+npx convex run data:listExperimentScores \
   '{"experimentTag":"pilot_fascism_gpt4.1"}'
 
 # Export for analysis
@@ -244,7 +287,9 @@ To add a new design space dimension (e.g., `promptLanguage: "english" | "formal-
 
 ---
 
-## MCP Operation (Cursor)
+## Agentic Integrations
+
+- [ ] todo: edit this section
 
 The engine is designed to be operated from within Cursor via the Convex MCP server. See [`packages/engine/AGENTS.md`](./packages/engine/AGENTS.md) for the full agent instruction set including:
 

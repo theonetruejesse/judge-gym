@@ -1,5 +1,7 @@
 import { MINUTE, type RateLimitConfig } from "@convex-dev/rate-limiter";
 
+// adjust this file to match the actual tiers and models you are using.
+
 export const OPENAI_TIERS = {
   FREE: "openai_free",
   TIER_1: "openai_tier_1",
@@ -30,6 +32,7 @@ export const XAI_TIERS = {
 export const OPENROUTER_TIERS = {
   FREE: "openrouter_free",
   CREDITS_10_PLUS: "openrouter_credits_10_plus",
+  PAID: "openrouter_paid",
 } as const;
 
 type RateTierConfig = {
@@ -37,15 +40,11 @@ type RateTierConfig = {
   models: readonly string[];
 };
 
-// OpenAI does not publish per-model RPM/TPM limits publicly.
-// Fill these from the OpenAI Limits page in your dashboard.
-// OpenAI per-model RPM/TPM limits are shown in your OpenAI Limits dashboard.
-// Populate these per the exact limits shown for your org/project and models.
+
 export const OPENAI_RATE_CONFIGS = {
   [OPENAI_TIERS.FREE]: { configs: {}, models: [] },
   [OPENAI_TIERS.TIER_1]: {
     configs: {
-      // OpenAI publishes TPM as a combined limit; we mirror it for both input/output.
       "gpt-4.1:requests": {
         kind: "token bucket",
         rate: 500,
@@ -389,10 +388,31 @@ export const GOOGLE_RATE_CONFIGS = {
 
 // xAI per-model RPM/TPM limits are shown in the xAI Console.
 export const XAI_RATE_CONFIGS = {
-  [XAI_TIERS.STANDARD]: { configs: {}, models: [] },
+  [XAI_TIERS.STANDARD]: {
+    configs: {
+      "grok-4.1-fast:requests": {
+        kind: "token bucket",
+        rate: 480,
+        period: MINUTE,
+        capacity: 480,
+      },
+      "grok-4.1-fast:input_tokens": {
+        kind: "token bucket",
+        rate: 4_000_000,
+        period: MINUTE,
+      },
+      "grok-4.1-fast:output_tokens": {
+        kind: "token bucket",
+        rate: 4_000_000,
+        period: MINUTE,
+      },
+    },
+    models: ["grok-4.1-fast"],
+  },
 } satisfies Record<string, RateTierConfig>;
 
 const OPENROUTER_TPM_UNLIMITED = 1_000_000_000;
+const OPENROUTER_RPM_UNLIMITED = 1_000_000_000;
 
 export const OPENROUTER_RATE_CONFIGS = {
   [OPENROUTER_TIERS.FREE]: {
@@ -436,5 +456,27 @@ export const OPENROUTER_RATE_CONFIGS = {
       },
     },
     models: ["openrouter-credits-10-plus"],
+  },
+  [OPENROUTER_TIERS.PAID]: {
+    configs: {
+      // OpenRouter doesn't enforce RPM/TPM for paid-model usage; providers may still throttle.
+      "qwen3-235b:requests": {
+        kind: "token bucket",
+        rate: OPENROUTER_RPM_UNLIMITED,
+        period: MINUTE,
+        capacity: OPENROUTER_RPM_UNLIMITED,
+      },
+      "qwen3-235b:input_tokens": {
+        kind: "token bucket",
+        rate: OPENROUTER_TPM_UNLIMITED,
+        period: MINUTE,
+      },
+      "qwen3-235b:output_tokens": {
+        kind: "token bucket",
+        rate: OPENROUTER_TPM_UNLIMITED,
+        period: MINUTE,
+      },
+    },
+    models: ["qwen3-235b"],
   },
 } satisfies Record<string, RateTierConfig>;

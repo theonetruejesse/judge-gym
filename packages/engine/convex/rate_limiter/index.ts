@@ -20,7 +20,7 @@ const ACTIVE_PROVIDER_TIERS = {
   anthropic: ANTHROPIC_TIERS.TIER_1,
   google: GOOGLE_TIERS.TIER_1,
   xai: XAI_TIERS.STANDARD,
-  openrouter: OPENROUTER_TIERS.FREE,
+  openrouter: OPENROUTER_TIERS.PAID,
 } as const;
 
 // Edit these lists to match the models you actually use.

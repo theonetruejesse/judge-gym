@@ -1,4 +1,4 @@
-import type { ExperimentConfig } from "../convex/schema";
+import type { ExperimentConfig } from "../../convex/schema";
 
 export type ExperimentSummary = {
   experimentTag: string;
