@@ -56,6 +56,14 @@ export const nukeExperiment = zInternalMutation({
   },
 });
 
+/**
+ * Cancel all in-progress workflows whose args reference the given experiment tag and return the cancellation summary.
+ *
+ * Scans workflows pages for entries with args.experimentTag equal to `experimentTag`, skips entries that already have a `runResult`, cancels the remaining workflows, and returns the count and IDs of canceled workflows.
+ *
+ * @param experimentTag - The experiment tag to match workflows against
+ * @returns An object with `canceled` equal to the number of workflows canceled and `workflowIds` containing the canceled workflow IDs
+ */
 async function cancelWorkflowsByExperimentTag(
   ctx: {
     runQuery: (...args: any[]) => Promise<any>;
@@ -99,6 +107,14 @@ async function cancelWorkflowsByExperimentTag(
   return { canceled, workflowIds: Array.from(workflowIds) };
 }
 
+/**
+ * Remove all database records associated with a specific experiment and then delete the experiment record.
+ *
+ * Deletes documents from the "scores", "samples", and "rubrics" collections that reference the experiment, then deletes the experiment document itself.
+ *
+ * @param ctx - Database context exposing `query` and `delete` operations used to locate and remove documents.
+ * @param experimentId - The identifier of the experiment whose data should be removed.
+ */
 async function deleteExperimentData(
   ctx: {
     db: {
