@@ -2,12 +2,12 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation, zInternalQuery } from "./utils";
 import {
-  EvidenceTableSchema,
+  EvidencesTableSchema,
   ExperimentStatusSchema,
   RubricsTableSchema,
   SamplesTableSchema,
   ScoresTableSchema,
-  UsageTableSchema,
+  UsagesTableSchema,
 } from "./schema";
 
 // --- Experiments ---
@@ -59,7 +59,7 @@ export const getWindow = zInternalQuery({
 // --- Evidence ---
 
 export const createEvidence = zInternalMutation({
-  args: EvidenceTableSchema,
+  args: EvidencesTableSchema,
   handler: async (ctx, args) => ctx.db.insert("evidences", args),
 });
 
@@ -169,9 +169,12 @@ export const patchRubric = zInternalMutation({
       observabilityScore: z.number(),
       discriminabilityScore: z.number(),
     }),
+    criticThreadId: z.string().optional(),
+    criticOutput: z.string().optional(),
+    criticReasoning: z.string().optional(),
   }),
-  handler: async (ctx, { rubricId, qualityStats }) => {
-    await ctx.db.patch(rubricId, { qualityStats });
+  handler: async (ctx, { rubricId, ...fields }) => {
+    await ctx.db.patch(rubricId, fields);
   },
 });
 
@@ -234,6 +237,8 @@ export const patchScore = zInternalMutation({
     probeThreadId: z.string().optional(),
     promptedStageLabel: z.string().optional(),
     expertAgreementProb: z.number().optional(),
+    probeOutput: z.string().optional(),
+    probeReasoning: z.string().optional(),
   }),
   handler: async (ctx, updates) => {
     const { scoreId, ...fields } = updates;
@@ -254,6 +259,6 @@ export const listScoresByExperiment = zInternalQuery({
 // --- Usage ---
 
 export const createUsage = zInternalMutation({
-  args: UsageTableSchema,
+  args: UsagesTableSchema,
   handler: async (ctx, args) => ctx.db.insert("usages", args),
 });

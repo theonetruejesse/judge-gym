@@ -1,5 +1,7 @@
 # judge-gym
 
+_this is a generative artifact, need to update the implementation details_
+
 An open-source LLM-as-Judge design space engine. Systematically explore how model family, rubric design, scoring method, and evidence presentation affect LLM evaluation of contested political concepts.
 
 Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
@@ -112,7 +114,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Model Family    | `modelId`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
 | Concept         | `window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `taskType`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                                                            | `freeform-suffix-subset`                |
+| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                              | `freeform-suffix-subset`                |
 | Scale Size      | `config.scaleSize`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
 | Evidence View   | `config.evidenceView`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
 | Randomizations  | `config.randomizations` | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |

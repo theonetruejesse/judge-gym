@@ -2,8 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils";
 import { internal } from "../../_generated/api";
-import { Scorer } from "./scoring_agent";
-import { Prober } from "./probe_agent";
+import { Scorer, Prober } from "./scoring_agent";
 import { resolveScaleStrategy } from "../../strategies/scale.strategy";
 import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
 import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
@@ -55,9 +54,9 @@ export const scoreEvidence = zInternalAction({
       abstained: result.abstained,
       rawVerdict: result.rawVerdict,
       decodedScores: result.decodedScores,
+      scorerOutput: result.rawOutput,
+      scorerReasoning: result.reasoning,
     });
-
-    if (result.abstained || !result.decodedScores?.length) return;
 
     const { letterLabels } = resolveScaleStrategy(experiment.config);
     const labelMapping = sample.labelMapping ?? undefined;
@@ -86,10 +85,11 @@ export const scoreEvidence = zInternalAction({
       ? shuffleArray([...stagesForPrompt])
       : stagesForPrompt;
 
-    const verdictLabels = result.decodedScores.map((scoreValue) =>
-      labelForIndex(scoreValue - 1),
-    );
-    if (verdictLabels.length === 0) return;
+    const verdictLabels = result.abstained
+      ? ["ABSTAIN"]
+      : (result.decodedScores ?? []).map((scoreValue) =>
+          labelForIndex(scoreValue - 1),
+        );
 
     const prober = new Prober(experiment.modelId);
     const evidenceSummary =
@@ -102,6 +102,7 @@ export const scoreEvidence = zInternalAction({
       modelOutput: result.rawVerdict ?? "",
       verdictLabels,
       labelsAnonymized: randomization.hideLabelName,
+      abstained: result.abstained,
     });
 
     await ctx.runMutation(internal.repo.patchScore, {
@@ -109,6 +110,8 @@ export const scoreEvidence = zInternalAction({
       probeThreadId: probeResult.threadId,
       promptedStageLabel: verdictLabels.join(", "),
       expertAgreementProb: probeResult.expertAgreementProb,
+      probeOutput: probeResult.rawOutput,
+      probeReasoning: probeResult.reasoning,
     });
   },
 });

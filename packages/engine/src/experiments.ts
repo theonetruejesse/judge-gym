@@ -23,8 +23,8 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
         abstainEnabled: true,
       },
     },
-    evidenceLimit: 10,
-    sampleCount: 10,
+    evidenceLimit: 9,
+    sampleCount: 30,
   },
   // {
   //   window: {

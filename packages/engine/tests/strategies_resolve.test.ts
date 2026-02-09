@@ -27,7 +27,7 @@ describe("strategies resolve", () => {
     expect(resolved.randomization.hideLabelName).toBe(false);
     expect(typeof resolved.scoring.parseVerdict).toBe("function");
     expect(resolved.scoring.buildPromptSuffix(["A", "B"]))
-      .toContain("A,B");
+      .toContain("A, B");
   });
 
   test("resolveEvidenceStrategy maps evidenceView to content field", () => {

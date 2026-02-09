@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   parseSingleVerdict,
   parseSubsetVerdict,
-  parseJsonVerdict,
+  extractReasoningBeforeVerdict,
+  parseExpertAgreementResponse,
 } from "../convex/utils/verdict_parser";
 
 describe("verdict_parser", () => {
@@ -115,44 +116,23 @@ describe("verdict_parser", () => {
     });
   });
 
-  test("parseJsonVerdict parses verdict JSON", () => {
-    const result = parseJsonVerdict(
-      'Reasoning...\nVERDICT_JSON: {"verdict":"C"}',
-    );
+  test("extractReasoningBeforeVerdict returns content before final verdict", () => {
+    const raw =
+      "First reasoning.\nVERDICT: A\nMore text.\nVERDICT: B\nTrailing?";
+    const reasoning = extractReasoningBeforeVerdict(raw);
+    expect(reasoning).toBe("First reasoning.\nVERDICT: A\nMore text.");
+  });
+
+  test("extractReasoningBeforeVerdict throws on missing reasoning", () => {
+    expect(() => extractReasoningBeforeVerdict("VERDICT: A")).toThrow();
+  });
+
+  test("parseExpertAgreementResponse parses probability and reasoning", () => {
+    const raw = "Reasoning here.\nEXPERT_AGREEMENT: 0.72";
+    const result = parseExpertAgreementResponse(raw);
     expect(result).toEqual({
-      rawVerdict: "C",
-      decodedScores: [3],
-      abstained: false,
+      expertAgreementProb: 0.72,
+      reasoning: "Reasoning here.",
     });
-  });
-
-  test("parseJsonVerdict handles abstain", () => {
-    const result = parseJsonVerdict('VERDICT_JSON: {"verdict":"ABSTAIN"}');
-    expect(result).toEqual({
-      rawVerdict: "ABSTAIN",
-      decodedScores: null,
-      abstained: true,
-    });
-  });
-
-  test("parseJsonVerdict supports label mappings", () => {
-    const mapping = { x1Y2z3: 4 };
-    const result = parseJsonVerdict(
-      'VERDICT_JSON: {"verdict":"x1Y2z3"}',
-      mapping,
-    );
-    expect(result).toEqual({
-      rawVerdict: "x1Y2z3",
-      decodedScores: [4],
-      abstained: false,
-    });
-  });
-
-  test("parseJsonVerdict throws on invalid payload", () => {
-    expect(() => parseJsonVerdict("VERDICT_JSON: {bad}")).toThrow();
-  });
-
-  test("parseJsonVerdict throws on missing verdict field", () => {
-    expect(() => parseJsonVerdict('VERDICT_JSON: {"nope":1}')).toThrow();
   });
 });

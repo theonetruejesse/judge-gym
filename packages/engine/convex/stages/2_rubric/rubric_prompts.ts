@@ -78,6 +78,6 @@ QUALITY 2: Discriminability (0.0 to 1.0)
 - Deduct for overlapping criteria between adjacent stages that experts would
   judge as ambiguous or redundant.
 
-Respond with EXACTLY one line:
+Provide your reasoning first. The last line of your response must be in this EXACT format:
 QUALITY: observability=<number> discriminability=<number>
 `;

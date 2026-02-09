@@ -42,7 +42,6 @@ export const ExperimentConfigSchema = z.object({
   scoringMethod: z.union([
     z.literal("freeform-suffix-single"),
     z.literal("freeform-suffix-subset"),
-    z.literal("structured-json"),
   ]),
   promptOrdering: z.union([
     z.literal("rubric-first"),
@@ -82,7 +81,7 @@ export const WindowsTableSchema = z.object({
   concept: z.string(),
 });
 
-export const EvidenceTableSchema = z.object({
+export const EvidencesTableSchema = z.object({
   windowId: zid("windows"),
   title: z.string(),
   url: z.string(),
@@ -104,6 +103,11 @@ export const RubricsTableSchema = z.object({
   scaleSize: z.number(),
   stages: z.array(StageSchema),
   reasoning: z.string(),
+  rubricerThreadId: z.string(),
+  rubricerOutput: z.string(),
+  criticThreadId: z.string().optional(),
+  criticOutput: z.string().optional(),
+  criticReasoning: z.string().optional(),
   qualityStats: z.object({
     observabilityScore: z.number(),
     discriminabilityScore: z.number(),
@@ -130,12 +134,16 @@ export const ScoresTableSchema = z.object({
   abstained: z.boolean(),
   rawVerdict: z.string().nullable(),
   decodedScores: z.array(z.number()).nullable(),
+  scorerOutput: z.string(),
+  scorerReasoning: z.string(),
   probeThreadId: z.string().optional(),
   promptedStageLabel: z.string().optional(),
   expertAgreementProb: z.number().optional(),
+  probeOutput: z.string().optional(),
+  probeReasoning: z.string().optional(),
 });
 
-export const UsageTableSchema = z.object({
+export const UsagesTableSchema = z.object({
   threadId: z.string(),
   agentName: z.string(),
   model: z.string(),
@@ -156,7 +164,7 @@ export default defineSchema({
     "by_window_key",
     ["startDate", "endDate", "country", "concept"],
   ),
-  evidences: defineTable(zodOutputToConvex(EvidenceTableSchema)).index(
+  evidences: defineTable(zodOutputToConvex(EvidencesTableSchema)).index(
     "by_window_id",
     ["windowId"],
   ),
@@ -171,7 +179,7 @@ export default defineSchema({
     .index("by_experiment", ["experimentId"])
     .index("by_sample", ["sampleId"])
     .index("by_rubric", ["rubricId"]),
-  usages: defineTable(zodOutputToConvex(UsageTableSchema)).index("by_provider", [
+  usages: defineTable(zodOutputToConvex(UsagesTableSchema)).index("by_provider", [
     "provider",
   ]),
 });
