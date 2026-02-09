@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseRubricResponse,
   parseQualityResponse,
+  extractReasoningBeforeQuality,
 } from "../convex/utils/rubric_parser";
 
 describe("rubric_parser", () => {
@@ -106,25 +107,34 @@ RUBRIC:
 
   test("parseQualityResponse parses quality line", () => {
     const result = parseQualityResponse(
-      "QUALITY: observability=0.8 discriminability=0.6",
+      "Reasoning.\nQUALITY: observability=0.8 discriminability=0.6",
     );
     expect(result).toEqual({
       observabilityScore: 0.8,
       discriminabilityScore: 0.6,
+      reasoning: "Reasoning.",
     });
   });
 
   test("parseQualityResponse is case-insensitive", () => {
     const result = parseQualityResponse(
-      "quality: observability=0.9 discriminability=0.1",
+      "Reasoning.\nquality: observability=0.9 discriminability=0.1",
     );
     expect(result).toEqual({
       observabilityScore: 0.9,
       discriminabilityScore: 0.1,
+      reasoning: "Reasoning.",
     });
   });
 
   test("parseQualityResponse rejects invalid quality", () => {
     expect(() => parseQualityResponse("QUALITY: oops")).toThrow();
+  });
+
+  test("extractReasoningBeforeQuality returns content before final quality line", () => {
+    const raw =
+      "Some reasoning.\nQUALITY: observability=0.2 discriminability=0.3\nMore reasoning.\nQUALITY: observability=0.9 discriminability=0.1";
+    const reasoning = extractReasoningBeforeQuality(raw);
+    expect(reasoning).toBe("Some reasoning.\nQUALITY: observability=0.2 discriminability=0.3\nMore reasoning.");
   });
 });

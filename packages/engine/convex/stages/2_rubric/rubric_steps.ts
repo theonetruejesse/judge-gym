@@ -30,6 +30,8 @@ export const generateRubric = zInternalAction({
       scaleSize: experiment.config.scaleSize,
       stages: rubric.stages,
       reasoning: rubric.reasoning,
+      rubricerThreadId: rubric.threadId,
+      rubricerOutput: rubric.rawOutput,
       qualityStats: { observabilityScore: 0, discriminabilityScore: 0 }, // filled by critic
     });
 
@@ -48,7 +50,13 @@ export const validateRubric = zInternalAction({
 
     await ctx.runMutation(internal.repo.patchRubric, {
       rubricId,
-      qualityStats: quality,
+      qualityStats: {
+        observabilityScore: quality.observabilityScore,
+        discriminabilityScore: quality.discriminabilityScore,
+      },
+      criticThreadId: quality.threadId,
+      criticOutput: quality.rawOutput,
+      criticReasoning: quality.reasoning,
     });
   },
 });

@@ -1,8 +1,7 @@
 import {
   parseSingleVerdict,
   parseSubsetVerdict,
-  parseJsonVerdict,
-} from "../utils/verdict_parser";
+} from "../stages/3_scoring/scoring_parsers";
 import type { ExperimentConfig } from "../schema";
 
 export interface ScoringStrategy {
@@ -25,25 +24,25 @@ export function resolveScoringStrategy(
   const strategies: Record<string, ScoringStrategy> = {
     "freeform-suffix-single": {
       buildPromptSuffix: (labels) =>
-        `VERDICT: [${labels.join("/")}] or ABSTAIN`,
+        `Final line must be exactly one of:\n${labels.map((label) => `VERDICT: ${label}`).join("\n")}\nVERDICT: ABSTAIN`,
       systemInstruction: "Conclude with a single verdict from the options above.",
       parseVerdict: parseSingleVerdict,
     },
     "freeform-suffix-subset": {
       buildPromptSuffix: (labels) =>
-        `VERDICT: [comma-separated IDs, e.g. ${labels.slice(0, 2).join(",")}] or ABSTAIN`,
+        `Final line must be: VERDICT: <comma-separated IDs from: ${labels.join(", ")}> or VERDICT: ABSTAIN`,
       systemInstruction:
         "List ALL stage identifiers whose criteria are supported by the evidence. " +
         "If multiple stages apply, include them all (do not collapse to a single stage).",
       parseVerdict: parseSubsetVerdict,
     },
-    "structured-json": {
-      buildPromptSuffix: (labels) =>
-        `VERDICT_JSON: {"verdict":"${labels[0]}"} or {"verdict":"ABSTAIN"}`,
-      systemInstruction:
-        "Return a structured JSON verdict on the final line only.",
-      parseVerdict: parseJsonVerdict,
-    },
   };
-  return strategies[config.scoringMethod];
+  const strategy = strategies[config.scoringMethod];
+  if (!strategy) {
+    const allowed = Object.keys(strategies).join(", ");
+    throw new Error(
+      `Unknown scoringMethod "${config.scoringMethod}". Allowed: ${allowed}`,
+    );
+  }
+  return strategy;
 }

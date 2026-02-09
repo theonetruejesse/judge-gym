@@ -1,5 +1,6 @@
 import z from "zod";
 import { zQuery } from "./utils";
+import { components } from "./_generated/api";
 
 // --- Read queries for analysis consumption ---
 // These are consumed by the Python analysis package via Convex HTTP API.
@@ -120,6 +121,36 @@ export const listExperimentsByTaskType = zQuery({
   },
 });
 
+export const listAgentThreadMessages = zQuery({
+  args: z.object({
+    threadId: z.string(),
+    order: z.enum(["asc", "desc"]).optional(),
+    limit: z.number().min(1).max(200).optional(),
+    excludeToolMessages: z.boolean().optional(),
+    statuses: z.array(z.enum(["pending", "success", "failed"])).optional(),
+  }),
+  handler: async (
+    ctx,
+    { threadId, order, limit, excludeToolMessages, statuses },
+  ) => {
+    const pageSize = limit ?? 100;
+    const result = await ctx.runQuery(
+      components.agent.messages.listMessagesByThreadId,
+      {
+        threadId,
+        order: order ?? "asc",
+        excludeToolMessages,
+        statuses,
+        paginationOpts: {
+          cursor: null,
+          numItems: pageSize,
+        },
+      },
+    );
+    return result.page;
+  },
+});
+
 export const exportExperimentCSV = zQuery({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
@@ -162,7 +193,11 @@ export const exportExperimentCSV = zQuery({
       abstained: score.abstained,
       rawVerdict: score.rawVerdict,
       decodedScores: score.decodedScores,
+      scorerReasoning: score.scorerReasoning,
+      scorerOutput: score.scorerOutput,
       expertAgreementProb: score.expertAgreementProb,
+      probeReasoning: score.probeReasoning,
+      probeOutput: score.probeOutput,
       promptedStageLabel: score.promptedStageLabel,
       displaySeed: sample?.displaySeed,
       labelMapping: sample?.labelMapping,
