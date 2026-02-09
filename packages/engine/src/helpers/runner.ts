@@ -1,7 +1,7 @@
 /**
  * runner.ts — experiment runner helpers
  */
-import { api, httpClient } from "./clients";
+import { api, httpClient, liveClient } from "./clients";
 import { trackExperiment } from "./tracker";
 import type { ExperimentSettings } from "./types";
 
@@ -25,6 +25,20 @@ type RunOptions = {
 export async function runExperiments(options: RunOptions) {
   const { settings, useNewRun, autoAdvance, runOnce } = options;
   const runStamp = Date.now();
+  let cleaningUp = false;
+  const cleanup = async (exitCode: number) => {
+    if (cleaningUp) return;
+    cleaningUp = true;
+    try {
+      await liveClient.close();
+    } catch (err) {
+      console.error("Error closing client:", err);
+    }
+    process.exit(exitCode);
+  };
+  process.on("SIGINT", () => {
+    void cleanup(0);
+  });
 
   const runners = settings.map(async (setting, index) => {
     const experimentTag = useNewRun
@@ -55,6 +69,7 @@ export async function runExperiments(options: RunOptions) {
       failures.map((failure) => failure.reason),
     );
   }
+  await cleanup(failures.length > 0 ? 1 : 0);
 }
 
 async function ensureExperiment(options: {

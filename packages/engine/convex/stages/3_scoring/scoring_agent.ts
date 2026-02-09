@@ -6,7 +6,16 @@ import {
   resolveAll,
   type ResolvedStrategies,
 } from "../../strategies/resolve";
-import { SCORING_INSTRUCTIONS, buildScoringPrompt } from "./scoring_prompts";
+import {
+  SCORING_INSTRUCTIONS,
+  buildScoringPrompt,
+  PROBE_INSTRUCTIONS,
+  probePrompt,
+} from "./scoring_prompts";
+import {
+  extractReasoningBeforeVerdict,
+  parseExpertAgreementResponse,
+} from "./scoring_parsers";
 
 /**
  * Scorer — strategy-driven evidence scoring agent.
@@ -30,6 +39,8 @@ export class Scorer extends AbstractJudgeAgent {
     },
   ): Promise<{
     threadId: string;
+    rawOutput: string;
+    reasoning: string;
     rawVerdict: string | null;
     decodedScores: number[] | null;
     abstained: boolean;
@@ -63,12 +74,78 @@ export class Scorer extends AbstractJudgeAgent {
       { prompt } as any,
     );
     const rawText = text;
+    const reasoning = extractReasoningBeforeVerdict(rawText);
 
     // Strategy drives the parser
     const result = this.strategies.scoring.parseVerdict(
       rawText,
       args.labelMapping,
     );
-    return { threadId, ...result };
+    return { threadId, rawOutput: rawText, reasoning, ...result };
+  }
+}
+
+/**
+ * Prober — measures epistemic calibration in a fresh context.
+ * Uses the same model as the Scorer to test whether the model's
+ * confidence persists without its own reasoning as context.
+ */
+export class Prober extends AbstractJudgeAgent {
+  constructor(modelId: ModelType) {
+    super(modelId, PROBE_INSTRUCTIONS, "prober");
+  }
+
+  async probe(
+    ctx: ActionCtx,
+    args: {
+      experimentTag: string;
+      scoreId: string;
+      rubric: Array<{ label: string; criteria: string[] }>;
+      evidenceSummary: string;
+      modelOutput: string;
+      verdictLabels: string[];
+      labelsAnonymized: boolean;
+      abstained: boolean;
+    },
+  ): Promise<{
+    threadId: string;
+    expertAgreementProb: number;
+    reasoning: string;
+    rawOutput: string;
+  }> {
+    await this.checkRateLimit(ctx);
+
+    // CRITICAL: fresh thread — no prior context from the scoring conversation
+    const threadId = await this.createThread(ctx, args.experimentTag, {
+      scoreId: args.scoreId,
+      probeType: "expert-agreement",
+    });
+
+    const { text } = await this.agent.generateText(
+      ctx,
+      { threadId },
+      {
+        prompt: probePrompt(
+          args.rubric,
+          args.evidenceSummary,
+          args.modelOutput,
+          args.verdictLabels,
+          args.labelsAnonymized,
+          args.abstained,
+        ),
+      } as any,
+      {
+        contextOptions: { recentMessages: 0 }, // enforce fresh window
+      },
+    );
+
+    const { expertAgreementProb, reasoning } =
+      parseExpertAgreementResponse(text);
+    return {
+      threadId,
+      expertAgreementProb,
+      reasoning,
+      rawOutput: text,
+    };
   }
 }

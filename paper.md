@@ -1,5 +1,7 @@
 # Sectarian Judges: Measuring Epistemic Entrenchment in LLM-as-Judge Evaluation of Contested Political Concepts
 
+_this is a generative artifact, need to verify content, implement details, and citations_
+
 > **Working paper — pre-results.** This document presents the theoretical framework, experimental design, and analysis plan for an ongoing study. Results will be reported in a subsequent version.
 
 ---
@@ -130,13 +132,13 @@ Inspired by GraphGym (You et al., 2020), which explored 315,000 GNN designs by t
 | :------------------ | :--------------------------------------------------------------------------------------------- |
 | Model Family        | GPT-4.1, Claude Sonnet 4, Claude Sonnet 4.5, Grok 3, Gemini 2.5 Pro, Gemini 2.5 Flash, o4-mini |
 | Concept             | "fascism," "democratic backsliding," "democracy quality," benchmark                            |
-| Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`, `structured-json`                          |
+| Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`                                             |
 | Scale Size          | 3, 4 (default), 5                                                                              |
 | Tone Neutralization | On / Off                                                                                       |
 | Label Randomization | On / Off                                                                                       |
 | Prompt Ordering     | Rubric-first / Evidence-first                                                                  |
 | Abstain Gate        | On / Off                                                                                       |
-| Fresh-Window Probe  | Always on (fresh-window probing is enforced)                                                     |
+| Fresh-Window Probe  | Always on (fresh-window probing is enforced)                                                   |
 
 An **experiment** is a single point in this space. A **sweep** is a batch of experiments covering a slice. The engine handles evidence collection, rubric generation, scoring (including inline probing), rate limiting, and data export — all durable, all auditable. To run a new ablation, the researcher creates experiment records with different parameters. No code changes are required.
 
@@ -196,8 +198,6 @@ Two primary elicitation modes, with a third as ablation:
 **Point Verdict** (`freeform-suffix-single`). The model reasons in free-form text and concludes with `VERDICT: [LETTER]` or `ABSTAIN`. This is the baseline condition. Analysis uses score distributions and JSD.
 
 **Subset Verdict** (`freeform-suffix-subset`). The model reasons freely and concludes with `VERDICT: [LETTER(S)]` (comma-separated) or `ABSTAIN`. The model may select one or more stages when evidence supports multiple interpretations. This maps directly to Dempster-Shafer basic mass assignments. Analysis uses DST conflict $k$, belief/plausibility intervals, and uncertainty gap.
-
-**Structured JSON** (`structured-json`, ablation only). The model produces structured output via `generateObject`. Included to test the Tam et al. (2024) degradation hypothesis.
 
 ---
 
