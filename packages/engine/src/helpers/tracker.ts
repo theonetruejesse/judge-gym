@@ -16,43 +16,48 @@ export async function trackExperiment(options: {
 }): Promise<void> {
   const triggered = new Set<string>();
 
-  const render = (summary: ExperimentSummary) => {
-    console.clear();
-    console.log(renderHeader("judge-gym · Experiment Tracker"));
-    console.log(renderSummary(summary));
-    console.log("");
-    console.log(renderConfigSummary(summary.config));
-    console.log(renderChecklist(summary));
-  };
+  return await new Promise((resolve, reject) => {
+    const render = (summary: ExperimentSummary) => {
+      console.clear();
+      console.log(renderHeader("judge-gym · Experiment Tracker"));
+      console.log(renderSummary(summary));
+      console.log("");
+      console.log(renderConfigSummary(summary.config));
+      console.log(renderChecklist(summary));
+    };
 
-  const subscription = liveClient.onUpdate(
-    api.data.getExperimentSummary,
-    { experimentTag: options.experimentTag },
-    (summary) => {
-      render(summary);
-      if (options.autoAdvance) {
-        void maybeAdvance(summary, options, triggered);
-      }
-      if (options.once) {
+    const subscription = liveClient.onUpdate(
+      api.data.getExperimentSummary,
+      { experimentTag: options.experimentTag },
+      (summary) => {
+        render(summary);
+        if (options.autoAdvance) {
+          void maybeAdvance(summary, options, triggered).catch((err) => {
+            console.error("Auto-advance failed:", err);
+          });
+        }
+        if (options.once || summary.status === "complete") {
+          subscription.unsubscribe();
+          resolve();
+        }
+      },
+      (err) => {
+        console.error("Tracker subscription error:", err);
         subscription.unsubscribe();
-        void liveClient.close();
-        process.exit(0);
+        reject(err);
+      },
+    );
+
+    const current = subscription.getCurrentValue();
+    if (current) {
+      render(current);
+      if (current.status === "complete") {
+        subscription.unsubscribe();
+        resolve();
+        return;
       }
-    },
-    (err) => {
-      console.error("Tracker subscription error:", err);
-    },
-  );
+    }
 
-  const current = subscription.getCurrentValue();
-  if (current) {
-    render(current);
-  }
-
-  process.on("SIGINT", async () => {
-    subscription.unsubscribe();
-    await liveClient.close();
-    process.exit(0);
   });
 }
 
