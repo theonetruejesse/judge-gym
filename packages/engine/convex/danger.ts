@@ -5,7 +5,6 @@ import { components } from "./_generated/api";
 import { zInternalMutation, zMutation } from "./utils";
 
 
-// todo, move this to a danger file
 /**
  * Dev utilities — use from dashboard or MCP during development.
  */
@@ -44,6 +43,10 @@ export const nukeTables = zInternalMutation({
 
 export const nukeExperiment = zInternalMutation({
   args: z.object({ experimentTag: z.string() }),
+  returns: z.object({
+    canceled: z.number(),
+    workflowIds: z.array(z.string()),
+  }),
   handler: async (ctx, { experimentTag }) => {
     const experiment = await ctx.db
       .query("experiments")

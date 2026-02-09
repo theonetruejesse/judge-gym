@@ -66,9 +66,55 @@ TASK:
 2. If yes, reason step-by-step about which criteria match the evidence (multiple stages may apply).
 3. ${systemInstruction}
 4. Use ONLY the stage identifiers shown before each stage (not the stage names).
-5. Your final line must contain ONLY the verdict template and nothing else.
+5. Provide your reasoning first, then end with a final verdict line only.
+6. Do not copy any templates literally — replace with your selected verdict.
 
-End your response exactly like this:
+End your response with the required final line format:
 ${promptSuffix}
 `;
+};
+
+// ── Probe (epistemic calibration) prompts ──────────────────────────────
+
+export const PROBE_INSTRUCTIONS =
+  "You are an epistemic calibration assistant. Read the rubric, evidence summary, and model verdict. " +
+  "Briefly explain your reasoning, then provide the probability that independent experts would reach the same verdict.";
+
+export const probePrompt = (
+  rubric: Array<{ label: string; criteria: string[] }>,
+  evidenceSummary: string,
+  modelOutput: string,
+  verdictLabels: string[],
+  labelsAnonymized: boolean,
+  abstained: boolean,
+) => {
+  const rubricText = rubric
+    .map((stage) => `- ${stage.label}: ${stage.criteria.join("; ")}`)
+    .join("\n");
+  const verdict = abstained ? "ABSTAIN" : verdictLabels.join(", ");
+  const labelNote = labelsAnonymized
+    ? "Labels are anonymized."
+    : "Labels correspond to the rubric stage names.";
+  const abstainNote = abstained
+    ? "The model abstained due to insufficient evidence. Assess whether experts would also abstain."
+    : "Assess whether experts would reach the same verdict labels.";
+
+  return [
+    "Rubric:",
+    rubricText,
+    "",
+    "Evidence summary:",
+    evidenceSummary,
+    "",
+    "Model output:",
+    modelOutput,
+    "",
+    `Verdict labels: ${verdict}`,
+    labelNote,
+    abstainNote,
+    "",
+    "What is the probability (0 to 1) that independent experts would reach the same verdict?",
+    "Provide your reasoning first.",
+    "The final line of your response must be: EXPERT_AGREEMENT: <probability>",
+  ].join("\n");
 };

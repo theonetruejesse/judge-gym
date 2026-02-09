@@ -11,7 +11,7 @@ import {
 import {
   parseRubricResponse,
   parseQualityResponse,
-} from "../../utils/rubric_parser";
+} from "./rubric_parsers";
 
 /**
  * Rubricer — generates evaluative rubrics. Uses the experiment's model.
@@ -40,7 +40,8 @@ export class Rubricer extends AbstractJudgeAgent {
         prompt: rubricGenerationPrompt(args.concept, args.scaleSize),
       } as any,
     );
-    return parseRubricResponse(text, args.scaleSize);
+    const parsed = parseRubricResponse(text, args.scaleSize);
+    return { threadId, rawOutput: text, ...parsed };
   }
 }
 
@@ -62,6 +63,7 @@ export class Critic extends AbstractJudgeAgent {
       { threadId },
       { prompt: rubricCriticPrompt(rubric) } as any,
     );
-    return parseQualityResponse(text);
+    const parsed = parseQualityResponse(text);
+    return { threadId, rawOutput: text, ...parsed };
   }
 }
