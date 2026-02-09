@@ -8,6 +8,7 @@ import { Rubricer, Critic } from "./rubric_agent";
 // --- Generate rubric via LLM ---
 export const generateRubric = zInternalAction({
   args: z.object({ experimentTag: z.string() }),
+  returns: zid("rubrics"),
   handler: async (ctx, { experimentTag }): Promise<Id<"rubrics">> => {
     const experiment = await ctx.runQuery(internal.repo.getExperiment, {
       experimentTag,
@@ -42,6 +43,7 @@ export const generateRubric = zInternalAction({
 // --- Validate rubric quality ---
 export const validateRubric = zInternalAction({
   args: z.object({ rubricId: zid("rubrics") }),
+  returns: z.null(),
   handler: async (ctx, { rubricId }) => {
     const rubric = await ctx.runQuery(internal.repo.getRubric, { rubricId });
 
@@ -58,12 +60,14 @@ export const validateRubric = zInternalAction({
       criticOutput: quality.rawOutput,
       criticReasoning: quality.reasoning,
     });
+    return null;
   },
 });
 
 // --- Load pre-defined benchmark rubric ---
 export const loadBenchmarkRubric = zInternalAction({
   args: z.object({ experimentTag: z.string() }),
+  returns: zid("rubrics"),
   handler: async (ctx, { experimentTag }): Promise<Id<"rubrics">> => {
     // Load rubric from Convex storage — pre-uploaded during setup
     throw new Error("TODO: implement benchmark rubric loading");

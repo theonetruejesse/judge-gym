@@ -29,7 +29,11 @@ export async function runExperiments(options: RunOptions) {
   const cleanup = async (exitCode: number) => {
     if (cleaningUp) return;
     cleaningUp = true;
-    await liveClient.close();
+    try {
+      await liveClient.close();
+    } catch (err) {
+      console.error("Error closing client:", err);
+    }
     process.exit(exitCode);
   };
   process.on("SIGINT", () => {
