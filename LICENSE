@@ -1,21 +1,79 @@
-MIT License
+# OpenRAIL-S License
 
-Copyright (c) 2026 Jesse Lee
+**Version 1.0**
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## Section I: PREAMBLE
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This OpenRAIL-S License is generally applicable to the **judge-gym** Source Code. The “Open” nomenclature indicates that the Source Code is freely accessible. The “RAIL” nomenclature indicates that there are use-based restrictions intended to prevent the misuse of generative epistemics for automated political enforcement or the hallucination of consensus in contested domains.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+NOW THEREFORE, You and Licensor agree as follows:
+
+### 1. Definitions
+
+(a) **"Contribution"** means any software code or modifications submitted to Licensor.
+(b) **"Contributor"** means Licensor and any entity that has contributed to the Source Code.
+(c) **“Data”** means information extracted from datasets used with a Model.
+(d) **“Derivatives”** means all works containing additions or modifications to the Source Code.
+(e) **“Harm”** includes physical, mental, psychological, financial, and reputational damage.
+(f) **"License"** means the terms and conditions defined in this document.
+(g) **“Licensor”** means the rights owner granting the License.
+(h) **“Model”** means any machine-learning based assemblies used with the Source Code.
+(i) **“Source Code”** means the judge-gym collection of text, scripts, and engine components.
+(j) **“Third Parties”** means individuals or entities not under common control with Licensor.
+(k) **"You"** means an individual or entity exercising permissions granted by this License.
+
+## Section II: INTELLECTUAL PROPERTY RIGHTS
+
+**2. Grant of Copyright License.** Subject to the terms of this License, each Contributor grants You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivatives of, publicly display, and distribute the Source Code.
+
+**3. Grant of Patent License.** Subject to the terms of this License, each Contributor grants You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, use, or sell the Source Code, applicable only to those patent claims necessarily infringed by their Contribution(s).
+
+## Section III: CONDITIONS OF USAGE, DISTRIBUTION AND REDISTRIBUTION
+
+**4. Distribution and Redistribution.** You may reproduce and distribute copies of the Source Code, provided that:
+(a) Use-based restrictions in **Attachment A** MUST be included as an enforceable provision in any type of legal agreement governing the use or distribution of the Source Code or its Derivatives.
+(b) You must give recipients a copy of this License.
+(c) Modified files must carry prominent notices stating that You changed the files.
+(d) You must retain all copyright, patent, and attribution notices.
+
+**5. Use-based restrictions.** The restrictions set forth in **Attachment A** are considered use-based restrictions. You cannot use the Source Code in violation of such restrictions. You shall require all of Your users to comply with Attachment A.
+
+## Section IV: OTHER PROVISIONS
+
+**7. Updates and Runtime Restrictions.** Licensor reserves the right to restrict usage in violation of this License.
+**8. Trademarks.** Nothing in this License permits use of Licensors’ trademarks or suggests endorsement.
+**9. Disclaimer of Warranty.** The Source Code is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND.
+**10. Limitation of Liability.** In no event shall any Contributor be liable for damages arising out of the use or inability to use the Source Code.
+
+---
+
+# Attachment A: Use Restrictions
+
+You agree **not** to use the Source Code or its Derivatives in any of the following ways:
+
+### 1. Legal and Regulatory
+
+(a) In any way that violates any applicable national, federal, state, local, or international law or regulation.
+
+### 2. Harm, Discrimination, and Profiling
+
+(a) To generate or disseminate false information with the purpose of Harming others.
+(b) To defame, disparage, or otherwise harass others.
+(c) To exploit vulnerabilities of specific groups based on age, social, physical, or mental characteristics.
+(d) **Political/Ideological Profiling:** To generate ideological profiles, "scores," or "indices" of specific individuals for the purpose of employment screening, insurance underwriting, credit scoring, or housing eligibility.
+
+### 3. Transparency and Epistemic Integrity
+
+(a) To generate machine-generated content without expressly and intelligibly disclaiming that it is machine-generated.
+(b) To impersonate human beings for purposes of deception.
+(c) **Consensus Hallucination:** To present machine-generated evaluations of essentially contested concepts (e.g., political, ethical, or aesthetic judgments) as representing "expert consensus" or "objective truth" without simultaneously disclosing the divergence metrics (such as Jensen-Shannon Divergence or Dempster-Shafer Conflict) produced by the Source Code.
+
+### 4. Automated Decision Making and Policing
+
+(a) For fully automated decision making that adversely impacts an individual’s legal rights or creates a binding, enforceable obligation.
+(b) **Automated Policing:** To automate the identification of political or social content for the purpose of state-sponsored surveillance, law enforcement targeting, or the extra-judicial restriction of freedom of speech.
+(c) **Unvetted Moderation:** To serve as the sole or primary basis for automated content moderation decisions (e.g., banning or deplatforming) without a mandatory human-in-the-loop review process that accounts for the documented epistemic limitations of the Source Code.
+
+### 5. Institutional Context
+
+(a) To represent the "Institutional Reflex" or "Proxy Signal" generated by the Source Code as an ontologically certain state of reality, rather than a mapping of latent discourse within specific Large Language Model training regimes.

@@ -114,7 +114,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Model Family    | `modelId`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
 | Concept         | `window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `taskType`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                              | `freeform-suffix-subset`                |
+| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
 | Scale Size      | `config.scaleSize`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
 | Evidence View   | `config.evidenceView`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
 | Randomizations  | `config.randomizations` | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
@@ -298,4 +298,4 @@ The engine is designed to be operated from within Cursor via the Convex MCP serv
 
 ## License
 
-MIT
+OpenRAIL-S License
