@@ -3,7 +3,7 @@ import { zQuery } from "./utils";
 import { components } from "./_generated/api";
 
 // --- Read queries for analysis consumption ---
-// These are consumed by the Python analysis package via Convex HTTP API.
+
 
 export const getExperimentSummary = zQuery({
   args: z.object({ experimentTag: z.string() }),
@@ -48,75 +48,16 @@ export const getExperimentSummary = zQuery({
   },
 });
 
-export const listExperimentSamples = zQuery({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
-      .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
-    return ctx.db
-      .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
-      .collect();
-  },
-});
-
-export const listExperimentScores = zQuery({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
-      .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
-    return ctx.db
-      .query("scores")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
-      .collect();
-  },
-});
-
-export const listExperimentRubrics = zQuery({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
-      .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
-    return ctx.db
-      .query("rubrics")
-      .withIndex("by_experiment_model", (q) =>
-        q.eq("experimentId", experiment._id),
-      )
-      .collect();
-  },
-});
-
-export const listExperimentProbes = zQuery({
-  args: z.object({ experimentTag: z.string() }),
-  handler: async (ctx, { experimentTag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
-      .unique();
-    if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
-    const scores = await ctx.db
-      .query("scores")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
-      .collect();
-    return scores.filter((s) => s.expertAgreementProb !== undefined);
-  },
-});
+// Kept for internal engine use (e.g. tracker.ts).
 
 export const listExperimentsByTaskType = zQuery({
   args: z.object({ taskType: z.string() }),
   handler: async (ctx, { taskType }) => {
     return ctx.db
       .query("experiments")
-      .withIndex("by_task_type", (q) => q.eq("taskType", taskType as "ecc" | "control" | "benchmark"))
+      .withIndex("by_task_type", (q) =>
+        q.eq("taskType", taskType as "ecc" | "control" | "benchmark"),
+      )
       .collect();
   },
 });
@@ -151,57 +92,102 @@ export const listAgentThreadMessages = zQuery({
   },
 });
 
-export const exportExperimentCSV = zQuery({
+// ---------------------------------------------------------------------------
+// Bulk export consumed by the Python analysis package (judge_gym.collect).
+//
+// One HTTP call per experiment — returns everything needed to build DataFrames:
+//   - experiment: tag, model, concept, config, status
+//   - evidence:   id + title for each evidence article
+//   - scores:     flat rows (score fields + sample display fields)
+// ---------------------------------------------------------------------------
+
+export const exportExperimentBundle = zQuery({
   args: z.object({ experimentTag: z.string() }),
   handler: async (ctx, { experimentTag }) => {
+    // --- Experiment + window ---
     const experiment = await ctx.db
       .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experimentTag", experimentTag))
+      .withIndex("by_experiment_tag", (q) =>
+        q.eq("experimentTag", experimentTag),
+      )
       .unique();
     if (!experiment) throw new Error(`Experiment not found: ${experimentTag}`);
     const window = await ctx.db.get(experiment.windowId);
     if (!window) throw new Error("Window not found");
 
+    // --- Samples (for displaySeed / labelMapping) ---
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .withIndex("by_experiment", (q) =>
+        q.eq("experimentId", experiment._id),
+      )
       .collect();
     const sampleById = new Map(samples.map((s) => [s._id, s]));
 
+    // --- Scores ---
     const scores = await ctx.db
       .query("scores")
-      .withIndex("by_experiment", (q) => q.eq("experimentId", experiment._id))
+      .withIndex("by_experiment", (q) =>
+        q.eq("experimentId", experiment._id),
+      )
       .collect();
 
-    // Flat denormalized rows for pandas
-    return scores.map((score) => {
+    const rubrics = await ctx.db
+      .query("rubrics")
+      .withIndex("by_experiment_model", (q) =>
+        q.eq("experimentId", experiment._id),
+      )
+      .collect();
+
+    // --- Evidence (unique IDs from scores → fetch titles) ---
+    const evidenceIds = [...new Set(scores.map((s) => s.evidenceId))];
+    const evidences = await Promise.all(
+      evidenceIds.map(async (eid) => {
+        const doc = await ctx.db.get(eid);
+        return {
+          evidenceId: eid,
+          title: doc?.title ?? eid,
+          url: doc?.url ?? "",
+        };
+      }),
+    );
+
+    // --- Flat score rows (analysis-ready) ---
+    const scoreRows = scores.map((score) => {
       const sample = sampleById.get(score.sampleId);
       return {
-      experimentTag: experiment.experimentTag,
-      modelId: score.modelId,
-      concept: window.concept,
-      taskType: experiment.taskType,
-      scoringMethod: experiment.config.scoringMethod,
-      scaleSize: experiment.config.scaleSize,
-      randomizations: experiment.config.randomizations,
-      evidenceView: experiment.config.evidenceView,
-      promptOrdering: experiment.config.promptOrdering,
-      sampleId: score.sampleId,
-      rubricId: score.rubricId,
-      evidenceId: score.evidenceId,
-      isSwap: score.isSwap,
-      abstained: score.abstained,
-      rawVerdict: score.rawVerdict,
-      decodedScores: score.decodedScores,
-      scorerReasoning: score.scorerReasoning,
-      scorerOutput: score.scorerOutput,
-      expertAgreementProb: score.expertAgreementProb,
-      probeReasoning: score.probeReasoning,
-      probeOutput: score.probeOutput,
-      promptedStageLabel: score.promptedStageLabel,
-      displaySeed: sample?.displaySeed,
-      labelMapping: sample?.labelMapping,
-    };
+        evidenceId: score.evidenceId,
+        rubricId: score.rubricId,
+        sampleId: score.sampleId,
+        isSwap: score.isSwap,
+        abstained: score.abstained,
+        decodedScores: score.decodedScores,
+        expertAgreementProb: score.expertAgreementProb,
+        rawVerdict: score.rawVerdict,
+        displaySeed: sample?.displaySeed,
+        labelMapping: sample?.labelMapping,
+      };
     });
+
+    return {
+      experiment: {
+        experimentTag: experiment.experimentTag,
+        modelId: experiment.modelId,
+        concept: window.concept,
+        taskType: experiment.taskType,
+        status: experiment.status,
+        config: experiment.config,
+      },
+      evidences,
+      rubrics: rubrics.map((rubric) => ({
+        rubricId: rubric._id,
+        modelId: rubric.modelId,
+        concept: rubric.concept,
+        scaleSize: rubric.scaleSize,
+        stages: rubric.stages,
+        qualityStats: rubric.qualityStats,
+      })),
+      scores: scoreRows,
+    };
   },
 });
