@@ -7,6 +7,7 @@ export const modelTypeSchema = z.union([
   z.literal("gpt-4.1"),
   z.literal("gpt-4.1-mini"),
   z.literal("gpt-5.2"),
+  z.literal("gpt-5.2-chat"),
   z.literal("claude-sonnet-4.5"),
   z.literal("claude-haiku-4.5"),
   z.literal("gemini-3.0-flash"),
