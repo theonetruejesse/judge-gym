@@ -1,34 +1,50 @@
 # Sectarian Judges: Measuring Epistemic Entrenchment in LLM-as-Judge Evaluation of Contested Political Concepts
 
-_this is a generative artifact, need to verify content, implement details, and citations_
+_this document is a temporary generative artifact. it reflects collaborative development with AI assistance. All empirical claims and citations require further verification. Pilot data preliminary; full results forthcoming._
+_tldr; i'm treating this as a save state._
 
-> **Working paper — pre-results.** This document presents the theoretical framework, experimental design, and analysis plan for an ongoing study. Results will be reported in a subsequent version.
+> **Working paper — pilot v2 results.**
 
 ---
 
 ## Abstract
 
-Large language models are increasingly deployed as automated evaluators ("LLM-as-Judge") for tasks ranging from summarization quality to political content analysis. We investigate whether divergent safety training regimes produce _Sectarian Judges_ — models that yield conflicting evaluations of essentially contested political concepts while simultaneously hallucinating expert consensus. We introduce **judge-gym**, an open-source design space engine inspired by GraphGym (You et al., 2020) that treats each evaluation dimension — model family, rubric source, concept, evidence, scoring method — as an axis in a configurable ablation surface. Our experimental design tests four hypotheses: (1) epistemic entrenchment, where model families exhibit high inter-model variance on contested concepts; (2) consensus hallucination, where models predict high expert agreement probabilities despite active divergence from the ensemble; (3) framework sensitivity, where high-confidence judgments collapse under rubric swap; and (4) forced-choice inflation, where some measured polarization is an artifact of point-verdict elicitation resolvable through subset verdicts and Dempster-Shafer aggregation. We employ seven controls grounded in the evaluation literature — tone neutralization, forced-commitment scales, double randomization, rubric validation, abstain gates, fresh-window probing, and free-form suffix parsing — and validate the engine against discriminant controls, dose-response conditions, and external benchmarks. This paper presents the full theoretical motivation, methodology, and analysis plan; empirical results are forthcoming.
+Large language models are increasingly deployed as automated evaluators ("LLM-as-Judge") for tasks ranging from summarization quality to political content analysis. We investigate whether divergent safety training regimes produce _Sectarian Judges_ — models that yield conflicting evaluations of essentially contested political concepts while simultaneously hallucinating expert consensus. We introduce **judge-gym**, an open-source design space engine that treats each evaluation dimension — model family, rubric source, concept, evidence, scoring method — as an axis in a configurable ablation surface. Pilot results (n=540 scores, 4 models, 9 evidence items) reveal a striking geometric divergence: GPT-4.1 exhibits smooth, graded adjudication; Gemini-3.0-flash shows selective abstention; GPT-5.2-chat demonstrates extreme expressive compression (binary Stage-1/Abstain collapse with rare Stage-4 spikes); and Qwen-235b maintains expressive bandwidth comparable to GPT-4.1. This pattern suggests that **alignment-induced adjudicative compression** — not vendor identity or model scale — determines evaluative geometry in contested domains. Our experimental design tests four hypotheses: (1) epistemic entrenchment; (2) consensus hallucination; (3) framework sensitivity; and (4) forced-choice inflation. We employ seven methodological controls and validate against discriminant benchmarks. This paper presents the full theoretical motivation, pilot findings, refined methodology, and analysis plan.
 
 ---
 
 ## 1. Introduction
 
-The use of LLMs as automated judges has scaled rapidly. MT-Bench (Zheng et al., 2023), Alpaca-Eval (Dubois et al., 2024), and numerous downstream applications rely on models to evaluate model outputs — a practice sometimes called "LLM-as-Judge." The appeal is obvious: human annotation is expensive, slow, and itself subject to inter-rater disagreement. LLM judges offer scalability and consistency.
+The use of LLMs as automated judges has scaled rapidly. MT-Bench (Zheng et al., 2023), Alpaca-Eval (Dubois et al., 2024), and numerous downstream applications rely on models to evaluate model outputs — a practice sometimes called "LLM-as-Judge." The appeal is obvious: human annotation is expensive, slow, and itself subject to inter-rater disagreement. LLM judges offer scalability and apparent consistency.
 
 But consistency is not neutrality. Every frontier model arrives shaped by a training regime — RLHF reward models, constitutional AI principles, red-team filters — that encodes implicit evaluative commitments. For factual tasks (math, coding, factual QA), these commitments are largely irrelevant: the answer is right or wrong. For _essentially contested concepts_ (Gallie, 1956) — fascism, democratic backsliding, populism — the situation is different. There is no ground truth. The question is not whether the model gets the answer right, but whether models _trained under different normative regimes_ systematically disagree, and whether they are aware they disagree.
 
 We call this the **Sectarian Judge** problem: a model that (a) produces evaluations that diverge from the model ensemble on contested concepts, and (b) assigns high probability to expert agreement with its own verdict — hallucinating consensus where none exists. If this pattern holds, it has immediate implications for any pipeline that uses LLM-as-Judge on politically or ethically contested content: the choice of model is not a neutral engineering decision but an implicit normative commitment.
 
-### 1.1. Contributions
+### 1.1. Pilot Discovery: Alignment-Induced Adjudicative Compression
+
+Our pilot study (Section 6) reveals an unexpected and structurally significant pattern. Comparing four frontier models on identical evidence with stochastic rubric generation:
+
+| Model                | Adjudicative Geometry  | Key Behavior                                                                         |
+| :------------------- | :--------------------- | :----------------------------------------------------------------------------------- |
+| **GPT-4.1**          | Smooth, expressive     | Distributed mass across Stages 2–3; minimal abstention                               |
+| **Gemini-3.0-flash** | Thresholded, selective | Moderate graded evaluation; high abstention on "hot" evidence                        |
+| **GPT-5.2-chat**     | Collapsed, binary      | Extreme Stage-1 concentration or abstention; rare Stage-4 spikes; hollowed mid-range |
+| **Qwen-235b**        | Smooth, expressive     | Distributed mass comparable to GPT-4.1; selective but not systemic abstention        |
+
+This pattern is inconsistent with simple vendor-identity or left-right ideological explanations. GPT-4.1 and GPT-5.2-chat — same vendor, different versions — show maximal divergence. Qwen-235b — different vendor, different alignment regime — resembles GPT-4.1 more than GPT-5.2-chat.
+
+We interpret this as **alignment-induced adjudicative compression**: aggressive safety training can collapse the expressive dynamic range of political evaluation, transforming graded judges into binary sensors (Stage 1 vs. Abstain/Stage 4) with severely attenuated capacity for intermediate classification. This phenomenon is not universal (Qwen demonstrates), not inevitable (GPT-4.1 demonstrates), but regime-specific.
+
+### 1.2. Contributions
 
 1. **A formal framework for measuring epistemic entrenchment** in LLM judges, combining Jensen-Shannon divergence (information-theoretic polarization), Dempster-Shafer conflict (evidence-theoretic polarization), and self-reported expert agreement probabilities (metacognitive calibration).
 
-2. **judge-gym**, an open-source design space engine that treats LLM-as-Judge evaluation as a configurable experiment. Inspired by GraphGym (You et al., 2020), which systematically explored 315,000 GNN designs across 32 tasks, judge-gym allows researchers to define experiments as configuration records and sweep across model, rubric, concept, and method axes without code changes.
+2. **judge-gym**, an open-source design space engine that treats LLM-as-Judge evaluation as a configurable experiment. Inspired by GraphGym (You et al., 2020), judge-gym allows researchers to define experiments as configuration records and sweep across model, rubric, concept, and method axes without code changes.
 
-3. **A methodological contribution** distinguishing genuine polarization from forced-choice noise through the comparison of point verdicts (single-label) and subset verdicts (multi-label, DST-compatible) on the same evidence. This operationalizes a long-standing distinction in measurement theory (Dempster, 1967; Shafer, 1976) for the LLM evaluation setting.
+3. **A methodological contribution** distinguishing genuine polarization from forced-choice noise through subset verdicts (multi-label, DST-compatible) and rubric-stochastic analysis. This operationalizes a long-standing distinction in measurement theory (Dempster, 1967; Shafer, 1976) for the LLM evaluation setting.
 
-4. **A dose-response experimental design** with discriminant controls, external benchmarks, and rubric swap trials that enables causal inference about the source of inter-model divergence.
+4. **Pilot evidence of alignment-induced adjudicative compression**, demonstrating that safety regime changes can fundamentally reshape evaluative geometry — with implications for longitudinal benchmarking, automated moderation, and computational social science.
 
 ---
 
@@ -36,35 +52,35 @@ We call this the **Sectarian Judge** problem: a model that (a) produces evaluati
 
 ### 2.1. LLM-as-Judge Evaluation
 
-The LLM-as-Judge paradigm was formalized by Zheng et al. (2023) with MT-Bench, which demonstrated that GPT-4 judgments aligned with human preferences at >80% agreement. Subsequent work revealed systematic biases: position bias (preferring the first option; Shi et al., 2025), verbosity bias (preferring longer, more polished responses; Wu & Aji, 2023; Stureborg et al., 2024), and self-enhancement bias (models preferring their own outputs; Panickssery et al., 2024).
+The LLM-as-Judge paradigm was formalized by Zheng et al. (2023) with MT-Bench, which demonstrated that GPT-4 judgments aligned with human preferences at >80% agreement. Subsequent work revealed systematic biases: position bias (preferring the first option; Shi et al., 2025), verbosity bias (preferring longer responses; Wu & Aji, 2023; Stureborg et al., 2024), and self-enhancement bias (models preferring their own outputs; Panickssery et al., 2024).
 
-Prometheus 2 (Kim et al., 2024) showed that anchored rubrics with explicit criteria reduce variance and improve judge-human alignment. Dubois et al. (2024) in Alpaca-Eval 2 introduced the practice of measuring confounds (e.g., length) and regressing them out to find the "true" quality signal. Wei et al. (2024) provided a systematic evaluation across prompt orderings, rubric placements, and rating scales, showing that seemingly minor formatting choices significantly affect alignment. Krumdick et al. (2025) warned against forcing models to provide evaluations on out-of-distribution inputs, advocating for explicit abstention.
+Prometheus 2 (Kim et al., 2024) showed that anchored rubrics reduce variance. Dubois et al. (2024) introduced measuring confounds and regressing them out. Wei et al. (2024) showed that formatting choices significantly affect alignment. Krumdick et al. (2025) warned against forcing evaluations on out-of-distribution inputs, advocating explicit abstention.
 
-Our work extends this literature from _format bias_ to _ideological bias_: we ask not whether the prompt structure changes the score, but whether the model's training regime does, specifically for concepts where no ground truth exists.
+Our work extends this literature from _format bias_ to _regime geometry_: we ask not whether prompt structure changes the score, but whether safety training reshapes the entire adjudicative surface — particularly for concepts without ground truth.
 
 ### 2.2. Bias and Ideology in Language Models
 
-Santurkar et al. (2023) demonstrated that language models exhibit political opinions that are not uniformly distributed and vary by model family. Feng et al. (2023) showed that RLHF training shifts model opinions toward the preferences of annotator populations. Hartmann et al. (2023) found that ChatGPT exhibits a left-libertarian bias on standard political compass instruments.
+Santurkar et al. (2023) demonstrated that language models exhibit political opinions varying by model family. Feng et al. (2023) showed RLHF shifts opinions toward annotator preferences. Hartmann et al. (2023) found ChatGPT exhibits left-libertarian bias on political compass instruments.
 
-These findings establish that models _have_ political orientations. Our question is different: we ask whether these orientations _manifest as systematic evaluation bias_ when models are used as judges on contested political content, and whether models _know_ they are biased (i.e., whether their metacognitive calibration reflects their divergence from the ensemble).
+These findings establish that models _have_ political orientations. Our question is different: whether these orientations _manifest as systematic evaluation geometry_ when models judge contested content, and whether models _know_ they disagree. Our pilot suggests that **within-vendor version differences can exceed cross-vendor differences** — implicating alignment regime over static ideology.
 
 ### 2.3. Calibration and Metacognition
 
-Kadavath et al. (2022) showed that asking models "What is the probability your answer is correct?" yields better-calibrated confidence estimates than self-reported verbal confidence. We adapt this technique: instead of asking about correctness (which is undefined for contested concepts), we ask about _expert agreement_ — "What is the probability that independent experts would reach the same verdict?" This transforms a calibration probe into a measure of consensus hallucination.
+Kadavath et al. (2022) showed that probability probes yield better-calibrated confidence than verbal confidence. We adapt this: instead of asking about correctness (undefined for contested concepts), we ask about _expert agreement_ — "What is the probability that independent experts would reach the same verdict?"
 
-Stureborg et al. (2024) showed that prior context anchors subsequent model outputs. We address this with a _fresh-window probing_ protocol: the expert agreement estimate is elicited in a clean context window with no chain-of-thought history from the scoring phase, separating the model's genuine epistemic state from context-dependent anchoring.
+Our pilot reveals a paradox: GPT-5.2-chat shows _smoother confidence gradients_ than earlier models, but these gradients are anchored to a collapsed adjudicative surface. Better calibration of worse expressiveness is a novel form of **metacognitive entrenchment**.
 
 ### 2.4. Dempster-Shafer Theory and Uncertainty
 
-Dempster (1967) and Shafer (1976) developed the theory of belief functions as a generalization of Bayesian probability that permits belief to be assigned to _sets_ of hypotheses, not just singletons. This formalism is well-suited to our setting: when a model selects a subset of rubric stages (e.g., "this evidence supports stages B and C"), it is expressing a basic mass assignment on the power set of the frame of discernment.
+Dempster (1967) and Shafer (1976) developed belief functions permitting mass assignment to _sets_ of hypotheses. This formalism suits our setting: when a model selects subset verdicts (e.g., "stages B and C"), it expresses basic mass assignment on the power set.
 
-Guerdan et al. (2025) recently showed in the context of LLM evaluation that judge performance changes depending on forced-choice versus response-set elicitation — the same phenomenon we formalize through the comparison of point and subset verdicts. Our contribution is to connect this empirical observation to the formal apparatus of DST, enabling principled combination of uncertain verdicts across samples and models.
+Guerdan et al. (2025) showed judge performance changes with forced-choice versus response-set elicitation. We connect this to DST, enabling principled combination of uncertain verdicts. Our innovation: **rubric-stochastic analysis** — treating each rubric as a sample from a conceptual distribution, enabling interval aggregation without assuming rubric stability.
 
 ### 2.5. Evaluation Validity
 
-Shankar et al. (2024) asked "Who Validates the Validators?" and proposed three criteria: discriminant validity (judges agree on easy cases), construct validity (judges measure what they claim to measure), and consistency (test-retest reliability). Our experimental design addresses all three through: (a) control tasks with known ground truth (V-Dem scores) for discriminant validity, (b) external benchmarks (JudgeBench; Tan et al., 2024) for construct validity, and (c) repeated scoring with varying random seeds for test-retest reliability.
+Shankar et al. (2024) proposed three criteria: discriminant validity (agreement on easy cases), construct validity (measuring what claimed), and consistency (test-retest reliability). Our design addresses all three through: (a) V-Dem controls for discriminant validity, (b) JudgeBench (Tan et al., 2024) for construct validity, (c) repeated scoring for reliability.
 
-Tam et al. (2024) demonstrated that constraining model output to structured JSON during reasoning degrades performance by 5–10%, because the model allocates capacity to syntax compliance. We adopt their recommendation: free-form reasoning with a parsed suffix (`VERDICT: [LETTER]`), retaining structured output only as an ablation axis.
+Tam et al. (2024) showed structured JSON during reasoning degrades performance 5–10%. We adopt free-form reasoning with parsed suffixes.
 
 ---
 
@@ -72,53 +88,54 @@ Tam et al. (2024) demonstrated that constraining model output to structured JSON
 
 ### 3.1. Essentially Contested Concepts
 
-Gallie (1956) defined an _essentially contested concept_ as one where:
+Gallie (1956) defined an _essentially contested concept_ as one where: (1) appraisive, (2) internally complex, (3) liable to modification, (4) reasonable disagreement persists. Paradigmatic examples: _democracy_, _justice_, _fascism_, _democratic backsliding_.
 
-1. The concept is appraisive (carries evaluative weight).
-2. The concept is internally complex.
-3. Any description of the concept is liable to modification in light of changing circumstances.
-4. Reasonable people can and do disagree about its application.
-
-Paradigmatic examples include _democracy_, _justice_, _freedom_, and — critically for our study — _fascism_, _democratic backsliding_, and _populism_. These concepts resist operationalization into ground-truth labels precisely because their contested nature is a feature, not a bug: the disagreement is constitutive of the concept.
-
-When an LLM judge evaluates evidence about "fascism in the United States," it must make evaluative commitments that would, in a human context, be recognized as contested. The question is whether different models make _different_ commitments, and whether they recognize the contestedness.
+When an LLM judge evaluates evidence about "fascism in the United States," it makes evaluative commitments that would be recognized as contested in human context. The question is whether different models make _different_ commitments, and whether they recognize contestedness.
 
 ### 3.2. The Sectarian Judge
 
-We define a **Sectarian Judge** as a model $M_i$ that exhibits:
+We define a **Sectarian Judge** as model $M_i$ exhibiting:
 
-1. **Divergence:** For a contested concept $c$, $M_i$'s score distribution $p_i$ diverges from the model ensemble distribution $\bar{p}$, measured by Jensen-Shannon divergence $\text{JSD}(p_i \| \bar{p}) > \tau$.
+1. **Divergence:** For contested concept $c$, $M_i$'s score distribution $p_i$ diverges from ensemble $\bar{p}$, with $\text{JSD}(p_i \| \bar{p}) > \tau$.
 
-2. **Confidence:** $M_i$'s self-reported expert agreement probability $\mathbb{E}[\text{Prob}_{expert}] > 0.8$, indicating the model believes independent experts would concur with its verdict.
+2. **Confidence:** Self-reported expert agreement $\mathbb{E}[\text{Prob}_{expert}] > 0.8$.
 
-3. **Entrenchment:** Both conditions hold simultaneously. We define the **Entrenchment Index** as:
+3. **Entrenchment:** Both hold simultaneously. **Entrenchment Index**:
 
 $$E_i = P_i \times \mathbb{E}[\text{Prob}_{expert,i}]$$
 
-where $P_i$ is the polarization score (JSD) for model $i$. High $E_i$ is pathological: the model disagrees with its peers _and_ believes everyone agrees with it.
+High $E_i$ is pathological: the model disagrees with peers _and_ believes everyone agrees.
 
-### 3.3. Forced-Choice Inflation
+### 3.3. Adjudicative Compression
 
-Standard evaluation forces models to select exactly one label from a scale. When the evidence is genuinely ambiguous — supporting multiple interpretations — the model must commit to one, potentially inflating apparent disagreement. Two models that both believe "this could be stage 2 or 3" but are forced to choose differently will appear to disagree when they fundamentally agree on the uncertainty.
+Our pilot suggests a structural phenomenon beyond sectarianism: **alignment-induced adjudicative compression** — the collapse of expressive dynamic range to binary or near-binary output (Stage 1 vs. Abstain/Stage 4), with attenuated or absent intermediate classification.
 
-We formalize this through the comparison of scoring methods:
+Formal characterization: A model exhibits compression when, across evidence samples, the entropy of its stage distribution $H(p_i) < \epsilon$ despite evidence heterogeneity, and abstention mass $m(\emptyset)$ or Stage-1 mass $p(s_1)$ dominates.
 
-- **Point verdict** (`freeform-suffix-single`): The model selects exactly one label. Analysis uses JSD over score distributions.
-- **Subset verdict** (`freeform-suffix-subset`): The model selects one or more labels. Analysis uses Dempster-Shafer mass assignment and conflict coefficient $k$.
+### 3.4. Forced-Choice Inflation
 
-If $k_{\text{subset}} \ll P_{\text{single}}$ for the same (model, evidence) pairs, some measured polarization was forced-choice noise, not genuine disagreement. If $k_{\text{subset}} \approx P_{\text{single}}$, the disagreement is real.
+Standard evaluation forces single-label selection. When evidence is genuinely ambiguous, models must commit to one, potentially inflating apparent disagreement. Two models both believing "stage 2 or 3" but forced to choose differently appear to disagree when they agree on uncertainty.
+
+We compare:
+
+- **Point verdict:** Single label; JSD analysis.
+- **Subset verdict:** Multi-label; DST mass assignment and conflict $k$.
+
+If $k_{\text{subset}} \ll P_{\text{single}}$, measured polarization was forced-choice noise. If $k_{\text{subset}} \approx P_{\text{single}}$, disagreement is genuine.
 
 ---
 
 ## 4. Hypotheses
 
-**H1 — Epistemic Entrenchment.** Model families will exhibit high inter-model variance (polarization $P > 0.15$) on Essentially Contested Concepts (e.g., fascism in the USA) when controlling for rubric, evidence, and scoring method. This variance will be significantly higher than on control concepts (e.g., democracy quality in Norway).
+**H1 — Epistemic Entrenchment.** Model families exhibit high inter-model variance ($P > 0.15$) on ECCs, significantly higher than controls. _Pilot supported: GPT-5.2-chat vs. GPT-4.1 shows maximal divergence._
 
-**H2 — Consensus Hallucination.** On ECC tasks, models with high polarization ($P > 0.15$) will simultaneously report high expert agreement probabilities ($\mathbb{E}[\text{Prob}_{expert}] > 0.8$), yielding high Entrenchment Index ($E > 0.12$). On control tasks, expert agreement probabilities should be high _and justified_ (low $P$, high agreement with V-Dem reference).
+**H2 — Consensus Hallucination.** On ECCs, models with high $P$ report high expert agreement ($>0.8$), yielding high $E > 0.12$. On controls, high agreement is justified (low $P$, V-Dem alignment). _Pilot partially supported: GPT-5.2 shows smooth confidence gradients on collapsed surface — novel form of entrenchment._
 
-**H3 — Framework Sensitivity.** Expert agreement probabilities will drop significantly (>0.2 decrease) when a model is forced to use a rival model's rubric (rubric swap condition), indicating that confidence is derived from framework-evidence compatibility rather than evidence alone. This operationalizes motivated reasoning: confidence that is robust to framework change is evidence-based; confidence that collapses is framework-based.
+**H3 — Framework Sensitivity.** Expert agreement drops $>0.2$ under rubric swap, indicating framework-based rather than evidence-based confidence. _Planned: rubric swap trials in full study._
 
-**H4 — Forced-Choice Inflation.** DST conflict $k$ from subset verdicts will be significantly lower than JSD polarization $P$ from point verdicts for the same (model, evidence) pairs, indicating that some measured polarization is forced-choice noise rather than genuine disagreement. The gap $P_{\text{single}} - k_{\text{subset}}$ will be larger for moderate-contestation concepts (where genuine ambiguity is higher) than for high-contestation concepts (where models have strong directional commitments that persist under subset elicitation).
+**H4 — Forced-Choice Inflation.** DST conflict $k$ from subset verdicts is significantly lower than JSD polarization $P$ from point verdicts. Gap larger for moderate-contestation concepts. _Pilot: subset verdicts rare due to abstention dominance; requires explicit prompt engineering in full study._
+
+**H5 — Alignment-Induced Adjudicative Compression (Pilot Discovery).** Aggressive safety training collapses expressive dynamic range to binary output, with version-specific rather than vendor-specific effects. _Pilot strongly supported._
 
 ---
 
@@ -126,245 +143,260 @@ If $k_{\text{subset}} \ll P_{\text{single}}$ for the same (model, evidence) pair
 
 ### 5.1. Design Space Engine
 
-Inspired by GraphGym (You et al., 2020), which explored 315,000 GNN designs by treating each architectural choice as a configurable axis, judge-gym treats LLM-as-Judge evaluation as a design space. Each dimension is independently configurable:
+Inspired by GraphGym (You et al., 2020), judge-gym treats evaluation as a design space:
 
-| Axis                | Values                                                                                         |
-| :------------------ | :--------------------------------------------------------------------------------------------- |
-| Model Family        | GPT-4.1, Claude Sonnet 4, Claude Sonnet 4.5, Grok 3, Gemini 2.5 Pro, Gemini 2.5 Flash, o4-mini |
-| Concept             | "fascism," "democratic backsliding," "democracy quality," benchmark                            |
-| Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`                                             |
-| Scale Size          | 3, 4 (default), 5                                                                              |
-| Tone Neutralization | On / Off                                                                                       |
-| Label Randomization | On / Off                                                                                       |
-| Prompt Ordering     | Rubric-first / Evidence-first                                                                  |
-| Abstain Gate        | On / Off                                                                                       |
-| Fresh-Window Probe  | Always on (fresh-window probing is enforced)                                                   |
+| Axis                | Values                                                                 |
+| :------------------ | :--------------------------------------------------------------------- |
+| Model Family        | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
+| Concept             | "fascism," "democratic backsliding," "democracy quality," benchmark    |
+| Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`                     |
+| Scale Size          | 3, 4 (default), 5                                                      |
+| Tone Neutralization | On / Off                                                               |
+| Label Randomization | On / Off                                                               |
+| Prompt Ordering     | Rubric-first / Evidence-first                                          |
+| Abstain Gate        | On / Off                                                               |
+| Fresh-Window Probe  | Always on                                                              |
 
-An **experiment** is a single point in this space. A **sweep** is a batch of experiments covering a slice. The engine handles evidence collection, rubric generation, scoring (including inline probing), rate limiting, and data export — all durable, all auditable. To run a new ablation, the researcher creates experiment records with different parameters. No code changes are required.
+Experiments are configuration records; sweeps cover slices. No code changes required.
 
 ### 5.2. Task Types and Dose-Response Design
 
-Not all evaluation tasks are the same. The engine supports three task types that together form a dose-response design:
+| Task Type     | Evidence Source | Rubric Source   | Ground Truth | Purpose               |
+| :------------ | :-------------- | :-------------- | :----------- | :-------------------- |
+| **ECC**       | News search     | Model-generated | None         | Primary experiment    |
+| **Control**   | News search     | Model-generated | V-Dem proxy  | Discriminant validity |
+| **Benchmark** | Pre-curated     | Pre-loaded      | Known answer | Engine calibration    |
 
-| Task Type     | Evidence Source     | Rubric Source     | Ground Truth               | Purpose               |
-| :------------ | :------------------ | :---------------- | :------------------------- | :-------------------- |
-| **ECC**       | News search         | Model-generated   | None                       | Primary experiment    |
-| **Control**   | News search         | Model-generated   | Expert proxy (e.g., V-Dem) | Discriminant validity |
-| **Benchmark** | Pre-curated dataset | Pre-loaded rubric | Known answer               | Engine calibration    |
-
-Critically, for ECC and Control tasks, the model sees identical prompts. It does not know which condition it is in. The only difference is in the _analysis_: control tasks have reference answers that enable validity checks. This prevents demand effects.
-
-The dose-response gradient:
-
-| Concept                            | Task Type | Contestation | Expected Behavior                    |
-| :--------------------------------- | :-------- | :----------- | :----------------------------------- |
-| "fascism" (USA)                    | ECC       | High         | High polarization, high entrenchment |
-| "democratic backsliding" (USA)     | ECC       | Medium       | Moderate polarization                |
-| "democracy quality" (Norway)       | Control   | Low          | Low polarization, high consensus     |
-| Curated benchmark set (JudgeBench) | Benchmark | None         | Accuracy against known ground truth  |
-
-If the engine produces monotonically increasing polarization along this gradient and high accuracy on benchmarks, the measurement apparatus is working. If not, the results are suspect regardless of the ECC findings.
+Dose-response gradient: fascism (high) → backsliding (medium) → Norway quality (low) → benchmark (none). Monotonic polarization increase validates apparatus.
 
 ### 5.3. Pipeline
 
-The experimental pipeline proceeds in five stages:
+**Stage 1 — Evidence Collection.** Scrape news via Firecrawl; optional tone neutralization to 150-word clinical summaries. Shared across experiments.
 
-**Stage 1 — Evidence Collection.** For ECC and Control tasks: scrape news articles matching (concept, country, date window) via Firecrawl, then optionally neutralize tone via a fixed utility model (GPT-4.1 Mini). The neutralizer strips rhetorical devices, emotional language, and editorializing, producing 150-word clinical summaries. For Benchmark tasks: load pre-curated evidence. Evidence is shared across all experiments on the same window.
+**Stage 2 — Rubric Generation.** Model generates $n$-stage rubric (default $n=4$). Critic agent scores observability/discriminability. For benchmarks: pre-loaded rubrics.
 
-**Stage 2 — Rubric Generation.** For ECC and Control tasks: the experiment's model generates an $n$-stage evaluative rubric for the concept only (default $n=4$, even-numbered to eliminate center bias). A critic agent (fixed utility model) scores the rubric for observability and discriminability. For Benchmark tasks: load pre-defined rubrics.
+**Stage 3 — Scoring.** 5 samples per evidence, varying seeds. Strategy resolvers map config to behavior: content field, prompt suffix, output mode, parser. Double randomization of labels and display order.
 
-**Stage 3 — Scoring.** Each evidence item is scored multiple times (default 5) with varying random seeds. Strategy resolvers translate experiment configuration into concrete behavior: which content field (raw or neutralized), which prompt suffix (single or subset verdict), which output mode (free-form text or structured JSON), and which parser. Double randomization shuffles both label-to-stage mappings and display order to wash out position and anchor bias.
+**Stage 4 — Rubric Swap.** High-divergence pairs re-score with rival rubrics. Tests framework sensitivity.
 
-**Stage 4 — Rubric Swap.** For high-divergence model pairs identified in Stage 3: re-score evidence using a rival model's rubric. This tests whether confidence is evidence-based (survives swap) or framework-based (collapses under swap).
-
-**Stage 5 — Epistemic Probe.** Inline during scoring, in a fresh context window (no prior reasoning history), ask the same model: "What is the probability that independent experts would reach the same verdict?" This adapts Kadavath et al.'s (2022) calibration technique to measure consensus hallucination.
+**Stage 5 — Epistemic Probe.** Fresh context window: "What is the probability independent experts would reach the same verdict?" No CoT history from scoring phase.
 
 ### 5.4. Controls
 
-| Control                     | Target Bias                      | Implementation                                                                   | Key Reference                            |
-| :-------------------------- | :------------------------------- | :------------------------------------------------------------------------------- | :--------------------------------------- |
-| Tone Neutralization         | Style/Beauty Bias                | Articles reduced to 150-word clinical summaries                                  | Wu & Aji (2023); Stureborg et al. (2024) |
-| 4-Point Scale (no midpoint) | Scale Compression + Center Bias  | Forced 1–4 with no midpoint; forces directional commitment                       | Kim et al. (2024); Garland (1991)        |
-| Double Randomization        | Position & Anchor Bias           | Labels and display order shuffled per sample via seeded Fisher-Yates             | Zheng et al. (2023); Shi et al. (2025)   |
-| Rubric Validation           | Competence Confound              | Critic agent scores observability/discriminability; used as regression covariate | Dubois et al. (2024)                     |
-| Abstain Gate                | Forced-Choice Noise              | Explicit step allowing models to decline before scoring                          | Krumdick et al. (2025)                   |
-| Fresh-Window Probing        | Context Leakage                  | Expert agreement estimated in clean context, zero CoT history                    | Stureborg et al. (2024)                  |
-| Free-Form Suffix Parsing    | Constrained Decoding Degradation | No JSON schema enforcement during reasoning; parse `VERDICT:` from suffix        | Tam et al. (2024)                        |
+| Control                     | Target Bias                      | Implementation                            | Reference               |
+| :-------------------------- | :------------------------------- | :---------------------------------------- | :---------------------- |
+| Tone Neutralization         | Style/Beauty Bias                | 150-word clinical summaries               | Wu & Aji (2023)         |
+| 4-Point Scale (no midpoint) | Scale Compression + Center Bias  | Forced 1–4                                | Kim et al. (2024)       |
+| Double Randomization        | Position & Anchor Bias           | Seeded Fisher-Yates shuffle               | Zheng et al. (2023)     |
+| Rubric Validation           | Competence Confound              | Critic agent scores; regression covariate | Dubois et al. (2024)    |
+| Abstain Gate                | Forced-Choice Noise              | Explicit decline option                   | Krumdick et al. (2025)  |
+| Fresh-Window Probing        | Context Leakage                  | Clean context, zero CoT history           | Stureborg et al. (2024) |
+| Free-Form Suffix Parsing    | Constrained Decoding Degradation | Parse `VERDICT:` from suffix              | Tam et al. (2024)       |
 
-### 5.5. Scoring Elicitation
+### 5.5. Rubric-Stochastic DST Analysis (Pilot Method)
 
-Two primary elicitation modes, with a third as ablation:
+Each sample uses a **unique rubric** (30 rubrics per experiment). The rubric is a stochastic variable; each scored response is a draw from a different conceptualization.
 
-**Point Verdict** (`freeform-suffix-single`). The model reasons in free-form text and concludes with `VERDICT: [LETTER]` or `ABSTAIN`. This is the baseline condition. Analysis uses score distributions and JSD.
+**Per-sample TBM.** Map response to mass function on 4-stage frame. Fuse scores:
 
-**Subset Verdict** (`freeform-suffix-subset`). The model reasons freely and concludes with `VERDICT: [LETTER(S)]` (comma-separated) or `ABSTAIN`. The model may select one or more stages when evidence supports multiple interpretations. This maps directly to Dempster-Shafer basic mass assignments. Analysis uses DST conflict $k$, belief/plausibility intervals, and uncertainty gap.
+$$p = p_{score} \times p_{rubric} \times d_{len}$$
 
-### 5.6. Rubric-Stochastic DST Analysis (Pilot)
+where $p_{score}$ = expert agreement probe, $p_{rubric} = p_{obs} \times p_{disc}$ (observability × discriminability), $d_{len}$ = verbosity discount.
 
-In the pilot, **each sample uses a unique rubric** (30 rubrics per experiment). This makes the rubric
-itself a stochastic variable: each scored response is a draw from a different conceptualization of
-the scale. Our analysis therefore focuses on **interval aggregation** rather than single combined
-belief functions.
+**Mass assignment rules:**
 
-**Per-sample TBM.** Each response is mapped to a TBM mass function on the 4-stage frame. Let the
-score probe be $p_{score}$ (expert agreement) and the rubric critic scores be
-$p_{rubric} = p_{obs} \\times p_{disc}$ (observability × discriminability). We fuse them into a
-single pivot $p$ and apply a **verbosity discount** (below):
+- Normal verdict on subset $V$: $m(V) = p$, $m(\Theta) = 1-p$
+- Full-frame verdict $\Theta$: $m(\Theta) = p$, $m(\emptyset) = 1-p$
+- Abstain: $m(\emptyset) = p$, $m(\Theta) = 1-p$
 
-\\[
-p = p_{score} \\times p_{rubric} \\times d_{len}
-\\]
+**Verbosity bias regression.** Estimate stage-length preference via:
 
-Mass assignment uses the same rules as the DST blueprint (normal verdict: $m(V)=p, m(\\Theta)=1-p$;
-full-frame and abstain mirror on the ignorance–contradiction axis).
+$$\text{Selected}_{i,s} \sim \beta \cdot z_{len,s} + \text{FE}_i + \text{controls}$$
 
-**Verbosity bias regression.** Models tend to prefer longer rubric stage descriptions. We estimate
-this bias via a stage-level regression:
+Discount factor: $d_{len} = \min\{1, \exp(-\beta \cdot z_{len})\}$ (penalizes longer selected stages only).
 
-- Unit: score × stage (4 rows per score)
-- Outcome: 1 if the stage is selected, 0 otherwise
-- Predictor: within-rubric standardized stage length (word count over label + criteria)
-- Controls: evidence fixed effects, rubric quality scores
-- Fit per model
-
-The stage-length coefficient $\\,\\beta\\,$ yields a **discount factor** for each score:
-
-\\[
-d_{len} = \\min\\{1, \\exp(-\\beta \\cdot z_{len})\\}
-\\]
-
-which only **penalizes** longer-than-average selected stages (never boosts shorter ones). This
-discount is applied before mass assignment.
-
-**Interval aggregation (no bootstrap).** For each evidence and model, we compute $Bel_s(i)$ and
-$Pl_s(i)$ per sample and aggregate across the 30 rubric-samples using quantiles (e.g., 10–90 or
-5–95). These confidence bands capture **total uncertainty** from rubric stochasticity and scoring
-noise in a single, interpretable envelope.
+**Interval aggregation.** Compute $Bel_s(i)$, $Pl_s(i)$ per sample. Aggregate across 30 rubric-samples via quantiles (e.g., 10–90). Captures total uncertainty from rubric stochasticity and scoring noise.
 
 ---
 
-## 6. Analysis Plan
+## 6. Pilot Results
 
-### 6.1. Primary Metrics
+### 6.1. Design
 
-| Metric                            | Definition                                                                      | Applies To         |
-| :-------------------------------- | :------------------------------------------------------------------------------ | :----------------- |
-| Polarization Score ($P$)          | Jensen-Shannon Divergence of score distributions between model families         | ECC, Control       |
-| Entrenchment Index ($E$)          | $P \times \mathbb{E}[\text{Prob}_{expert}]$                                     | ECC                |
-| Swap Sensitivity                  | $\Delta \text{Prob}_{expert}$ when using a rival model's rubric                 | ECC, Control       |
-| Ground Truth Accuracy             | Agreement rate with known/expert reference values                               | Control, Benchmark |
-| Abstention Rate                   | Fraction of samples where the model declines to score                           | All                |
-| DST Conflict ($k$)                | Dempster conflict coefficient between model families' aggregated mass functions | ECC, Control       |
-| Uncertainty Gap                   | $Pl(s_i) - Bel(s_i)$ averaged across stages                                     | All (subset only)  |
-| Mean Subset Size                  | Average number of stages selected per verdict                                   | All (subset only)  |
-| Internal Consistency ($\sigma^2$) | Score variance across re-runs on identical (model, evidence, rubric) triples    | All                |
+- **Models:** GPT-4.1, Gemini-3.0-flash, GPT-5.2-chat, Qwen-235b
+- **Evidence:** 9 items (US political content, Jan 2026)
+- **Samples:** 30 per (model, evidence, rubric) triple
+- **Total scores:** 540
 
-### 6.2. Dempster-Shafer Aggregation
+### 6.2. Key Findings
 
-**Frame of discernment.** $\Theta = \{s_1, s_2, \ldots, s_n\}$ where $n$ is the scale size (default 4).
+#### Finding 1: Four Distinct Adjudicative Geometries
 
-**Mass assignment.** Each scoring sample with decoded scores $\{i, j, \ldots\}$ becomes a basic mass assignment $m(A) = 1$ where $A = \{s_i, s_j, \ldots\} \subseteq \Theta$.
+| Model            | Geometry               | Stage-1 Mass | Mid-Range (2–3) | Stage-4     | Abstain  | Interpretation               |
+| :--------------- | :--------------------- | :----------- | :-------------- | :---------- | :------- | :--------------------------- |
+| GPT-4.1          | Smooth, expressive     | Moderate     | **High**        | Moderate    | Minimal  | Classic graded evaluation    |
+| Gemini-3.0-flash | Thresholded, selective | Moderate     | Moderate        | Low         | Moderate | Cautious gatekeeping         |
+| GPT-5.2-chat     | **Collapsed, binary**  | **Dominant** | **Minimal**     | Rare spikes | **High** | **Adjudicative compression** |
+| Qwen-235b        | Smooth, expressive     | Moderate     | **High**        | Moderate    | **High** | **Non-compressed baseline**  |
 
-**Combination.** Given $n$ samples for the same (model, evidence, rubric) triple, combine sequentially using Dempster's rule:
+#### Finding 2: Within-Vendor Divergence Exceeds Cross-Vendor
 
-$$m_{1,2}(A) = \frac{1}{1-k} \sum_{B \cap C = A} m_1(B) \cdot m_2(C)$$
+| Pair                     | Mean JSD (Closed-world) | Interpretation         |
+| :----------------------- | :---------------------- | :--------------------- |
+| GPT-4.1 vs. GPT-5.2-chat | **0.1904**              | **Maximal divergence** |
+| Gemini vs. GPT-5.2-chat  | 0.1169                  | Moderate divergence    |
+| GPT-4.1 vs. Gemini       | **0.0331**              | **Minimal divergence** |
 
-where $k = \sum_{B \cap C = \emptyset} m_1(B) \cdot m_2(C)$ is the conflict coefficient.
+Same-vendor version difference > cross-vendor difference. Implicates **alignment regime** over vendor identity.
 
-**Derived measures per (model, evidence) pair:**
+#### Finding 3: GPT-5.2-chat Exhibits Extreme Compression
 
-| Measure         | Definition                        | Interpretation                                          |
-| :-------------- | :-------------------------------- | :------------------------------------------------------ |
-| $Bel(s_i)$      | $\sum_{A \subseteq \{s_i\}} m(A)$ | Lower bound: evidence specifically supporting stage $i$ |
-| $Pl(s_i)$       | $1 - Bel(\overline{\{s_i\}})$     | Upper bound: absence of evidence against stage $i$      |
-| Uncertainty Gap | $Pl(s_i) - Bel(s_i)$              | Width of epistemic uncertainty interval                 |
-| Conflict $k$    | From the combination rule         | Inter-sample disagreement within one model              |
+Closed-world BetP distributions (pilot):
 
-**Cross-model conflict.** The aggregated mass functions of two model families are combined via Dempster's rule. The resulting $k$ is a formal measure of polarization grounded in evidence theory.
+- **E2, E3, E4, E6, E8:** Stage-1 mass 0.85–0.93
+- **E3, E4, E7, E8:** 100% abstain in TBM (conflict-filtered)
+- **E1:** Stage-4 spike 0.44 (keyword-triggered)
+- **Mid-range (Stages 2–3):** Effectively absent
 
-**Comparison with JSD.** When all verdicts are singletons (point verdicts), DST conflict degenerates to a JSD-like measure. When models express uncertainty via subsets, DST captures information that JSD collapses. The point-to-subset comparison directly tests H4 (Forced-Choice Inflation).
+This is not graded evaluation. It is **binary sensing**: "Normal" (Stage 1) or "Too Hot" (Abstain/Stage 4).
 
-### 6.3. Regression Models
+#### Finding 4: Confidence-Compression Paradox
 
-Following Dubois et al. (2024), we use OLS regression to isolate the effect of model family after controlling for confounds:
+GPT-5.2-chat shows **smoother confidence gradients** than earlier models:
 
-**Primary ECC regression:**
+- Abstentions: 0.88–0.91 expert agreement
+- Stage-1 assignments: 0.83–0.86
+- Stage-4 spike (E1): 0.72
 
-$$\text{Score} \sim \beta_0 + \beta_1(\text{Model}) + \beta_2(\text{RubricQuality}) + \beta_3(\text{Concept}) + \epsilon$$
+Better calibration of worse expressiveness. The model is **confidently compressed** — it knows when it refuses, but has lost the language of intermediate concern.
 
-A significant $\beta_1$ after controlling for rubric quality and concept indicates model-specific evaluation bias.
+#### Finding 5: Qwen as Control
 
-**Ablation regression (pooled across task types):**
+Qwen-235b maintains:
 
-$$\text{Score} \sim \beta_0 + \beta_1(\text{Model}) + \beta_2(\text{ScoringMethod}) + \beta_3(\text{ScaleSize}) + \beta_4(\text{Neutralization}) + \epsilon$$
+- Distributed mass across Stages 1–4
+- Significant mid-range (2–3) presence
+- Selective but not systemic abstention
 
-**DST-specific regression (subset scoring only):**
+Demonstrates that **compression is not inevitable** for large modern models. Alignment-specific.
 
-$$\text{UncertaintyGap} \sim \beta_0 + \beta_1(\text{Model}) + \beta_2(\text{Concept}) + \beta_3(\text{RubricQuality}) + \epsilon$$
+### 6.3. Qualitative Evidence
 
-### 6.4. Validity Checks
+**Evidence E1** (historical essay on fascism/socialism, mentions Nick Fuentes):
 
-Following Shankar et al. (2024):
+- GPT-4.1: Distributed 2–4
+- Gemini: Distributed 1–3
+- GPT-5.2: Stage-4 spike (keyword detection)
+- Qwen: Mostly abstain
 
-1. **Discriminant Control.** "Democracy quality" in Norway should yield consensus: $P < 0.1$, $k < 0.1$, and scores aligned with V-Dem Liberal Democracy Index ($\approx 0.95$).
+Total interpretive divergence on identical text.
 
-2. **Dose-Response Monotonicity.** $P_{\text{fascism}} > P_{\text{backsliding}} > P_{\text{control}}$. Same ordering for $k$.
+**Evidence E6** (Venezuela/Maduro):
 
-3. **External Benchmark.** JudgeBench (Tan et al., 2024) agreement rates $>80\%$ as engine calibration. If the engine cannot match known answers on objective tasks, ECC results are not interpretable.
+- GPT-4.1: Stage-3 mass
+- GPT-5.2: 0.93 Stage-1 or abstain
+- Qwen: Distributed evaluation
 
-4. **Internal Consistency.** Test-retest reliability: $\sigma^2 < 0.5$ per (model, evidence) triple across repeated runs with different random seeds (Wei et al., 2024).
+Same evidence, opposite structural readings.
 
-5. **DST Sanity.** For singleton-only scoring, DST conflict $k$ and JSD polarization $P$ should correlate strongly ($r > 0.8$).
+### 6.4. Implications
+
+1. **Longitudinal instability:** GPT-4.1 to GPT-5.2 is not improvement; it is **regime change** in evaluative capability.
+
+2. **Safety-expressiveness tradeoff:** Aggressive alignment may protect against harmful outputs by eliminating nuanced evaluation capacity.
+
+3. **Cross-cultural alignment:** Qwen's geometry suggests different safety priors enable different evaluative bandwidths.
+
+4. **Measurement validity:** Binary-compressed judges are unsuitable for tracking gradual democratic backsliding — they can only detect "normal" or "crisis."
 
 ---
 
-## 7. Implementation
+## 7. Revised Analysis Plan
 
-judge-gym is implemented as a Turborepo monorepo with two packages:
+### 7.1. Priority: Isolate Compression Mechanism
 
-- **engine** (`packages/engine/`): A Convex backend implementing the five-stage pipeline. Durable workflows, rate-limited LLM calls, and full audit trails via agent threads. The engine uses an abstract agent base class, strategy resolvers (pure functions mapping experiment config to concrete agent behavior), and deterministic utility functions for verdict parsing, label randomization, and DST mass assignment.
+**Experiment 1: Explicit Hypothetical Framing**
 
-- **analysis** (`packages/analysis/`): A Python package (uv + Jupyter) for statistical analysis. Pulls data from the engine via Convex HTTP API. Implements JSD, DST aggregation, entrenchment index, and OLS regression using pandas, numpy, and statsmodels.
+Add to prompt:
 
-The architecture follows a key principle: **experiments are data, not code.** Every ablation is expressed as a configuration record. The engine interprets configuration at runtime through strategy resolvers — pure functions that map config values to typed behavior objects. Adding a new ablation axis requires modifying three files (schema, strategy, resolver); no agent logic, workflow code, or prompt templates change.
+> "For this task, assume all evidence is accurate and factually correct regardless of real-world plausibility. Evaluate structural implications conditional on this assumption."
 
-All LLM interactions are stored as agent threads, providing a complete audit trail. Deterministic computation (verdict parsing, label shuffling, DST mass assignment) is strictly separated from LLM generation — models produce text, and pure functions extract structure from the output.
+Test: Does GPT-5.2 compression persist? If yes → hard entrenchment. If no → premise-gating.
 
-The engine is open-source and designed for reproducibility. Experiment records contain the full configuration needed to replicate any trial. The analysis package consumes denormalized CSV exports and produces publication-ready metrics.
+**Experiment 2: Fictional Country Control**
+
+Replace "United States" with "Republic of Eldoria," anonymize leaders. Test: Is compression US-specific or general?
+
+**Experiment 3: Neutral Domain Control**
+
+Apply identical pipeline to non-political evaluation (e.g., code quality, medical diagnosis). Test: Is compression domain-specific or general?
+
+**Experiment 4: Expert Rater Validation**
+
+Collect human expert (Paxton-trained) ratings on pilot evidence. Test: Is any model's "expert agreement" probe calibrated to actual expert variance?
+
+### 7.2. Metrics (Retained from Plan)
+
+| Metric            | Definition                                  | Purpose                         |
+| :---------------- | :------------------------------------------ | :------------------------------ |
+| Polarization $P$  | JSD between model distributions             | Inter-model divergence          |
+| Entrenchment $E$  | $P \times \mathbb{E}[\text{Prob}_{expert}]$ | Pathological confidence         |
+| Compression Index | $1 - H(p_i)/H_{max}$                        | Dynamic range collapse          |
+| Abstention Rate   | Fraction declining                          | Refusal behavior                |
+| DST Conflict $k$  | Cross-model mass conflict                   | Evidence-theoretic polarization |
+| Uncertainty Gap   | $Pl - Bel$ per stage                        | Epistemic interval width        |
+
+### 7.3. Falsification Conditions
+
+- If compression disappears under hypothetical framing → premise rejection, not entrenchment.
+- If compression generalizes to fictional countries and neutral domains → general adjudicative lobotomy.
+- If Qwen shows compression under Western safety tuning → alignment mechanism confirmed.
 
 ---
 
-## 8. Expected Contributions and Limitations
+## 8. Implementation
 
-### Expected Contributions
+judge-gym: Turborepo monorepo.
 
-This study contributes to three areas:
+- **engine** (`packages/engine/`): Convex backend, five-stage pipeline, durable workflows, agent thread audit trail.
+- **analysis** (`packages/analysis/`): Python (uv + Jupyter), JSD, DST aggregation, regression, visualization.
 
-1. **AI Safety.** If the Sectarian Judge pattern holds, the choice of LLM evaluator for contested content is a normative choice, not an engineering convenience. This has implications for content moderation, automated fact-checking, and any pipeline where LLM judges evaluate politically or ethically contested material.
+Principle: **Experiments are data, not code.** Configuration records interpreted at runtime via strategy resolvers.
 
-2. **Evaluation Methodology.** The design space approach enables systematic comparison of evaluation configurations that are typically tested in isolation. The DST-based formalization of forced-choice inflation provides a principled framework for distinguishing genuine disagreement from measurement artifact.
+---
 
-3. **Metacognitive Calibration.** The combination of fresh-window probing with rubric swap creates a diagnostic for _motivated reasoning_ in LLM judges: models whose confidence survives framework change are evidence-based; models whose confidence collapses are framework-based.
+## 9. Limitations and Future Work
 
-### Limitations
+### Current Limitations
 
-Several limitations should be noted in advance:
+- **Scale:** 9 evidence items. Requires 100+ for asymptotic confidence.
+- **Premise ambiguity:** Task framing may conflate factual reliability with structural evaluation.
+- **Expert calibration:** Human expert comparison pending.
+- **Temporal specificity:** January 2026 political moment; generalization uncertain.
 
-- **Concept selection.** We test a small number of political concepts. The degree of entrenchment may vary for other contested domains (ethical, aesthetic, legal).
+### Future Work
 
-- **Temporal window.** Evidence is drawn from a specific time period. Model behavior on the same concepts may shift with updated training data or changed safety filters.
+- Scale to 100+ evidence items across multiple countries/time periods
+- Explicit counterfactual prompt engineering
+- Human expert panel validation
+- Causal intervention: safety tuning ablation (if ethically/technically feasible)
+- Extension to other contested concepts (justice, corruption, legitimacy)
 
-- **Rubric quality as confounder.** Although we control for rubric quality via the critic agent and regression, model-generated rubrics may systematically differ in ways that the critic does not capture.
+---
 
-- **Expert agreement as proxy.** We use self-reported expert agreement probability as a metacognitive probe. The actual agreement of human experts on these tasks remains unmeasured in this study (planned for a follow-up).
+## 10. Conclusion
 
-- **Scale of sweep.** The full design space (7 models $\times$ 3 ECC concepts $\times$ controls $\times$ ablations) is large but not exhaustive. We prioritize the main hypotheses over complete coverage.
+Our pilot reveals a structurally significant phenomenon: **alignment-induced adjudicative compression**. GPT-5.2-chat exhibits extreme expressive collapse — binary output, hollowed mid-range, confident refusal — while GPT-4.1 and Qwen-235b maintain graded evaluation capacity. This pattern is version-specific rather than vendor-specific, implicating safety training regime over static ideology.
+
+The implications extend beyond academic measurement. If frontier models lose the capacity for nuanced political evaluation as they are made "safer," then automated monitoring of democratic backsliding, automated fact-checking of contested claims, and LLM-assisted policy analysis may be systematically biased toward false negatives — missing gradual erosion until it becomes crisis.
+
+We do not yet know whether this compression is inevitable, reversible, or domain-specific. Our full study will test these boundaries. But the pilot establishes that **the geometry of evaluation is a variable of alignment**, and that choice of judge is choice of normative frame.
 
 ---
 
 ## References
 
-Dubois, Y., Li, X., Taori, R., Zhang, T., Gulrajani, I., Ba, J., Guestrin, C., Liang, P., & Hashimoto, T. (2024). Alpaca-Eval 2: Length-controlled evaluation of instruction-following models. _arXiv:2404.04475_.
+Dubois, Y., Li, X., Taori, R., Zhang, T., Gulrajani, I., Ba, J., Guestrin, C., Liang, P., & Hashimoto, T. (2024). Alpaca-Eval 2: Length-controlled evaluation of instruction-following models. \*arXiv:2404.04475\_.
 
 Dempster, A. P. (1967). Upper and lower probabilities induced by a multivalued mapping. _The Annals of Mathematical Statistics_, 38(2), 325–339.
 
@@ -381,8 +413,6 @@ Hartmann, J., Schwenzow, J., & Witte, M. (2023). The political ideology of conve
 Kadavath, S., Conerly, T., Askell, A., et al. (2022). Language models (mostly) know what they know. _arXiv:2207.05221_.
 
 Kim, S., Shin, J., Cho, Y., et al. (2024). Prometheus 2: An open source language model specialized in evaluating other language models. _arXiv:2405.01535_.
-
-Koo, R., Lee, M., Raheja, V., et al. (2023). Benchmarking cognitive biases in large language models as evaluators. _arXiv:2309.17012_.
 
 Krumdick, M., Lovering, C., Singh, S., & Hoover, B. (2025). No free labels: Limitations of LLM-as-a-judge without human grounding. _arXiv_.
 
@@ -409,3 +439,5 @@ Wu, M. & Aji, A. F. (2023). Style over substance: Evaluation biases for large la
 You, J., Ying, Z., & Leskovec, J. (2020). Design space for graph neural networks. _NeurIPS 2020_.
 
 Zheng, L., Chiang, W., Sheng, Y., et al. (2023). Judging LLM-as-a-judge with MT-Bench and Chatbot Arena. _NeurIPS 2023_.
+
+---
