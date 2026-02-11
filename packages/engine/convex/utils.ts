@@ -39,7 +39,7 @@ export const MODEL_MAP = {
   "claude-haiku-4.5": anthropic("claude-haiku-4-5-20250514"),
   "gemini-3.0-flash": google("gemini-3-flash-preview"),
   "grok-4.1-fast": xai("grok-4.1-fast"),
-  "qwen3-235b": openrouter("qwen/qwen3-235b"),
+  "qwen3-235b": openrouter("qwen/qwen3-235b-a22b-2507"),
 } satisfies Record<ModelType, LanguageModel>;
 
 // --- Provider resolution ---
