@@ -1,0 +1,5 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/packages/analysis/.venv/bin/python",
+  "jupyter.kernels.filter": [],
+  "python.venvFolders": ["packages/analysis/.venv"]
+}

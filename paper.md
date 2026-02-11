@@ -199,6 +199,48 @@ Two primary elicitation modes, with a third as ablation:
 
 **Subset Verdict** (`freeform-suffix-subset`). The model reasons freely and concludes with `VERDICT: [LETTER(S)]` (comma-separated) or `ABSTAIN`. The model may select one or more stages when evidence supports multiple interpretations. This maps directly to Dempster-Shafer basic mass assignments. Analysis uses DST conflict $k$, belief/plausibility intervals, and uncertainty gap.
 
+### 5.6. Rubric-Stochastic DST Analysis (Pilot)
+
+In the pilot, **each sample uses a unique rubric** (30 rubrics per experiment). This makes the rubric
+itself a stochastic variable: each scored response is a draw from a different conceptualization of
+the scale. Our analysis therefore focuses on **interval aggregation** rather than single combined
+belief functions.
+
+**Per-sample TBM.** Each response is mapped to a TBM mass function on the 4-stage frame. Let the
+score probe be $p_{score}$ (expert agreement) and the rubric critic scores be
+$p_{rubric} = p_{obs} \\times p_{disc}$ (observability × discriminability). We fuse them into a
+single pivot $p$ and apply a **verbosity discount** (below):
+
+\\[
+p = p_{score} \\times p_{rubric} \\times d_{len}
+\\]
+
+Mass assignment uses the same rules as the DST blueprint (normal verdict: $m(V)=p, m(\\Theta)=1-p$;
+full-frame and abstain mirror on the ignorance–contradiction axis).
+
+**Verbosity bias regression.** Models tend to prefer longer rubric stage descriptions. We estimate
+this bias via a stage-level regression:
+
+- Unit: score × stage (4 rows per score)
+- Outcome: 1 if the stage is selected, 0 otherwise
+- Predictor: within-rubric standardized stage length (word count over label + criteria)
+- Controls: evidence fixed effects, rubric quality scores
+- Fit per model
+
+The stage-length coefficient $\\,\\beta\\,$ yields a **discount factor** for each score:
+
+\\[
+d_{len} = \\min\\{1, \\exp(-\\beta \\cdot z_{len})\\}
+\\]
+
+which only **penalizes** longer-than-average selected stages (never boosts shorter ones). This
+discount is applied before mass assignment.
+
+**Interval aggregation (no bootstrap).** For each evidence and model, we compute $Bel_s(i)$ and
+$Pl_s(i)$ per sample and aggregate across the 30 rubric-samples using quantiles (e.g., 10–90 or
+5–95). These confidence bands capture **total uncertainty** from rubric stochasticity and scoring
+noise in a single, interpretable envelope.
+
 ---
 
 ## 6. Analysis Plan
