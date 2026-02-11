@@ -72,6 +72,29 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
   //   evidenceLimit: 9,
   //   sampleCount: 30,
   // },
+  // {
+  //   window: {
+  //     startDate: "2026-01-01",
+  //     endDate: "2026-01-07",
+  //     country: "USA",
+  //     concept: "fascism",
+  //   },
+  //   experiment: {
+  //     experimentTag: "ecc-fascism-usa-trial-qwen3-235b",
+  //     modelId: "qwen3-235b",
+  //     taskType: "ecc",
+  //     config: {
+  //       scaleSize: 4,
+  //       randomizations: ["anon-label", "rubric-order-shuffle"],
+  //       evidenceView: "neutralized",
+  //       scoringMethod: "freeform-suffix-subset",
+  //       promptOrdering: "rubric-first",
+  //       abstainEnabled: true,
+  //     },
+  //   },
+  //   evidenceLimit: 9,
+  //   sampleCount: 30,
+  // },
   {
     window: {
       startDate: "2026-01-01",
@@ -80,8 +103,8 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
       concept: "fascism",
     },
     experiment: {
-      experimentTag: "ecc-fascism-usa-trial-qwen3-235b",
-      modelId: "qwen3-235b",
+      experimentTag: "ecc-fascism-usa-trial-gpt-4.1-mini",
+      modelId: "gpt-4.1-mini",
       taskType: "ecc",
       config: {
         scaleSize: 4,
@@ -94,5 +117,5 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
     },
     evidenceLimit: 9,
     sampleCount: 30,
-  },
+  }
 ];
