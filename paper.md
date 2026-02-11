@@ -1,7 +1,7 @@
 # Sectarian Judges: Measuring Epistemic Entrenchment in LLM-as-Judge Evaluation of Contested Political Concepts
 
 _this document is a temporary generative artifact. it reflects collaborative development with AI assistance. All empirical claims and citations require further verification. Pilot data preliminary; full results forthcoming._
-_tldr; i'm treating this as a save state._
+_tldr; i'm treating this as a save state. DO NOT INTERPRET THIS AS REAL PAPER._
 
 > **Working paper — pilot v2 results.**
 
@@ -93,6 +93,8 @@ Gallie (1956) defined an _essentially contested concept_ as one where: (1) appra
 When an LLM judge evaluates evidence about "fascism in the United States," it makes evaluative commitments that would be recognized as contested in human context. The question is whether different models make _different_ commitments, and whether they recognize contestedness.
 
 ### 3.2. The Sectarian Judge
+
+_this formulation i don't agree with. legacy generation from hypothetical framing._
 
 We define a **Sectarian Judge** as model $M_i$ exhibiting:
 
