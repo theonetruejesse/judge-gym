@@ -1,0 +1,12 @@
+==DIRECTIONS==
+- find and read through the entirety of `.prompts/lgtm-protocol.md`
+- follow our protocol's entire procedure, explictly, to create a report.
+- you are welcome to use all tools avaliable to you, within the specifications of our protocol; tools might be named differently.
+
+==IMPORTANT==
+- show all your work. do not stop until you are completely done with every phase and have created a completed report.
+- do not implement any code changes. i need to approve the completed report first.
+
+==QUESTION==
+use `.prompts/runs/run_name` as your run folder. 
+answer our question:
