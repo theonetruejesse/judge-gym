@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_batching_001_v2",
+  "microHypothesisID": "h_A_batching_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Provider batch APIs can be unified behind a common adapter with reliable partial retries.",
+      "falsificationQueries": [
+        "Review provider batch API semantics and webhook vs polling requirements",
+        "Check Convex workflow durability limits and idempotency patterns"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_blueprint_batching_evidence.md",
+        "knowledge/k_009_workflow_rate_limiter_evidence.md",
+        "knowledge/k_012_user_notes_refactor_additions.md"
+      ],
+      "falsificationAnalysis": "Local evidence suggests durable workflows and rate limiting patterns, but provider batch API semantics are not yet verified; adapter unification remains a risk.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

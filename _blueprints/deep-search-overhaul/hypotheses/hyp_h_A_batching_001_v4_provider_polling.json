@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_batching_001",
+  "areaOfAnalysisID": "A_batching",
+  "statement": "Provider batch APIs (OpenAI/Anthropic/Gemini) are asynchronous and file/job based; a polling-first adapter with staged batches, centralized rate limiting, and Convex-ID-based idempotency keys is the pragmatic baseline.",
+  "confidence": 0.68,
+  "rationale": "Docs show OpenAI output/error files with 24h completion window, Anthropic results_url polling, and Gemini BatchPredictionJob outputs to GCS/BQ. Webhooks are not documented, so polling is the safe default.",
+  "keyAssumptions": ["Polling intervals can be tuned without excessive cost or rate-limit pressure."],
+  "validationCriteria": ["Blueprint includes provider-specific adapter contracts and a polling workflow for batch completion."],
+  "critiquePoints": ["Polling may increase latency and cost; webhook support could simplify completion if available."],
+  "questions": ["Do we add a separate callback service if future provider webhooks are required?", "What polling backoff schedule should we use per provider?"]
+}

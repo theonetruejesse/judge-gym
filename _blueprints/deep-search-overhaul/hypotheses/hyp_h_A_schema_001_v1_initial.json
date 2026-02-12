@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_schema_001",
+  "areaOfAnalysisID": "A_schema",
+  "statement": "A Python-first, snake_case schema with an explicit message ledger (user+assistant pairs, prompt, instructions, reasoning, final response, token counts) should replace thread-centric usage tables to minimize analysis friction.",
+  "confidence": 0.68,
+  "rationale": "User notes require snake_case and a message table; current schema is camelCase and threadId-based.",
+  "keyAssumptions": ["Analysis pipeline reads directly from exported tables and benefits from consistent snake_case."],
+  "validationCriteria": ["Blueprint plan defines message tables and endpoints in snake_case with deterministic export shapes."],
+  "critiquePoints": ["Migration complexity may be high if legacy data needs to be preserved."],
+  "questions": ["Should messages be stored per request or as a normalized conversation table?"]
+}

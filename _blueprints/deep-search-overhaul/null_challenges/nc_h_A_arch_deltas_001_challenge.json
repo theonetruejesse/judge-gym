@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_arch_deltas_001",
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "hypothesisFilePath": "hypotheses/hyp_h_A_arch_deltas_001_v1_initial.json",
+  "falsificationAttempts": [
+    {
+      "targetID": "T01",
+      "targetDescription": "Probe stage is still required for the paper's analysis.",
+      "falsificationQueries": [
+        "Does the paper still require fresh-window probes?",
+        "Is probe stage optional in current methodology?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_006_paper_methodology_evidence.md"
+      ],
+      "falsificationAnalysis": "Paper.md explicitly includes fresh-window probes as part of the evaluation pipeline, so probe data remains required for planned analyses.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

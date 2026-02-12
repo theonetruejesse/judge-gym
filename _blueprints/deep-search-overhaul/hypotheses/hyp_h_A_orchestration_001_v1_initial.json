@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_orchestration_001",
+  "areaOfAnalysisID": "A_orchestration",
+  "statement": "The experiment runner should be replaced or minimized in favor of workflow-driven scheduling and a minimal CLI that only enqueues work, to reduce duplicated orchestration logic.",
+  "confidence": 0.6,
+  "rationale": "A separate runner layer exists outside the Convex workflows and is not part of the original blueprint; user dislikes the runner-centric approach.",
+  "keyAssumptions": ["Workflow-driven scheduling can cover current runner responsibilities."],
+  "validationCriteria": ["Blueprint plan defines orchestration via workflows and removes reliance on local runner logic."],
+  "critiquePoints": ["Some local scripting may still be useful for batch sweep generation."],
+  "questions": ["Should a small CLI remain to generate experiment configs only?"]
+}

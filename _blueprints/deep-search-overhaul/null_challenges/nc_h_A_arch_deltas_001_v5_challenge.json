@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_arch_deltas_001_v5",
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Regex-only acceptance may be too brittle for rubric/score validity.",
+      "falsificationQueries": [
+        "Assess whether provider outputs vary enough to break regex parsing",
+        "Check if current pipeline has fallback parsing"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_011_stage_naming_critic_prober_evidence.md",
+        "knowledge/k_017_user_notes_idempotency_regex.md"
+      ],
+      "falsificationAnalysis": "No provider-specific variability evidence in local docs; risk remains conceptual. User requirement still mandates regex gating.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

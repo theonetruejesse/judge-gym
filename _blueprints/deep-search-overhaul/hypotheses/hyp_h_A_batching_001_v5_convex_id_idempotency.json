@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_batching_001",
+  "areaOfAnalysisID": "A_batching",
+  "statement": "Provider batch APIs are async and polling-based; a polling-first adapter with staged batches, centralized rate limiting, and Convex-ID-based idempotency (using existing IDs and null-state checks) is the pragmatic baseline.",
+  "confidence": 0.74,
+  "rationale": "Provider docs describe polling and output files/jobs; user prefers Convex IDs over ad hoc hashes for idempotency.",
+  "keyAssumptions": ["Convex IDs plus stage/model/provider are sufficient to identify unique requests."],
+  "validationCriteria": ["Blueprint specifies composite uniqueness on existing IDs and uses null values to determine retries."],
+  "critiquePoints": ["If prompts change across retries, a version field may be required to avoid false idempotency."],
+  "questions": ["Do we add a request_version or attempt counter for forced reruns?", "What polling backoff schedule should we use per provider?"]
+}

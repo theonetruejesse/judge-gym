@@ -1,0 +1,275 @@
+{
+  "meta": {
+    "originalQuestion": "Since blueprint-init.md, what major changes occurred in the project, and given paper.md, what are the logical next implementation steps? Integrate blueprint-batching.md. Assume tables will be nuked; propose a major overhaul plan.",
+    "runFolderPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/deep-search-overhaul",
+    "finalPlanPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/deep-search-overhaul/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex-lead",
+    "researchers": ["explorer-A1", "explorer-A2", "explorer-A3", "explorer-A4"],
+    "falsifier": "codex-falsifier",
+    "certaintyScorer": "codex-certainty",
+    "synthesizer": "codex-synth"
+  },
+  "assignments": [
+    {
+      "areaID": "A_arch_deltas",
+      "description": "Deltas vs blueprint-init; per-evidence critics + regex gating",
+      "assignedAgent": "explorer-A1",
+      "evidenceIDs": ["k_001", "k_007", "k_011", "k_017"]
+    },
+    {
+      "areaID": "A_batching",
+      "description": "Provider batch APIs + staged batches + polling",
+      "assignedAgent": "explorer-A2",
+      "evidenceIDs": ["k_002", "k_009", "k_014", "k_015", "k_016", "k_017"]
+    },
+    {
+      "areaID": "A_schema",
+      "description": "Python-first, snake_case schema + normalized message ledger",
+      "assignedAgent": "explorer-A4",
+      "evidenceIDs": ["k_003", "k_010", "k_013"]
+    },
+    {
+      "areaID": "A_orchestration",
+      "description": "Runner removal + workflow scheduling",
+      "assignedAgent": "explorer-A1",
+      "evidenceIDs": ["k_004"]
+    },
+    {
+      "areaID": "A_analysis",
+      "description": "Paper-driven data/export needs",
+      "assignedAgent": "explorer-A3",
+      "evidenceIDs": ["k_005", "k_006"]
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "entryID": "k_001",
+        "source": "_blueprints/blueprint-init.md:1-314",
+        "filePath": "knowledge/k_001_blueprint_init_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Blueprint baseline: pipeline stages, design principles, analysis modules, research protocol.",
+        "confidence": 0.72
+      },
+      {
+        "entryID": "k_002",
+        "source": "_blueprints/blueprint-batching.md",
+        "filePath": "knowledge/k_002_blueprint_batching_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Batching refactor: llm_requests/llm_batches, remove agent-kit threads, provider adapters.",
+        "confidence": 0.8
+      },
+      {
+        "entryID": "k_003",
+        "source": "packages/engine/convex/schema.ts",
+        "filePath": "knowledge/k_003_current_schema_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Current camelCase schema with threadId-centric usage tracking.",
+        "confidence": 0.78
+      },
+      {
+        "entryID": "k_004",
+        "source": "packages/engine/src/helpers/runner.ts",
+        "filePath": "knowledge/k_004_runner_layer_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "External runner orchestrates experiments via HTTP; candidate for redesign.",
+        "confidence": 0.7
+      },
+      {
+        "entryID": "k_005",
+        "source": "packages/analysis/README.md + analysis listings",
+        "filePath": "knowledge/k_005_analysis_package_state_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Analysis modules incomplete vs documented plan; only pilot notebook exists.",
+        "confidence": 0.74
+      },
+      {
+        "entryID": "k_006",
+        "source": "paper.md",
+        "filePath": "knowledge/k_006_paper_methodology_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Paper requirements: DST/JSD, probes, rubric swaps, ECC/control/benchmark tasks.",
+        "confidence": 0.76
+      },
+      {
+        "entryID": "k_007",
+        "source": "packages/engine/convex/stages listing",
+        "filePath": "knowledge/k_007_missing_probe_stage_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Probe stage missing in current code.",
+        "confidence": 0.67
+      },
+      {
+        "entryID": "k_008",
+        "source": "User notes (2026-02-11)",
+        "filePath": "knowledge/k_008_user_notes_requirements.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Refactor requirements: snake_case, message ledger, batching, runner redesign.",
+        "confidence": 0.7
+      },
+      {
+        "entryID": "k_009",
+        "source": "packages/engine/convex/workflow_manager.ts + rate limiter + workflows",
+        "filePath": "knowledge/k_009_workflow_rate_limiter_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Workflow durability patterns and Convex rate limiter integration.",
+        "confidence": 0.74
+      },
+      {
+        "entryID": "k_010",
+        "source": "packages/engine/convex/agents/abstract.ts + data.ts + agent_config.ts",
+        "filePath": "knowledge/k_010_agent_kit_message_usage_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Agent-kit thread/message/usage coupling with domain tables.",
+        "confidence": 0.72
+      },
+      {
+        "entryID": "k_011",
+        "source": "packages/engine/convex/stages/2_rubric + 3_scoring",
+        "filePath": "knowledge/k_011_stage_naming_critic_prober_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Rubric critic and scoring prober roles + naming implications.",
+        "confidence": 0.7
+      },
+      {
+        "entryID": "k_012",
+        "source": "User notes (2026-02-12)",
+        "filePath": "knowledge/k_012_user_notes_refactor_additions.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Mandatory critics, provider batch APIs, centralized rate limiter, message ledger source of truth.",
+        "confidence": 0.7
+      },
+      {
+        "entryID": "k_013",
+        "source": "User notes (2026-02-12)",
+        "filePath": "knowledge/k_013_user_notes_batching_critics.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Per-evidence critics, staged batching, and normalized message ledger only.",
+        "confidence": 0.7
+      },
+      {
+        "entryID": "k_014",
+        "source": "OpenAI Batch API docs",
+        "filePath": "knowledge/k_014_openai_batch_api_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "OpenAI Batch API is file-based with JSONL input, output/error files, 24h completion window, and polling-based status.",
+        "confidence": 0.76
+      },
+      {
+        "entryID": "k_015",
+        "source": "Anthropic Message Batches docs",
+        "filePath": "knowledge/k_015_anthropic_message_batches_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Anthropic batches are polled, return results_url JSONL, have request_counts and 24h expiration.",
+        "confidence": 0.76
+      },
+      {
+        "entryID": "k_016",
+        "source": "Vertex AI Gemini batch prediction docs",
+        "filePath": "knowledge/k_016_gemini_vertex_batch_evidence.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Gemini batch prediction uses BatchPredictionJob with GCS/BQ inputs and outputs.",
+        "confidence": 0.72
+      },
+      {
+        "entryID": "k_017",
+        "source": "User notes (2026-02-12)",
+        "filePath": "knowledge/k_017_user_notes_idempotency_regex.md",
+        "contentType": "text/markdown",
+        "contentSummary": "Regex-gated acceptance and Convex-ID-based idempotency without ad hoc hashes.",
+        "confidence": 0.7
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      { "id": "h_A_arch_deltas_001", "score": 0.74 },
+      { "id": "h_A_batching_001", "score": 0.77 },
+      { "id": "h_A_schema_001", "score": 0.69 },
+      { "id": "h_A_orchestration_001", "score": 0.58 },
+      { "id": "h_A_analysis_001", "score": 0.66 }
+    ]
+  },
+  "areasOfAnalysis": [
+    { "areaID": "A_arch_deltas", "description": "Deltas vs blueprint-init; per-evidence critics + regex gating", "status": "Active" },
+    { "areaID": "A_batching", "description": "Provider batch APIs + staged batches + polling", "status": "Active" },
+    { "areaID": "A_schema", "description": "Python-first, snake_case schema + normalized message ledger", "status": "Active" },
+    { "areaID": "A_orchestration", "description": "Runner removal + workflow scheduling", "status": "Active" },
+    { "areaID": "A_analysis", "description": "Paper-driven data/export needs", "status": "Active" }
+  ],
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A_arch_deltas_001",
+      "areaOfAnalysisID": "A_arch_deltas",
+      "version": 5,
+      "status": "CandidateRefinement",
+      "confidence": 0.74,
+      "filePath": "hypotheses/hyp_h_A_arch_deltas_001_v5_regex_acceptance.json",
+      "nullChallengeFilePath": "null_challenges/nc_h_A_arch_deltas_001_v5_challenge.json",
+      "nullChallengeOutcome": "Inconclusive",
+      "derivedFromMicroHypothesisID": "h_A_arch_deltas_001"
+    },
+    {
+      "microHypothesisID": "h_A_batching_001",
+      "areaOfAnalysisID": "A_batching",
+      "version": 5,
+      "status": "CandidateRefinement",
+      "confidence": 0.77,
+      "filePath": "hypotheses/hyp_h_A_batching_001_v5_convex_id_idempotency.json",
+      "nullChallengeFilePath": "null_challenges/nc_h_A_batching_001_v5_challenge.json",
+      "nullChallengeOutcome": "Inconclusive",
+      "derivedFromMicroHypothesisID": "h_A_batching_001"
+    },
+    {
+      "microHypothesisID": "h_A_schema_001",
+      "areaOfAnalysisID": "A_schema",
+      "version": 3,
+      "status": "CandidateRefinement",
+      "confidence": 0.69,
+      "filePath": "hypotheses/hyp_h_A_schema_001_v3_normalized_messages.json",
+      "nullChallengeFilePath": "null_challenges/nc_h_A_schema_001_v3_challenge.json",
+      "nullChallengeOutcome": "Inconclusive",
+      "derivedFromMicroHypothesisID": "h_A_schema_001"
+    },
+    {
+      "microHypothesisID": "h_A_orchestration_001",
+      "areaOfAnalysisID": "A_orchestration",
+      "version": 1,
+      "status": "CandidateRefinement",
+      "confidence": 0.58,
+      "filePath": "hypotheses/hyp_h_A_orchestration_001_v1_initial.json",
+      "nullChallengeFilePath": "null_challenges/nc_h_A_orchestration_001_challenge.json",
+      "nullChallengeOutcome": "Passed",
+      "derivedFromMicroHypothesisID": null
+    },
+    {
+      "microHypothesisID": "h_A_analysis_001",
+      "areaOfAnalysisID": "A_analysis",
+      "version": 1,
+      "status": "CandidateRefinement",
+      "confidence": 0.66,
+      "filePath": "hypotheses/hyp_h_A_analysis_001_v1_initial.json",
+      "nullChallengeFilePath": "null_challenges/nc_h_A_analysis_001_challenge.json",
+      "nullChallengeOutcome": "Passed",
+      "derivedFromMicroHypothesisID": null
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": {
+    "synthesizedNarrative": "Refactor centers on provider-batched request ledger with staged critic batches, polling-first adapters, Convex-ID-based idempotency, centralized rate limiting, and a normalized message ledger anchoring Python-first exports.",
+    "implementationPrerequisites": [
+      "Define provider batch adapter contract (polling-first)",
+      "Agree on snake_case schema + normalized message fields",
+      "Specify parser gating and retry budgets"
+    ],
+    "keyDependencies": [
+      { "dependency": "Provider batch APIs", "note": "OpenAI/Anthropic/Gemini integration required" },
+      { "dependency": "Convex rate limiter", "note": "Centralized inside batching service" }
+    ],
+    "filePath": "blueprint.md"
+  }
+}

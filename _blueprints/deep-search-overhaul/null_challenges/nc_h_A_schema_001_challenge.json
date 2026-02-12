@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_schema_001",
+  "microHypothesisID": "h_A_schema_001",
+  "hypothesisFilePath": "hypotheses/hyp_h_A_schema_001_v1_initial.json",
+  "falsificationAttempts": [
+    {
+      "targetID": "T01",
+      "targetDescription": "Snake_case schema is necessary for Python-first analysis.",
+      "falsificationQueries": [
+        "Could Python analysis tolerate camelCase with mapping?",
+        "Is snake_case required by external tooling?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_008_user_notes_requirements.md"
+      ],
+      "falsificationAnalysis": "User notes explicitly require snake_case to reduce data-shape friction, and current analysis churn supports this preference. No counterevidence indicates camelCase is acceptable.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}
