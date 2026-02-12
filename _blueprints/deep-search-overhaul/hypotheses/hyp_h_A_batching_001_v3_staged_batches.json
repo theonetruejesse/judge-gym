@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_batching_001",
+  "areaOfAnalysisID": "A_batching",
+  "statement": "Scaling requires a provider-abstracted batching service that supports staged batches (gen then critic), centralized rate limiting, `llm_requests`/`llm_batches`/`llm_batch_items`, and per-request idempotency for partial retries.",
+  "confidence": 0.63,
+  "rationale": "Workflow durability patterns exist and user requires provider batch APIs; staged batching is needed to gate critic passes on accepted generations.",
+  "keyAssumptions": ["Provider batch APIs allow polling or webhook completion per batch."],
+  "validationCriteria": ["Blueprint defines staged batch flow and per-request retry without resetting completed items."],
+  "critiquePoints": ["Provider batch API semantics differ and may not support webhooks or fine-grained status."],
+  "questions": ["Do we implement polling-only first with webhook as optional adapter?", "How do we surface partial failures to rerun only failed items?"]
+}

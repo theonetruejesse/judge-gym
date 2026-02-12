@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "areaOfAnalysisID": "A_arch_deltas",
+  "statement": "Critic passes must be mandatory per evidence item, with standardized naming (`rubric_critic`, `score_critic`) and staged batching (rubric_gen → rubric_critic, score_gen → score_critic).",
+  "confidence": 0.7,
+  "rationale": "User requirements mandate per-evidence critics and standardized naming; current pipeline uses rubric critic and a scoring prober that can be reinterpreted as score_critic.",
+  "keyAssumptions": ["Critic passes are required for all tasks regardless of ECC/control/benchmark."],
+  "validationCriteria": ["Blueprint includes staged batching for rubric and score critics at per-evidence granularity."],
+  "critiquePoints": ["Per-evidence critics increase cost/latency; may require sampling or caps later."],
+  "questions": ["What constitutes an accepted rubric for advancing to rubric_critic?", "Should score_critic be skipped if score_gen abstains?"]
+}

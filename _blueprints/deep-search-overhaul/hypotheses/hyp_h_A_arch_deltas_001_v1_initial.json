@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "areaOfAnalysisID": "A_arch_deltas",
+  "statement": "The refactor should explicitly restore the probe stage (fresh-window expert agreement) or fold it into a request-led scoring pipeline so calibration data required by the paper is captured and exported.",
+  "confidence": 0.64,
+  "rationale": "Blueprint-init includes 4_probe and paper.md depends on fresh-window probes; current code lacks 4_probe.",
+  "keyAssumptions": ["Probe data is still required for the current research questions."],
+  "validationCriteria": ["Blueprint plan includes probe generation and export fields for expert agreement."],
+  "critiquePoints": ["If probes are deprioritized or out-of-scope for near-term runs, this may be deferred."],
+  "questions": ["Should probes be an optional stage or a default gate for ECC/control tasks?"]
+}

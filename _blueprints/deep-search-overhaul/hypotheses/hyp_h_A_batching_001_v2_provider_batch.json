@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_batching_001",
+  "areaOfAnalysisID": "A_batching",
+  "statement": "Scaling requires a provider-abstracted batching service (OpenAI/Anthropic/Gemini) with centralized rate limiting, llm_requests/llm_batches/llm_batch_items tracking, and per-request idempotency for partial retries.",
+  "confidence": 0.65,
+  "rationale": "Workflow durability and rate limiter patterns exist in Convex code; user requires provider batch APIs and centralized rate limits with careful idempotency.",
+  "keyAssumptions": ["Provider batch APIs are available and can be wrapped behind a common adapter contract."],
+  "validationCriteria": ["Blueprint defines a batch registry, submission/polling/webhook flow, and partial retry semantics."],
+  "critiquePoints": ["Provider batch API semantics differ (polling vs webhook, cancellation, max size)."],
+  "questions": ["Should batch completion be handled by polling workflows or provider webhooks into Convex?", "How should per-request idempotency keys be derived (request hash vs upstream ID)?"]
+}

@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_batching_001_v5",
+  "microHypothesisID": "h_A_batching_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Convex-ID-based idempotency may be insufficient if prompts change across retries.",
+      "falsificationQueries": [
+        "Consider cases where prompts or params change without ID changes",
+        "Assess need for request_version or attempt fields"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_017_user_notes_idempotency_regex.md"
+      ],
+      "falsificationAnalysis": "User preference is to rely on Convex IDs and null checks; adding request_version may be a safeguard if prompt changes are allowed.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

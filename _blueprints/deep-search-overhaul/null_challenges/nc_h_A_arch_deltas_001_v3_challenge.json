@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_arch_deltas_001_v3",
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Per-evidence mandatory critics may be unnecessary or prohibitively expensive.",
+      "falsificationQueries": [
+        "Check if paper.md requires per-evidence probes or only aggregate calibration",
+        "Inspect current scoring/probing to infer intended granularity"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_006_paper_methodology_evidence.md",
+        "knowledge/k_011_stage_naming_critic_prober_evidence.md",
+        "knowledge/k_013_user_notes_batching_critics.md"
+      ],
+      "falsificationAnalysis": "Paper stresses expert-agreement calibration but does not specify per-evidence requirement; user mandate overrides for this refactor. Cost impact remains a risk.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

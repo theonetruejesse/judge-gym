@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_analysis_001",
+  "areaOfAnalysisID": "A_analysis",
+  "statement": "The refactor must define data endpoints and export bundles that align with the paper’s analysis requirements (DST/JSD, swaps, probes) and avoid notebook data-shape churn.",
+  "confidence": 0.66,
+  "rationale": "Paper.md specifies DST/JSD metrics and swaps/probes, while analysis package is incomplete and data shape issues were reported.",
+  "keyAssumptions": ["A stable export schema is the primary bottleneck for analysis productivity."],
+  "validationCriteria": ["Blueprint plan includes versioned export endpoints with snake_case fields and documented schemas."],
+  "critiquePoints": ["Some analysis friction may still arise from experimental changes."],
+  "questions": ["Should exports be materialized snapshots or direct query endpoints?"]
+}

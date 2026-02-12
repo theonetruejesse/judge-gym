@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A_arch_deltas_001",
+  "areaOfAnalysisID": "A_arch_deltas",
+  "statement": "Critic passes are mandatory per evidence item with standardized naming, and rubric/score acceptance is gated by regex parser success; failures are durable with explicit error states and retry policies.",
+  "confidence": 0.7,
+  "rationale": "User requires per-evidence critics and staged batching; acceptance gating by regex parsing is the criterion for rubric and score validity.",
+  "keyAssumptions": ["Regex parsers are stable and cover all expected response formats."],
+  "validationCriteria": ["Blueprint defines parser-gated acceptance and error handling for rubric_critic and score_critic outputs."],
+  "critiquePoints": ["Regex-only validation may be brittle across providers; fallback parsing or repair may be needed."],
+  "questions": ["Should failed parses be retried with a repair prompt or simply re-run generation?", "What is the max retry budget per item?"]
+}
