@@ -2,20 +2,10 @@
   "mcpServers": {
     "convex": {
       "type": "stdio",
-      "command": "npx",
+      "command": "zsh",
       "args": [
-        "-y",
-        "convex@latest",
-        "mcp",
-        "start",
-        "--project-dir",
-        "${workspaceFolder}/packages/engine",
-        "--disable-tools",
-        "envList,envGet,envSet,envRemove,tables"
-      ],
-      "env": {
-        "CONVEX_DEPLOYMENT": "dev:patient-wolverine-343"
-      }
+        "${workspaceFolder}/scripts/mcp_convex.sh"
+      ]
     }
   }
 }
