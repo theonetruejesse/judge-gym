@@ -12,12 +12,12 @@ describe("convex read-only integration", () => {
       if (!shouldRun) return;
       const client = new ConvexHttpClient(CONVEX_URL!);
       const [ecc, control, benchmark] = await Promise.all([
-        client.query(api.data.listExperimentsByTaskType, { taskType: "ecc" }),
-        client.query(api.data.listExperimentsByTaskType, {
-          taskType: "control",
+        client.query(api.domain.experiments.data.listExperimentsByTaskType, { task_type: "ecc" }),
+        client.query(api.domain.experiments.data.listExperimentsByTaskType, {
+          task_type: "control",
         }),
-        client.query(api.data.listExperimentsByTaskType, {
-          taskType: "benchmark",
+        client.query(api.domain.experiments.data.listExperimentsByTaskType, {
+          task_type: "benchmark",
         }),
       ]);
 

@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { resolveAll } from "../convex/strategies/resolve";
-import { resolveEvidenceStrategy } from "../convex/strategies/evidence.strategy";
-import { resolveRandomizationStrategy } from "../convex/strategies/randomization.strategy";
-import type { ExperimentConfig } from "../convex/schema";
+import { resolveAll } from "../convex/domain/experiments/strategies/resolve";
+import { resolveEvidenceStrategy } from "../convex/domain/experiments/strategies/evidence.strategy";
+import { resolveRandomizationStrategy } from "../convex/domain/experiments/strategies/randomization.strategy";
+import type { ExperimentConfig } from "../convex/models/core";
 
 const config: ExperimentConfig = {
-  scaleSize: 5,
+  scale_size: 5,
   randomizations: ["anon-label", "rubric-order-shuffle"],
-  evidenceView: "raw",
-  scoringMethod: "freeform-suffix-subset",
-  promptOrdering: "evidence-first",
-  abstainEnabled: true,
+  evidence_view: "raw",
+  scoring_method: "freeform-suffix-subset",
+  prompt_ordering: "evidence-first",
+  abstain_enabled: true,
 };
 
 describe("strategies resolve", () => {
@@ -20,7 +20,7 @@ describe("strategies resolve", () => {
     expect(resolved.scale.stageCount).toBe(5);
     expect(resolved.scale.hasMidpoint).toBe(true);
     expect(resolved.scale.midpointLabel).toBe("C");
-    expect(resolved.evidence.contentField).toBe("rawContent");
+    expect(resolved.evidence.contentField).toBe("raw_content");
     expect(resolved.ordering.rubricFirst).toBe(false);
     expect(resolved.randomization.anonLabel).toBe(true);
     expect(resolved.randomization.rubricOrderShuffle).toBe(true);
@@ -30,15 +30,15 @@ describe("strategies resolve", () => {
       .toContain("A, B");
   });
 
-  test("resolveEvidenceStrategy maps evidenceView to content field", () => {
-    expect(resolveEvidenceStrategy({ ...config, evidenceView: "raw" }))
-      .toEqual({ contentField: "rawContent" });
-    expect(resolveEvidenceStrategy({ ...config, evidenceView: "cleaned" }))
-      .toEqual({ contentField: "cleanedContent" });
-    expect(resolveEvidenceStrategy({ ...config, evidenceView: "neutralized" }))
-      .toEqual({ contentField: "neutralizedContent" });
-    expect(resolveEvidenceStrategy({ ...config, evidenceView: "abstracted" }))
-      .toEqual({ contentField: "abstractedContent" });
+  test("resolveEvidenceStrategy maps evidence_view to content field", () => {
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "raw" }))
+      .toEqual({ contentField: "raw_content" });
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "cleaned" }))
+      .toEqual({ contentField: "cleaned_content" });
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "neutralized" }))
+      .toEqual({ contentField: "neutralized_content" });
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "abstracted" }))
+      .toEqual({ contentField: "abstracted_content" });
   });
 
   test("resolveRandomizationStrategy maps flags", () => {
