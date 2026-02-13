@@ -1,0 +1,110 @@
+import z from "zod";
+import { zid } from "convex-helpers/server/zod4";
+import { zInternalMutation } from "../../../platform/utils";
+import { internal } from "../../../_generated/api";
+import { modelTypeSchema, providerSchema } from "../../../models/core";
+import type { Id } from "../../../_generated/dataModel";
+import { selectBatchCandidates } from "./batch_queue_logic";
+
+export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
+  zInternalMutation({
+  args: z.object({
+    provider: providerSchema,
+    model: modelTypeSchema,
+    max_items: z.number().min(1).max(10000),
+  }),
+  returns: z.object({ batch_id: zid("llm_batches").nullable() }),
+  handler: async (ctx, { provider, model, max_items }) => {
+    const now = Date.now();
+    const queued = await ctx.db
+      .query("llm_requests")
+      .withIndex("by_status", (q) => q.eq("status", "queued"))
+      .collect();
+
+    const needRuns = queued.some((req) => req.experiment_id);
+    const running = needRuns
+      ? await ctx.db
+          .query("runs")
+          .withIndex("by_status", (q) => q.eq("status", "running"))
+          .collect()
+      : [];
+    const paused = needRuns
+      ? await ctx.db
+          .query("runs")
+          .withIndex("by_status", (q) => q.eq("status", "paused"))
+          .collect()
+      : [];
+    const pending = needRuns
+      ? await ctx.db
+          .query("runs")
+          .withIndex("by_status", (q) => q.eq("status", "pending"))
+          .collect()
+      : [];
+    const candidates = running.concat(paused, pending);
+
+    const selection = selectBatchCandidates({
+      queued,
+      runs: candidates.map((run) => ({
+        _id: run._id,
+        experiment_id: run.experiment_id,
+        desired_state: run.desired_state,
+        stop_at_stage: run.stop_at_stage,
+        updated_at: run.updated_at,
+        policy: run.policy,
+      })),
+      provider,
+      model,
+      max_items,
+      now,
+    });
+
+    const items = selection.items;
+    if (items.length === 0) return { batch_id: null };
+
+    const batch_id = (await ctx.runMutation(
+      internal.domain.llm_calls.llm_batches.createBatch,
+      {
+        run_id: selection.run_id as Id<"runs"> | undefined,
+        provider: provider as never,
+        model: model as never,
+        batch_ref: undefined,
+        status: "queued",
+        completion_window: undefined,
+        created_at: Date.now(),
+        locked_until: undefined,
+        next_poll_at: undefined,
+      },
+    )) as Id<"llm_batches">;
+
+    for (const [index, req] of items.entries()) {
+      const custom_id = `${req._id}:${req.stage}:${index}`;
+      const batch_item_id = await ctx.runMutation(
+        internal.domain.llm_calls.llm_batches.createBatchItem,
+        {
+          batch_id,
+          request_id: req._id,
+          custom_id,
+          status: "queued",
+          attempt: req.attempt,
+          last_error: undefined,
+        },
+      );
+
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_requests.patchLlmRequest,
+        {
+        request_id: req._id,
+        status: "submitted",
+        batch_item_id,
+        },
+      );
+    }
+
+    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+      batch_id,
+      status: "queued",
+    });
+
+    return { batch_id };
+  },
+});
