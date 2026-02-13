@@ -1,14 +1,10 @@
 # judge-gym
 
-_this is a generative artifact, need to update the implementation details_
-
 An open-source LLM-as-Judge design space engine. Systematically explore how model family, rubric design, scoring method, and evidence presentation affect LLM evaluation of contested political concepts.
 
 Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
 
 Read [`paper.md`](./paper.md) for the research motivation and theoretical framework.
-
-- [ ] todo: edit everything here lol
 
 ---
 
@@ -19,23 +15,18 @@ judge-gym/
 ├── packages/
 │   ├── engine/                    # Convex backend — the design space engine
 │   │   ├── convex/
-│   │   │   ├── schema.ts          # Tables: experiments, windows, evidences, rubrics, samples, scores, usages
-│   │   │   ├── main.ts            # Public API — workflow triggers
+│   │   │   ├── schema.ts          # Tables + zod schemas (snake_case)
+│   │   │   ├── main.ts            # Public API — experiments + runs
 │   │   │   ├── data.ts            # Public API — read queries for analysis
-│   │   │   ├── repo.ts            # Internal CRUD
-│   │   │   ├── agent_config.ts    # Shared usage handler + rate limit feedback
-│   │   │   ├── workflow_manager.ts# Workflow pool + retry settings
-│   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
-│   │   │   ├── agents/            # AbstractJudgeAgent base class
-│   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
-│   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
-│   │   │   └── stages/            # Pipeline stages
-│   │   │       ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
-│   │   │       ├── 2_rubric/      # W2: Generate + validate (ECC/Control) or load (Benchmark)
-│   │   │       ├── 3_scoring/     # W3: Score evidence × rubric; W4: Rubric swap trials
-│   │   └── src/                   # Automated runner + live tracker
-│   │       ├── experiments.ts     # Experiment settings (window + config)
-│   │       └── helpers/           # Convex clients, runner, tracker, console UI
+│   │   │   ├── llm_*              # Ledger tables: requests, messages, batches
+│   │   │   ├── workflows/         # Batch queue/submit/poll/finalize + run state
+│   │   │   ├── providers/         # OpenAI/Anthropic batch adapters
+│   │   │   ├── rate_limiter/      # Provider tiers + usage accounting
+│   │   │   ├── strategies/        # Config → behavior resolvers
+│   │   │   └── prompts/           # LLM prompts
+│   │
+│   ├── lab/                       # Ink TUI + supervisor loop
+│   │   └── src/
 │   │
 │   └── analysis/                  # Python — statistical analysis + visualization
 │       ├── pyproject.toml         # uv project config
@@ -77,8 +68,8 @@ Set these in your Convex deployment environment:
 git clone https://github.com/your-org/judge-gym.git
 cd judge-gym
 
-# Install dependencies (bun workspaces)
-bun install
+# Quick setup (requires bun, convex, uv)
+./scripts/setup.sh
 
 # Start Convex dev server (in a separate terminal)
 cd packages/engine
@@ -94,10 +85,10 @@ cd packages/analysis
 uv sync
 ```
 
-### Runner Environment
+### Environment
 
-The automated runner in `packages/engine/src/` uses the Convex HTTP API.
-Create `packages/engine/.env.local` with:
+The setup script creates `.env.local` at repo root and a `.env` symlink for
+package scripts. Fill in your Convex URL:
 
 ```bash
 CONVEX_URL=https://<your-deployment>.convex.cloud
@@ -109,18 +100,18 @@ CONVEX_URL=https://<your-deployment>.convex.cloud
 
 An **experiment** is a single point in the design space. Each axis is independently configurable:
 
-| Axis            | Config Field            | Values                                                                                                                           | Default                                 |
-| :-------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Model Family    | `modelId`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept         | `window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
-| Task Type       | `taskType`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
-| Scale Size      | `config.scaleSize`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View   | `config.evidenceView`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
-| Randomizations  | `config.randomizations` | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
-| Prompt Ordering | `config.promptOrdering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
-| Abstain Gate    | `config.abstainEnabled` | `true` / `false`                                                                                                                 | `true`                                  |
-| Ground Truth    | `groundTruth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
+| Axis            | Config Field             | Values                                                                                                                           | Default                                 |
+| :-------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| Model Family    | `model_id`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Concept         | `window.concept`         | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
+| Task Type       | `task_type`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
+| Scoring Method  | `config.scoring_method`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
+| Scale Size      | `config.scale_size`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
+| Evidence View   | `config.evidence_view`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
+| Randomizations  | `config.randomizations`  | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
+| Prompt Ordering | `config.prompt_ordering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
+| Abstain Gate    | `config.abstain_enabled` | `true` / `false`                                                                                                                 | `true`                                  |
+| Ground Truth    | `ground_truth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
 Evidence windows are defined by `window.startDate`, `window.endDate`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
@@ -129,24 +120,21 @@ Evidence windows are defined by `window.startDate`, `window.endDate`, `window.co
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP from within Cursor.
+All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP.
 
-### Option A — Automated runner (recommended)
+### Option A — Lab TUI (recommended)
 
-1. Edit `packages/engine/src/experiments.ts` with your experiment settings.
-2. Ensure `packages/engine/.env.local` has `CONVEX_URL=...` for your deployment.
-3. Run the runner from `packages/engine/`:
+1. Start Convex dev server in `packages/engine`.
+2. From repo root, start the lab supervisor:
 
 ```bash
-bun run start
+bun run lab
 ```
 
-Runner flags are environment variables:
+Optional flags:
 
 ```bash
-NEW_RUN=1 bun run start       # suffix experiment tags with timestamp
-AUTO_ADVANCE=0 bun run start  # only track, do not auto-advance stages
-ONCE=1 bun run start          # render once and exit
+LAB_BOOTSTRAP=1 NEW_RUN=1 bun run lab
 ```
 
 ### Option B — Manual workflow (CLI)
@@ -156,46 +144,42 @@ ONCE=1 bun run start          # render once and exit
 ```bash
 npx convex run main:initExperiment '{
   "window": {
-    "startDate": "2026-01-01",
-    "endDate": "2026-01-31",
+    "start_date": "2026-01-01",
+    "end_date": "2026-01-31",
     "country": "USA",
     "concept": "fascism"
   },
   "experiment": {
-    "experimentTag": "pilot_fascism_gpt4.1",
-    "modelId": "gpt-4.1",
-    "taskType": "ecc",
+    "experiment_tag": "pilot_fascism_gpt4.1",
+    "model_id": "gpt-4.1",
+    "task_type": "ecc",
     "config": {
-      "scaleSize": 4,
+      "scale_size": 4,
       "randomizations": ["anon-label", "rubric-order-shuffle"],
-      "evidenceView": "neutralized",
-      "scoringMethod": "freeform-suffix-subset",
-      "promptOrdering": "rubric-first",
-      "abstainEnabled": true
+      "evidence_view": "neutralized",
+      "scoring_method": "freeform-suffix-subset",
+      "prompt_ordering": "rubric-first",
+      "abstain_enabled": true
     }
   }
 }'
 # → returns windowId + experimentId (reused if they already exist)
 ```
 
-#### 2. Run the pipeline
+#### 2. Create a run + queue work
 
 ```bash
-# W1: Collect + neutralize evidence
-npx convex run main:startEvidencePipeline \
-  '{"windowId":"<windowId>","experimentTag":"pilot_fascism_gpt4.1","limit":15}'
+# Create a run
+npx convex run main:createRun \
+  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
-# W2: Generate rubric
-npx convex run main:startRubricGeneration \
-  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
+# Queue rubric generation
+npx convex run main:queueRubricGeneration \
+  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
-# W3: Score (5 samples per evidence item)
-npx convex run main:startScoringTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
-
-# W4: Rubric swap (optional — for high-divergence pairs)
-npx convex run main:startSwapTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4.5"}'
+# Queue scoring (N samples per evidence item)
+npx convex run main:queueScoreGeneration \
+  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":5}'
 
 ```
 
@@ -232,11 +216,10 @@ npx convex run data:exportExperimentCSV \
 ## Architecture Principles
 
 - **Experiments are data, not code.** Every ablation is a config record. No code changes to run new experiments.
-- **Strategy resolvers.** Pure functions map config to concrete agent behavior. Agents never read raw config — they consume resolved strategies.
-- **Deterministic computation is separated from LLM generation.** Verdict parsing, label randomization, and DST mass assignment are pure functions in `utils/`. Models generate text; functions extract structure.
-- **Abstract agent base class.** All agents share: thread lifecycle, rate limiting, usage tracking, model resolution.
-- **Stage-based modules.** Each pipeline stage is self-contained: workflow, steps, agent, and prompts colocated in one directory.
-- **Single-store agent threads.** `@convex-dev/agent` is the source of truth for all LLM interactions. Tables store lean derived records with `threadId` backlinks.
+- **Strategy resolvers.** Pure functions map config to concrete behavior. Workflows consume resolved strategies.
+- **Deterministic computation is separated from LLM generation.** Verdict parsing, label randomization, and DST mass assignment are pure functions in `utils/`.
+- **Ledger + batching.** All LLM requests and outputs flow through `llm_*` tables and provider batch adapters.
+- **Stage-based workflows.** Each pipeline stage is a workflow with explicit run state and batch bookkeeping.
 
 ---
 
