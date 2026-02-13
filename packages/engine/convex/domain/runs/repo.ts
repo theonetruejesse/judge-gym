@@ -1,6 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zInternalMutation } from "../../platform/utils";
+import { zInternalMutation, zInternalQuery } from "../../platform/utils";
 import {
   LlmStageSchema,
   RunDesiredStateSchema,
@@ -12,6 +12,15 @@ import { RunsTableSchema, RunStagesTableSchema } from "../../models/runs";
 export const createRun = zInternalMutation({
   args: RunsTableSchema,
   handler: async (ctx, args) => ctx.db.insert("runs", args),
+});
+
+export const getRun = zInternalQuery({
+  args: z.object({ run_id: zid("runs") }),
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) throw new Error("Run not found");
+    return run;
+  },
 });
 
 export const patchRun = zInternalMutation({
