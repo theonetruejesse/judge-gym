@@ -21,7 +21,6 @@ type ScorePromptArgs = {
   sample: {
     label_mapping?: Record<string, number>;
     display_seed?: number;
-    is_swap: boolean;
   };
   hypothetical_frame?: string;
   label_neutralization_mode?: "none" | "mask" | "generic";
@@ -56,11 +55,6 @@ function invertLabelMapping(mapping: Record<string, number>): string[] {
   return tokens;
 }
 
-function maybeSwapLabels(tokens: string[], isSwap: boolean): string[] {
-  if (!isSwap) return tokens;
-  return [...tokens].reverse();
-}
-
 export function buildScoreGenPrompt(args: ScorePromptArgs): {
   system_prompt: string;
   user_prompt: string;
@@ -80,7 +74,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
     ? invertLabelMapping(sample.label_mapping)
     : scale.letterLabels;
 
-  const labelTokens = maybeSwapLabels(labelTokensBase, sample.is_swap);
+  const labelTokens = labelTokensBase;
 
   const stages = rubric.stages.map((stage, idx) => ({
     stage,

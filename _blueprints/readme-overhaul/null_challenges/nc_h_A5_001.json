@@ -1,0 +1,17 @@
+{
+  "challengeID": "nc_h_A5_001",
+  "microHypothesisID": "h_A5_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Diagrams may drift because existing blueprints already contain evolving diagrams",
+      "falsificationQueries": ["check existing blueprint diagram docs"],
+      "falsificationEvidenceFound": [
+        "/Users/jesselee/dev/research/judge-gym/_blueprints/deep-search-overhaul/diagrams.md",
+        "/Users/jesselee/dev/research/judge-gym/_blueprints/deep-search-overhaul/final-state.md"
+      ],
+      "falsificationAnalysis": "There are already evolving diagram drafts in prior blueprint materials. Adding diagrams to README should be high-level and stable, or linked to a dedicated docs/architecture file to reduce drift.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

@@ -138,7 +138,9 @@ export const getRubricForExperiment = zInternalQuery({
     const rubric = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
-        q.eq("experiment_id", experiment_id).eq("model_id", experiment.model_id),
+        q
+          .eq("experiment_id", experiment_id)
+          .eq("model_id", experiment.config.rubric_model_id),
       )
       .first();
     if (!rubric) throw new Error("Rubric not found for experiment");

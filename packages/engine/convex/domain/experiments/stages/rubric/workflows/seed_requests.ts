@@ -18,7 +18,9 @@ export const seedRubricRequests = zInternalMutation({
     const existingRubric = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
-        q.eq("experiment_id", experiment_id).eq("model_id", experiment.model_id),
+        q
+          .eq("experiment_id", experiment_id)
+          .eq("model_id", experiment.config.rubric_model_id),
       )
       .first();
 
@@ -26,7 +28,7 @@ export const seedRubricRequests = zInternalMutation({
       existingRubric?._id ??
       (await ctx.db.insert("rubrics", {
         experiment_id: experiment._id,
-        model_id: experiment.model_id,
+        model_id: experiment.config.rubric_model_id,
         concept: window.concept,
         scale_size: experiment.config.scale_size,
         stages: [],
@@ -45,8 +47,8 @@ export const seedRubricRequests = zInternalMutation({
       internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
       {
         stage: "rubric_gen",
-        provider: providerFor(experiment.model_id),
-        model: experiment.model_id,
+        provider: providerFor(experiment.config.rubric_model_id),
+        model: experiment.config.rubric_model_id,
         system_prompt: prompts.system_prompt,
         user_prompt: prompts.user_prompt,
         experiment_id: experiment._id,

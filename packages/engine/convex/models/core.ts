@@ -40,6 +40,8 @@ export const GroundTruthSchema = z.object({
 // --- Experiment config (design space axes) ---
 export const ExperimentConfigSchema = z.object({
   scale_size: z.number(),
+  rubric_model_id: modelTypeSchema,
+  scoring_model_id: modelTypeSchema,
   randomizations: z.array(
     z.enum(["anon-label", "rubric-order-shuffle", "hide-label-name"]),
   ),

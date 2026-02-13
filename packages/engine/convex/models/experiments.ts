@@ -13,7 +13,6 @@ import {
 export const ExperimentsTableSchema = z.object({
   experiment_tag: z.string(),
   window_id: zid("windows"),
-  model_id: modelTypeSchema,
   task_type: TaskTypeSchema,
   ground_truth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
@@ -22,7 +21,6 @@ export const ExperimentsTableSchema = z.object({
   label_neutralization_mode: z
     .enum(["none", "mask", "generic"])
     .optional(),
-  swap_policy: z.enum(["none", "within_experiment"]).optional(),
 });
 
 export const WindowsTableSchema = z.object({
@@ -73,10 +71,8 @@ export const SamplesTableSchema = z.object({
   experiment_id: zid("experiments"),
   model_id: modelTypeSchema,
   rubric_id: zid("rubrics"),
-  is_swap: z.boolean(),
   label_mapping: z.record(z.string(), z.number()).optional(),
   display_seed: z.number().optional(),
-  swap_group_id: z.string().optional(),
 });
 
 export const ScoresTableSchema = z.object({
@@ -85,7 +81,6 @@ export const ScoresTableSchema = z.object({
   model_id: modelTypeSchema,
   rubric_id: zid("rubrics"),
   evidence_id: zid("evidences"),
-  is_swap: z.boolean(),
   abstained: z.boolean(),
   score_message_id: zid("llm_messages").optional(),
   raw_verdict: z.string().nullable().optional(),

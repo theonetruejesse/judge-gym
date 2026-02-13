@@ -1,0 +1,17 @@
+{
+  "challengeID": "nc_h_A3_001",
+  "microHypothesisID": "h_A3_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Lab supervisor automatically stays in sync with server policies",
+      "falsificationQueries": ["compare lab run_policy.ts to server run policy storage/enforcement"],
+      "falsificationEvidenceFound": [
+        "/Users/jesselee/dev/research/judge-gym/packages/lab/src/run_policy.ts",
+        "/Users/jesselee/dev/research/judge-gym/packages/engine/convex/domain/llm_calls/workflows/batch_submit.ts"
+      ],
+      "falsificationAnalysis": "Lab uses a local RUN_POLICY constant; server enforces the run's persisted policy. Synchronization is manual. README should clarify that lab config must be kept aligned with run policies to avoid policy_denied failures.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

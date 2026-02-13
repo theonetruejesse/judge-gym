@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A3_001",
+  "areaOfAnalysisID": "A3",
+  "statement": "The README should describe how run policies are enforced server-side across queue/submit/poll/finalize and how the Lab supervisor mirrors (not overrides) those policies, clarifying infra synchronization and retry controls.",
+  "confidence": 0.68,
+  "rationale": "RunPolicy is persisted on runs and re-checked in batch queue, submit, and poll workflows; Lab uses the same schema to configure local scheduling.",
+  "keyAssumptions": ["Readers need to understand which controls are authoritative (server) vs advisory (lab)."],
+  "validationCriteria": ["README includes a policy enforcement flow and notes that lab config should stay in sync with run policy."],
+  "critiquePoints": ["May require simplification to avoid too many knobs in README."],
+  "questions": ["Do we want a short operator checklist for policy sync between lab and server?"]
+}

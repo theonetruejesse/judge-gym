@@ -5,6 +5,8 @@ import type { ExperimentConfig } from "../convex/models/core";
 
 const baseConfig: ExperimentConfig = {
   scale_size: 2,
+  rubric_model_id: "gpt-4.1",
+  scoring_model_id: "gpt-4.1",
   randomizations: [],
   evidence_view: "raw",
   scoring_method: "freeform-suffix-single",
@@ -32,7 +34,7 @@ describe("prompts", () => {
           { label: "High", criteria: ["d", "e", "f"] },
         ],
       },
-      sample: { is_swap: false },
+      sample: {},
     });
     expect(prompt.user_prompt).toContain("RUBRIC STAGES");
     expect(prompt.user_prompt).toContain("VERDICT:");
@@ -50,7 +52,6 @@ describe("prompts", () => {
         ],
       },
       sample: {
-        is_swap: false,
         label_mapping: { X1Y2Z3: 1, Q9W8E7: 2 },
       },
     });

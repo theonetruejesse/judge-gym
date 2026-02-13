@@ -1,0 +1,180 @@
+{
+  "meta": {
+    "originalQuestion": "Bring README in sync with upgraded judge-gym architecture: emphasize idempotency guarantees, infra synchronization, major design choices, and include architectural diagrams; use existing final-state doc as baseline.",
+    "runFolderPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/readme-overhaul",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      {
+        "id": "019c5647-23e2-75b0-9910-1ee18ef614e6",
+        "role": "A1_researcher"
+      },
+      {
+        "id": "019c5647-23ed-7f41-9d66-1dc6ae587d9d",
+        "role": "A2_researcher"
+      },
+      {
+        "id": "019c5647-240a-7d00-9634-cf5ed0af341c",
+        "role": "A3_researcher"
+      },
+      {
+        "id": "019c5647-2455-7dd2-9fc8-a770d34e279e",
+        "role": "A4_researcher"
+      }
+    ],
+    "falsifier": "019c564a-39d2-7663-83d7-f03911aa72a0",
+    "certaintyScorer": "019c564a-433b-7891-a9d8-9296d12268b7",
+    "synthesizer": "codex"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A1",
+      "agentID": "019c5647-23e2-75b0-9910-1ee18ef614e6",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A2",
+      "agentID": "019c5647-23ed-7f41-9d66-1dc6ae587d9d",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A3",
+      "agentID": "019c5647-240a-7d00-9634-cf5ed0af341c",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A4",
+      "agentID": "019c5647-2455-7dd2-9fc8-a770d34e279e",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A5",
+      "agentID": "codex",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_final_state_architecture.md",
+      "knowledge/k_002_current_readme.md",
+      "knowledge/k_003_domain_platform_layout.md",
+      "knowledge/k_004_idempotent_llm_requests.md",
+      "knowledge/k_005_policy_batching_rate_limit.md",
+      "knowledge/k_006_public_api_integration.md"
+    ]
+  },
+  "evidenceReviews": [
+    "null_challenges/nc_h_A1_001.json",
+    "null_challenges/nc_h_A2_001.json",
+    "null_challenges/nc_h_A3_001.json",
+    "null_challenges/nc_h_A4_001.json",
+    "null_challenges/nc_h_A5_001.json"
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "k_001_final_state_architecture.md",
+        "score": 0.66
+      },
+      {
+        "id": "k_002_current_readme.md",
+        "score": 0.7
+      },
+      {
+        "id": "k_003_domain_platform_layout.md",
+        "score": 0.82
+      },
+      {
+        "id": "k_004_idempotent_llm_requests.md",
+        "score": 0.88
+      },
+      {
+        "id": "k_005_policy_batching_rate_limit.md",
+        "score": 0.8
+      },
+      {
+        "id": "k_006_public_api_integration.md",
+        "score": 0.76
+      },
+      {
+        "id": "h_A1_001",
+        "score": 0.66
+      },
+      {
+        "id": "h_A2_001",
+        "score": 0.7
+      },
+      {
+        "id": "h_A3_001",
+        "score": 0.68
+      },
+      {
+        "id": "h_A4_001",
+        "score": 0.64
+      },
+      {
+        "id": "h_A5_001",
+        "score": 0.62
+      },
+      {
+        "id": "S1",
+        "score": 0.78
+      },
+      {
+        "id": "S2",
+        "score": 0.82
+      },
+      {
+        "id": "S3",
+        "score": 0.74
+      },
+      {
+        "id": "S4",
+        "score": 0.76
+      },
+      {
+        "id": "S5",
+        "score": 0.62
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "id": "A1",
+      "name": "Refactored Architecture Layout",
+      "scope": "Domain/platform split, stage-local workflows, and overall package layout."
+    },
+    {
+      "id": "A2",
+      "name": "Idempotency + Ledger Guarantees",
+      "scope": "LLM request ledger, identity keys, retries, and dedupe."
+    },
+    {
+      "id": "A3",
+      "name": "Infra Synchronization + Policy Enforcement",
+      "scope": "Run policy enforcement, batch lifecycle, rate limiting, lab supervisor alignment."
+    },
+    {
+      "id": "A4",
+      "name": "Public API + Integration Points",
+      "scope": "Engine exports, lab and analysis consumption, and API boundary clarity."
+    },
+    {
+      "id": "A5",
+      "name": "README Structure + Diagrams",
+      "scope": "Documentation design choices, diagram requirements, and reader flow."
+    }
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A1_v1_domain_platform.json",
+    "hypotheses/hyp_A2_v1_idempotency.json",
+    "hypotheses/hyp_A3_v1_policy_sync.json",
+    "hypotheses/hyp_A4_v1_public_api.json",
+    "hypotheses/hyp_A5_v1_diagrams.json"
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}
