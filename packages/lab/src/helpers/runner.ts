@@ -62,6 +62,32 @@ export async function createRunsForTags(options: {
   return { run_ids, errors };
 }
 
+export async function collectEvidenceForTags(options: {
+  items: Array<{ experiment_tag: string; evidence_limit: number }>;
+}): Promise<{ completed: string[]; errors: string[] }> {
+  const { items } = options;
+  const completed: string[] = [];
+  const errors: string[] = [];
+
+  for (const { experiment_tag, evidence_limit } of items) {
+    try {
+      await httpClient.action(
+        api.domain.evidence.entrypoints.collectEvidenceForExperiment,
+        {
+          experiment_tag,
+          evidence_limit,
+        },
+      );
+      completed.push(experiment_tag);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${experiment_tag}: ${message}`);
+    }
+  }
+
+  return { completed, errors };
+}
+
 export async function runExperiments(options: RunOptions) {
   const { settings, useNewRun, runOnce } = options;
   const runStamp = Date.now();

@@ -11,4 +11,4 @@ fi
 
 exec npx -y convex@latest mcp start \
   --project-dir "$ROOT_DIR/packages/engine" \
-  --disable-tools envList,envGet,envSet,envRemove,tables
+  --disable-tools envGet,envSet,envRemove,tables

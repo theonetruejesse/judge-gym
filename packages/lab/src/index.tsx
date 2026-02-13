@@ -3,7 +3,11 @@ import { render, Box, Text, useApp, useInput } from "ink";
 import { buildExperimentSpecSignature } from "@judge-gym/engine";
 import { api, httpClient } from "./helpers/clients";
 import { EXPERIMENT_SETTINGS } from "./experiments";
-import { createRunsForTags, ensureExperiments } from "./helpers/runner";
+import {
+  collectEvidenceForTags,
+  createRunsForTags,
+  ensureExperiments,
+} from "./helpers/runner";
 import { LabSupervisor } from "./supervisor";
 
 type RunRow = {
@@ -70,6 +74,10 @@ function App() {
     if (actionBusy) return;
     if (input === "i") {
       void handleInit();
+      return;
+    }
+    if (input === "e") {
+      void handleEvidence();
       return;
     }
     if (input === "r") {
@@ -171,6 +179,57 @@ function App() {
     setActionBusy(false);
   }
 
+  function getEvidenceTargets(): Array<{
+    experiment_tag: string;
+    evidence_limit: number;
+  }> {
+    const targets: Array<{ experiment_tag: string; evidence_limit: number }> =
+      [];
+    for (const setting of settingsWithSignature) {
+      const tag = setting.experiment.experiment_tag;
+      const state = statesByTag.get(tag);
+      if (!state || !state.exists) continue;
+      const specMatch =
+        state.spec_signature &&
+        state.spec_signature === setting.spec_signature;
+      if (!specMatch) continue;
+      const evidenceTotal = state.evidence_total ?? 0;
+      const evidenceNeutralized = state.evidence_neutralized ?? 0;
+      const needsNeutralized =
+        setting.experiment.config.evidence_view === "neutralized" ||
+        setting.experiment.config.evidence_view === "abstracted";
+      const hasEnoughEvidence = evidenceTotal >= setting.evidence_limit;
+      const hasEnoughNeutralized = !needsNeutralized
+        ? true
+        : evidenceNeutralized >= setting.evidence_limit;
+      if (hasEnoughEvidence && hasEnoughNeutralized) continue;
+      targets.push({
+        experiment_tag: tag,
+        evidence_limit: setting.evidence_limit,
+      });
+    }
+    return targets;
+  }
+
+  async function handleEvidence() {
+    const targets = getEvidenceTargets();
+    if (targets.length === 0) {
+      setActionStatus("evidence: nothing to do");
+      return;
+    }
+    setActionBusy(true);
+    setActionStatus(`evidence: collecting for ${targets.length} experiment(s)`);
+    setActionErrors([]);
+    const result = await collectEvidenceForTags({ items: targets });
+    setActionErrors(result.errors);
+    setActionStatus(
+      result.errors.length > 0
+        ? `evidence: ${result.errors.length} error(s)`
+        : "evidence: ok",
+    );
+    setActionBusy(false);
+  }
+
   async function handleBootstrap() {
     setActionBusy(true);
     setActionStatus("bootstrap: init + run");
@@ -263,7 +322,7 @@ function App() {
     <Box flexDirection="column" padding={1}>
       <Text>judge-gym · Lab (press q to exit)</Text>
       <Text>
-        Actions: [i] init · [r] create runs · [b] init+run · [q] quit
+        Actions: [i] init · [e] evidence · [r] create runs · [b] init+run · [q] quit
       </Text>
       <Text>
         Poll interval: {supervisor.getConfig().poll_interval_ms}ms · Max batch:
