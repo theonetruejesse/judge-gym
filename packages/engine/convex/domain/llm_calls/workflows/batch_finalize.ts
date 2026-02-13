@@ -120,6 +120,30 @@ export const finalizeBatch = zInternalMutation({
 
       // Parse + apply to domain tables
       switch (request.stage) {
+        case "evidence_clean": {
+          if (!request.evidence_id) break;
+          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+            evidence_id: request.evidence_id,
+            cleaned_content: assistantOutput,
+          });
+          break;
+        }
+        case "evidence_neutralize": {
+          if (!request.evidence_id) break;
+          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+            evidence_id: request.evidence_id,
+            neutralized_content: assistantOutput,
+          });
+          break;
+        }
+        case "evidence_abstract": {
+          if (!request.evidence_id) break;
+          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+            evidence_id: request.evidence_id,
+            abstracted_content: assistantOutput,
+          });
+          break;
+        }
         case "rubric_gen": {
           if (!request.rubric_id) break;
           const rubric = await ctx.db.get(request.rubric_id);
