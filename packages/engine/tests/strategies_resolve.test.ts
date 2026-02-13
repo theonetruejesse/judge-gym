@@ -6,6 +6,8 @@ import type { ExperimentConfig } from "../convex/models/core";
 
 const config: ExperimentConfig = {
   scale_size: 5,
+  rubric_model_id: "gpt-4.1",
+  scoring_model_id: "gpt-4.1",
   randomizations: ["anon-label", "rubric-order-shuffle"],
   evidence_view: "raw",
   scoring_method: "freeform-suffix-subset",

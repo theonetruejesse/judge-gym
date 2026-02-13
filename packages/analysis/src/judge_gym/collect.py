@@ -65,8 +65,9 @@ class ExperimentData:
     scores: pd.DataFrame
     """One row per score across all requested experiments.
 
-    Columns include experiment-level fields (experiment_tag, model_id, concept,
-    task_type, config.*) plus per-score fields (evidence_id, abstained,
+    Columns include experiment-level fields (experiment_tag, rubric_model_id,
+    scoring_model_id, concept, task_type, config.*) plus per-score fields
+    (evidence_id, abstained,
     decoded_scores, expert_agreement_prob, …).
     """
 
@@ -122,7 +123,8 @@ def _flatten_bundle(bundle: dict[str, Any]) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     # Stamp experiment-level columns onto every score row
     df["experiment_tag"] = exp["experiment_tag"]
-    df["model_id"] = exp["model_id"]
+    df["rubric_model_id"] = exp.get("rubric_model_id")
+    df["scoring_model_id"] = exp.get("scoring_model_id")
     df["concept"] = exp["concept"]
     df["task_type"] = exp["task_type"]
     df["scale_size"] = config.get("scale_size")

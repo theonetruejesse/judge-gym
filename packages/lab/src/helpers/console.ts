@@ -11,7 +11,8 @@ export type RunStageSummary = {
 export type RunSummary = {
   run_id: string;
   experiment_tag: string;
-  model_id: string;
+  rubric_model_id: string;
+  scoring_model_id: string;
   concept: string;
   task_type: string;
   status: string;
@@ -76,7 +77,8 @@ export function renderSummary(summary: RunSummary): string {
   return [
     `  Run        : ${summary.run_id}`,
     `  Experiment : ${summary.experiment_tag}`,
-    `  Model      : ${summary.model_id}`,
+    `  Rubric     : ${summary.rubric_model_id}`,
+    `  Scoring    : ${summary.scoring_model_id}`,
     `  Concept    : ${summary.concept}`,
     `  Task       : ${summary.task_type}`,
     `  Status     : ${summary.status}`,

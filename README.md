@@ -1,6 +1,6 @@
 # judge-gym
 
-An open-source LLM-as-Judge design space engine. Systematically explore how model family, rubric design, scoring method, and evidence presentation affect LLM evaluation of contested political concepts.
+An open-source LLM-as-Judge design space engine. Systematically explore how rubric/scoring model choice, rubric design, scoring method, and evidence presentation affect LLM evaluation of contested political concepts.
 
 Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
 
@@ -13,26 +13,29 @@ Read [`paper.md`](./paper.md) for the research motivation and theoretical framew
 ```
 judge-gym/
 ├── packages/
-│   ├── engine/                    # Convex backend — the design space engine
+│   ├── engine/                        # Convex backend — the design space engine
 │   │   ├── convex/
-│   │   │   ├── schema.ts          # Tables + zod schemas (snake_case)
-│   │   │   ├── main.ts            # Public API — experiments + runs
-│   │   │   ├── data.ts            # Public API — read queries for analysis
-│   │   │   ├── llm_*              # Ledger tables: requests, messages, batches
-│   │   │   ├── workflows/         # Batch queue/submit/poll/finalize + run state
-│   │   │   ├── providers/         # OpenAI/Anthropic batch adapters
-│   │   │   ├── rate_limiter/      # Provider tiers + usage accounting
-│   │   │   ├── strategies/        # Config → behavior resolvers
-│   │   │   └── prompts/           # LLM prompts
+│   │   │   ├── domain/
+│   │   │   │   ├── experiments/       # Experiment entrypoints + stage-local workflows
+│   │   │   │   ├── runs/              # Run lifecycle + stage accounting
+│   │   │   │   └── llm_calls/         # Ledger: requests, batches, messages
+│   │   │   ├── platform/
+│   │   │   │   ├── providers/         # OpenAI/Anthropic adapters (Gemini stubbed)
+│   │   │   │   ├── rate_limiter/      # Provider tiers + usage accounting
+│   │   │   │   └── utils/             # Zod helpers, registries, model mapping
+│   │   │   ├── models/                # Table schemas (snake_case)
+│   │   │   ├── schema.ts              # Schema assembly
+│   │   │   └── lab.ts                 # Public lab queries/actions
+│   │   └── src/index.ts               # Single public export surface
 │   │
-│   ├── lab/                       # Ink TUI + supervisor loop
+│   ├── lab/                           # Ink TUI + supervisor loop
 │   │   └── src/
 │   │
-│   └── analysis/                  # Python — statistical analysis + visualization
-│       ├── pyproject.toml         # uv project config
-│       ├── data/                  # Local exports from Convex
-│       ├── notebooks/             # Jupyter: polarization, entrenchment, swap, regression
-│       └── src/judge_gym/         # JSD, DST aggregation, OLS, data collection from Convex
+│   └── analysis/                      # Python — statistical analysis + visualization
+│       ├── pyproject.toml             # uv project config
+│       ├── data/                      # Local exports from Convex
+│       ├── notebooks/                 # Jupyter: polarization, entrenchment, sensitivity, regression
+│       └── src/judge_gym/             # Data collection + metrics + regression
 │
 ├── paper.md                       # Working paper (theory + methodology)
 └── turbo.json                     # Turborepo config
@@ -98,11 +101,13 @@ CONVEX_URL=https://<your-deployment>.convex.cloud
 
 ## Design Space
 
-An **experiment** is a single point in the design space. Each axis is independently configurable:
+An **experiment** is a single point in the design space. Each axis is independently configurable.
+Rubric and scoring models are selected separately via the experiment config:
 
 | Axis            | Config Field             | Values                                                                                                                           | Default                                 |
 | :-------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Model Family    | `model_id`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Rubric Model    | `config.rubric_model_id` | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Scoring Model   | `config.scoring_model_id` | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
 | Concept         | `window.concept`         | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `task_type`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
 | Scoring Method  | `config.scoring_method`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
@@ -114,7 +119,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Ground Truth    | `ground_truth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows are defined by `window.startDate`, `window.endDate`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
+Evidence windows are defined by `window.start_date`, `window.end_date`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
 
 ---
 
@@ -142,7 +147,7 @@ LAB_BOOTSTRAP=1 NEW_RUN=1 bun run lab
 #### 1. Initialize window + experiment
 
 ```bash
-npx convex run main:initExperiment '{
+npx convex run domain/experiments/entrypoints:initExperiment '{
   "window": {
     "start_date": "2026-01-01",
     "end_date": "2026-01-31",
@@ -151,10 +156,11 @@ npx convex run main:initExperiment '{
   },
   "experiment": {
     "experiment_tag": "pilot_fascism_gpt4.1",
-    "model_id": "gpt-4.1",
     "task_type": "ecc",
     "config": {
       "scale_size": 4,
+      "rubric_model_id": "gpt-4.1",
+      "scoring_model_id": "gpt-4.1",
       "randomizations": ["anon-label", "rubric-order-shuffle"],
       "evidence_view": "neutralized",
       "scoring_method": "freeform-suffix-subset",
@@ -170,15 +176,15 @@ npx convex run main:initExperiment '{
 
 ```bash
 # Create a run
-npx convex run main:createRun \
+npx convex run domain/runs/entrypoints:createRun \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
 # Queue rubric generation
-npx convex run main:queueRubricGeneration \
+npx convex run domain/experiments/entrypoints:queueRubricGeneration \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
 # Queue scoring (N samples per evidence item)
-npx convex run main:queueScoreGeneration \
+npx convex run domain/experiments/entrypoints:queueScoreGeneration \
   '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":5}'
 
 ```
@@ -187,39 +193,122 @@ npx convex run main:queueScoreGeneration \
 
 ```bash
 # Experiment summary
-npx convex run data:getExperimentSummary \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
+npx convex run domain/experiments/data:getExperimentSummary \
+  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
-# Scores (raw + decoded)
-npx convex run data:listExperimentScores \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
-
-# Export for analysis
-npx convex run data:exportExperimentCSV \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
+# Export bundle for analysis (scores + evidence + rubrics)
+npx convex run domain/experiments/data:exportExperimentBundle \
+  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 ```
 
 ---
 
+## Architecture Overview
+
+The system is split into a Convex engine (domain + platform), a Lab supervisor client, and a Python analysis package. The engine exposes a single public API surface via `packages/engine/src/index.ts`.
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    Lab[Lab TUI + Supervisor]
+    Analysis[Python Analysis]
+  end
+
+  subgraph Engine
+    API[packages/engine/src/index.ts]
+  subgraph Convex
+      Domain["domain<br/>experiments, runs, llm_calls"]
+      Platform["platform<br/>providers, rate_limiter, utils"]
+      Models["models + schema"]
+    end
+  end
+
+  Providers[LLM Providers]
+
+  Lab --> API
+  Analysis --> API
+  API --> Convex
+  Domain --> Platform
+  Platform --> Providers
+```
+
 ## Pipeline Stages
 
-| Stage | Name        | What It Does                                                                                                                                              | Key Agent        |
-| :---- | :---------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------- |
-| W1    | Evidence    | Scrape news (ECC/Control) or load curated data (Benchmark). Optionally neutralize tone.                                                                   | Neutralizer      |
-| W2    | Rubric      | Generate $n$-stage evaluative rubric (ECC/Control) or load pre-defined rubric (Benchmark). Validate with critic.                                          | Rubricer, Critic |
-| W3    | Scoring     | Score each evidence item against rubric, multiple times with varying random seeds. Strategy-driven: suffix parsing, label randomization, prompt ordering. | Scorer           |
-| W4    | Rubric Swap | Re-score evidence using a rival model's rubric. Tests framework sensitivity.                                                                              | Scorer           |
-| W5    | Probe       | Epistemic probing runs inline during scoring and is stored on each score row.                                                                             | Prober           |
+Stages are stage-local workflows under `packages/engine/convex/domain/experiments/stages/*`.
+
+| Stage | Name                | What It Does                                                                 | Key Module |
+| :---- | :------------------ | :--------------------------------------------------------------------------- | :--------- |
+| S1    | evidence_clean      | Normalize raw evidence and clean text                                       | `stages/evidence` |
+| S2    | evidence_neutralize | Mask/neutralize labels or tone for ECC/Control experiments                  | `stages/evidence` |
+| S3    | evidence_abstract   | Optionally abstract evidence text                                           | `stages/evidence` |
+| S4    | rubric_gen          | Generate rubric stages for the concept                                      | `stages/rubric` |
+| S5    | rubric_critic       | Critique rubric quality + enforce parsing rules                             | `stages/rubric` |
+| S6    | score_gen           | Score evidence against rubric with strategy-driven prompts                  | `stages/scoring` |
+| S7    | score_critic        | Critique score outputs and confirm parse validity                           | `stages/scoring` |
+
+---
+
+## Ledger + Idempotency Guarantees
+
+LLM calls are normalized into a request ledger so retries are safe and auditable. Idempotency is enforced by an identity tuple and a `getOrCreate` request helper.
+
+```mermaid
+flowchart LR
+  Req[llm_requests] -->|queue| Batch[llm_batches]
+  Batch --> Item[llm_batch_items]
+  Item --> Provider[provider adapter]
+  Provider --> Msg[llm_messages]
+  Msg --> Req
+```
+
+Idempotency identity tuple:
+`stage`, `provider`, `model`, `experiment_id`, `rubric_id`, `sample_id`, `evidence_id`, `request_version`.
+
+To force a new LLM call for the same identity, you must explicitly bump `request_version`. Otherwise retries resolve to the same ledger row.
+
+---
+
+## Policy Enforcement + Infra Sync
+
+Run policies are stored on each run and enforced server-side across the entire batch lifecycle. The Lab supervisor mirrors the policy locally for pacing, but it does not override the server.
+
+```mermaid
+sequenceDiagram
+  participant Lab as Lab Supervisor
+  participant Convex as Convex Workflows
+  participant Providers as Provider Adapters
+
+  Lab->>Convex: createRun (policy persisted)
+  Lab->>Convex: createBatchFromQueued
+  Convex->>Providers: submitBatch (policy + rate limits enforced)
+  Lab->>Convex: pollBatch (policy cadence + retry/backoff)
+  Convex-->>Lab: status + next_poll_at
+```
+
+If the Lab `RUN_POLICY` diverges from the persisted run policy, the server will reject batches (`policy_denied`). Keep both in sync.
+
+---
+
+## Public API Surface
+
+The only public export surface is `packages/engine/src/index.ts`. Lab and Analysis import from `@judge-gym/engine`.
+
+```ts
+import { api, RunPolicySchema, type ExperimentConfig } from "@judge-gym/engine";
+```
+
+Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/data:exportExperimentBundle`), which is the stable boundary for downstream data workflows.
 
 ---
 
 ## Architecture Principles
 
 - **Experiments are data, not code.** Every ablation is a config record. No code changes to run new experiments.
-- **Strategy resolvers.** Pure functions map config to concrete behavior. Workflows consume resolved strategies.
-- **Deterministic computation is separated from LLM generation.** Verdict parsing, label randomization, and DST mass assignment are pure functions in `utils/`.
-- **Ledger + batching.** All LLM requests and outputs flow through `llm_*` tables and provider batch adapters.
-- **Stage-based workflows.** Each pipeline stage is a workflow with explicit run state and batch bookkeeping.
+- **Domain/platform split.** Experiments, runs, and LLM ledgers live under `domain/`; providers, rate limits, and shared utilities live under `platform/`.
+- **Ledger-first batching.** LLM calls are tracked in `llm_requests`, batched in `llm_batches`, and resolved into `llm_messages`.
+- **Policy-driven orchestration.** Run policies are persisted and enforced across queue/submit/poll/finalize.
+- **Stage locality.** Prompts, parsers, and workflows live under each stage folder to keep context together.
+- **Clean public surface.** External consumers import only from `packages/engine/src/index.ts`.
 
 ---
 
@@ -239,7 +328,7 @@ uv run jupyter lab
 | :---------------------- | :----------------------------------------------------------------- |
 | `01_polarization.ipynb` | JSD across model families, score distribution heatmaps             |
 | `02_entrenchment.ipynb` | Entrenchment Index ($P \times \text{Prob}_{expert}$), DST conflict |
-| `03_swap.ipynb`         | Swap sensitivity analysis, confidence collapse detection           |
+| `03_sensitivity.ipynb`  | Sensitivity analysis, confidence collapse detection                |
 | `04_regression.ipynb`   | OLS: Score ~ Model + RubricQuality + Concept                       |
 
 ### Key Modules
@@ -257,12 +346,12 @@ uv run jupyter lab
 
 To add a new design space dimension (e.g., `promptLanguage: "english" | "formal-academic" | "simplified"`):
 
-1. **Schema** — Add the field to `experiments.config` in `convex/schema.ts`
-2. **Strategy** — Create `convex/strategies/language.strategy.ts` (pure function: config → typed behavior)
-3. **Resolve** — Add to `convex/strategies/resolve.ts`
-4. **Consume** — Read from `this.strategies.language` in the agent that cares
+1. **Schema** — Add the field to `ExperimentConfigSchema` in `packages/engine/convex/models/core.ts`
+2. **Strategy** — Create `packages/engine/convex/domain/experiments/strategies/language.strategy.ts` (pure function: config → typed behavior)
+3. **Resolve** — Add to `packages/engine/convex/domain/experiments/strategies/resolve.ts`
+4. **Consume** — Use the resolved strategy in the relevant stage workflow
 
-**Files touched: 3.** No workflow changes, no prompt surgery, no agent logic changes.
+**Files touched: 3–4.** No schema migrations beyond config, no prompt surgery, no agent logic changes.
 
 ---
 

@@ -35,7 +35,8 @@ export const getExperimentSummary = zQuery({
     return {
       experiment_tag: experiment.experiment_tag,
       window_id: experiment.window_id,
-      model_id: experiment.model_id,
+      rubric_model_id: experiment.config.rubric_model_id,
+      scoring_model_id: experiment.config.scoring_model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: experiment.status,
@@ -96,7 +97,8 @@ export const getRunSummary = zQuery({
     return {
       run_id: run._id,
       experiment_tag: experiment.experiment_tag,
-      model_id: experiment.model_id,
+      rubric_model_id: experiment.config.rubric_model_id,
+      scoring_model_id: experiment.config.scoring_model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: run.status,
@@ -125,7 +127,7 @@ export const getRunSummary = zQuery({
 // Bulk export consumed by the Python analysis package (judge_gym.collect).
 //
 // One HTTP call per experiment — returns everything needed to build DataFrames:
-//   - experiment: tag, model, concept, config, status
+//   - experiment: tag, rubric/scoring models, concept, config, status
 //   - evidence:   id + title for each evidence article
 //   - scores:     flat rows (score fields + sample display fields)
 // ---------------------------------------------------------------------------
@@ -189,7 +191,6 @@ export const exportExperimentBundle = zQuery({
         evidence_id: score.evidence_id,
         rubric_id: score.rubric_id,
         sample_id: score.sample_id,
-        is_swap: score.is_swap,
         abstained: score.abstained,
         decoded_scores: score.decoded_scores,
         expert_agreement_prob: score.expert_agreement_prob,
@@ -202,7 +203,8 @@ export const exportExperimentBundle = zQuery({
     return {
       experiment: {
         experiment_tag: experiment.experiment_tag,
-        model_id: experiment.model_id,
+        rubric_model_id: experiment.config.rubric_model_id,
+        scoring_model_id: experiment.config.scoring_model_id,
         concept: window.concept,
         task_type: experiment.task_type,
         status: experiment.status,

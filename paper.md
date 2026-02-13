@@ -133,7 +133,7 @@ If $k_{\text{subset}} \ll P_{\text{single}}$, measured polarization was forced-c
 
 **H2 — Consensus Hallucination.** On ECCs, models with high $P$ report high expert agreement ($>0.8$), yielding high $E > 0.12$. On controls, high agreement is justified (low $P$, V-Dem alignment). _Pilot partially supported: GPT-5.2 shows smooth confidence gradients on collapsed surface — novel form of entrenchment._
 
-**H3 — Framework Sensitivity.** Expert agreement drops $>0.2$ under rubric swap, indicating framework-based rather than evidence-based confidence. _Planned: rubric swap trials in full study._
+**H3 — Framework Sensitivity.** Expert agreement drops $>0.2$ when rubric and scoring models are mismatched, indicating framework-based rather than evidence-based confidence. _Planned: rubric/scoring model mismatch trials in full study._
 
 **H4 — Forced-Choice Inflation.** DST conflict $k$ from subset verdicts is significantly lower than JSD polarization $P$ from point verdicts. Gap larger for moderate-contestation concepts. _Pilot: subset verdicts rare due to abstention dominance; requires explicit prompt engineering in full study._
 
@@ -149,7 +149,8 @@ Inspired by GraphGym (You et al., 2020), judge-gym treats evaluation as a design
 
 | Axis                | Values                                                                 |
 | :------------------ | :--------------------------------------------------------------------- |
-| Model Family        | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
+| Rubric Model        | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
+| Scoring Model       | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
 | Concept             | "fascism," "democratic backsliding," "democracy quality," benchmark    |
 | Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`                     |
 | Scale Size          | 3, 4 (default), 5                                                      |
