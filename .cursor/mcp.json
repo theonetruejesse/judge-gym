@@ -4,6 +4,7 @@
       "type": "stdio",
       "command": "zsh",
       "args": [
+        "-lc",
         "${workspaceFolder}/scripts/mcp_convex.sh"
       ]
     }
