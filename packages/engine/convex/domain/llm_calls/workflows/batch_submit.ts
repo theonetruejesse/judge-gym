@@ -23,7 +23,9 @@ function policyAllows(
 
 async function getPolicyForBatch(ctx: any, batch: Doc<"llm_batches">) {
   if (!batch.run_id) return DEFAULT_RUN_POLICY;
-  const run = await ctx.db.get(batch.run_id);
+  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+    run_id: batch.run_id,
+  });
   return run?.policy ?? DEFAULT_RUN_POLICY;
 }
 
