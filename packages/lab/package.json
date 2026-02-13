@@ -1,0 +1,20 @@
+{
+  "name": "@judge-gym/lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun --env-file ../../.env src/index.tsx",
+    "typecheck": "bun x tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@judge-gym/engine": "workspace:*",
+    "convex": "^1.25.0",
+    "ink": "^5.0.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^18.3.5",
+    "typescript": "^5.7.3"
+  }
+}
