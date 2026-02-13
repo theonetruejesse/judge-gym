@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateLabelMapping } from "../convex/utils/randomize";
+import { generateLabelMapping } from "../convex/platform/utils/randomize";
 
 describe("randomize", () => {
   test("generateLabelMapping is deterministic with a seed", () => {

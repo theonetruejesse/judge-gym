@@ -5,7 +5,7 @@ import {
   RATE_LIMIT_CONFIGS,
   RATE_LIMITED_MODEL_LIST,
   REQUEST_LIMIT_KEYS,
-} from "../convex/rate_limiter";
+} from "../convex/platform/rate_limiter";
 import { calculateRateLimit } from "@convex-dev/rate-limiter";
 
 describe("rate limiter config", () => {
