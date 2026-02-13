@@ -14,7 +14,7 @@ Usage::
     ])
 
     data.scores      # DataFrame — one row per score, all experiments
-    data.evidence    # DataFrame — evidenceId → title + label (E1…En)
+    data.evidence    # DataFrame — evidence_id → title + label (E1…En)
     data.experiments # dict[tag, dict] — experiment-level metadata & config
     data.scale_size  # int — ordinal scale (e.g. 4)
 """
@@ -65,9 +65,9 @@ class ExperimentData:
     scores: pd.DataFrame
     """One row per score across all requested experiments.
 
-    Columns include experiment-level fields (experimentTag, modelId, concept,
-    taskType, config.*) plus per-score fields (evidenceId, abstained,
-    decodedScores, expertAgreementProb, …).
+    Columns include experiment-level fields (experiment_tag, model_id, concept,
+    task_type, config.*) plus per-score fields (evidence_id, abstained,
+    decoded_scores, expert_agreement_prob, …).
     """
 
     evidence: pd.DataFrame
@@ -87,15 +87,15 @@ class ExperimentData:
     @property
     def scale_size(self) -> int:
         """The ordinal scale size (e.g. 4) shared across experiments."""
-        return int(self.scores["scaleSize"].dropna().iloc[0])
+        return int(self.scores["scale_size"].dropna().iloc[0])
 
     def scores_for(self, tag: str) -> pd.DataFrame:
         """Return scores filtered to a single experiment tag."""
-        return self.scores[self.scores["experimentTag"] == tag].copy()
+        return self.scores[self.scores["experiment_tag"] == tag].copy()
 
     def label_for(self, evidence_id: str) -> str:
         """Return the short label (e.g. 'E3') for an evidence ID."""
-        row = self.evidence[self.evidence["evidenceId"] == evidence_id]
+        row = self.evidence[self.evidence["evidence_id"] == evidence_id]
         if row.empty:
             return evidence_id
         return str(row.iloc[0]["label"])
@@ -121,21 +121,21 @@ def _flatten_bundle(bundle: dict[str, Any]) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     # Stamp experiment-level columns onto every score row
-    df["experimentTag"] = exp["experimentTag"]
-    df["modelId"] = exp["modelId"]
+    df["experiment_tag"] = exp["experiment_tag"]
+    df["model_id"] = exp["model_id"]
     df["concept"] = exp["concept"]
-    df["taskType"] = exp["taskType"]
-    df["scaleSize"] = config.get("scaleSize")
-    df["scoringMethod"] = config.get("scoringMethod")
-    df["evidenceView"] = config.get("evidenceView")
-    df["promptOrdering"] = config.get("promptOrdering")
+    df["task_type"] = exp["task_type"]
+    df["scale_size"] = config.get("scale_size")
+    df["scoring_method"] = config.get("scoring_method")
+    df["evidence_view"] = config.get("evidence_view")
+    df["prompt_ordering"] = config.get("prompt_ordering")
     df["randomizations"] = [config.get("randomizations")] * len(df)
 
     # Type coercion
-    df["decodedScores"] = df["decodedScores"].apply(_coerce_scores)
-    if "scaleSize" in df.columns:
-        df["scaleSize"] = pd.to_numeric(
-            df["scaleSize"],
+    df["decoded_scores"] = df["decoded_scores"].apply(_coerce_scores)
+    if "scale_size" in df.columns:
+        df["scale_size"] = pd.to_numeric(
+            df["scale_size"],
             errors="coerce",
         ).astype("Int64")
 
@@ -156,7 +156,7 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
     Parameters
     ----------
     experiment_tags:
-        List of ``experimentTag`` strings, e.g.
+        List of ``experiment_tag`` strings, e.g.
         ``["ecc-fascism-usa-trial-gpt-4.1"]``.
 
     Returns
@@ -171,7 +171,7 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
     experiments: dict[str, dict[str, Any]] = {}
 
     for tag in experiment_tags:
-        bundle = _query("data:exportExperimentBundle", {"experimentTag": tag})
+        bundle = _query("data:exportExperimentBundle", {"experiment_tag": tag})
 
         # Scores
         score_frames.append(_flatten_bundle(bundle))
@@ -180,7 +180,7 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
         for ev in bundle["evidences"]:
             evidence_rows.append(
                 {
-                    "evidenceId": ev["evidenceId"],
+                    "evidence_id": ev["evidence_id"],
                     "title": ev["title"],
                     "url": ev.get("url", ""),
                 }
@@ -199,8 +199,8 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
     # Deduplicate evidence (same articles across experiments) and assign labels
     evidence = (
         pd.DataFrame(evidence_rows)
-        .drop_duplicates(subset="evidenceId")
-        .sort_values("evidenceId")
+        .drop_duplicates(subset="evidence_id")
+        .sort_values("evidence_id")
         .reset_index(drop=True)
     )
     evidence["label"] = [f"E{i + 1}" for i in range(len(evidence))]
