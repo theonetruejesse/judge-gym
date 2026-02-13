@@ -10,8 +10,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "start": "turbo run start --filter=@judge-gym/engine",
+    "lab": "turbo run start --filter=@judge-gym/lab",
     "test": "turbo test",
-    "typecheck": "turbo run typecheck --filter=@judge-gym/engine"
+    "typecheck": "bun x tsc -p packages/engine/tsconfig.json --noEmit && bun x tsc -p packages/lab/tsconfig.json --noEmit",
+    "typecheck:broken": "turbo run typecheck"
   },
   "devDependencies": {
     "@types/bun": "latest",
