@@ -11,12 +11,12 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
       concept: "fascism",
     },
     experiment: {
-      experiment_tag: "ecc-fascism-usa-trial-gpt-4.1-mini",
+      experiment_tag: "ecc-fascism-usa-trial-gpt-4.1",
       task_type: "ecc",
       config: {
         scale_size: 4,
-        rubric_model_id: "gpt-4.1-mini",
-        scoring_model_id: "gpt-4.1-mini",
+        rubric_model_id: "gpt-4.1",
+        scoring_model_id: "gpt-4.1",
         randomizations: ["anon-label", "rubric-order-shuffle"],
         evidence_view: "neutralized",
         scoring_method: "freeform-suffix-subset",
@@ -27,7 +27,7 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
         "Evaluate evidence as if the concept were defined by an expert panel.",
       label_neutralization_mode: "mask",
     },
-    evidence_limit: 9,
-    sample_count: 30,
+    evidence_limit: 10,
+    sample_count: 10,
   },
 ];

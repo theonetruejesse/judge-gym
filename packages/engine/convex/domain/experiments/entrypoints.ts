@@ -3,6 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation } from "../../platform/utils";
 import { ExperimentsTableSchema, WindowsTableSchema } from "../../models/experiments";
 import { internal } from "../../_generated/api";
+import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import type { Id } from "../../_generated/dataModel";
 
 // --- Setup ---
@@ -10,7 +11,11 @@ import type { Id } from "../../_generated/dataModel";
 export const initExperiment = zMutation({
   args: z.object({
     window: WindowsTableSchema,
-    experiment: ExperimentsTableSchema.omit({ status: true, window_id: true }),
+    experiment: ExperimentsTableSchema.omit({
+      status: true,
+      window_id: true,
+      spec_signature: true,
+    }),
   }),
   returns: z.object({
     window_id: zid("windows"),
@@ -19,6 +24,10 @@ export const initExperiment = zMutation({
     reused_experiment: z.boolean(),
   }),
   handler: async (ctx, { window, experiment }) => {
+    const requestedSignature = buildExperimentSpecSignature({
+      window,
+      experiment,
+    });
     const existingExperiment = await ctx.db
       .query("experiments")
       .withIndex("by_experiment_tag", (q) =>
@@ -37,6 +46,29 @@ export const initExperiment = zMutation({
         throw new Error(
           `Window mismatch for experiment_tag=${experiment.experiment_tag}`,
         );
+      }
+      const existingSignature =
+        existingExperiment.spec_signature ??
+        buildExperimentSpecSignature({
+          window: existingWindow,
+          experiment: {
+            experiment_tag: existingExperiment.experiment_tag,
+            task_type: existingExperiment.task_type,
+            config: existingExperiment.config,
+            ground_truth: existingExperiment.ground_truth,
+            hypothetical_frame: existingExperiment.hypothetical_frame,
+            label_neutralization_mode: existingExperiment.label_neutralization_mode,
+          },
+        });
+      if (existingSignature !== requestedSignature) {
+        throw new Error(
+          `Experiment config mismatch for experiment_tag=${experiment.experiment_tag}`,
+        );
+      }
+      if (!existingExperiment.spec_signature) {
+        await ctx.db.patch(existingExperiment._id, {
+          spec_signature: existingSignature,
+        });
       }
       return {
         window_id: existingExperiment.window_id,
@@ -62,6 +94,7 @@ export const initExperiment = zMutation({
     const experiment_id = await ctx.db.insert("experiments", {
       ...experiment,
       window_id,
+      spec_signature: requestedSignature,
       status: "pending",
     });
 
