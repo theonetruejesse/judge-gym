@@ -16,6 +16,7 @@ export const ExperimentsTableSchema = z.object({
   task_type: TaskTypeSchema,
   ground_truth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
+  spec_signature: z.string(),
   status: ExperimentStatusSchema,
   hypothetical_frame: z.string().optional(),
   label_neutralization_mode: z

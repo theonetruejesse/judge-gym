@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { render, Box, Text, useApp, useInput } from "ink";
+import { buildExperimentSpecSignature } from "@judge-gym/engine";
 import { api, httpClient } from "./helpers/clients";
 import { EXPERIMENT_SETTINGS } from "./experiments";
-import { bootstrapExperiments } from "./helpers/runner";
+import { createRunsForTags, ensureExperiments } from "./helpers/runner";
 import { LabSupervisor } from "./supervisor";
 
 type RunRow = {
@@ -25,6 +26,34 @@ type QueueStats = {
   }>;
 };
 
+type ExperimentState = {
+  experiment_tag: string;
+  exists: boolean;
+  spec_signature?: string;
+  window?: {
+    start_date: string;
+    end_date: string;
+    country: string;
+    concept: string;
+  };
+  evidence_total?: number;
+  evidence_neutralized?: number;
+  rubric?: {
+    rubric_id: string;
+    model_id: string;
+    parse_status?: string;
+  };
+  run_count?: number;
+  running_count?: number;
+  latest_run?: {
+    run_id: string;
+    status: string;
+    desired_state: string;
+    current_stage?: string;
+    updated_at?: number;
+  };
+};
+
 function formatTimestamp(ts?: number) {
   if (!ts) return "—";
   const d = new Date(ts);
@@ -36,31 +65,153 @@ function App() {
   useInput((input, key) => {
     if (input === "q" || key.escape) {
       exit();
+      return;
+    }
+    if (actionBusy) return;
+    if (input === "i") {
+      void handleInit();
+      return;
+    }
+    if (input === "r") {
+      void handleRun();
+      return;
+    }
+    if (input === "b") {
+      void handleBootstrap();
+      return;
     }
   });
 
   const supervisor = useMemo(() => new LabSupervisor(), []);
+  const settingsWithSignature = useMemo(
+    () =>
+      EXPERIMENT_SETTINGS.map((setting) => ({
+        ...setting,
+        spec_signature: buildExperimentSpecSignature({
+          window: setting.window,
+          experiment: setting.experiment,
+        }),
+      })),
+    [],
+  );
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
+  const [experimentStates, setExperimentStates] = useState<ExperimentState[]>(
+    [],
+  );
   const [lastTickAt, setLastTickAt] = useState<number | null>(null);
   const [lastTickResult, setLastTickResult] = useState<{
     submitted: number;
     polled: number;
     errors: string[];
   }>({ submitted: 0, polled: 0, errors: [] });
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<string[]>([]);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const statesByTag = useMemo(
+    () =>
+      new Map(
+        experimentStates.map((state) => [state.experiment_tag, state]),
+      ),
+    [experimentStates],
+  );
+
+  async function handleInit() {
+    setActionBusy(true);
+    setActionStatus("init: syncing experiments");
+    setActionErrors([]);
+    const result = await ensureExperiments({
+      settings: settingsWithSignature,
+    });
+    setActionErrors(result.errors);
+    setActionStatus(
+      result.errors.length > 0
+        ? `init: ${result.errors.length} error(s)`
+        : "init: ok",
+    );
+    setActionBusy(false);
+  }
+
+  function getRunnableTags(): string[] {
+    const tags: string[] = [];
+    for (const setting of settingsWithSignature) {
+      const tag = setting.experiment.experiment_tag;
+      const state = statesByTag.get(tag);
+      if (state && state.exists) {
+        const specMatch =
+          state.spec_signature &&
+          state.spec_signature === setting.spec_signature;
+        if (!specMatch) continue;
+        if ((state.run_count ?? 0) > 0) continue;
+        tags.push(tag);
+        continue;
+      }
+      tags.push(tag);
+    }
+    return tags;
+  }
+
+  async function handleRun() {
+    const tags = getRunnableTags();
+    if (tags.length === 0) {
+      setActionStatus("run: no missing runs");
+      return;
+    }
+    setActionBusy(true);
+    setActionStatus(`run: creating ${tags.length} run(s)`);
+    setActionErrors([]);
+    const result = await createRunsForTags({ experiment_tags: tags });
+    setActionErrors(result.errors);
+    setActionStatus(
+      result.errors.length > 0
+        ? `run: ${result.errors.length} error(s)`
+        : "run: ok",
+    );
+    setActionBusy(false);
+  }
+
+  async function handleBootstrap() {
+    setActionBusy(true);
+    setActionStatus("bootstrap: init + run");
+    setActionErrors([]);
+    const initResult = await ensureExperiments({
+      settings: settingsWithSignature,
+    });
+    const tags = getRunnableTags();
+    const runResult =
+      tags.length > 0 ? await createRunsForTags({ experiment_tags: tags }) : {
+        run_ids: [],
+        errors: [],
+      };
+    const errors = [...initResult.errors, ...runResult.errors];
+    setActionErrors(errors);
+    setActionStatus(
+      errors.length > 0
+        ? `bootstrap: ${errors.length} error(s)`
+        : "bootstrap: ok",
+    );
+    setActionBusy(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
 
     async function refresh() {
       try {
-        const [runRows, queue] = await Promise.all([
+        const [runRows, queue, states] = await Promise.all([
           httpClient.query(api.lab.listRuns, {}),
           httpClient.query(api.lab.getQueueStats, {}),
+          httpClient.query(api.lab.getExperimentStates, {
+            experiment_tags: settingsWithSignature.map(
+              (setting) => setting.experiment.experiment_tag,
+            ),
+          }),
         ]);
         if (cancelled) return;
         setRuns(runRows);
         setQueueStats(queue);
+        setExperimentStates(states);
       } catch (err) {
         if (cancelled) return;
         setLastTickResult((prev) => ({
@@ -82,29 +233,6 @@ function App() {
       clearInterval(interval);
     };
   }, [supervisor]);
-
-  useEffect(() => {
-    const shouldBootstrap =
-      process.env.LAB_BOOTSTRAP === "1" ||
-      process.env.LAB_BOOTSTRAP === "true";
-    if (!shouldBootstrap) return;
-
-    const useNewRun =
-      process.env.NEW_RUN === "1" || process.env.NEW_RUN === "true";
-
-    void bootstrapExperiments({
-      settings: EXPERIMENT_SETTINGS,
-      useNewRun,
-    }).catch((err) => {
-      setLastTickResult((prev) => ({
-        ...prev,
-        errors: [
-          ...prev.errors,
-          `bootstrap: ${err instanceof Error ? err.message : String(err)}`,
-        ],
-      }));
-    });
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -135,6 +263,9 @@ function App() {
     <Box flexDirection="column" padding={1}>
       <Text>judge-gym · Lab (press q to exit)</Text>
       <Text>
+        Actions: [i] init · [r] create runs · [b] init+run · [q] quit
+      </Text>
+      <Text>
         Poll interval: {supervisor.getConfig().poll_interval_ms}ms · Max batch:
         {` ${supervisor.getConfig().max_batch_size}`} · Max new/tick:
         {` ${supervisor.getConfig().max_new_batches_per_tick}`}
@@ -149,6 +280,49 @@ function App() {
             Errors: {lastTickResult.errors.slice(0, 3).join(" | ")}
           </Text>
         )}
+        {actionStatus && (
+          <Text>
+            Action: {actionStatus}
+            {actionBusy ? " (busy)" : ""}
+          </Text>
+        )}
+        {actionErrors.length > 0 && (
+          <Text color="red">
+            Action errors: {actionErrors.slice(0, 3).join(" | ")}
+          </Text>
+        )}
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text>Configs (source of truth)</Text>
+        {settingsWithSignature.length === 0 && <Text dimColor>  (none)</Text>}
+        {settingsWithSignature.map((setting) => {
+          const state = statesByTag.get(setting.experiment.experiment_tag);
+          const specMatch =
+            state?.spec_signature &&
+            state.spec_signature === setting.spec_signature;
+          const statusLabel = !state || !state.exists
+            ? "MISSING"
+            : specMatch
+              ? "OK"
+              : "DRIFT";
+          const evidenceTotal = state?.evidence_total ?? 0;
+          const evidenceNeutralized = state?.evidence_neutralized ?? 0;
+          const evidenceTarget = setting.evidence_limit;
+          const windowLabel = `${setting.window.start_date}..${setting.window.end_date} ${setting.window.country} ${setting.window.concept}`;
+          const rubricStatus = state?.rubric?.parse_status ?? "missing";
+          const runSummary = state?.latest_run
+            ? `${state.latest_run.status} · stage: ${
+                state.latest_run.current_stage ?? "—"
+              }`
+            : "none";
+          return (
+            <Text key={setting.experiment.experiment_tag}>
+              {`  [${statusLabel}] ${setting.experiment.experiment_tag} · window ${windowLabel} · evidence ${evidenceTotal}/${evidenceTarget} (neutralized ${evidenceNeutralized}) · rubric ${rubricStatus} · runs ${
+                state?.run_count ?? 0
+              } (running ${state?.running_count ?? 0}) · latest ${runSummary}`}
+            </Text>
+          );
+        })}
       </Box>
       <Box marginTop={1} flexDirection="column">
         <Text>Runs</Text>
@@ -174,6 +348,22 @@ function App() {
                 queueStats.totals.error ?? 0
               }`}
             </Text>
+            {Object.entries(queueStats.by_stage)
+              .map(([stage, counts]) => ({
+                stage,
+                counts,
+              }))
+              .filter((row) => (row.counts.queued ?? 0) > 0)
+              .slice(0, 6)
+              .map((row) => (
+                <Text key={`stage:${row.stage}`}>
+                  {`  ${row.stage} · queued ${row.counts.queued ?? 0} · submitted ${
+                    row.counts.submitted ?? 0
+                  } · completed ${row.counts.completed ?? 0} · error ${
+                    row.counts.error ?? 0
+                  }`}
+                </Text>
+              ))}
             {queueStats.by_provider_model.length > 0 ? (
               queueStats.by_provider_model
                 .sort((a, b) => b.queued - a.queued)

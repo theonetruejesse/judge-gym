@@ -12,6 +12,56 @@ type RunOptions = {
   runOnce: boolean;
 };
 
+export async function ensureExperiments(options: {
+  settings: ExperimentSettings[];
+}): Promise<{ ensured: string[]; errors: string[] }> {
+  const { settings } = options;
+  const ensured: string[] = [];
+  const errors: string[] = [];
+
+  for (const setting of settings) {
+    try {
+      await ensureExperiment({
+        experiment_tag: setting.experiment.experiment_tag,
+        setting,
+      });
+      ensured.push(setting.experiment.experiment_tag);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${setting.experiment.experiment_tag}: ${message}`);
+    }
+  }
+
+  return { ensured, errors };
+}
+
+export async function createRunsForTags(options: {
+  experiment_tags: string[];
+}): Promise<{ run_ids: string[]; errors: string[] }> {
+  const { experiment_tags } = options;
+  const run_ids: string[] = [];
+  const errors: string[] = [];
+
+  for (const experiment_tag of experiment_tags) {
+    try {
+      const { run_id } = await httpClient.mutation(
+        api.domain.runs.entrypoints.createRun,
+        {
+          experiment_tag,
+          stop_at_stage: undefined,
+          policy: RUN_POLICY,
+        },
+      );
+      run_ids.push(run_id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${experiment_tag}: ${message}`);
+    }
+  }
+
+  return { run_ids, errors };
+}
+
 export async function runExperiments(options: RunOptions) {
   const { settings, useNewRun, runOnce } = options;
   const runStamp = Date.now();
@@ -71,33 +121,39 @@ export async function runExperiments(options: RunOptions) {
 export async function bootstrapExperiments(options: {
   settings: ExperimentSettings[];
   useNewRun: boolean;
-}): Promise<{ run_ids: string[] }> {
+}): Promise<{ run_ids: string[]; errors: string[] }> {
   const { settings, useNewRun } = options;
   const runStamp = Date.now();
   const run_ids: string[] = [];
+  const errors: string[] = [];
 
   for (const [index, setting] of settings.entries()) {
     const experiment_tag = useNewRun
       ? `${setting.experiment.experiment_tag}-${runStamp}-${index + 1}`
       : setting.experiment.experiment_tag;
 
-    await ensureExperiment({
-      experiment_tag,
-      setting,
-    });
+    try {
+      await ensureExperiment({
+        experiment_tag,
+        setting,
+      });
 
-    const { run_id } = await httpClient.mutation(
-      api.domain.runs.entrypoints.createRun,
-      {
-      experiment_tag,
-      stop_at_stage: undefined,
-      policy: RUN_POLICY,
-      },
-    );
-    run_ids.push(run_id);
+      const { run_id } = await httpClient.mutation(
+        api.domain.runs.entrypoints.createRun,
+        {
+          experiment_tag,
+          stop_at_stage: undefined,
+          policy: RUN_POLICY,
+        },
+      );
+      run_ids.push(run_id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${experiment_tag}: ${message}`);
+    }
   }
 
-  return { run_ids };
+  return { run_ids, errors };
 }
 
 async function ensureExperiment(options: {
