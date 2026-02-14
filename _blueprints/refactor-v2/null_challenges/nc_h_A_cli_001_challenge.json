@@ -1,0 +1,18 @@
+{
+  "challengeID": "nc_h_A_cli_001",
+  "microHypothesisID": "h_A_cli_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "A simpler CLI (status + cancel only) might be sufficient; pause/resume/watch could be overkill",
+      "falsificationQueries": [
+        "CLI tools minimal controls for long-running jobs"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_cli_control.md"
+      ],
+      "falsificationAnalysis": "Evidence shows richer control sets are common, but it does not prove they are required. Hypothesis could be overbuilt for current user needs.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

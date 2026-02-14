@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A_engine_002",
+  "areaOfAnalysisID": "A_engine_guarantees",
+  "statement": "Run stage refresh logic should be explicit about which run is active to avoid completion drift when multiple runs for one experiment overlap.",
+  "confidence": 0.48,
+  "rationale": "Refresh logic targets the latest updated run; if multiple runs exist, counts may not align with intended run lifecycle.",
+  "keyAssumptions": [
+    "Multiple runs per experiment are possible"
+  ],
+  "validationCriteria": [
+    "Simulated overlapping runs update correct run states"
+  ],
+  "critiquePoints": [
+    "Product may enforce a single run per experiment in practice"
+  ],
+  "questions": [
+    "Do we allow multiple active runs today?"
+  ]
+}

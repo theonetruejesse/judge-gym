@@ -1,0 +1,18 @@
+{
+  "challengeID": "nc_h_A_config_001",
+  "microHypothesisID": "h_A_config_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Immutable config snapshots may be impractical due to secrets or large payloads",
+      "falsificationQueries": [
+        "workflow engines handling secrets in deployment configs"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_config_durability.md"
+      ],
+      "falsificationAnalysis": "Sources recommend immutable identifiers and deployment versioning but do not address secret handling; this is an open risk rather than a refutation.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

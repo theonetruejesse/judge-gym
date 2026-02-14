@@ -1,0 +1,18 @@
+{
+  "challengeID": "nc_h_A_engine_001",
+  "microHypothesisID": "h_A_engine_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Convex index-based get-or-create might already be effectively unique under transactional semantics",
+      "falsificationQueries": [
+        "Convex unique constraints index duplicate inserts behavior"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_engine_guarantees.md"
+      ],
+      "falsificationAnalysis": "Repo code shows de-duplication by index but no explicit uniqueness constraint. Without explicit docs or tests, cannot confirm uniqueness under concurrent inserts.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}
