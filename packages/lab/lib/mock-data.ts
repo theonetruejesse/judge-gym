@@ -80,6 +80,14 @@ export interface MockEvidence {
   collectedAt: string;
 }
 
+export interface MockEvidenceContent {
+  evidenceId: string;
+  raw: string;
+  l1_cleaned: string;
+  l2_neutralized: string;
+  l3_abstracted: string;
+}
+
 // ─── Mock Experiments ───────────────────────────────────────────────────────
 
 export const EXPERIMENTS: MockExperiment[] = [
@@ -536,16 +544,80 @@ export const EVIDENCE: MockEvidence[] = [
   },
 ];
 
+// ─── Mock Evidence Content ─────────────────────────────────────────────────
+
+const EVIDENCE_CONTENT: Record<string, MockEvidenceContent> = {
+  ev_001: {
+    evidenceId: "ev_001",
+    raw:
+      "Global Temperature Anomalies Report 2025\n\nSurface temperatures showed a continued deviation from the 1951-1980 baseline average, with regional variation across hemispheres. The report includes station-by-station raw observations, satellite telemetry, and the seasonal adjustment notes used by NOAA.\n\nSource: https://climate.gov/reports/temp-anomalies-2025",
+    l1_cleaned:
+      "Surface temperatures remained above the 1951-1980 baseline with clear regional variation. The report consolidates station observations and satellite telemetry, removing duplicate station entries and normalizing timestamps.",
+    l2_neutralized:
+      "The report documents temperature deviations relative to the 1951-1980 baseline across regions. It includes observations, satellite measurements, and methodology notes without evaluative language.",
+    l3_abstracted:
+      "Observed temperatures in 2025 deviated from the 1951-1980 baseline across regions, based on consolidated ground and satellite data.",
+  },
+  ev_003: {
+    evidenceId: "ev_003",
+    raw:
+      "Reuters: UN Climate Summit Coverage\n\nDelegates from 190 nations convened for the annual climate summit, focusing on financing mechanisms and emission targets for developing economies. Several blocs issued competing draft statements as negotiations continued.\n\nSource: https://reuters.com/world/environment/un-climate-summit-2025",
+    l1_cleaned:
+      "Delegates from 190 nations convened for the annual climate summit, focusing on financing mechanisms and emission targets. Draft statements were circulated as negotiations continued.",
+    l2_neutralized:
+      "The summit involved negotiations among 190 nations around financing mechanisms and emission targets. Multiple draft statements were circulated during the meeting.",
+    l3_abstracted:
+      "The summit centered on financing mechanisms and emission targets, with multiple draft statements under negotiation.",
+  },
+  ev_007: {
+    evidenceId: "ev_007",
+    raw:
+      "Canadian Healthcare Wait Times Analysis\n\nMedian wait times for specialist referrals varied by province and specialty. Emergency department volumes remained elevated and varied across regions.\n\nSource: https://cihi.ca/en/wait-times-2025",
+    l1_cleaned:
+      "Median specialist referral wait times varied by province and specialty. Emergency department volumes remained elevated across regions.",
+    l2_neutralized:
+      "The analysis reports variation in referral wait times across provinces and specialties, along with elevated emergency department volumes.",
+    l3_abstracted:
+      "Wait times and emergency department volumes varied across Canadian regions in 2025.",
+  },
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 export function getEvidenceForExperiment(experimentId: string): MockEvidence[] {
   return EVIDENCE.filter((e) => e.experimentId === experimentId);
 }
 
+export function getEvidenceById(id: string): MockEvidence | undefined {
+  return EVIDENCE.find((e) => e.id === id);
+}
+
 export function getExperimentById(
   id: string,
 ): MockExperiment | undefined {
   return EXPERIMENTS.find((e) => e.id === id);
+}
+
+function buildEvidenceContent(evidence: MockEvidence): MockEvidenceContent {
+  const base = `${evidence.title}\n\n${evidence.snippet}\n\nSource: ${evidence.sourceUrl}`;
+  return {
+    evidenceId: evidence.id,
+    raw: `${base}\n\nRaw ingestion excerpt: ${evidence.snippet}`,
+    l1_cleaned:
+      `${evidence.snippet} (cleaned for formatting, punctuation, and duplicate lines).`,
+    l2_neutralized:
+      `Neutral summary: ${evidence.snippet} The phrasing is standardized to remove evaluative language.`,
+    l3_abstracted:
+      `Abstracted statement: ${evidence.snippet.split(".")[0] ?? evidence.snippet}.`,
+  };
+}
+
+export function getEvidenceContentById(
+  id: string,
+): MockEvidenceContent | undefined {
+  const evidence = getEvidenceById(id);
+  if (!evidence) return undefined;
+  return EVIDENCE_CONTENT[id] ?? buildEvidenceContent(evidence);
 }
 
 export const STATUS_COLORS: Record<ExperimentStatus | RunStatus, string> = {
@@ -568,3 +640,10 @@ export const VIEW_LABELS: Record<EvidenceView, string> = {
   l2_neutralized: "L2 Neutralized",
   l3_abstracted: "L3 Abstracted",
 };
+
+export const NORMALIZATION_LEVELS: { key: EvidenceView; label: string }[] = [
+  { key: "l0_raw", label: "L0 Raw" },
+  { key: "l1_cleaned", label: "L1 Cleaned" },
+  { key: "l2_neutralized", label: "L2 Neutralized" },
+  { key: "l3_abstracted", label: "L3 Abstracted" },
+];
