@@ -3,6 +3,7 @@ import { defineTable } from "convex/server";
 import z from "zod";
 import {
   ExperimentConfigSchema,
+  ExperimentConfigInputSchema,
   ExperimentStatusSchema,
   GroundTruthSchema,
   ParseStatusSchema,
@@ -10,18 +11,28 @@ import {
   modelTypeSchema,
 } from "./core";
 
-export const ExperimentsTableSchema = z.object({
+export const ExperimentSpecSchema = z.object({
   experiment_tag: z.string(),
-  window_id: zid("windows"),
   task_type: TaskTypeSchema,
   ground_truth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
-  spec_signature: z.string(),
-  status: ExperimentStatusSchema,
   hypothetical_frame: z.string().optional(),
   label_neutralization_mode: z
     .enum(["none", "mask", "generic"])
     .optional(),
+});
+
+export const ExperimentSpecInputSchema = ExperimentSpecSchema.extend({
+  config: ExperimentConfigInputSchema,
+});
+
+export const ExperimentsTableSchema = ExperimentSpecSchema.extend({
+  window_id: zid("windows"),
+  spec_signature: z.string(),
+  status: ExperimentStatusSchema,
+  config_template_id: z.string(),
+  config_template_version: z.number(),
+  active_run_id: zid("runs").optional(),
 });
 
 export const WindowsTableSchema = z.object({

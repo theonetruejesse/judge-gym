@@ -68,7 +68,10 @@ export const createBatchFromQueued: ReturnType<typeof zMutation> = zMutation({
     model: modelTypeSchema,
     max_items: z.number().min(1).max(10000),
   }),
-  returns: z.object({ batch_id: zid("llm_batches").nullable() }),
+  returns: z.object({
+    batch_id: zid("llm_batches").nullable(),
+    run_id: zid("runs").optional(),
+  }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
       internal.domain.llm_calls.workflows.batch_queue.createBatchFromQueued,

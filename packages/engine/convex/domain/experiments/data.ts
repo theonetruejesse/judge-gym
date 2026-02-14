@@ -74,6 +74,10 @@ export const getRunSummary = zQuery({
     const experiment = await ctx.db.get(run.experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
+    const runConfig = run.run_config_id
+      ? await ctx.db.get(run.run_config_id)
+      : null;
+
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
@@ -97,15 +101,19 @@ export const getRunSummary = zQuery({
     return {
       run_id: run._id,
       experiment_tag: experiment.experiment_tag,
-      rubric_model_id: experiment.config.rubric_model_id,
-      scoring_model_id: experiment.config.scoring_model_id,
+      rubric_model_id:
+        runConfig?.config_body.experiment.config.rubric_model_id ??
+        experiment.config.rubric_model_id,
+      scoring_model_id:
+        runConfig?.config_body.experiment.config.scoring_model_id ??
+        experiment.config.scoring_model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: run.status,
       desired_state: run.desired_state,
       current_stage: run.current_stage,
       stop_at_stage: run.stop_at_stage,
-      config: experiment.config,
+      config: runConfig?.config_body.experiment.config ?? experiment.config,
       counts: {
         samples: samples.length,
         scores: scores.length,

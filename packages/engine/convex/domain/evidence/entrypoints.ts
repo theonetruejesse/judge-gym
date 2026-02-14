@@ -1,6 +1,8 @@
 import z from "zod";
 import { zAction } from "../../platform/utils";
 import { internal } from "../../_generated/api";
+import { preflightCheck } from "../../env";
+import { EVIDENCE_ENV_REQUIREMENTS } from "../../utils/env_requirements";
 
 export const collectEvidenceForExperiment: ReturnType<typeof zAction> = zAction({
   args: z.object({
@@ -15,14 +17,19 @@ export const collectEvidenceForExperiment: ReturnType<typeof zAction> = zAction(
     queued_abstract: z.number(),
   }),
   handler: async (ctx, { experiment_tag, evidence_limit }) => {
+    preflightCheck(EVIDENCE_ENV_REQUIREMENTS);
     const experiment = await ctx.runQuery(
       internal.domain.experiments.repo.getExperiment,
       { experiment_tag },
     );
 
-    return ctx.runAction(
+    const result = await ctx.runAction(
       internal.domain.evidence.workflows.collect.collectEvidence,
       { experiment_id: experiment._id, limit: evidence_limit },
     );
+    await ctx.runMutation(internal.domain.runs.workflows.scheduler.ensureScheduler, {
+      reason: "evidence",
+    });
+    return result;
   },
 });
