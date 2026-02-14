@@ -1,23 +1,11 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
 import Providers from "./providers";
 
-const sans = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
-const display = Instrument_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-display",
-});
-
 export const metadata: Metadata = {
-  title: "judge-gym lab",
-  description: "Lab dashboard for judge-gym experiments.",
+  title: "Mission Control | judge-gym",
+  description: "Mission Control dashboard for judge-gym experiments.",
 };
 
 export default function RootLayout({
@@ -26,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${display.variable}`}>
+    <html lang="en">
       <body className="min-h-screen antialiased">
         <Providers>{children}</Providers>
       </body>

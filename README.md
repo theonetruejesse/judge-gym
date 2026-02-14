@@ -28,7 +28,7 @@ judge-gym/
 │   │   │   └── lab.ts                 # Public lab queries/actions
 │   │   └── src/index.ts               # Single public export surface
 │   │
-│   ├── lab/                           # Next.js web app (Lab UI)
+│   ├── lab/                           # Next.js web app (Mission Control UI)
 │   │
 │   └── analysis/                      # Python — statistical analysis + visualization
 │       ├── pyproject.toml             # uv project config
@@ -124,9 +124,9 @@ Evidence windows are defined by `window.start_date`, `window.end_date`, `window.
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Lab web UI, Convex CLI, or MCP.
+All experiment operations are exposed via Convex public mutations and queries. Operate via the Mission Control web UI, Convex CLI, or MCP.
 
-### Option A — Lab Web App (recommended)
+### Option A — Mission Control Web App (recommended)
 
 From repo root, start the engine + web app together:
 
@@ -134,7 +134,7 @@ From repo root, start the engine + web app together:
 bun run dev
 ```
 
-Then open `http://localhost:3000` to view the Lab UI.
+Then open `http://localhost:3000` to view the Mission Control UI.
 
 If you already have Convex running in another terminal, you can start just the web app:
 
@@ -290,8 +290,8 @@ To force a new LLM call for the same identity, you must explicitly bump `request
 ## Engine Settings
 
 Run policy defaults and provider rate limits live in a single source of truth:
-`packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). The Lab UI does not
-define or pass policies.
+`packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). The Mission Control UI
+does not define or pass policies.
 
 If you update `ENGINE_SETTINGS.run_policy`, bump the config template version to
 ensure new runs capture the updated policy. Existing run-config snapshots remain
@@ -307,7 +307,7 @@ engine scheduler handles queueing, submission, and polling.
 
 ```mermaid
 sequenceDiagram
-  participant Client as Lab UI
+  participant Client as Mission Control UI
   participant Convex as Engine Scheduler
   participant Providers as Provider Adapters
 
@@ -322,7 +322,7 @@ sequenceDiagram
 
 ## Public API Surface
 
-The only public export surface is `packages/engine/src/index.ts`. The Lab UI and Analysis import from `@judge-gym/engine`.
+The only public export surface is `packages/engine/src/index.ts`. The Mission Control UI and Analysis import from `@judge-gym/engine`.
 
 ```ts
 import { api, ENGINE_SETTINGS, type ExperimentConfig } from "@judge-gym/engine";
