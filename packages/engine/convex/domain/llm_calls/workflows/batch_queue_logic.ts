@@ -1,6 +1,4 @@
-import {
-  DEFAULT_RUN_POLICY,
-} from "../../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../../settings";
 import type {
   LlmStage,
   ModelType,

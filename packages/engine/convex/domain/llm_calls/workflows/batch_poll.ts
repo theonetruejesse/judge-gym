@@ -3,10 +3,8 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../../platform/utils";
 import { batchAdapterRegistry } from "../../../platform/utils/batch_registry";
 import { internal } from "../../../_generated/api";
-import {
-  DEFAULT_RUN_POLICY,
-  providerSchema,
-} from "../../../models/core";
+import { providerSchema } from "../../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../../settings";
 import { resolveRunPolicy } from "../../../utils/policy";
 import type { Doc } from "../../../_generated/dataModel";
 import type { ActionCtx } from "../../../_generated/server";

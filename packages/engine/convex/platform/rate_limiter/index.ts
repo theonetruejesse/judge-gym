@@ -1,28 +1,20 @@
 import { RateLimiter, type RateLimitConfig } from "@convex-dev/rate-limiter";
 import { components } from "../../_generated/api";
-import {
-  ANTHROPIC_RATE_CONFIGS,
-  OPENAI_RATE_CONFIGS,
-} from "./rate_configs";
+import { ENGINE_SETTINGS } from "../../settings";
 
-const PROVIDER_CONFIGS = {
-  openai: OPENAI_RATE_CONFIGS,
-  anthropic: ANTHROPIC_RATE_CONFIGS,
-  // google: GOOGLE_RATE_CONFIGS,
-  // TODO: Re-enable when Vertex integration is ready.
-} as const;
+const PROVIDER_CONFIGS = ENGINE_SETTINGS.rate_limits.providers;
 
 export const RATE_LIMIT_CONFIGS = Object.assign(
   {},
-  ...Object.values(PROVIDER_CONFIGS).flatMap((tiers) =>
-    Object.values(tiers).map((tier) => tier.configs),
+  ...Object.values(PROVIDER_CONFIGS).flatMap((provider) =>
+    Object.values(provider.tiers).map((tier) => tier.configs),
   ),
 ) satisfies Record<string, RateLimitConfig>;
 
 export const RATE_LIMITED_MODEL_LIST = Array.from(
   new Set(
-    Object.values(PROVIDER_CONFIGS).flatMap((tiers) =>
-      Object.values(tiers).flatMap((tier) => tier.models),
+    Object.values(PROVIDER_CONFIGS).flatMap((provider) =>
+      Object.values(provider.tiers).flatMap((tier) => tier.models),
     ),
   ),
 ) as string[];

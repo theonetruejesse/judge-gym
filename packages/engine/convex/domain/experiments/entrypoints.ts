@@ -9,7 +9,7 @@ import {
 import { internal } from "../../_generated/api";
 import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import { normalizeExperimentSpec } from "../../utils/config_normalizer";
-import { DEFAULT_RUN_POLICY } from "../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../settings";
 import { ConfigTemplatesTableSchema } from "../../models/configs";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";

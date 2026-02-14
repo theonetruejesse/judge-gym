@@ -4,10 +4,8 @@ import { zInternalAction } from "../../../platform/utils";
 import { batchAdapterRegistry } from "../../../platform/utils/batch_registry";
 import { rateLimiter, getRateLimitKeysForModel } from "../../../platform/rate_limiter";
 import { internal } from "../../../_generated/api";
-import {
-  providerSchema,
-  DEFAULT_RUN_POLICY,
-} from "../../../models/core";
+import { providerSchema } from "../../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../../settings";
 import { policyAllowsModel, resolveRunPolicy } from "../../../utils/policy";
 import type { Doc } from "../../../_generated/dataModel";
 import type { ActionCtx } from "../../../_generated/server";

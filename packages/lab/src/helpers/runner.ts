@@ -4,7 +4,6 @@
 import { api, httpClient, liveClient } from "./clients";
 import { trackRun } from "./tracker";
 import type { ExperimentSettings } from "./types";
-import { RUN_POLICIES } from "../run_policy";
 
 type RunOptions = {
   settings: ExperimentSettings[];
@@ -186,29 +185,15 @@ async function ensureExperiment(options: {
   const { experiment_tag, setting } = options;
 
   try {
-    await httpClient.mutation(api.domain.configs.entrypoints.seedConfigTemplate, {
+    await httpClient.mutation(api.domain.experiments.entrypoints.initExperiment, {
+      window: setting.window,
+      experiment: {
+        ...setting.experiment,
+        experiment_tag,
+      },
       template_id: experiment_tag,
-      version: 1,
-      schema_version: 1,
-      config_body: {
-        window: setting.window,
-        experiment: {
-          ...setting.experiment,
-          experiment_tag,
-        },
-        policies: RUN_POLICIES,
-      },
-      created_by: "lab",
-      notes: "lab seed",
+      template_version: 1,
     });
-
-    await httpClient.mutation(
-      api.domain.experiments.entrypoints.initExperimentFromTemplate,
-      {
-        template_id: experiment_tag,
-        version: 1,
-      },
-    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
