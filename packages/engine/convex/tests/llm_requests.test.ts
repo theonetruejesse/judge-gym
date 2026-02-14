@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { getOrCreateLlmRequestImpl } from "../domain/llm_calls/llm_requests";
+import type { Doc, Id } from "../_generated/dataModel";
 
 describe("llm_requests", () => {
   test("getOrCreateLlmRequest returns existing request when present", async () => {
-    const existing = { _id: "req_existing" };
+    const existing = { _id: "req_existing" } as Doc<"llm_requests">;
     const ctx: any = {
       db: {
         query: () => ({
@@ -11,7 +12,7 @@ describe("llm_requests", () => {
             unique: async () => existing,
           }),
         }),
-        insert: async () => "req_new",
+        insert: async () => "req_new" as Id<"llm_requests">,
       },
     };
 
@@ -31,6 +32,7 @@ describe("llm_requests", () => {
   });
 
   test("getOrCreateLlmRequest creates new request when missing", async () => {
+    const newId = "req_new" as Id<"llm_requests">;
     const ctx: any = {
       db: {
         query: () => ({
@@ -38,7 +40,7 @@ describe("llm_requests", () => {
             unique: async () => null,
           }),
         }),
-        insert: async () => "req_new",
+        insert: async () => newId,
       },
     };
 
@@ -54,6 +56,6 @@ describe("llm_requests", () => {
     } as const;
 
     const result = await getOrCreateLlmRequestImpl(ctx, args);
-    expect(result).toBe("req_new");
+    expect(result).toBe(newId);
   });
 });

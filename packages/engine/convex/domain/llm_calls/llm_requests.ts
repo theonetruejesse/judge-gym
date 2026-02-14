@@ -8,6 +8,7 @@ import {
   modelTypeSchema,
 } from "../../models/core";
 import { LlmRequestsTableSchema } from "../../models/llm_calls";
+import type { MutationCtx } from "../../_generated/server";
 
 const GetOrCreateArgsSchema = z.object({
   stage: LlmStageSchema,
@@ -65,11 +66,14 @@ export const listRequestsByStageStatus = zInternalQuery({
   },
 });
 
-export async function getOrCreateLlmRequestImpl(ctx: any, args: GetOrCreateArgs) {
+export async function getOrCreateLlmRequestImpl(
+  ctx: MutationCtx,
+  args: GetOrCreateArgs,
+) {
   const requestVersion = args.request_version ?? 1;
   const existing = await ctx.db
     .query("llm_requests")
-    .withIndex("by_identity", (q: any) =>
+    .withIndex("by_identity", (q) =>
       q
         .eq("stage", args.stage)
         .eq("provider", args.provider)

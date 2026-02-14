@@ -1,3 +1,6 @@
+import {
+  DEFAULT_RUN_POLICY,
+} from "../../../models/core";
 import type {
   LlmStage,
   ModelType,
@@ -24,6 +27,7 @@ export type RunCandidate = {
   stop_at_stage?: LlmStage;
   updated_at?: number;
   policy: RunPolicy;
+  active_batches?: number;
 };
 
 const STAGE_ORDER: LlmStage[] = [
@@ -89,6 +93,12 @@ export function selectBatchCandidates(args: {
     if (!run) return true;
     if (run.desired_state !== "running") return false;
     if (!policyAllows(run.policy, req.provider, req.model)) return false;
+    if (
+      run.policy.max_concurrent_batches !== undefined &&
+      (run.active_batches ?? 0) >= run.policy.max_concurrent_batches
+    ) {
+      return false;
+    }
     if (run.stop_at_stage) {
       return stageIndex(req.stage) <= stageIndex(run.stop_at_stage);
     }
@@ -121,7 +131,9 @@ export function selectBatchCandidates(args: {
   )[0];
   if (!selected) return { items: [] };
 
-  const policyMax = selected.policy?.max_batch_size ?? Number.POSITIVE_INFINITY;
+  const policyMax =
+    (selected.policy ?? DEFAULT_RUN_POLICY).max_batch_size ??
+    Number.POSITIVE_INFINITY;
   const cap = Math.min(max_items, policyMax);
   const items = selected.items.slice(0, cap);
 

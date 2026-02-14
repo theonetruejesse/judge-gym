@@ -5,32 +5,32 @@ import { batchAdapterRegistry } from "../../../platform/utils/batch_registry";
 import { rateLimiter, getRateLimitKeysForModel } from "../../../platform/rate_limiter";
 import { internal } from "../../../_generated/api";
 import {
-  DEFAULT_RUN_POLICY,
   providerSchema,
-  type RunPolicy,
+  DEFAULT_RUN_POLICY,
 } from "../../../models/core";
+import { policyAllowsModel, resolveRunPolicy } from "../../../utils/policy";
 import type { Doc } from "../../../_generated/dataModel";
+import type { ActionCtx } from "../../../_generated/server";
 
-function policyAllows(
-  policy: RunPolicy,
-  provider: z.infer<typeof providerSchema>,
-  model: string,
-) {
-  return policy.provider_models.some(
-    (spec) => spec.provider === provider && spec.models.includes(model as never),
-  );
-}
-
-async function getPolicyForBatch(ctx: any, batch: Doc<"llm_batches">) {
+async function getPolicyForBatch(ctx: ActionCtx, batch: Doc<"llm_batches">) {
   if (!batch.run_id) return DEFAULT_RUN_POLICY;
   const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
     run_id: batch.run_id,
   });
-  return run?.policy ?? DEFAULT_RUN_POLICY;
+  if (!run?.run_config_id) return DEFAULT_RUN_POLICY;
+  const runConfig = await ctx.runQuery(internal.domain.configs.repo.getRunConfig, {
+    run_config_id: run.run_config_id,
+  });
+  return resolveRunPolicy({
+    policies: runConfig.config_body.policies,
+    team_id: runConfig.config_body.team_id,
+    provider: batch.provider,
+    model: batch.model,
+  });
 }
 
 async function failBatch(
-  ctx: any,
+  ctx: ActionCtx,
   batch: Doc<"llm_batches">,
   items: Doc<"llm_batch_items">[],
   error: string,
@@ -70,7 +70,7 @@ export const submitBatch = zInternalAction({
     })) as Doc<"llm_batch_items">[];
 
     const policy = await getPolicyForBatch(ctx, batch);
-    if (!policyAllows(policy, provider, batch.model)) {
+    if (!policyAllowsModel(policy, provider, batch.model)) {
       await failBatch(ctx, batch, items, "policy_denied");
       return { submitted: 0 };
     }
