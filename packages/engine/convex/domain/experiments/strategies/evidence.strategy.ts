@@ -13,11 +13,11 @@ export function resolveEvidenceStrategy(
 ): EvidenceStrategy {
   const contentField = (() => {
     switch (config.evidence_view) {
-      case "cleaned":
+      case "l1_cleaned":
         return "cleaned_content";
-      case "neutralized":
+      case "l2_neutralized":
         return "neutralized_content";
-      case "abstracted":
+      case "l3_abstracted":
         return "abstracted_content";
       default:
         return "raw_content";

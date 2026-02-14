@@ -1,18 +1,28 @@
-import { createEnv } from "@t3-oss/env-core";
-import z from "zod";
+function readEnv(key: string): string | undefined {
+  const value = process.env[key];
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
-// todo, adjust this later
-export const env = createEnv({
-  server: {
-    // Optional — core providers (validate at call sites)
-    OPENAI_API_KEY: z.string().min(1).optional(),
-    ANTHROPIC_API_KEY: z.string().min(1).optional(),
-    GOOGLE_API_KEY: z.string().min(1).optional(),
+export function getEnv(key: string): string | undefined {
+  return readEnv(key);
+}
 
-    // Optional — evidence collection
-    FIRECRAWL_API_KEY: z.string().min(1).optional(),
-  },
+export function requireEnv(key: string): string {
+  const value = readEnv(key);
+  if (!value) {
+    throw new Error(`${key} is required but not set`);
+  }
+  return value;
+}
 
-  runtimeEnv: process.env,
-  emptyStringAsUndefined: true,
-});
+export function preflightCheck(requiredEnvs: string[]): { ok: true } {
+  const missing = requiredEnvs.filter((key) => !readEnv(key));
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required env vars: ${missing.join(", ")}`,
+    );
+  }
+  return { ok: true };
+}

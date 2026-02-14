@@ -8,6 +8,8 @@ import {
   Scores,
 } from "./models/experiments";
 import { Runs, RunStages } from "./models/runs";
+import { ConfigTemplates, RunConfigs } from "./models/configs";
+import { SchedulerState } from "./models/scheduler";
 import {
   LlmRequests,
   LlmMessages,
@@ -38,6 +40,15 @@ export default defineSchema({
   )
     .index("by_rubric", ["rubric_id"])
     .index("by_evidence", ["evidence_id"]),
+  config_templates: ConfigTemplates.index("by_template_version", [
+    "template_id",
+    "version",
+  ]).index("by_spec_signature", ["spec_signature"]),
+  run_configs: RunConfigs.index("by_template_version", [
+    "template_id",
+    "version",
+  ]).index("by_spec_signature", ["spec_signature"]),
+  scheduler_state: SchedulerState.index("by_key", ["key"]),
   runs: Runs.index("by_experiment", ["experiment_id"]).index("by_status", [
     "status",
   ]),

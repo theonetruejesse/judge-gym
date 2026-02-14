@@ -30,6 +30,42 @@ export const TaskTypeSchema = z.union([
 
 export type TaskType = z.infer<typeof TaskTypeSchema>;
 
+// --- Evidence view ---
+export const EvidenceViewSchema = z.enum([
+  "l0_raw",
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+]);
+
+export const EvidenceViewInputSchema = z.union([
+  EvidenceViewSchema,
+  z.literal("raw"),
+  z.literal("cleaned"),
+  z.literal("neutralized"),
+  z.literal("abstracted"),
+]);
+
+export type EvidenceView = z.infer<typeof EvidenceViewSchema>;
+export type EvidenceViewInput = z.infer<typeof EvidenceViewInputSchema>;
+
+export function normalizeEvidenceView(
+  value: EvidenceViewInput,
+): EvidenceView {
+  switch (value) {
+    case "raw":
+      return "l0_raw";
+    case "cleaned":
+      return "l1_cleaned";
+    case "neutralized":
+      return "l2_neutralized";
+    case "abstracted":
+      return "l3_abstracted";
+    default:
+      return value;
+  }
+}
+
 // --- Ground truth ---
 export const GroundTruthSchema = z.object({
   source: z.string(),
@@ -45,7 +81,7 @@ export const ExperimentConfigSchema = z.object({
   randomizations: z.array(
     z.enum(["anon-label", "rubric-order-shuffle", "hide-label-name"]),
   ),
-  evidence_view: z.enum(["raw", "cleaned", "neutralized", "abstracted"]),
+  evidence_view: EvidenceViewSchema,
   scoring_method: z.union([
     z.literal("freeform-suffix-single"),
     z.literal("freeform-suffix-subset"),
@@ -58,6 +94,12 @@ export const ExperimentConfigSchema = z.object({
 });
 
 export type ExperimentConfig = z.infer<typeof ExperimentConfigSchema>;
+
+export const ExperimentConfigInputSchema = ExperimentConfigSchema.extend({
+  evidence_view: EvidenceViewInputSchema,
+});
+
+export type ExperimentConfigInput = z.infer<typeof ExperimentConfigInputSchema>;
 
 // --- Experiment status ---
 export const ExperimentStatusSchema = z.union([
@@ -102,6 +144,8 @@ export const RunPolicySchema = z.object({
   max_batch_size: z.number().int().min(1),
   max_new_batches_per_tick: z.number().int().min(1),
   max_poll_per_tick: z.number().int().min(1),
+  max_concurrent_batches: z.number().int().min(1).optional(),
+  max_concurrent_requests: z.number().int().min(1).optional(),
   max_batch_retries: z.number().int().min(0),
   retry_backoff_ms: z.number().int().min(0),
   provider_models: z
@@ -138,6 +182,16 @@ export const DEFAULT_RUN_POLICY: RunPolicy = {
     // }, // TODO: Re-enable when Vertex integration is ready.
   ],
 };
+
+export const PolicyOverridesSchema = z.object({
+  global: RunPolicySchema,
+  team: z.record(z.string(), RunPolicySchema.partial()).optional(),
+  provider: z.record(z.string(), RunPolicySchema.partial()).optional(),
+  model: z.record(z.string(), RunPolicySchema.partial()).optional(),
+  experiment: RunPolicySchema.partial().optional(),
+});
+
+export type PolicyOverrides = z.infer<typeof PolicyOverridesSchema>;
 
 export const LlmStageSchema = z.union([
   z.literal("evidence_clean"),

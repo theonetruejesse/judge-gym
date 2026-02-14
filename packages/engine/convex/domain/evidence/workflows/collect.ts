@@ -3,7 +3,11 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction, zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
 import { providerFor } from "../../../platform/utils";
-import type { ModelType } from "../../../models/core";
+import {
+  EvidenceViewInputSchema,
+  normalizeEvidenceView,
+  type ModelType,
+} from "../../../models/core";
 import {
   EVIDENCE_CLEANING_INSTRUCTIONS,
   NEUTRALIZE_INSTRUCTIONS,
@@ -115,7 +119,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
   zInternalMutation({
   args: z.object({
     window_id: zid("windows"),
-    evidence_view: z.enum(["raw", "cleaned", "neutralized", "abstracted"]),
+    evidence_view: EvidenceViewInputSchema,
   }),
   returns: z.object({
     queued_clean: z.number(),
@@ -123,15 +127,17 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
     queued_abstract: z.number(),
   }),
   handler: async (ctx, { window_id, evidence_view }) => {
+    const normalizedView = normalizeEvidenceView(evidence_view);
     const evidence = await ctx.db
       .query("evidences")
       .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
       .collect();
 
-    const needsClean = evidence_view !== "raw";
+    const needsClean = normalizedView !== "l0_raw";
     const needsNeutralize =
-      evidence_view === "neutralized" || evidence_view === "abstracted";
-    const needsAbstract = evidence_view === "abstracted";
+      normalizedView === "l2_neutralized" ||
+      normalizedView === "l3_abstracted";
+    const needsAbstract = normalizedView === "l3_abstracted";
 
     let queuedClean = 0;
     let queuedNeutralize = 0;
