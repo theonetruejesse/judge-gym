@@ -1,0 +1,165 @@
+{
+  "meta": {
+    "originalQuestion": "Investigate refactor v2: migrate orchestration into engine layer (Convex) while preserving existing engine guarantees; design durable, user-friendly configs and CLI controls (start/pause/cancel/inspect, evidence collection workflows), with schema-first approach; consider scheduler constraints; no analysis-layer changes.",
+    "runFolderPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/refactor-v2",
+    "finalPlanPath": null
+  },
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      "019c599d-7615-7871-a60b-fec685eaebd4",
+      "019c599d-7624-7c32-afc6-a980588ff9ec",
+      "019c599d-7640-72b1-85dc-e1aec7308e9e",
+      "019c599d-766b-7242-a1fc-3ab1050f3d86"
+    ],
+    "falsifier": "019c59a6-b09f-7f71-bea5-08a4315f7a2f",
+    "certaintyScorer": "019c59a0-8d0b-7723-a7c2-d69f70273966",
+    "synthesizer": "codex"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_engine_guarantees",
+      "title": "Engine Guarantees + Current Orchestration/Data Model",
+      "researcherAgentID": "019c599d-7615-7871-a60b-fec685eaebd4",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_convex_scheduler",
+      "title": "Convex Scheduler/Orchestration Constraints",
+      "researcherAgentID": "019c599d-7624-7c32-afc6-a980588ff9ec",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_config_durability",
+      "title": "Config Durability/Versioning Patterns",
+      "researcherAgentID": "019c599d-7640-72b1-85dc-e1aec7308e9e",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_cli_control",
+      "title": "CLI Controller + Live Status Patterns",
+      "researcherAgentID": "019c599d-766b-7242-a1fc-3ab1050f3d86",
+      "status": "assigned"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "id": "k_001",
+        "path": "knowledge/k_001_engine_guarantees.md"
+      },
+      {
+        "id": "k_002",
+        "path": "knowledge/k_002_convex_scheduler.md"
+      },
+      {
+        "id": "k_003",
+        "path": "knowledge/k_003_config_durability.md"
+      },
+      {
+        "id": "k_004",
+        "path": "knowledge/k_004_cli_control.md"
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "k_001",
+        "score": 0.7
+      },
+      {
+        "id": "k_002",
+        "score": 0.62
+      },
+      {
+        "id": "k_003",
+        "score": 0.6
+      },
+      {
+        "id": "k_004",
+        "score": 0.58
+      },
+      {
+        "id": "h_A_engine_001",
+        "score": 0.5
+      },
+      {
+        "id": "h_A_engine_002",
+        "score": 0.46
+      },
+      {
+        "id": "h_A_convex_001",
+        "score": 0.59
+      },
+      {
+        "id": "h_A_config_001",
+        "score": 0.63
+      },
+      {
+        "id": "h_A_config_002",
+        "score": 0.57
+      },
+      {
+        "id": "h_A_cli_001",
+        "score": 0.6
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaOfAnalysisID": "A_engine_guarantees",
+      "title": "Engine Guarantees + Current Orchestration/Data Model",
+      "researcherAgentID": "019c599d-7615-7871-a60b-fec685eaebd4",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_convex_scheduler",
+      "title": "Convex Scheduler/Orchestration Constraints",
+      "researcherAgentID": "019c599d-7624-7c32-afc6-a980588ff9ec",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_config_durability",
+      "title": "Config Durability/Versioning Patterns",
+      "researcherAgentID": "019c599d-7640-72b1-85dc-e1aec7308e9e",
+      "status": "assigned"
+    },
+    {
+      "areaOfAnalysisID": "A_cli_control",
+      "title": "CLI Controller + Live Status Patterns",
+      "researcherAgentID": "019c599d-766b-7242-a1fc-3ab1050f3d86",
+      "status": "assigned"
+    }
+  ],
+  "microHypotheses": [
+    {
+      "id": "h_A_engine_001",
+      "path": "hypotheses/hyp_A_engine_v1_idempotency.json"
+    },
+    {
+      "id": "h_A_engine_002",
+      "path": "hypotheses/hyp_A_engine_v1_run_stage_refresh.json"
+    },
+    {
+      "id": "h_A_convex_001",
+      "path": "hypotheses/hyp_A_convex_v1_atomic_schedule.json"
+    },
+    {
+      "id": "h_A_config_001",
+      "path": "hypotheses/hyp_A_config_v1_immutable_snapshot.json"
+    },
+    {
+      "id": "h_A_config_002",
+      "path": "hypotheses/hyp_A_config_v1_rate_limits.json"
+    },
+    {
+      "id": "h_A_cli_001",
+      "path": "hypotheses/hyp_A_cli_v1_control_modes.json"
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}

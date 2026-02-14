@@ -1,0 +1,18 @@
+{
+  "challengeID": "nc_h_A_engine_002",
+  "microHypothesisID": "h_A_engine_002",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Only one run per experiment may be allowed, preventing run-stage drift",
+      "falsificationQueries": [
+        "search repo for constraints on multiple runs per experiment"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_engine_guarantees.md"
+      ],
+      "falsificationAnalysis": "No explicit single-run constraint identified in the surveyed files. Hypothesis remains possible; needs confirmation from product logic or schema constraints.",
+      "outcome": "Inconclusive"
+    }
+  ],
+  "overallOutcome": "Inconclusive"
+}

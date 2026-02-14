@@ -25,18 +25,25 @@ export const seedScoreRequests = zInternalMutation({
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
-    const rubric = await ctx.db
+    const rubrics = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
         q
           .eq("experiment_id", experiment._id)
           .eq("model_id", experiment.config.rubric_model_id),
       )
-      .first();
-    if (!rubric) throw new Error("Rubric not found");
-    if (rubric.parse_status !== "parsed") {
-      throw new Error("Rubric not parsed; run rubric_gen first");
+      .collect();
+    if (rubrics.length === 0) throw new Error("Rubric not found");
+
+    const parsedRubrics = rubrics
+      .filter((rubric) => rubric.parse_status === "parsed")
+      .sort((a, b) => a._creationTime - b._creationTime);
+    if (parsedRubrics.length < sample_count) {
+      throw new Error(
+        `Not enough parsed rubrics (${parsedRubrics.length}) for sample_count=${sample_count}`,
+      );
     }
+    const rubricById = new Map(parsedRubrics.map((rubric) => [rubric._id, rubric]));
 
     const evidenceQuery = ctx.db
       .query("evidences")
@@ -55,6 +62,7 @@ export const seedScoreRequests = zInternalMutation({
 
     for (let i = 0; i < sample_count; i++) {
       const display_seed = i + 1;
+      const rubric = parsedRubrics[i];
       const label_mapping = randomization.anonLabel
         ? generateLabelMapping(scale.stageCount, display_seed)
         : undefined;
@@ -78,7 +86,7 @@ export const seedScoreRequests = zInternalMutation({
           sample_id: sampleDoc._id,
           experiment_id: experiment._id,
           model_id: experiment.config.scoring_model_id,
-          rubric_id: rubric._id,
+          rubric_id: sampleDoc.rubric_id,
           evidence_id: ev._id,
           abstained: false,
           raw_verdict: null,
@@ -86,6 +94,11 @@ export const seedScoreRequests = zInternalMutation({
           parse_status: "pending",
           attempt_count: 0,
         });
+
+        const rubric = rubricById.get(sampleDoc.rubric_id);
+        if (!rubric) {
+          throw new Error("Rubric not found for sample");
+        }
 
         const prompts = buildScoreGenPrompt({
           config: experiment.config,
@@ -113,7 +126,7 @@ export const seedScoreRequests = zInternalMutation({
             system_prompt: prompts.system_prompt,
             user_prompt: prompts.user_prompt,
             experiment_id: experiment._id,
-            rubric_id: rubric._id,
+            rubric_id: sampleDoc.rubric_id,
             sample_id: sampleDoc._id,
             evidence_id: ev._id,
             request_version: 1,
