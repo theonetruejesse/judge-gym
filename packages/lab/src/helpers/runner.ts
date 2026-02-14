@@ -4,7 +4,7 @@
 import { api, httpClient, liveClient } from "./clients";
 import { trackRun } from "./tracker";
 import type { ExperimentSettings } from "./types";
-import { RUN_POLICY } from "../run_policy";
+import { RUN_POLICIES } from "../run_policy";
 
 type RunOptions = {
   settings: ExperimentSettings[];
@@ -42,21 +42,20 @@ export async function createRunsForTags(options: {
   const run_ids: string[] = [];
   const errors: string[] = [];
 
-  for (const experiment_tag of experiment_tags) {
-    try {
-      const { run_id } = await httpClient.mutation(
-        api.domain.runs.entrypoints.createRun,
-        {
-          experiment_tag,
-          stop_at_stage: undefined,
-          policy: RUN_POLICY,
-        },
-      );
-      run_ids.push(run_id);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      errors.push(`${experiment_tag}: ${message}`);
+  try {
+    const result = await httpClient.mutation(
+      api.domain.runs.entrypoints.startExperiments,
+      { tags: experiment_tags },
+    );
+    for (const started of result.started) {
+      run_ids.push(started.run_id);
     }
+    for (const failed of result.failed) {
+      errors.push(`${failed.tag}: ${failed.error}`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    errors.push(`startExperiments: ${message}`);
   }
 
   return { run_ids, errors };
@@ -119,9 +118,8 @@ export async function runExperiments(options: RunOptions) {
     const { run_id } = await httpClient.mutation(
       api.domain.runs.entrypoints.createRun,
       {
-      experiment_tag,
-      stop_at_stage: undefined,
-      policy: RUN_POLICY,
+        experiment_tag,
+        stop_at_stage: undefined,
       },
     );
 
@@ -169,7 +167,6 @@ export async function bootstrapExperiments(options: {
         {
           experiment_tag,
           stop_at_stage: undefined,
-          policy: RUN_POLICY,
         },
       );
       run_ids.push(run_id);
@@ -189,13 +186,29 @@ async function ensureExperiment(options: {
   const { experiment_tag, setting } = options;
 
   try {
-    await httpClient.mutation(api.domain.experiments.entrypoints.initExperiment, {
-      window: setting.window,
-      experiment: {
-        ...setting.experiment,
-        experiment_tag,
+    await httpClient.mutation(api.domain.configs.entrypoints.seedConfigTemplate, {
+      template_id: experiment_tag,
+      version: 1,
+      schema_version: 1,
+      config_body: {
+        window: setting.window,
+        experiment: {
+          ...setting.experiment,
+          experiment_tag,
+        },
+        policies: RUN_POLICIES,
       },
+      created_by: "lab",
+      notes: "lab seed",
     });
+
+    await httpClient.mutation(
+      api.domain.experiments.entrypoints.initExperimentFromTemplate,
+      {
+        template_id: experiment_tag,
+        version: 1,
+      },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
