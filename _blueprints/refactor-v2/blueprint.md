@@ -14,6 +14,26 @@
 - **Non-goals:** Analysis layer changes, scoring model changes, new evaluation metrics, UI work.
 - **Constraints:** Preserve current engine guarantees; schema-first; use Convex scheduler semantics safely; configs must be durable source of truth; tables assumed wiped before refactor.
 
+## 0A. Implementation Status (Updated 2026-02-14)
+
+- **Completed:**
+  - Schema/models: added `config_templates`, `run_configs`, `scheduler_state`; updated `experiments` and `runs` schema (incl. `active_run_id`, `run_config_id`); evidence view rename to `l0_*` with input normalizer; config + policy helpers.
+  - Env handling: replaced T3 env with `getEnv/requireEnv/preflightCheck`; added `.env.example`.
+  - Orchestration: engine-owned scheduler workflow; single-run invariant enforced via `experiments.active_run_id`; `startExperiment` + `startExperiments`; run state updates clear active run on completion/cancel.
+  - Config ingestion: `seedConfigTemplate`, `initExperimentFromTemplate`, run-config snapshot creation, spec signature normalization.
+  - Queue/poll/submit: policy resolved from run config; batch sizing + concurrency enforced; defaults for evidence-only requests.
+  - Evidence entrypoint: preflight check + scheduler kickoff.
+  - Lab: runner uses templates + `startExperiments`; supervisor is no-op tick; `RUN_POLICIES` exported; evidence view updated.
+  - CLI: `experiments status/watch/start` added with script entry.
+  - Tests: evidence-view enum updates in `strategies_resolve` and `prompts_scoring`.
+
+- **Remaining / Verify:**
+  - Run `bun run typecheck` at repo root (required after Convex changes).
+  - Scan for lingering legacy `evidence_view` strings or old env helper usage.
+  - Consider adding tests for single-run invariant + config immutability (not added).
+  - Migration plan doc not explicitly authored (tables wiped; optional).
+  - Check for any remaining run creation paths not setting `run_config_id` (if any).
+
 ---
 
 ## 1. Worldview Register (Single Source of Truth)
