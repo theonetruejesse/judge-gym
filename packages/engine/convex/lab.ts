@@ -8,6 +8,8 @@ import {
   ParseStatusSchema,
   modelTypeSchema,
   providerSchema,
+  ExperimentStatusSchema,
+  TaskTypeSchema,
 } from "./models/core";
 
 export const listQueuedRequests: ReturnType<typeof zQuery> = zQuery({
@@ -181,6 +183,71 @@ export const getQueueStats: ReturnType<typeof zQuery> = zQuery({
         queued: number;
       }>,
     };
+  },
+});
+
+export const listExperiments: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({}),
+  returns: z.array(
+    z.object({
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string(),
+      task_type: TaskTypeSchema,
+      status: ExperimentStatusSchema,
+      active_run_id: zid("runs").optional(),
+      window: z
+        .object({
+          start_date: z.string(),
+          end_date: z.string(),
+          country: z.string(),
+          concept: z.string(),
+        })
+        .optional(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const experiments = await ctx.db.query("experiments").collect();
+    experiments.sort((a, b) =>
+      a.experiment_tag.localeCompare(b.experiment_tag),
+    );
+
+    const windows = new Map<
+      string,
+      {
+        start_date: string;
+        end_date: string;
+        country: string;
+        concept: string;
+      }
+    >();
+
+    const results = [];
+    for (const experiment of experiments) {
+      let window = windows.get(experiment.window_id);
+      if (!window) {
+        const windowDoc = await ctx.db.get(experiment.window_id);
+        if (windowDoc) {
+          window = {
+            start_date: windowDoc.start_date,
+            end_date: windowDoc.end_date,
+            country: windowDoc.country,
+            concept: windowDoc.concept,
+          };
+          windows.set(experiment.window_id, window);
+        }
+      }
+
+      results.push({
+        experiment_id: experiment._id,
+        experiment_tag: experiment.experiment_tag,
+        task_type: experiment.task_type,
+        status: experiment.status,
+        active_run_id: experiment.active_run_id,
+        window,
+      });
+    }
+
+    return results;
   },
 });
 
