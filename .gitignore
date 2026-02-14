@@ -29,6 +29,7 @@ Thumbs.db
 
 # Build output
 dist/
+.next/
 
 # Bun
 bun.lockb
