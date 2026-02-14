@@ -125,68 +125,96 @@ Evidence windows are defined by `window.start_date`, `window.end_date`, `window.
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP.
+All experiment operations are exposed via Convex public mutations and queries. Operate via the Lab TUI, CLI, or MCP.
 
 ### Option A — Lab TUI (recommended)
 
 1. Start Convex dev server in `packages/engine`.
-2. From repo root, start the lab supervisor:
+2. From repo root, start the Lab TUI:
 
 ```bash
-bun run lab
+bun run start
 ```
 
-Optional flags:
+Use actions in the UI: `i` (init), `e` (evidence), `r` (start runs), `b` (init+run).
+
+### Option B — CLI + Manual Workflow
+
+#### 1. Seed a config template and init the experiment
+
+The durable source of truth is a config template. The simplest flow is to seed one and then init from it:
 
 ```bash
-LAB_BOOTSTRAP=1 NEW_RUN=1 bun run lab
-```
-
-### Option B — Manual workflow (CLI)
-
-#### 1. Initialize window + experiment
-
-```bash
-npx convex run domain/experiments/entrypoints:initExperiment '{
-  "window": {
-    "start_date": "2026-01-01",
-    "end_date": "2026-01-31",
-    "country": "USA",
-    "concept": "fascism"
-  },
-  "experiment": {
-    "experiment_tag": "pilot_fascism_gpt4.1",
-    "task_type": "ecc",
-    "config": {
-      "scale_size": 4,
-      "rubric_model_id": "gpt-4.1",
-      "scoring_model_id": "gpt-4.1",
-      "randomizations": ["anon-label", "rubric-order-shuffle"],
-      "evidence_view": "l2_neutralized",
-      "scoring_method": "freeform-suffix-subset",
-      "prompt_ordering": "rubric-first",
-      "abstain_enabled": true
+npx convex run domain/configs/entrypoints:seedConfigTemplate '{
+  "template_id": "pilot_fascism_gpt4.1",
+  "version": 1,
+  "schema_version": 1,
+  "config_body": {
+    "window": {
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31",
+      "country": "USA",
+      "concept": "fascism"
+    },
+    "experiment": {
+      "experiment_tag": "pilot_fascism_gpt4.1",
+      "task_type": "ecc",
+      "config": {
+        "scale_size": 4,
+        "rubric_model_id": "gpt-4.1",
+        "scoring_model_id": "gpt-4.1",
+        "randomizations": ["anon-label", "rubric-order-shuffle"],
+        "evidence_view": "l2_neutralized",
+        "scoring_method": "freeform-suffix-subset",
+        "prompt_ordering": "rubric-first",
+        "abstain_enabled": true
+      }
+    },
+    "policies": {
+      "global": {
+        "poll_interval_ms": 5000,
+        "max_batch_size": 500,
+        "max_new_batches_per_tick": 4,
+        "max_poll_per_tick": 10,
+        "max_batch_retries": 2,
+        "retry_backoff_ms": 60000,
+        "provider_models": [
+          { "provider": "openai", "models": ["gpt-4.1", "gpt-4.1-mini", "gpt-5.2", "gpt-5.2-chat"] },
+          { "provider": "anthropic", "models": ["claude-sonnet-4.5", "claude-haiku-4.5"] }
+        ]
+      }
     }
-  }
+  },
+  "created_by": "cli",
+  "notes": "manual seed"
 }'
-# → returns windowId + experimentId (reused if they already exist)
+
+npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
+  "template_id": "pilot_fascism_gpt4.1",
+  "version": 1
+}'
 ```
 
-#### 2. Create a run + queue work
+Quick path: `initExperiment` also works and will auto-seed a template with default policy if missing.
+
+#### 2. Start a run + queue work
 
 ```bash
-# Create a run
-npx convex run domain/runs/entrypoints:createRun \
+# Start a run (creates a run_config snapshot and enforces single-run invariant)
+npx convex run domain/runs/entrypoints:startExperiment \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+
+# Collect evidence (optional, if you want the engine to scrape)
+npx convex run domain/evidence/entrypoints:collectEvidenceForExperiment \
+  '{"experiment_tag":"pilot_fascism_gpt4.1","evidence_limit":10}'
 
 # Queue rubric generation
 npx convex run domain/experiments/entrypoints:queueRubricGeneration \
-  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":10}'
 
-# Queue scoring (N samples per evidence item)
+# Queue scoring (N samples × evidence items)
 npx convex run domain/experiments/entrypoints:queueScoreGeneration \
-  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":5}'
-
+  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":10,"evidence_limit":10}'
 ```
 
 #### 3. Query results
@@ -201,16 +229,27 @@ npx convex run domain/experiments/data:exportExperimentBundle \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 ```
 
+### CLI Monitoring
+
+The Lab CLI provides lightweight status/watch/start commands:
+
+```bash
+cd packages/lab
+bun --env-file ../../.env src/cli.ts experiments status pilot_fascism_gpt4.1
+bun --env-file ../../.env src/cli.ts experiments watch pilot_fascism_gpt4.1
+bun --env-file ../../.env src/cli.ts experiments start pilot_fascism_gpt4.1
+```
+
 ---
 
 ## Architecture Overview
 
-The system is split into a Convex engine (domain + platform), a Lab supervisor client, and a Python analysis package. The engine exposes a single public API surface via `packages/engine/src/index.ts`.
+The system is split into a Convex engine (domain + platform), a Lab TUI/CLI client, and a Python analysis package. The engine exposes a single public API surface via `packages/engine/src/index.ts`.
 
 ```mermaid
 flowchart LR
   subgraph Clients
-    Lab[Lab TUI + Supervisor]
+    Lab[Lab TUI + CLI]
     Analysis[Python Analysis]
   end
 
@@ -270,22 +309,22 @@ To force a new LLM call for the same identity, you must explicitly bump `request
 
 ## Policy Enforcement + Infra Sync
 
-Run policies are stored on each run and enforced server-side across the entire batch lifecycle. The Lab supervisor mirrors the policy locally for pacing, but it does not override the server.
+Run policies are stored in immutable run-config snapshots and enforced server-side across the batch lifecycle. The engine scheduler handles queueing, submission, and polling.
 
 ```mermaid
 sequenceDiagram
-  participant Lab as Lab Supervisor
-  participant Convex as Convex Workflows
+  participant Client as Lab/CLI
+  participant Convex as Engine Scheduler
   participant Providers as Provider Adapters
 
-  Lab->>Convex: createRun (policy persisted)
-  Lab->>Convex: createBatchFromQueued
-  Convex->>Providers: submitBatch (policy + rate limits enforced)
-  Lab->>Convex: pollBatch (policy cadence + retry/backoff)
-  Convex-->>Lab: status + next_poll_at
+  Client->>Convex: startExperiment (run_config snapshot)
+  Convex->>Convex: createBatchFromQueued (policy enforced)
+  Convex->>Providers: submitBatch (rate limits + policy)
+  Convex->>Providers: pollBatch (policy cadence + retry/backoff)
+  Convex-->>Client: status/watch queries
 ```
 
-If the Lab `RUN_POLICY` diverges from the persisted run policy, the server will reject batches (`policy_denied`). Keep both in sync.
+If client-side policy defaults diverge from the persisted run-config policy, the server will reject batches (`policy_denied`). Treat the run config as the source of truth.
 
 ---
 
@@ -307,6 +346,7 @@ Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/data:
 - **Domain/platform split.** Experiments, runs, and LLM ledgers live under `domain/`; providers, rate limits, and shared utilities live under `platform/`.
 - **Ledger-first batching.** LLM calls are tracked in `llm_requests`, batched in `llm_batches`, and resolved into `llm_messages`.
 - **Policy-driven orchestration.** Run policies are persisted and enforced across queue/submit/poll/finalize.
+- **Engine-owned scheduler.** The Convex scheduler drives batch queueing, submission, and polling.
 - **Stage locality.** Prompts, parsers, and workflows live under each stage folder to keep context together.
 - **Clean public surface.** External consumers import only from `packages/engine/src/index.ts`.
 
