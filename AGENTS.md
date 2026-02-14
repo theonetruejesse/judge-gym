@@ -25,6 +25,7 @@ An open-source LLM-as-Judge design space engine. Turborepo monorepo with bun (en
 - After any Convex code or schema changes, run `bun run typecheck` (root) to validate TypeScript types.
 - When a large or mixed change set is ready for review, use the `coderabbit-pr` skill.
 - After changes, update `README.md` to reflect the current project state.
+- Do not run `npx convex codegen` unless explicitly instructed.
 
 ## Analysis Development (Python / Jupyter)
 

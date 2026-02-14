@@ -28,8 +28,7 @@ judge-gym/
 │   │   │   └── lab.ts                 # Public lab queries/actions
 │   │   └── src/index.ts               # Single public export surface
 │   │
-│   ├── lab/                           # Ink TUI + CLI client
-│   │   └── src/
+│   ├── lab/                           # Next.js web app (Lab UI)
 │   │
 │   └── analysis/                      # Python — statistical analysis + visualization
 │       ├── pyproject.toml             # uv project config
@@ -91,7 +90,7 @@ uv sync
 ### Environment
 
 The setup script creates `.env.local` at repo root and a `.env` symlink for
-package scripts. Fill in your Convex URL:
+package scripts. Fill in your Convex URL (the Lab web app reads it from here):
 
 ```bash
 CONVEX_URL=https://<your-deployment>.convex.cloud
@@ -125,18 +124,24 @@ Evidence windows are defined by `window.start_date`, `window.end_date`, `window.
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Lab TUI, CLI, or MCP.
+All experiment operations are exposed via Convex public mutations and queries. Operate via the Lab web UI, Convex CLI, or MCP.
 
-### Option A — Lab TUI (recommended)
+### Option A — Lab Web App (recommended)
 
-1. Start Convex dev server in `packages/engine`.
-2. From repo root, start the Lab TUI:
+From repo root, start the engine + web app together:
 
 ```bash
-bun run start
+bun run dev
 ```
 
-Use actions in the UI: `i` (init), `e` (evidence), `r` (start runs), `b` (init+run).
+Then open `http://localhost:3000` to view the Lab UI.
+
+If you already have Convex running in another terminal, you can start just the web app:
+
+```bash
+cd packages/lab
+bun run dev
+```
 
 ### Option B — CLI + Manual Workflow
 
@@ -215,27 +220,16 @@ npx convex run domain/experiments/data:exportExperimentBundle \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 ```
 
-### CLI Monitoring
-
-The Lab CLI provides lightweight status/watch/start commands:
-
-```bash
-cd packages/lab
-bun --env-file ../../.env src/cli.ts experiments status pilot_fascism_gpt4.1
-bun --env-file ../../.env src/cli.ts experiments watch pilot_fascism_gpt4.1
-bun --env-file ../../.env src/cli.ts experiments start pilot_fascism_gpt4.1
-```
-
 ---
 
 ## Architecture Overview
 
-The system is split into a Convex engine (domain + platform), a Lab TUI/CLI client, and a Python analysis package. The engine exposes a single public API surface via `packages/engine/src/index.ts`.
+The system is split into a Convex engine (domain + platform), a Lab web app, and a Python analysis package. The engine exposes a single public API surface via `packages/engine/src/index.ts`.
 
 ```mermaid
 flowchart LR
   subgraph Clients
-    Lab[Lab TUI + CLI]
+    Lab[Lab Web UI]
     Analysis[Python Analysis]
   end
 
@@ -296,8 +290,8 @@ To force a new LLM call for the same identity, you must explicitly bump `request
 ## Engine Settings
 
 Run policy defaults and provider rate limits live in a single source of truth:
-`packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). Lab/CLI do not define
-or pass policies.
+`packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). The Lab UI does not
+define or pass policies.
 
 If you update `ENGINE_SETTINGS.run_policy`, bump the config template version to
 ensure new runs capture the updated policy. Existing run-config snapshots remain
@@ -313,7 +307,7 @@ engine scheduler handles queueing, submission, and polling.
 
 ```mermaid
 sequenceDiagram
-  participant Client as Lab/CLI
+  participant Client as Lab UI
   participant Convex as Engine Scheduler
   participant Providers as Provider Adapters
 
@@ -328,7 +322,7 @@ sequenceDiagram
 
 ## Public API Surface
 
-The only public export surface is `packages/engine/src/index.ts`. Lab and Analysis import from `@judge-gym/engine`.
+The only public export surface is `packages/engine/src/index.ts`. The Lab UI and Analysis import from `@judge-gym/engine`.
 
 ```ts
 import { api, ENGINE_SETTINGS, type ExperimentConfig } from "@judge-gym/engine";
