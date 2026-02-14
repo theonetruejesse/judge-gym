@@ -2,7 +2,12 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
-import { modelTypeSchema, providerSchema } from "../../../models/core";
+import {
+  DEFAULT_RUN_POLICY,
+  modelTypeSchema,
+  providerSchema,
+} from "../../../models/core";
+import { resolveRunPolicy } from "../../../utils/policy";
 import type { Id } from "../../../_generated/dataModel";
 import { selectBatchCandidates } from "./batch_queue_logic";
 
@@ -13,7 +18,10 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
     model: modelTypeSchema,
     max_items: z.number().min(1).max(10000),
   }),
-  returns: z.object({ batch_id: zid("llm_batches").nullable() }),
+  returns: z.object({
+    batch_id: zid("llm_batches").nullable(),
+    run_id: zid("runs").optional(),
+  }),
   handler: async (ctx, { provider, model, max_items }) => {
     const now = Date.now();
     const queued = await ctx.db
@@ -42,6 +50,40 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       : [];
     const candidates = running.concat(paused, pending);
 
+    const activeSubmitted = await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "submitted"))
+      .collect();
+    const activeRunning = await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "running"))
+      .collect();
+    const activeByRun = new Map<string, number>();
+    for (const batch of activeSubmitted.concat(activeRunning)) {
+      if (!batch.run_id) continue;
+      activeByRun.set(batch.run_id, (activeByRun.get(batch.run_id) ?? 0) + 1);
+    }
+
+    const policyByRun = new Map<string, typeof DEFAULT_RUN_POLICY>();
+    for (const run of candidates) {
+      if (policyByRun.has(run._id)) continue;
+      try {
+        const runConfig = await ctx.runQuery(
+          internal.domain.configs.repo.getRunConfig,
+          { run_config_id: run.run_config_id },
+        );
+        const resolved = resolveRunPolicy({
+          policies: runConfig.config_body.policies,
+          team_id: runConfig.config_body.team_id,
+          provider,
+          model,
+        });
+        policyByRun.set(run._id, resolved);
+      } catch {
+        policyByRun.set(run._id, DEFAULT_RUN_POLICY);
+      }
+    }
+
     const selection = selectBatchCandidates({
       queued,
       runs: candidates.map((run) => ({
@@ -50,7 +92,8 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
         desired_state: run.desired_state,
         stop_at_stage: run.stop_at_stage,
         updated_at: run.updated_at,
-        policy: run.policy,
+        policy: policyByRun.get(run._id) ?? DEFAULT_RUN_POLICY,
+        active_batches: activeByRun.get(run._id) ?? 0,
       })),
       provider,
       model,
@@ -59,7 +102,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
     });
 
     const items = selection.items;
-    if (items.length === 0) return { batch_id: null };
+    if (items.length === 0) return { batch_id: null, run_id: undefined };
 
     const batch_id = (await ctx.runMutation(
       internal.domain.llm_calls.llm_batches.createBatch,
@@ -105,6 +148,6 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       status: "queued",
     });
 
-    return { batch_id };
+    return { batch_id, run_id: selection.run_id as Id<"runs"> | undefined };
   },
 });
