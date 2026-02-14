@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildRubricGenPrompt } from "../prompts/rubric_prompts";
+import { buildRubricGenPrompt } from "../rubric_prompts";
 import { providerFor } from "../../../../../platform/utils";
 import type { Id } from "../../../../../_generated/dataModel";
 

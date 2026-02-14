@@ -286,7 +286,7 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
     if (!experiment)
       throw new Error(`Experiment not found: ${experiment_tag}`);
     return ctx.runMutation(
-      internal.domain.experiments.stages.rubric.workflows.seed_requests
+      internal.domain.experiments.stages.rubric.workflows.rubric_seed_requests
         .seedRubricRequests,
       { experiment_id: experiment._id, sample_count },
     );
@@ -313,7 +313,7 @@ export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
     if (!experiment)
       throw new Error(`Experiment not found: ${experiment_tag}`);
     return ctx.runMutation(
-      internal.domain.experiments.stages.scoring.workflows.seed_requests
+      internal.domain.experiments.stages.scoring.workflows.scoring_seed_requests
         .seedScoreRequests,
       {
         experiment_id: experiment._id,

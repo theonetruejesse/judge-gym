@@ -1,4 +1,4 @@
-import type { ExperimentConfig } from "../../../../../models/core";
+import type { ExperimentConfig } from "../../../../models/core";
 
 export function buildRubricGenPrompt(args: {
   concept: string;

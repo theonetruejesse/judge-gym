@@ -1,7 +1,7 @@
 import {
   parseSingleVerdict,
   parseSubsetVerdict,
-} from "../stages/scoring/parsers/score_parser";
+} from "../stages/scoring/scoring_parser";
 import type { ExperimentConfig } from "../../../models/core";
 
 export interface ScoringStrategy {

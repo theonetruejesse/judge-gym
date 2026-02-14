@@ -24,7 +24,7 @@ export const collectEvidenceForExperiment: ReturnType<typeof zAction> = zAction(
     );
 
     const result = await ctx.runAction(
-      internal.domain.evidence.workflows.collect.collectEvidence,
+      internal.domain.evidence.workflows.evidence_collect.collectEvidence,
       { experiment_id: experiment._id, limit: evidence_limit },
     );
     await ctx.runMutation(internal.domain.runs.workflows.scheduler.ensureScheduler, {

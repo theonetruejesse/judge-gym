@@ -15,7 +15,7 @@ import {
   abstractPrompt,
   cleanPrompt,
   neutralizePrompt,
-} from "../prompts";
+} from "../evidence_prompts";
 
 const DEFAULT_LIMIT = 15;
 const EVIDENCE_MODEL: ModelType = "gpt-4.1";
@@ -65,7 +65,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
       const remaining = Math.max(0, lim - existingAll.length);
       if (remaining > 0) {
         const results: SearchResult[] = await ctx.runAction(
-          internal.domain.evidence.search.searchNews,
+          internal.domain.evidence.evidence_search.searchNews,
           {
             concept: window.concept,
             country: window.country,
@@ -101,7 +101,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     );
 
     const queueResult = await ctx.runMutation(
-      internal.domain.evidence.workflows.collect.queueEvidenceProcessing,
+      internal.domain.evidence.workflows.evidence_collect.queueEvidenceProcessing,
       { window_id: experiment.window_id, evidence_view: evidenceView },
     );
 
@@ -217,7 +217,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
       queued_abstract: queuedAbstract,
     };
   },
-  });
+});
 
 function normalizeUrl(url: string): string {
   try {

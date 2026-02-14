@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildScoreGenPrompt } from "../prompts/scoring_prompts";
+import { buildScoreGenPrompt } from "../scoring_prompts";
 import { providerFor } from "../../../../../platform/utils";
 import { generateLabelMapping } from "../../../../../platform/utils/randomize";
 import {

@@ -4,7 +4,7 @@ import { zInternalMutation } from "../../../../../platform/utils";
 import {
   parseRubricResponse,
   parseQualityResponse,
-} from "../parsers/rubric_parser";
+} from "../rubric_parser";
 
 const ParseResultSchema = z.object({
   ok: z.boolean(),

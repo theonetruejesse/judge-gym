@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildScoreGenPrompt } from "../convex/domain/experiments/stages/scoring/prompts/scoring_prompts";
-import { buildRubricGenPrompt } from "../convex/domain/experiments/stages/rubric/prompts/rubric_prompts";
+import { buildScoreGenPrompt } from "../convex/domain/experiments/stages/scoring/scoring_prompts";
+import { buildRubricGenPrompt } from "../convex/domain/experiments/stages/rubric/rubric_prompts";
 import type { ExperimentConfig } from "../convex/models/core";
 
 const baseConfig: ExperimentConfig = {

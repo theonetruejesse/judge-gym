@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildRubricCriticPrompt } from "../prompts/rubric_prompts";
+import { buildRubricCriticPrompt } from "../rubric_prompts";
 import { providerFor } from "../../../../../platform/utils";
 
 export const enqueueRubricCritics = zInternalMutation({
