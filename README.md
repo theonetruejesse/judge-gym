@@ -191,7 +191,7 @@ npx convex run domain/runs/entrypoints:startExperiment \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
 # Collect evidence (optional, if you want the engine to scrape)
-npx convex run domain/evidence/entrypoints:collectEvidenceForExperiment \
+npx convex run domain/evidence/evidence_entrypoints:collectEvidenceForExperiment \
   '{"experiment_tag":"pilot_fascism_gpt4.1","evidence_limit":10}'
 
 # Queue rubric generation

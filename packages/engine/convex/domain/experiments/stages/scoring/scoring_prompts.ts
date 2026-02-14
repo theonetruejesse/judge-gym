@@ -1,9 +1,9 @@
-import { resolveEvidenceStrategy } from "../../../strategies/evidence.strategy";
-import { resolveOrderingStrategy } from "../../../strategies/ordering.strategy";
-import { resolveRandomizationStrategy } from "../../../strategies/randomization.strategy";
-import { resolveScaleStrategy } from "../../../strategies/scale.strategy";
-import { resolveScoringStrategy } from "../../../strategies/scoring.strategy";
-import type { ExperimentConfig } from "../../../../../models/core";
+import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
+import { resolveOrderingStrategy } from "../../strategies/ordering.strategy";
+import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
+import { resolveScaleStrategy } from "../../strategies/scale.strategy";
+import { resolveScoringStrategy } from "../../strategies/scoring.strategy";
+import type { ExperimentConfig } from "../../../../models/core";
 
 type RubricStage = { label: string; criteria: string[] };
 

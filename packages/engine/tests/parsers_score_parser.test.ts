@@ -3,7 +3,7 @@ import {
   parseSingleVerdict,
   parseSubsetVerdict,
   parseExpertAgreementResponse,
-} from "../convex/domain/experiments/stages/scoring/parsers/score_parser";
+} from "../convex/domain/experiments/stages/scoring/scoring_parser";
 
 describe("score_parser", () => {
   test("parseSingleVerdict parses single label", () => {

@@ -70,7 +70,7 @@ export async function collectEvidenceForTags(options: {
   for (const { experiment_tag, evidence_limit } of items) {
     try {
       await httpClient.action(
-        api.domain.evidence.entrypoints.collectEvidenceForExperiment,
+        api.domain.evidence.evidence_entrypoints.collectEvidenceForExperiment,
         {
           experiment_tag,
           evidence_limit,

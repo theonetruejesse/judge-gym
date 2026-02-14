@@ -5,7 +5,7 @@ import {
   parseExpertAgreementResponse,
   parseSingleVerdict,
   parseSubsetVerdict,
-} from "../parsers/score_parser";
+} from "../scoring_parser";
 
 const ParseResultSchema = z.object({
   ok: z.boolean(),

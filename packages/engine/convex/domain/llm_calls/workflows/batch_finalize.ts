@@ -149,7 +149,7 @@ export const finalizeBatch = zInternalMutation({
           const rubric = await ctx.db.get(request.rubric_id);
           if (!rubric) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.rubric.workflows.parser_gate
+            internal.domain.experiments.stages.rubric.workflows.rubric_parser_gate
               .applyRubricParse,
             {
               rubric_id: rubric._id,
@@ -175,7 +175,7 @@ export const finalizeBatch = zInternalMutation({
         case "rubric_critic": {
           if (!request.rubric_id) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.rubric.workflows.parser_gate
+            internal.domain.experiments.stages.rubric.workflows.rubric_parser_gate
               .applyRubricCriticParse,
             {
               rubric_id: request.rubric_id,
@@ -211,7 +211,7 @@ export const finalizeBatch = zInternalMutation({
             : null;
           if (!experiment) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.scoring.workflows.parser_gate
+            internal.domain.experiments.stages.scoring.workflows.scoring_parser_gate
               .applyScoreParse,
             {
               score_id: score._id,
@@ -246,7 +246,7 @@ export const finalizeBatch = zInternalMutation({
             .first();
           if (!score) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.scoring.workflows.parser_gate
+            internal.domain.experiments.stages.scoring.workflows.scoring_parser_gate
               .applyScoreCriticParse,
             {
               score_id: score._id,
@@ -295,7 +295,7 @@ export const finalizeBatch = zInternalMutation({
 
     for (const experiment_id of rubricCriticExperiments) {
       await ctx.runMutation(
-        internal.domain.experiments.stages.rubric.workflows.enqueue_critics
+        internal.domain.experiments.stages.rubric.workflows.rubric_enqueue_critics
           .enqueueRubricCritics,
         { experiment_id },
       );
@@ -311,7 +311,7 @@ export const finalizeBatch = zInternalMutation({
 
     for (const experiment_id of scoreCriticExperiments) {
       await ctx.runMutation(
-        internal.domain.experiments.stages.scoring.workflows.enqueue_critics
+        internal.domain.experiments.stages.scoring.workflows.scoring_enqueue_critics
           .enqueueScoreCritics,
         { experiment_id },
       );
