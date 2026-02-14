@@ -3,4 +3,4 @@ export * from "./batch_registry";
 export * from "./model_map";
 export * from "./provider";
 export * from "./randomize";
-export * from "./zod";
+export * from "./custom_convex_fns";

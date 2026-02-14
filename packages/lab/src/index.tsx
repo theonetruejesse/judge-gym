@@ -8,7 +8,7 @@ import {
   createRunsForTags,
   ensureExperiments,
 } from "./helpers/runner";
-import { LabSupervisor } from "./supervisor";
+const LAB_REFRESH_INTERVAL_MS = 2000;
 
 type RunRow = {
   run_id: string;
@@ -90,7 +90,6 @@ function App() {
     }
   });
 
-  const supervisor = useMemo(() => new LabSupervisor(), []);
   const settingsWithSignature = useMemo(
     () =>
       EXPERIMENT_SETTINGS.map((setting) => ({
@@ -107,12 +106,8 @@ function App() {
   const [experimentStates, setExperimentStates] = useState<ExperimentState[]>(
     [],
   );
-  const [lastTickAt, setLastTickAt] = useState<number | null>(null);
-  const [lastTickResult, setLastTickResult] = useState<{
-    submitted: number;
-    polled: number;
-    errors: string[];
-  }>({ submitted: 0, polled: 0, errors: [] });
+  const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
+  const [refreshErrors, setRefreshErrors] = useState<string[]>([]);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<string[]>([]);
   const [actionBusy, setActionBusy] = useState(false);
@@ -271,52 +266,23 @@ function App() {
         setRuns(runRows);
         setQueueStats(queue);
         setExperimentStates(states);
+        setLastRefreshAt(Date.now());
+        setRefreshErrors([]);
       } catch (err) {
         if (cancelled) return;
-        setLastTickResult((prev) => ({
-          ...prev,
-          errors: [
-            `refresh: ${err instanceof Error ? err.message : String(err)}`,
-          ],
-        }));
+        setRefreshErrors([
+          `refresh: ${err instanceof Error ? err.message : String(err)}`,
+        ]);
       }
     }
 
     void refresh();
-    const interval = setInterval(
-      refresh,
-      supervisor.getConfig().poll_interval_ms,
-    );
+    const interval = setInterval(refresh, LAB_REFRESH_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [supervisor]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loop() {
-      while (active) {
-        const result = await supervisor.tick();
-        if (!active) return;
-        setLastTickAt(Date.now());
-        setLastTickResult({
-          submitted: result.submitted_batches,
-          polled: result.polled_batches,
-          errors: result.errors,
-        });
-        await new Promise((resolve) =>
-          setTimeout(resolve, supervisor.getConfig().poll_interval_ms),
-        );
-      }
-    }
-
-    void loop();
-    return () => {
-      active = false;
-    };
-  }, [supervisor]);
+  }, []);
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -324,19 +290,14 @@ function App() {
       <Text>
         Actions: [i] init · [e] evidence · [r] create runs · [b] init+run · [q] quit
       </Text>
-      <Text>
-        Poll interval: {supervisor.getConfig().poll_interval_ms}ms · Max batch:
-        {` ${supervisor.getConfig().max_batch_size}`} · Max new/tick:
-        {` ${supervisor.getConfig().max_new_batches_per_tick}`}
-      </Text>
+      <Text>Refresh interval: {LAB_REFRESH_INTERVAL_MS}ms</Text>
       <Box marginTop={1} flexDirection="column">
         <Text>
-          Last tick: {lastTickAt ? formatTimestamp(lastTickAt) : "—"} · Submitted:{" "}
-          {lastTickResult.submitted} · Polled: {lastTickResult.polled}
+          Last refresh: {lastRefreshAt ? formatTimestamp(lastRefreshAt) : "—"}
         </Text>
-        {lastTickResult.errors.length > 0 && (
+        {refreshErrors.length > 0 && (
           <Text color="red">
-            Errors: {lastTickResult.errors.slice(0, 3).join(" | ")}
+            Refresh errors: {refreshErrors.slice(0, 3).join(" | ")}
           </Text>
         )}
         {actionStatus && (

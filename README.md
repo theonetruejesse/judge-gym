@@ -28,7 +28,7 @@ judge-gym/
 │   │   │   └── lab.ts                 # Public lab queries/actions
 │   │   └── src/index.ts               # Single public export surface
 │   │
-│   ├── lab/                           # Ink TUI + supervisor loop
+│   ├── lab/                           # Ink TUI + CLI client
 │   │   └── src/
 │   │
 │   └── analysis/                      # Python — statistical analysis + visualization
