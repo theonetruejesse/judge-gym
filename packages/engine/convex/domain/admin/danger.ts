@@ -3,6 +3,9 @@ import { zInternalAction, zInternalMutation } from "../../platform/utils";
 import { internal } from "../../_generated/api";
 
 const TABLES = [
+  "config_templates",
+  "run_configs",
+  "scheduler_state",
   "llm_batch_items",
   "llm_batches",
   "llm_messages",

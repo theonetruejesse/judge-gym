@@ -4,19 +4,18 @@ import z from "zod";
 import {
   LlmStageSchema,
   RunDesiredStateSchema,
-  RunPolicySchema,
   RunStageStatusSchema,
   RunStatusSchema,
 } from "./core";
 
 export const RunsTableSchema = z.object({
   experiment_id: zid("experiments"),
+  run_config_id: zid("run_configs"),
   status: RunStatusSchema,
   desired_state: RunDesiredStateSchema,
   stop_at_stage: LlmStageSchema.optional(),
   current_stage: LlmStageSchema.optional(),
   last_stage_completed_at: z.number().optional(),
-  policy: RunPolicySchema,
   created_at: z.number(),
   updated_at: z.number(),
 });

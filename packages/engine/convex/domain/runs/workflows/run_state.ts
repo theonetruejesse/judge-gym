@@ -30,17 +30,13 @@ export const refreshRunStageCountsForExperiment = zInternalMutation({
     stage: LlmStageSchema,
   }),
   handler: async (ctx, { experiment_id, stage }) => {
-    const runs = await ctx.db
-      .query("runs")
-      .withIndex("by_experiment", (q) =>
-        q.eq("experiment_id", experiment_id),
-      )
-      .collect();
-    const activeRun = runs
-      .filter((r) => r.status !== "complete" && r.status !== "canceled")
-      .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
-
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment?.active_run_id) return;
+    const activeRun = await ctx.db.get(experiment.active_run_id);
     if (!activeRun) return;
+    if (activeRun.status === "complete" || activeRun.status === "canceled") {
+      return;
+    }
 
     const stageRow = await ctx.db
       .query("run_stages")
@@ -87,6 +83,10 @@ export const refreshRunStageCountsForExperiment = zInternalMutation({
       await ctx.db.patch(activeRun._id, {
         status: "complete",
         updated_at: Date.now(),
+      });
+      await ctx.db.patch(experiment._id, {
+        active_run_id: undefined,
+        status: "complete",
       });
     }
   },
