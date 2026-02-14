@@ -138,7 +138,7 @@ export const RunDesiredStateSchema = z.union([
 
 export type RunDesiredState = z.infer<typeof RunDesiredStateSchema>;
 
-// --- Run policy (lab scheduling + batching knobs) ---
+// --- Run policy (scheduling + batching knobs) ---
 export const RunPolicySchema = z.object({
   poll_interval_ms: z.number().int().min(500),
   max_batch_size: z.number().int().min(1),
@@ -159,29 +159,6 @@ export const RunPolicySchema = z.object({
 });
 
 export type RunPolicy = z.infer<typeof RunPolicySchema>;
-
-export const DEFAULT_RUN_POLICY: RunPolicy = {
-  poll_interval_ms: 5_000,
-  max_batch_size: 500,
-  max_new_batches_per_tick: 4,
-  max_poll_per_tick: 10,
-  max_batch_retries: 2,
-  retry_backoff_ms: 60_000,
-  provider_models: [
-    {
-      provider: "openai",
-      models: ["gpt-4.1", "gpt-4.1-mini", "gpt-5.2", "gpt-5.2-chat"],
-    },
-    {
-      provider: "anthropic",
-      models: ["claude-sonnet-4.5", "claude-haiku-4.5"],
-    },
-    // {
-    //   provider: "google",
-    //   models: ["gemini-3.0-flash"],
-    // }, // TODO: Re-enable when Vertex integration is ready.
-  ],
-};
 
 export const PolicyOverridesSchema = z.object({
   global: RunPolicySchema,

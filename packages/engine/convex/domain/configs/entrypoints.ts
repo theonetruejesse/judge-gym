@@ -6,6 +6,7 @@ import {
   ConfigTemplatesTableSchema,
 } from "../../models/configs";
 import { normalizeConfigTemplateBody } from "../../utils/config_normalizer";
+import { ENGINE_SETTINGS } from "../../settings";
 import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import type { MutationCtx } from "../../_generated/server";
 
@@ -26,9 +27,13 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx: MutationCtx, args) => {
     const normalized = normalizeConfigTemplateBody(args.config_body);
+    const normalizedWithPolicy = {
+      ...normalized,
+      policies: { global: ENGINE_SETTINGS.run_policy },
+    };
     const spec_signature = buildExperimentSpecSignature({
-      window: normalized.window,
-      experiment: normalized.experiment,
+      window: normalizedWithPolicy.window,
+      experiment: normalizedWithPolicy.experiment,
     });
 
     const existing: z.infer<typeof ConfigTemplatesTableSchema> | null =
@@ -58,7 +63,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
       template_id: args.template_id,
       version: args.version,
       schema_version: args.schema_version,
-      config_body: normalized,
+      config_body: normalizedWithPolicy,
       created_at: Date.now(),
       created_by: args.created_by,
       notes: args.notes,

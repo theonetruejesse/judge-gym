@@ -2,11 +2,8 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
-import {
-  DEFAULT_RUN_POLICY,
-  modelTypeSchema,
-  providerSchema,
-} from "../../../models/core";
+import { modelTypeSchema, providerSchema } from "../../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../../settings";
 import { resolveRunPolicy } from "../../../utils/policy";
 import type { Id } from "../../../_generated/dataModel";
 import { selectBatchCandidates } from "./batch_queue_logic";

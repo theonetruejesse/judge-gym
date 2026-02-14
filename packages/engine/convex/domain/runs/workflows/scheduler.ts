@@ -1,7 +1,7 @@
 import z from "zod";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
-import { DEFAULT_RUN_POLICY } from "../../../models/core";
+import { DEFAULT_RUN_POLICY } from "../../../settings";
 import { resolveRunPolicy } from "../../../utils/policy";
 import type { Doc } from "../../../_generated/dataModel";
 import type { MutationCtx } from "../../../_generated/server";

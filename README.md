@@ -169,20 +169,6 @@ npx convex run domain/configs/entrypoints:seedConfigTemplate '{
         "prompt_ordering": "rubric-first",
         "abstain_enabled": true
       }
-    },
-    "policies": {
-      "global": {
-        "poll_interval_ms": 5000,
-        "max_batch_size": 500,
-        "max_new_batches_per_tick": 4,
-        "max_poll_per_tick": 10,
-        "max_batch_retries": 2,
-        "retry_backoff_ms": 60000,
-        "provider_models": [
-          { "provider": "openai", "models": ["gpt-4.1", "gpt-4.1-mini", "gpt-5.2", "gpt-5.2-chat"] },
-          { "provider": "anthropic", "models": ["claude-sonnet-4.5", "claude-haiku-4.5"] }
-        ]
-      }
     }
   },
   "created_by": "cli",
@@ -195,7 +181,7 @@ npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
 }'
 ```
 
-Quick path: `initExperiment` also works and will auto-seed a template with default policy if missing.
+Quick path: `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
 
 #### 2. Start a run + queue work
 
@@ -307,9 +293,23 @@ To force a new LLM call for the same identity, you must explicitly bump `request
 
 ---
 
+## Engine Settings
+
+Run policy defaults and provider rate limits live in a single source of truth:
+`packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). Lab/CLI do not define
+or pass policies.
+
+If you update `ENGINE_SETTINGS.run_policy`, bump the config template version to
+ensure new runs capture the updated policy. Existing run-config snapshots remain
+unchanged for reproducibility.
+
+---
+
 ## Policy Enforcement + Infra Sync
 
-Run policies are stored in immutable run-config snapshots and enforced server-side across the batch lifecycle. The engine scheduler handles queueing, submission, and polling.
+Run policies are stored in immutable run-config snapshots (derived from
+`ENGINE_SETTINGS`) and enforced server-side across the batch lifecycle. The
+engine scheduler handles queueing, submission, and polling.
 
 ```mermaid
 sequenceDiagram
@@ -324,8 +324,6 @@ sequenceDiagram
   Convex-->>Client: status/watch queries
 ```
 
-If client-side policy defaults diverge from the persisted run-config policy, the server will reject batches (`policy_denied`). Treat the run config as the source of truth.
-
 ---
 
 ## Public API Surface
@@ -333,7 +331,7 @@ If client-side policy defaults diverge from the persisted run-config policy, the
 The only public export surface is `packages/engine/src/index.ts`. Lab and Analysis import from `@judge-gym/engine`.
 
 ```ts
-import { api, RunPolicySchema, type ExperimentConfig } from "@judge-gym/engine";
+import { api, ENGINE_SETTINGS, type ExperimentConfig } from "@judge-gym/engine";
 ```
 
 Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/data:exportExperimentBundle`), which is the stable boundary for downstream data workflows.
@@ -346,6 +344,7 @@ Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/data:
 - **Domain/platform split.** Experiments, runs, and LLM ledgers live under `domain/`; providers, rate limits, and shared utilities live under `platform/`.
 - **Ledger-first batching.** LLM calls are tracked in `llm_requests`, batched in `llm_batches`, and resolved into `llm_messages`.
 - **Policy-driven orchestration.** Run policies are persisted and enforced across queue/submit/poll/finalize.
+- **Engine-owned settings.** Policy defaults and rate limits are centralized in `packages/engine/convex/settings.ts`.
 - **Engine-owned scheduler.** The Convex scheduler drives batch queueing, submission, and polling.
 - **Stage locality.** Prompts, parsers, and workflows live under each stage folder to keep context together.
 - **Clean public surface.** External consumers import only from `packages/engine/src/index.ts`.

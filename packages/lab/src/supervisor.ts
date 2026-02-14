@@ -1,5 +1,8 @@
-import { RunPolicySchema, type RunPolicy } from "@judge-gym/engine";
-import { RUN_POLICIES } from "./run_policy";
+import {
+  DEFAULT_RUN_POLICY,
+  RunPolicySchema,
+  type RunPolicy,
+} from "@judge-gym/engine";
 
 export type ProviderModelSpec = {
   provider: RunPolicy["provider_models"][number]["provider"];
@@ -14,7 +17,7 @@ export type SupervisorTickResult = {
   errors: string[];
 };
 
-export const DEFAULT_SUPERVISOR_CONFIG: SupervisorConfig = RUN_POLICIES.global;
+export const DEFAULT_SUPERVISOR_CONFIG: SupervisorConfig = DEFAULT_RUN_POLICY;
 
 export class LabSupervisor {
   private config: SupervisorConfig;
