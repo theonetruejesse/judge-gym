@@ -4,15 +4,12 @@ import type {
   BatchRequestInput,
   BatchSubmitResult,
 } from "../utils/batch_adapter_registry";
-import { env } from "../../env";
+import { requireEnv } from "../../env";
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 function requireKey() {
-  if (!env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is required for OpenAI batch calls");
-  }
-  return env.OPENAI_API_KEY;
+  return requireEnv("OPENAI_API_KEY");
 }
 
 function toJsonl(requests: BatchRequestInput[]): string {

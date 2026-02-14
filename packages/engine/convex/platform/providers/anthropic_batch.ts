@@ -4,15 +4,12 @@ import type {
   BatchRequestInput,
   BatchSubmitResult,
 } from "../utils/batch_adapter_registry";
-import { env } from "../../env";
+import { requireEnv } from "../../env";
 
 const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 
 function requireKey() {
-  if (!env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is required for Anthropic batch calls");
-  }
-  return env.ANTHROPIC_API_KEY;
+  return requireEnv("ANTHROPIC_API_KEY");
 }
 
 async function fetchJson(url: string, init: RequestInit) {

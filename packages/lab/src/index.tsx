@@ -196,8 +196,8 @@ function App() {
       const evidenceTotal = state.evidence_total ?? 0;
       const evidenceNeutralized = state.evidence_neutralized ?? 0;
       const needsNeutralized =
-        setting.experiment.config.evidence_view === "neutralized" ||
-        setting.experiment.config.evidence_view === "abstracted";
+        setting.experiment.config.evidence_view === "l2_neutralized" ||
+        setting.experiment.config.evidence_view === "l3_abstracted";
       const hasEnoughEvidence = evidenceTotal >= setting.evidence_limit;
       const hasEnoughNeutralized = !needsNeutralized
         ? true

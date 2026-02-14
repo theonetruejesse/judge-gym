@@ -18,7 +18,7 @@ export const EXPERIMENT_SETTINGS: ExperimentSettings[] = [
         rubric_model_id: "gpt-4.1",
         scoring_model_id: "gpt-4.1",
         randomizations: ["anon-label", "rubric-order-shuffle"],
-        evidence_view: "neutralized",
+        evidence_view: "l2_neutralized",
         scoring_method: "freeform-suffix-subset",
         prompt_ordering: "rubric-first",
         abstain_enabled: true,

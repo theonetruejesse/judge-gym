@@ -9,7 +9,7 @@ const config: ExperimentConfig = {
   rubric_model_id: "gpt-4.1",
   scoring_model_id: "gpt-4.1",
   randomizations: ["anon-label", "rubric-order-shuffle"],
-  evidence_view: "raw",
+  evidence_view: "l0_raw",
   scoring_method: "freeform-suffix-subset",
   prompt_ordering: "evidence-first",
   abstain_enabled: true,
@@ -33,13 +33,13 @@ describe("strategies resolve", () => {
   });
 
   test("resolveEvidenceStrategy maps evidence_view to content field", () => {
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "raw" }))
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l0_raw" }))
       .toEqual({ contentField: "raw_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "cleaned" }))
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l1_cleaned" }))
       .toEqual({ contentField: "cleaned_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "neutralized" }))
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l2_neutralized" }))
       .toEqual({ contentField: "neutralized_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "abstracted" }))
+    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l3_abstracted" }))
       .toEqual({ contentField: "abstracted_content" });
   });
 

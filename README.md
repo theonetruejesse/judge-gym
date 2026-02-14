@@ -112,7 +112,7 @@ Rubric and scoring models are selected separately via the experiment config:
 | Task Type       | `task_type`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
 | Scoring Method  | `config.scoring_method`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
 | Scale Size      | `config.scale_size`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View   | `config.evidence_view`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
+| Evidence View   | `config.evidence_view`   | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                     | `l2_neutralized`                        |
 | Randomizations  | `config.randomizations`  | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
 | Prompt Ordering | `config.prompt_ordering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
 | Abstain Gate    | `config.abstain_enabled` | `true` / `false`                                                                                                                 | `true`                                  |
@@ -162,7 +162,7 @@ npx convex run domain/experiments/entrypoints:initExperiment '{
       "rubric_model_id": "gpt-4.1",
       "scoring_model_id": "gpt-4.1",
       "randomizations": ["anon-label", "rubric-order-shuffle"],
-      "evidence_view": "neutralized",
+      "evidence_view": "l2_neutralized",
       "scoring_method": "freeform-suffix-subset",
       "prompt_ordering": "rubric-first",
       "abstain_enabled": true

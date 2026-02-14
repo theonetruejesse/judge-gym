@@ -1,4 +1,5 @@
-import type { ExperimentConfig, TaskType } from "../models/core";
+import type { ExperimentConfigInput, TaskType } from "../models/core";
+import { normalizeEvidenceView } from "../models/core";
 
 type GroundTruth = {
   source: string;
@@ -9,7 +10,7 @@ type GroundTruth = {
 type ExperimentSpec = {
   experiment_tag: string;
   task_type: TaskType;
-  config: ExperimentConfig;
+  config: ExperimentConfigInput;
   ground_truth?: GroundTruth;
   hypothetical_frame?: string;
   label_neutralization_mode?: "none" | "mask" | "generic";
@@ -41,13 +42,13 @@ function normalizeGroundTruth(ground_truth?: GroundTruth) {
   return normalized;
 }
 
-function normalizeConfig(config: ExperimentConfig) {
+function normalizeConfig(config: ExperimentConfigInput) {
   return {
     scale_size: config.scale_size,
     rubric_model_id: config.rubric_model_id,
     scoring_model_id: config.scoring_model_id,
     randomizations: [...config.randomizations],
-    evidence_view: config.evidence_view,
+    evidence_view: normalizeEvidenceView(config.evidence_view),
     scoring_method: config.scoring_method,
     prompt_ordering: config.prompt_ordering,
     abstain_enabled: config.abstain_enabled,

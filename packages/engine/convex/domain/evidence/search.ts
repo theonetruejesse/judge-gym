@@ -3,9 +3,7 @@
 import Firecrawl from "@mendable/firecrawl-js";
 import z from "zod";
 import { zInternalAction } from "../../platform/utils";
-import { env } from "../../env";
-
-const firecrawl = new Firecrawl({ apiKey: env.FIRECRAWL_API_KEY ?? "" });
+import { getEnv, requireEnv } from "../../env";
 
 export const searchNews = zInternalAction({
   args: z.object({
@@ -23,10 +21,8 @@ export const searchNews = zInternalAction({
     }),
   ),
   handler: async (_ctx, args) => {
-    if (!env.FIRECRAWL_API_KEY) {
-      throw new Error("FIRECRAWL_API_KEY is not set");
-    }
-
+    const apiKey = requireEnv("FIRECRAWL_API_KEY");
+    const firecrawl = new Firecrawl({ apiKey });
     const news = await searchHeadlines(args);
 
     return news
@@ -57,7 +53,12 @@ interface SearchOptions {
 
 async function searchHeadlines(options: SearchOptions) {
   const { concept, country, start_date, end_date, limit } = options;
+  const apiKey = getEnv("FIRECRAWL_API_KEY");
+  if (!apiKey) {
+    throw new Error("FIRECRAWL_API_KEY is not set");
+  }
 
+  const firecrawl = new Firecrawl({ apiKey });
   const response = await firecrawl.search(`${concept} ${country} news`, {
     limit,
     sources: ["news"],

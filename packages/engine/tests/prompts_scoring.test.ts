@@ -8,7 +8,7 @@ const baseConfig: ExperimentConfig = {
   rubric_model_id: "gpt-4.1",
   scoring_model_id: "gpt-4.1",
   randomizations: [],
-  evidence_view: "raw",
+  evidence_view: "l0_raw",
   scoring_method: "freeform-suffix-single",
   prompt_ordering: "rubric-first",
   abstain_enabled: true,
