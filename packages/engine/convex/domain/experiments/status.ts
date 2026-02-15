@@ -8,9 +8,10 @@ import {
 } from "../../models/core";
 
 export const getExperimentStatus = zQuery({
-  args: z.object({ experiment_tag: z.string() }),
+  args: z.object({ experiment_id: zid("experiments") }),
   returns: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
+    experiment_tag: z.string().optional(),
     exists: z.boolean(),
     spec_signature: z.string().optional(),
     window: z
@@ -43,14 +44,11 @@ export const getExperimentStatus = zQuery({
       })
       .optional(),
   }),
-  handler: async (ctx, { experiment_tag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) => q.eq("experiment_tag", experiment_tag))
-      .unique();
+  handler: async (ctx, { experiment_id }) => {
+    const experiment = await ctx.db.get(experiment_id);
 
     if (!experiment) {
-      return { experiment_tag, exists: false };
+      return { experiment_id, exists: false };
     }
 
     const window = await ctx.db.get(experiment.window_id);
@@ -86,7 +84,8 @@ export const getExperimentStatus = zQuery({
       .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
 
     return {
-      experiment_tag,
+      experiment_id,
+      experiment_tag: experiment.experiment_tag,
       exists: true,
       spec_signature: experiment.spec_signature,
       window: window

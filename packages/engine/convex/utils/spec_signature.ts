@@ -2,7 +2,7 @@ import type { ExperimentConfigInput, TaskType } from "../models/core";
 import { normalizeEvidenceView } from "../models/core";
 
 type ExperimentSpec = {
-  experiment_tag: string;
+  experiment_tag?: string;
   task_type: TaskType;
   config: ExperimentConfigInput;
 };
@@ -45,7 +45,6 @@ export function buildExperimentSpecSignature(
   const normalized: {
     evidence_window: EvidenceWindowSpec;
     experiment: {
-      experiment_tag: string;
       task_type: TaskType;
       config: ReturnType<typeof normalizeConfig>;
     };
@@ -58,7 +57,6 @@ export function buildExperimentSpecSignature(
       model_id: evidence_window.model_id,
     },
     experiment: {
-      experiment_tag: experiment.experiment_tag,
       task_type: experiment.task_type,
       config: normalizeConfig(experiment.config),
     },

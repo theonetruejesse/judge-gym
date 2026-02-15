@@ -230,7 +230,7 @@ export default function ExperimentEditorPage() {
                   name="experiment_tag"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tag</FormLabel>
+                      <FormLabel>Tag (Optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="ecc-fascism-jan" {...field} />
                       </FormControl>

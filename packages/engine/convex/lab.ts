@@ -97,7 +97,7 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
 
 export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     evidence_batch_id: zid("evidence_batches"),
   }),
   returns: z.object({
@@ -165,7 +165,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
 
 export const startExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
@@ -195,7 +195,7 @@ export const updateRunState: ReturnType<typeof zMutation> = zMutation({
 
 export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     sample_count: z.number().min(1).optional(),
   }),
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
@@ -209,7 +209,7 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
 
 export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
   }),
   returns: z.object({
     samples_created: z.number(),
@@ -233,6 +233,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: z.string(),
       concept: z.string(),
       model_id: modelTypeSchema,
+      window_tag: z.string().optional(),
       evidence_count: z.number(),
     }),
   ),
@@ -338,7 +339,7 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
 });
 
 export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ experiment_tag: z.string() }),
+  args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, args) => {
     return ctx.runQuery(api.domain.experiments.data.getExperimentSummary, args);
   },
@@ -353,7 +354,7 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
 
 export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     cleanup_window: z.boolean().optional(),
   }),
   returns: z.object({
@@ -563,12 +564,13 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(
     z.object({
       experiment_id: zid("experiments"),
-      experiment_tag: z.string(),
+      experiment_tag: z.string().optional(),
       task_type: TaskTypeSchema,
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
       evidence_batch_id: zid("evidence_batches").optional(),
       window_id: zid("windows"),
+      window_tag: z.string().optional(),
       evidence_window: z
         .object({
           start_date: z.string(),
@@ -582,9 +584,11 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   ),
   handler: async (ctx) => {
     const experiments = await ctx.db.query("experiments").collect();
-    experiments.sort((a, b) =>
-      a.experiment_tag.localeCompare(b.experiment_tag),
-    );
+    experiments.sort((a, b) => {
+      const left = a.experiment_tag ?? a._id;
+      const right = b.experiment_tag ?? b._id;
+      return left.localeCompare(right);
+    });
 
     const windows = new Map<
       string,
@@ -594,6 +598,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         country: string;
         concept: string;
         model_id: z.infer<typeof modelTypeSchema>;
+        window_tag?: string;
       }
     >();
 
@@ -609,6 +614,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
             country: windowDoc.country,
             concept: windowDoc.concept,
             model_id: windowDoc.model_id,
+            window_tag: windowDoc.window_tag,
           };
           windows.set(experiment.window_id, window);
         }
@@ -622,6 +628,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         active_run_id: experiment.active_run_id,
         evidence_batch_id: experiment.evidence_batch_id,
         window_id: experiment.window_id,
+        window_tag: window?.window_tag,
         evidence_window: window,
       });
     }
@@ -632,11 +639,12 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
 
 export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
   args: z.object({
-    experiment_tags: z.array(z.string()),
+    experiment_ids: z.array(zid("experiments")),
   }),
   returns: z.array(
     z.object({
-      experiment_tag: z.string(),
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string().optional(),
       exists: z.boolean(),
       spec_signature: z.string().optional(),
       window_id: zid("windows").optional(),
@@ -679,18 +687,13 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         .optional(),
     }),
   ),
-  handler: async (ctx, { experiment_tags }) => {
+  handler: async (ctx, { experiment_ids }) => {
     const results = [];
-    for (const experiment_tag of experiment_tags) {
-      const experiment = await ctx.db
-        .query("experiments")
-        .withIndex("by_experiment_tag", (q) =>
-          q.eq("experiment_tag", experiment_tag),
-        )
-        .unique();
+    for (const experiment_id of experiment_ids) {
+      const experiment = await ctx.db.get(experiment_id);
       if (!experiment) {
         results.push({
-          experiment_tag,
+          experiment_id,
           exists: false,
         });
         continue;
@@ -739,7 +742,8 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
 
       results.push({
-        experiment_tag,
+        experiment_id,
+        experiment_tag: experiment.experiment_tag,
         exists: true,
         spec_signature: experiment.spec_signature,
         window_id: experiment.window_id,
@@ -791,7 +795,8 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(
     z.object({
       run_id: zid("runs"),
-      experiment_tag: z.string(),
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string().optional(),
       status: z.string(),
       desired_state: z.string(),
       current_stage: LlmStageSchema.optional(),
@@ -814,18 +819,19 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
       .collect();
 
     const all = runs.concat(paused, pending);
-    const experiments = new Map<string, string>();
+    const experiments = new Map<string, string | undefined>();
 
     for (const run of all) {
       if (!experiments.has(run.experiment_id)) {
         const experiment = await ctx.db.get(run.experiment_id);
-        experiments.set(run.experiment_id, experiment?.experiment_tag ?? run.experiment_id);
+        experiments.set(run.experiment_id, experiment?.experiment_tag);
       }
     }
 
     return all.map((run) => ({
       run_id: run._id,
-      experiment_tag: experiments.get(run.experiment_id) ?? run.experiment_id,
+      experiment_id: run.experiment_id,
+      experiment_tag: experiments.get(run.experiment_id),
       status: run.status,
       desired_state: run.desired_state,
       current_stage: run.current_stage ?? undefined,

@@ -63,6 +63,9 @@ describe("lab facade integration", () => {
         window_id,
         experiment: buildExperimentSpec(experiment_tag, concept),
       });
+      if (!initResult.experiment_id) {
+        throw new Error("Missing experiment_id");
+      }
       experiment_id = initResult.experiment_id;
 
       const windows = (await client.query(api.lab.listEvidenceWindows, {})) as Array<{
@@ -71,7 +74,7 @@ describe("lab facade integration", () => {
       expect(windows.some((w) => w.window_id === window_id)).toBe(true);
 
       const start = await client.mutation(api.lab.startExperiment, {
-        experiment_tag,
+        experiment_id,
       });
 
       if (hasRunEnvs) {
@@ -84,7 +87,7 @@ describe("lab facade integration", () => {
     } finally {
       if (experiment_id) {
         await client.mutation(api.lab.resetExperiment, {
-          experiment_tag,
+          experiment_id,
           cleanup_window: true,
         });
       }
@@ -109,6 +112,9 @@ describe("lab facade integration", () => {
         window_id,
         experiment: buildExperimentSpec(experiment_tag, concept),
       });
+      if (!initResult.experiment_id) {
+        throw new Error("Missing experiment_id");
+      }
       experiment_id = initResult.experiment_id;
 
       await client.mutation(api.lab.insertEvidenceBatch, {
@@ -145,7 +151,7 @@ describe("lab facade integration", () => {
       expect(items.length).toBe(2);
 
       const bound = await client.mutation(api.lab.bindExperimentEvidence, {
-        experiment_tag,
+        experiment_id,
         evidence_batch_id: collected.evidence_batch_id,
       });
       expect(bound.bound_count).toBe(2);
@@ -159,13 +165,13 @@ describe("lab facade integration", () => {
       expect(experimentEvidence.length).toBe(2);
 
       const states = await client.query(api.lab.getExperimentStates, {
-        experiment_tags: [experiment_tag],
+        experiment_ids: [experiment_id],
       });
       expect(states[0].evidence_batch?.evidence_count).toBe(2);
     } finally {
       if (experiment_id) {
         await client.mutation(api.lab.resetExperiment, {
-          experiment_tag,
+          experiment_id,
           cleanup_window: true,
         });
       }

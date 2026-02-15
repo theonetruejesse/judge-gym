@@ -18,14 +18,14 @@ const DEFAULT_RUN_STAGES = [
 
 export const createRun = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
   returns: z.object({ run_id: zid("runs") }),
-  handler: async (ctx, { experiment_tag, stop_at_stage, stages }) => {
+  handler: async (ctx, { experiment_id, stop_at_stage, stages }) => {
     const result = await startExperimentInternal(ctx, {
-      experiment_tag,
+      experiment_id,
       stop_at_stage,
       stages,
     });
@@ -38,7 +38,7 @@ export const createRun = zMutation({
 
 export const startExperiment = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
@@ -52,30 +52,35 @@ export const startExperiment = zMutation({
 
 export const startExperiments = zMutation({
   args: z.object({
-    tags: z.array(z.string()),
+    experiment_ids: z.array(zid("experiments")),
   }),
   returns: z.object({
     started: z.array(
-      z.object({ tag: z.string(), run_id: zid("runs") }),
+      z.object({ experiment_id: zid("experiments"), run_id: zid("runs") }),
     ),
     failed: z.array(
-      z.object({ tag: z.string(), error: z.string() }),
+      z.object({ experiment_id: zid("experiments"), error: z.string() }),
     ),
   }),
-  handler: async (ctx, { tags }) => {
-    const started: Array<{ tag: string; run_id: Id<"runs"> }> = [];
-    const failed: Array<{ tag: string; error: string }> = [];
+  handler: async (ctx, { experiment_ids }) => {
+    const started: Array<{ experiment_id: Id<"experiments">; run_id: Id<"runs"> }> =
+      [];
+    const failed: Array<{ experiment_id: Id<"experiments">; error: string }> =
+      [];
 
-    for (const tag of tags) {
+    for (const experiment_id of experiment_ids) {
       const result = await startExperimentInternal(ctx, {
-        experiment_tag: tag,
+        experiment_id,
         stop_at_stage: undefined,
         stages: undefined,
       });
       if (result.ok && result.run_id) {
-        started.push({ tag, run_id: result.run_id });
+        started.push({ experiment_id, run_id: result.run_id });
       } else {
-        failed.push({ tag, error: result.error ?? "run_start_failed" });
+        failed.push({
+          experiment_id,
+          error: result.error ?? "run_start_failed",
+        });
       }
     }
 
@@ -160,19 +165,14 @@ export const setRunCurrentStage = zMutation({
 async function startExperimentInternal(
   ctx: MutationCtx,
   args: {
-    experiment_tag: string;
+    experiment_id: Id<"experiments">;
     stop_at_stage?: z.infer<typeof LlmStageSchema>;
     stages?: z.infer<typeof LlmStageSchema>[];
   },
 ): Promise<{ ok: boolean; run_id?: Id<"runs">; error?: string }> {
   try {
-    const { experiment_tag, stop_at_stage, stages } = args;
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
+    const { experiment_id, stop_at_stage, stages } = args;
+    const experiment = await ctx.db.get(experiment_id);
     if (!experiment) {
       return { ok: false, error: "experiment_not_found" };
     }

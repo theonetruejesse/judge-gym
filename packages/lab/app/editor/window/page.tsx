@@ -34,9 +34,11 @@ type EvidenceWindowItem = {
   country: string;
   concept: string;
   model_id: string;
+  window_tag?: string;
 };
 
 const formSchema = z.object({
+  window_tag: z.string().optional(),
   concept: z.string().min(1, "Concept is required."),
   country: z.string().min(1, "Country is required."),
   start_date: z.string().min(1, "Start date is required."),
@@ -47,6 +49,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const DEFAULT_WINDOW: FormValues = {
+  window_tag: "",
   concept: "",
   country: "USA",
   start_date: "",
@@ -104,8 +107,12 @@ export default function EvidenceWindowEditorPage() {
       return;
     }
     try {
+      const window_tag = parsed.data.window_tag?.trim() || undefined;
       const result = await initEvidenceWindow({
-        evidence_window: parsed.data,
+        evidence_window: {
+          ...parsed.data,
+          window_tag,
+        },
       });
       setSelectedWindowId(result.window_id);
       setWindowStatus(
@@ -155,6 +162,19 @@ export default function EvidenceWindowEditorPage() {
               onSubmit={form.handleSubmit(handleCreateWindow)}
               className="mt-6 grid gap-4"
             >
+              <FormField
+                control={form.control}
+                name="window_tag"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Window Tag (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="pilot_fascism_2026_01" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="concept"
@@ -247,7 +267,7 @@ export default function EvidenceWindowEditorPage() {
               <SelectContent>
                 {windows?.map((window) => (
                   <SelectItem key={window.window_id} value={window.window_id}>
-                    {window.concept} · {window.country} · {window.start_date}
+                    {window.window_tag ?? window.concept} · {window.country} · {window.start_date}
                   </SelectItem>
                 ))}
               </SelectContent>

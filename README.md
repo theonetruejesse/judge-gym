@@ -213,7 +213,7 @@ npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
 
 Quick path: `initEvidenceWindow` + `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
 
-Both init flows return an `experiment_id`. Use that ID for all subsequent operations (tags are display-only).
+Both init flows return an `experiment_id`. Use that ID for all subsequent operations. `experiment_tag` and `window_tag` are optional display-only fields.
 
 #### 2. Start a run + queue work
 

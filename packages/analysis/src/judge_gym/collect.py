@@ -1,7 +1,7 @@
 """
 Pull experiment data from Convex into tidy DataFrames.
 
-One HTTP call per experiment tag via ``data:exportExperimentBundle``.
+One HTTP call per experiment ID via ``data:exportExperimentBundle``.
 Python side just reshapes the JSON—no per-table queries, no joins.
 
 Usage::
@@ -9,13 +9,13 @@ Usage::
     from judge_gym.collect import pull_experiments
 
     data = pull_experiments([
-        "ecc-fascism-usa-trial-gpt-4.1",
-        "ecc-fascism-usa-trial-gemini-3.0-flash",
+        "expt_123",
+        "expt_456",
     ])
 
     data.scores      # DataFrame — one row per score, all experiments
     data.evidence    # DataFrame — evidence_id → title + label (E1…En)
-    data.experiments # dict[tag, dict] — experiment-level metadata & config
+    data.experiments # dict[id, dict] — experiment-level metadata & config
     data.scale_size  # int — ordinal scale (e.g. 4)
 """
 
@@ -65,7 +65,8 @@ class ExperimentData:
     scores: pd.DataFrame
     """One row per score across all requested experiments.
 
-    Columns include experiment-level fields (experiment_tag, rubric_model_id,
+    Columns include experiment-level fields (experiment_id, experiment_tag,
+    rubric_model_id,
     scoring_model_id, concept, task_type, config.*) plus per-score fields
     (evidence_id, abstained,
     decoded_scores, expert_agreement_prob, …).
@@ -78,10 +79,10 @@ class ExperimentData:
     """Unique rubrics with stages and critic quality stats."""
 
     experiments: dict[str, dict[str, Any]]
-    """Experiment-level metadata keyed by tag (model, concept, config, …)."""
+    """Experiment-level metadata keyed by experiment_id."""
 
-    tags: list[str] = field(default_factory=list)
-    """The experiment tags that were pulled."""
+    experiment_ids: list[str] = field(default_factory=list)
+    """The experiment IDs that were pulled."""
 
     # -- convenience helpers ------------------------------------------------
 
@@ -90,9 +91,9 @@ class ExperimentData:
         """The ordinal scale size (e.g. 4) shared across experiments."""
         return int(self.scores["scale_size"].dropna().iloc[0])
 
-    def scores_for(self, tag: str) -> pd.DataFrame:
-        """Return scores filtered to a single experiment tag."""
-        return self.scores[self.scores["experiment_tag"] == tag].copy()
+    def scores_for(self, experiment_id: str) -> pd.DataFrame:
+        """Return scores filtered to a single experiment ID."""
+        return self.scores[self.scores["experiment_id"] == experiment_id].copy()
 
     def label_for(self, evidence_id: str) -> str:
         """Return the short label (e.g. 'E3') for an evidence ID."""
@@ -122,7 +123,8 @@ def _flatten_bundle(bundle: dict[str, Any]) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     # Stamp experiment-level columns onto every score row
-    df["experiment_tag"] = exp["experiment_tag"]
+    df["experiment_id"] = exp["experiment_id"]
+    df["experiment_tag"] = exp.get("experiment_tag")
     df["rubric_model_id"] = exp.get("rubric_model_id")
     df["scoring_model_id"] = exp.get("scoring_model_id")
     df["concept"] = exp["concept"]
@@ -150,31 +152,33 @@ def _flatten_bundle(bundle: dict[str, Any]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
+def pull_experiments(experiment_ids: list[str]) -> ExperimentData:
     """Pull one or more experiments and return a tidy :class:`ExperimentData`.
 
-    Each tag issues a single ``data:exportExperimentBundle`` query that
+    Each ID issues a single ``data:exportExperimentBundle`` query that
     returns experiment metadata, evidence titles, and flat score rows.
 
     Parameters
     ----------
-    experiment_tags:
-        List of ``experiment_tag`` strings, e.g.
-        ``["ecc-fascism-usa-trial-gpt-4.1"]``.
+    experiment_ids:
+        List of experiment IDs, e.g. ``["expt_123"]``.
 
     Returns
     -------
     ExperimentData
         Container with ``.scores``, ``.evidence``, ``.experiments``,
-        and ``.tags``.
+        and ``.experiment_ids``.
     """
     score_frames: list[pd.DataFrame] = []
     evidence_rows: list[dict[str, str]] = []
     rubric_frames: list[pd.DataFrame] = []
     experiments: dict[str, dict[str, Any]] = {}
 
-    for tag in experiment_tags:
-        bundle = _query("data:exportExperimentBundle", {"experiment_tag": tag})
+    for experiment_id in experiment_ids:
+        bundle = _query(
+            "data:exportExperimentBundle",
+            {"experiment_id": experiment_id},
+        )
 
         # Scores
         score_frames.append(_flatten_bundle(bundle))
@@ -194,7 +198,7 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
             rubric_frames.append(pd.DataFrame(bundle["rubrics"]))
 
         # Experiment metadata
-        experiments[tag] = bundle["experiment"]
+        experiments[experiment_id] = bundle["experiment"]
 
     # --- Combine DataFrames ------------------------------------------------
     scores = pd.concat(score_frames, ignore_index=True)
@@ -217,5 +221,5 @@ def pull_experiments(experiment_tags: list[str]) -> ExperimentData:
             else pd.DataFrame()
         ),
         experiments=experiments,
-        tags=experiment_tags,
+        experiment_ids=experiment_ids,
     )
