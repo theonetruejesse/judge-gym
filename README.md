@@ -16,6 +16,9 @@ judge-gym/
 │   ├── engine/                        # Convex backend — the design space engine
 │   │   ├── convex/
 │   │   │   ├── domain/
+│   │   │   │   ├── admin/             # Admin-only utilities
+│   │   │   │   ├── configs/           # Config templates + run configs
+│   │   │   │   ├── evidence/          # Evidence collection + windows
 │   │   │   │   ├── experiments/       # Experiment entrypoints + stage-local workflows
 │   │   │   │   ├── runs/              # Run lifecycle + stage accounting
 │   │   │   │   └── llm_calls/         # Ledger: requests, batches, messages
@@ -169,7 +172,7 @@ bun run dev
 The durable source of truth is a config template. The simplest flow is to seed one and then init from it:
 
 ```bash
-npx convex run domain/configs/entrypoints:seedConfigTemplate '{
+npx convex run domain/configs/configs_entrypoints:seedConfigTemplate '{
   "template_id": "pilot_fascism_gpt4.1",
   "version": 1,
   "schema_version": 1,
@@ -205,7 +208,7 @@ npx convex run domain/configs/entrypoints:seedConfigTemplate '{
   "notes": "manual seed"
 }'
 
-npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
+npx convex run domain/experiments/experiments_entrypoints:initExperimentFromTemplate '{
   "template_id": "pilot_fascism_gpt4.1",
   "version": 1
 }'
@@ -219,7 +222,7 @@ Both init flows return an `experiment_id`. Use that ID for all subsequent operat
 
 ```bash
 # Start a run (snapshots run policy and enforces single-run invariant)
-npx convex run domain/runs/entrypoints:startExperiment \
+npx convex run domain/runs/runs_entrypoints:startExperiment \
   '{"experiment_id":"<experiment_id>"}'
 
 # Collect evidence into a frozen batch
@@ -227,15 +230,15 @@ npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
   '{"window_id":"<window_id>","evidence_limit":10}'
 
 # Bind experiment to the evidence batch (freezes evidence selection)
-npx convex run domain/experiments/entrypoints:bindExperimentEvidence \
+npx convex run domain/experiments/experiments_entrypoints:bindExperimentEvidence \
   '{"experiment_id":"<experiment_id>","evidence_batch_id":"<batch_id>"}'
 
 # Queue rubric generation
-npx convex run domain/experiments/entrypoints:queueRubricGeneration \
+npx convex run domain/experiments/experiments_entrypoints:queueRubricGeneration \
   '{"experiment_id":"<experiment_id>","sample_count":10}'
 
 # Queue scoring (sample_count × evidence_cap)
-npx convex run domain/experiments/entrypoints:queueScoreGeneration \
+npx convex run domain/experiments/experiments_entrypoints:queueScoreGeneration \
   '{"experiment_id":"<experiment_id>"}'
 ```
 
@@ -243,11 +246,11 @@ npx convex run domain/experiments/entrypoints:queueScoreGeneration \
 
 ```bash
 # Experiment summary
-npx convex run domain/experiments/data:getExperimentSummary \
+npx convex run domain/experiments/experiments_data:getExperimentSummary \
   '{"experiment_id":"<experiment_id>"}'
 
 # Export bundle for analysis (scores + evidence + rubrics)
-npx convex run domain/experiments/data:exportExperimentBundle \
+npx convex run domain/experiments/experiments_data:exportExperimentBundle \
   '{"experiment_id":"<experiment_id>"}'
 ```
 
@@ -267,7 +270,7 @@ flowchart LR
   subgraph Engine
     API[packages/engine/src/index.ts]
   subgraph Convex
-      Domain["domain<br/>experiments, runs, llm_calls"]
+    Domain["domain<br/>admin, configs, evidence, experiments, runs, llm_calls"]
       Platform["platform<br/>providers, rate_limiter, utils"]
       Models["models + schema"]
     end
@@ -362,7 +365,7 @@ The only public export surface is `packages/engine/src/index.ts`. The Mission Co
 import { api, ENGINE_SETTINGS, type ExperimentConfig } from "@judge-gym/engine";
 ```
 
-Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/data:exportExperimentBundle`), which is the stable boundary for downstream data workflows.
+Analysis pulls bundles via the public Convex HTTP API (`domain/experiments/experiments_data:exportExperimentBundle`), which is the stable boundary for downstream data workflows.
 
 ---
 
@@ -414,8 +417,8 @@ uv run jupyter lab
 To add a new design space dimension (e.g., `promptLanguage: "english" | "formal-academic" | "simplified"`):
 
 1. **Schema** — Add the field to `ExperimentConfigSchema` in `packages/engine/convex/models/core.ts`
-2. **Strategy** — Create `packages/engine/convex/domain/experiments/strategies/language.strategy.ts` (pure function: config → typed behavior)
-3. **Resolve** — Add to `packages/engine/convex/domain/experiments/strategies/resolve.ts`
+2. **Strategy** — Create `packages/engine/convex/domain/experiments/strategies/experiments_language.strategy.ts` (pure function: config → typed behavior)
+3. **Resolve** — Add to `packages/engine/convex/domain/experiments/strategies/experiments_resolve.ts`
 4. **Consume** — Use the resolved strategy in the relevant stage workflow
 
 **Files touched: 3–4.** No schema migrations beyond config, no prompt surgery, no agent logic changes.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { computeRetryDecision } from "../convex/domain/llm_calls/workflows/batch_poll_logic";
+import { computeRetryDecision } from "../convex/domain/llm_calls/workflows/llm_calls_batch_poll_logic";
 
 describe("batch_poll computeRetryDecision", () => {
   test("requeues when under retry limit", () => {

@@ -22,7 +22,7 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
   }),
   handler: async (ctx, { window_id, evidence_limit }) => {
     const window = await ctx.runQuery(
-      internal.domain.experiments.repo.getWindow,
+      internal.domain.experiments.experiments_repo.getWindow,
       { window_id },
     );
     preflightCheck(requiredEnvsForEvidenceWindow(window));
@@ -30,7 +30,7 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
       internal.domain.evidence.workflows.evidence_collect.collectEvidence,
       { window_id, limit: evidence_limit },
     );
-    await ctx.runMutation(internal.domain.runs.workflows.scheduler.ensureScheduler, {
+    await ctx.runMutation(internal.domain.runs.workflows.runs_scheduler.ensureScheduler, {
       reason: "evidence",
     });
     return result;

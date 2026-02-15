@@ -109,7 +109,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
   }),
   handler: async (ctx, { template_id, version }) => {
     const template = (await ctx.runQuery(
-      internal.domain.configs.repo.getConfigTemplate,
+      internal.domain.configs.configs_repo.getConfigTemplate,
       { template_id, version },
     )) as z.infer<typeof ConfigTemplatesTableSchema> | null;
     if (!template) {
@@ -161,7 +161,7 @@ async function ensureConfigTemplate(
     experiment: args.experiment,
   });
   const existing = await ctx.runQuery(
-    internal.domain.configs.repo.getConfigTemplate,
+    internal.domain.configs.configs_repo.getConfigTemplate,
     { template_id: args.template_id, version: args.version },
   );
   if (existing) {
@@ -173,7 +173,7 @@ async function ensureConfigTemplate(
     return;
   }
 
-  await ctx.runMutation(internal.domain.configs.repo.createConfigTemplate, {
+  await ctx.runMutation(internal.domain.configs.configs_repo.createConfigTemplate, {
     template_id: args.template_id,
     version: args.version,
     schema_version: 1,
@@ -295,7 +295,7 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
     return ctx.runMutation(
-      internal.domain.experiments.stages.rubric.workflows.rubric_seed_requests
+      internal.domain.experiments.stages.rubric.workflows.experiments_rubric_seed_requests
         .seedRubricRequests,
       { experiment_id: experiment._id, sample_count },
     );
@@ -314,7 +314,7 @@ export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
     return ctx.runMutation(
-      internal.domain.experiments.stages.scoring.workflows.scoring_seed_requests
+      internal.domain.experiments.stages.scoring.workflows.experiments_scoring_seed_requests
         .seedScoreRequests,
       { experiment_id: experiment._id },
     );

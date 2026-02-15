@@ -33,7 +33,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
 
     const existing: z.infer<typeof ConfigTemplatesTableSchema> | null =
       await ctx.runQuery(
-      internal.domain.configs.repo.getConfigTemplate,
+      internal.domain.configs.configs_repo.getConfigTemplate,
       {
         template_id: args.template_id,
         version: args.version,
@@ -54,7 +54,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
       };
     }
 
-    await ctx.runMutation(internal.domain.configs.repo.createConfigTemplate, {
+    await ctx.runMutation(internal.domain.configs.configs_repo.createConfigTemplate, {
       template_id: args.template_id,
       version: args.version,
       schema_version: args.schema_version,

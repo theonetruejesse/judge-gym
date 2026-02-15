@@ -27,7 +27,7 @@ export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.initEvidenceWindow,
+      api.domain.experiments.experiments_entrypoints.initEvidenceWindow,
       args,
     );
   },
@@ -47,7 +47,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.initExperiment,
+      api.domain.experiments.experiments_entrypoints.initExperiment,
       args,
     );
   },
@@ -67,7 +67,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> =
     }),
     handler: async (ctx, args) => {
       return ctx.runMutation(
-        api.domain.experiments.entrypoints.initExperimentFromTemplate,
+        api.domain.experiments.experiments_entrypoints.initExperimentFromTemplate,
         args,
       );
     },
@@ -108,7 +108,7 @@ export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.bindExperimentEvidence,
+      api.domain.experiments.experiments_entrypoints.bindExperimentEvidence,
       args,
     );
   },
@@ -134,7 +134,7 @@ export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.insertEvidenceBatch,
+      api.domain.experiments.experiments_entrypoints.insertEvidenceBatch,
       args,
     );
   },
@@ -157,7 +157,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.configs.entrypoints.seedConfigTemplate,
+      api.domain.configs.configs_entrypoints.seedConfigTemplate,
       args,
     );
   },
@@ -176,7 +176,7 @@ export const startExperiment: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.runs.entrypoints.startExperiment,
+      api.domain.runs.runs_entrypoints.startExperiment,
       args,
     );
   },
@@ -189,7 +189,7 @@ export const updateRunState: ReturnType<typeof zMutation> = zMutation({
   }),
   returns: z.object({ ok: z.boolean() }),
   handler: async (ctx, args) => {
-    return ctx.runMutation(api.domain.runs.entrypoints.updateRunState, args);
+    return ctx.runMutation(api.domain.runs.runs_entrypoints.updateRunState, args);
   },
 });
 
@@ -201,7 +201,7 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.queueRubricGeneration,
+      api.domain.experiments.experiments_entrypoints.queueRubricGeneration,
       args,
     );
   },
@@ -217,7 +217,7 @@ export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.queueScoreGeneration,
+      api.domain.experiments.experiments_entrypoints.queueScoreGeneration,
       args,
     );
   },
@@ -238,7 +238,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    return ctx.runQuery(api.domain.experiments.data.listEvidenceWindows, args);
+    return ctx.runQuery(api.domain.experiments.experiments_data.listEvidenceWindows, args);
   },
 });
 
@@ -332,7 +332,7 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
   ),
   handler: async (ctx, args) => {
     return ctx.runQuery(
-      api.domain.experiments.data.listExperimentEvidence,
+      api.domain.experiments.experiments_data.listExperimentEvidence,
       args,
     );
   },
@@ -341,14 +341,14 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
 export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, args) => {
-    return ctx.runQuery(api.domain.experiments.data.getExperimentSummary, args);
+    return ctx.runQuery(api.domain.experiments.experiments_data.getExperimentSummary, args);
   },
 });
 
 export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ run_id: zid("runs") }),
   handler: async (ctx, args) => {
-    return ctx.runQuery(api.domain.experiments.data.getRunSummary, args);
+    return ctx.runQuery(api.domain.experiments.experiments_data.getRunSummary, args);
   },
 });
 
@@ -379,7 +379,7 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      api.domain.experiments.entrypoints.resetExperiment,
+      api.domain.experiments.experiments_entrypoints.resetExperiment,
       args,
     );
   },
@@ -424,7 +424,7 @@ export const listBatchesDueForPolling: ReturnType<typeof zQuery> = zQuery({
   ),
   handler: async (ctx, { now }) => {
     const batches = await ctx.runQuery(
-      internal.domain.llm_calls.llm_batches.listBatchesDueForPolling,
+      internal.domain.llm_calls.llm_calls_batches.listBatchesDueForPolling,
       { now },
     );
     return batches.map((batch: any) => ({
@@ -449,7 +449,7 @@ export const createBatchFromQueued: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
-      internal.domain.llm_calls.workflows.batch_queue.createBatchFromQueued,
+      internal.domain.llm_calls.workflows.llm_calls_batch_queue.createBatchFromQueued,
       args,
     );
   },
@@ -463,7 +463,7 @@ export const submitBatch: ReturnType<typeof zAction> = zAction({
   returns: z.object({ submitted: z.number() }),
   handler: async (ctx, args) => {
     return ctx.runAction(
-      internal.domain.llm_calls.workflows.batch_submit.submitBatch,
+      internal.domain.llm_calls.workflows.llm_calls_batch_submit.submitBatch,
       args,
     );
   },
@@ -480,7 +480,7 @@ export const pollBatch: ReturnType<typeof zAction> = zAction({
   }),
   handler: async (ctx, args) => {
     return ctx.runAction(
-      internal.domain.llm_calls.workflows.batch_poll.pollBatch,
+      internal.domain.llm_calls.workflows.llm_calls_batch_poll.pollBatch,
       args,
     );
   },

@@ -2,13 +2,13 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildScoreGenPrompt } from "../scoring_prompts";
+import { buildScoreGenPrompt } from "../experiments_scoring_prompts";
 import { providerFor } from "../../../../../platform/utils";
 import { generateLabelMapping } from "../../../../../platform/utils/randomize";
 import {
   resolveRandomizationStrategy,
-} from "../../../strategies/randomization.strategy";
-import { resolveScaleStrategy } from "../../../strategies/scale.strategy";
+} from "../../../strategies/experiments_randomization.strategy";
+import { resolveScaleStrategy } from "../../../strategies/experiments_scale.strategy";
 import type { Id } from "../../../../../_generated/dataModel";
 
 export const seedScoreRequests = zInternalMutation({
@@ -124,7 +124,7 @@ export const seedScoreRequests = zInternalMutation({
         });
 
         await ctx.runMutation(
-          internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+          internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
             stage: "score_gen",
             provider: providerFor(experiment.config.scoring_stage.model_id),
@@ -144,7 +144,7 @@ export const seedScoreRequests = zInternalMutation({
     }
 
     await ctx.runMutation(
-      internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
       { experiment_id: experiment._id, stage: "score_gen" },
     );
 

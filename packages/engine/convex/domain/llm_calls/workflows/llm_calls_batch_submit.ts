@@ -12,7 +12,7 @@ import type { ActionCtx } from "../../../_generated/server";
 
 async function getPolicyForBatch(ctx: ActionCtx, batch: Doc<"llm_batches">) {
   if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
-  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+  const run = await ctx.runQuery(internal.domain.runs.runs_repo.getRun, {
     run_id: batch.run_id,
   });
   return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
@@ -35,18 +35,18 @@ async function failBatch(
   error: string,
 ) {
   for (const item of items) {
-    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatchItem, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatchItem, {
       batch_item_id: item._id,
       status: "error",
       last_error: error,
     });
-    await ctx.runMutation(internal.domain.llm_calls.llm_requests.patchLlmRequest, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_requests.patchLlmRequest, {
       request_id: item.request_id,
       status: "error",
       last_error: error,
     });
   }
-  await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+  await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
     batch_id: batch._id,
     status: "error",
     next_poll_at: undefined,
@@ -61,10 +61,10 @@ export const submitBatch = zInternalAction({
   }),
   returns: z.object({ submitted: z.number() }),
   handler: async (ctx, { batch_id, provider }) => {
-    const batch = (await ctx.runQuery(internal.domain.llm_calls.llm_batches.getBatch, {
+    const batch = (await ctx.runQuery(internal.domain.llm_calls.llm_calls_batches.getBatch, {
       batch_id,
     })) as Doc<"llm_batches">;
-    const items = (await ctx.runQuery(internal.domain.llm_calls.llm_batches.listBatchItems, {
+    const items = (await ctx.runQuery(internal.domain.llm_calls.llm_calls_batches.listBatchItems, {
       batch_id,
     })) as Doc<"llm_batch_items">[];
 
@@ -76,7 +76,7 @@ export const submitBatch = zInternalAction({
 
     const requests = await Promise.all(
       items.map(async (item) => {
-        const req = await ctx.runQuery(internal.domain.llm_calls.llm_requests.getLlmRequest, {
+        const req = await ctx.runQuery(internal.domain.llm_calls.llm_calls_requests.getLlmRequest, {
           request_id: item.request_id,
         });
         if (!req.user_prompt) {
@@ -119,7 +119,7 @@ export const submitBatch = zInternalAction({
     const now = Date.now();
     const nextPollDelay = policy.poll_interval_ms;
 
-    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
       batch_id: batch._id,
       status: "submitted",
       batch_ref: result.batch_ref,
@@ -129,7 +129,7 @@ export const submitBatch = zInternalAction({
     });
 
     for (const item of items) {
-      await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatchItem, {
+      await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatchItem, {
         batch_item_id: item._id,
         status: "submitted",
       });

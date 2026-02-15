@@ -7,13 +7,13 @@ import { providerSchema } from "../../../models/core";
 import { ENGINE_SETTINGS } from "../../../settings";
 import type { Doc } from "../../../_generated/dataModel";
 import type { ActionCtx } from "../../../_generated/server";
-import { computeRetryDecision } from "./batch_poll_logic";
+import { computeRetryDecision } from "./llm_calls_batch_poll_logic";
 
 const LOCK_MS = 60_000;
 
 async function getPolicyForBatch(ctx: ActionCtx, batch: Doc<"llm_batches">) {
   if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
-  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+  const run = await ctx.runQuery(internal.domain.runs.runs_repo.getRun, {
     run_id: batch.run_id,
   });
   return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
@@ -29,7 +29,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
     next_poll_at: z.number().optional(),
   }),
   handler: async (ctx, { batch_id, provider }) => {
-    const batch = (await ctx.runQuery(internal.domain.llm_calls.llm_batches.getBatch, {
+    const batch = (await ctx.runQuery(internal.domain.llm_calls.llm_calls_batches.getBatch, {
       batch_id,
     })) as Doc<"llm_batches">;
     if (!batch.batch_ref) throw new Error("Batch has no batch_ref");
@@ -42,7 +42,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
       };
     }
 
-    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
       batch_id: batch._id,
       locked_until: now + LOCK_MS,
     });
@@ -53,7 +53,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
 
     if (poll.status === "running") {
       const next_poll_at = now + policy.poll_interval_ms;
-      await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+      await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
         batch_id: batch._id,
         status: "running",
         next_poll_at,
@@ -63,17 +63,17 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
     }
 
     if (poll.status === "error") {
-      const items = await ctx.runQuery(internal.domain.llm_calls.llm_batches.listBatchItems, {
+      const items = await ctx.runQuery(internal.domain.llm_calls.llm_calls_batches.listBatchItems, {
         batch_id: batch._id,
       });
       const retryCutoff = policy.max_batch_retries;
       for (const item of items) {
-        await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatchItem, {
+        await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatchItem, {
           batch_item_id: item._id,
           status: "error",
           last_error: poll.error ?? "batch_failed",
         });
-        const req = await ctx.runQuery(internal.domain.llm_calls.llm_requests.getLlmRequest, {
+        const req = await ctx.runQuery(internal.domain.llm_calls.llm_calls_requests.getLlmRequest, {
           request_id: item.request_id,
         });
         const decision = computeRetryDecision({
@@ -83,7 +83,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
           backoff_ms: policy.retry_backoff_ms,
           error: poll.error ?? "batch_failed",
         });
-        await ctx.runMutation(internal.domain.llm_calls.llm_requests.patchLlmRequest, {
+        await ctx.runMutation(internal.domain.llm_calls.llm_calls_requests.patchLlmRequest, {
           request_id: item.request_id,
           status: decision.status,
           attempt: decision.attempt,
@@ -92,7 +92,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
           next_retry_at: decision.next_retry_at,
         });
       }
-      await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+      await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
         batch_id: batch._id,
         status: "error",
         next_poll_at: undefined,
@@ -101,7 +101,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
       return { status: "error" };
     }
 
-    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
       batch_id: batch._id,
       status: "completed",
       next_poll_at: undefined,
@@ -109,7 +109,7 @@ export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({
     });
 
     if (poll.status === "completed" && poll.results) {
-      await ctx.runMutation(internal.domain.llm_calls.workflows.batch_finalize.finalizeBatch, {
+      await ctx.runMutation(internal.domain.llm_calls.workflows.llm_calls_batch_finalize.finalizeBatch, {
         batch_id: batch._id,
         provider,
         results: poll.results,

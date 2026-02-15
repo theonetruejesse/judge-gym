@@ -1,19 +1,19 @@
 import {
   resolveScoringStrategy,
   type ScoringStrategy,
-} from "./scoring.strategy";
+} from "./experiments_scoring.strategy";
 import {
   resolveScaleStrategy,
   type ScaleStrategy,
-} from "./scale.strategy";
+} from "./experiments_scale.strategy";
 import {
   resolveEvidenceStrategy,
   type EvidenceStrategy,
-} from "./evidence.strategy";
+} from "./experiments_evidence.strategy";
 import {
   resolveRandomizationStrategy,
   type RandomizationStrategy,
-} from "./randomization.strategy";
+} from "./experiments_randomization.strategy";
 import type { ExperimentConfig } from "../../../models/core";
 
 export interface ResolvedStrategies {

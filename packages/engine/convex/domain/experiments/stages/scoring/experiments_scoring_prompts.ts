@@ -1,7 +1,7 @@
-import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
-import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
-import { resolveScaleStrategy } from "../../strategies/scale.strategy";
-import { resolveScoringStrategy } from "../../strategies/scoring.strategy";
+import { resolveEvidenceStrategy } from "../../strategies/experiments_evidence.strategy";
+import { resolveRandomizationStrategy } from "../../strategies/experiments_randomization.strategy";
+import { resolveScaleStrategy } from "../../strategies/experiments_scale.strategy";
+import { resolveScoringStrategy } from "../../strategies/experiments_scoring.strategy";
 import type { ExperimentConfig } from "../../../../models/core";
 
 const DEFAULT_HYPOTHETICAL_FRAME =

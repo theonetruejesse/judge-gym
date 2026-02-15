@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getOrCreateLlmRequestImpl } from "../domain/llm_calls/llm_requests";
+import { getOrCreateLlmRequestImpl } from "../domain/llm_calls/llm_calls_requests";
 import type { Doc, Id } from "../_generated/dataModel";
 
 describe("llm_requests", () => {

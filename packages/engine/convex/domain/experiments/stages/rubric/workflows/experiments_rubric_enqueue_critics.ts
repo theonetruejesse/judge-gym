@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildRubricCriticPrompt } from "../rubric_prompts";
+import { buildRubricCriticPrompt } from "../experiments_rubric_prompts";
 import { providerFor } from "../../../../../platform/utils";
 
 export const enqueueRubricCritics = zInternalMutation({
@@ -24,7 +24,7 @@ export const enqueueRubricCritics = zInternalMutation({
         rubric: { stages: rubric.stages },
       });
       await ctx.runMutation(
-        internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+        internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
         {
           stage: "rubric_critic",
           provider: providerFor(rubric.model_id),
