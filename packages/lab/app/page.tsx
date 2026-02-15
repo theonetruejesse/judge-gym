@@ -2,20 +2,54 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import {
-  EXPERIMENTS,
-  STATUS_COLORS,
-  TASK_TYPE_LABELS,
-} from "@/lib/mock-data";
+import { useQuery } from "convex/react";
+import { api } from "@judge-gym/engine";
+import { STATUS_COLORS, TASK_TYPE_LABELS } from "@/lib/ui";
 
 const statuses = ["running", "complete", "paused", "pending", "canceled"];
+const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+
+type ExperimentListItem = {
+  experiment_id: string;
+  experiment_tag: string;
+  task_type: string;
+  status: string;
+  active_run_id?: string;
+  evidence_batch_id?: string;
+  window_id: string;
+  evidence_window?: {
+    start_date: string;
+    end_date: string;
+    country: string;
+    concept: string;
+    model_id: string;
+  };
+};
 
 export default function RouteOneExperimentsPage() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  if (!hasConvex) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
+        <p className="mt-2 text-xs opacity-60">
+          Set the Convex URL to load experiments in Mission Control.
+        </p>
+      </div>
+    );
+  }
+
+  const experiments = useQuery(
+    api.lab.listExperiments,
+    {},
+  ) as ExperimentListItem[] | undefined;
   const filtered =
     statusFilter.length === 0
-      ? EXPERIMENTS
-      : EXPERIMENTS.filter((e) => statusFilter.includes(e.status));
+      ? experiments ?? []
+      : (experiments ?? []).filter((e) => statusFilter.includes(e.status));
 
   const toggleFilter = (status: string) => {
     setStatusFilter((prev) =>
@@ -90,34 +124,50 @@ export default function RouteOneExperimentsPage() {
           style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
         >
           <div
-            className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr] border-b px-4 py-2 text-[10px] uppercase tracking-wider"
+            className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1.2fr] border-b px-4 py-2 text-[10px] uppercase tracking-wider"
             style={{ borderColor: "#1e2433", color: "#5a6173" }}
           >
             <span>Tag</span>
             <span>Concept</span>
             <span>Status</span>
             <span>Task</span>
-            <span>Scale</span>
+            <span>Window</span>
           </div>
+          {!experiments && (
+            <div className="px-4 py-6 text-xs opacity-50">Loading experiments...</div>
+          )}
+          {experiments && filtered.length === 0 && (
+            <div className="px-4 py-6 text-xs opacity-50">
+              No experiments found. Create one in the editor.
+            </div>
+          )}
           {filtered.map((exp) => (
             <Link
-              key={exp.id}
-              href={`/experiment/${exp.id}`}
-              className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr] border-b px-4 py-3 text-xs transition hover:bg-[#151a24]"
+              key={exp.experiment_id}
+              href={`/experiment/${exp.experiment_id}`}
+              className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1.2fr] border-b px-4 py-3 text-xs transition hover:bg-[#151a24]"
               style={{ borderColor: "#1e2433" }}
             >
               <span className="font-medium" style={{ color: "#e8eaed" }}>
-                {exp.tag}
+                {exp.experiment_tag}
               </span>
-              <span className="opacity-70">{exp.concept}</span>
+              <span className="opacity-70">
+                {exp.evidence_window?.concept ?? "—"}
+              </span>
               <span
                 className="text-[10px] uppercase tracking-wider"
-                style={{ color: STATUS_COLORS[exp.status] }}
+                style={{ color: STATUS_COLORS[exp.status] ?? "#6b7280" }}
               >
                 {exp.status}
               </span>
-              <span className="opacity-70">{TASK_TYPE_LABELS[exp.taskType]}</span>
-              <span className="opacity-70">{exp.scaleSize}-pt</span>
+              <span className="opacity-70">
+                {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type}
+              </span>
+              <span className="opacity-70">
+                {exp.evidence_window
+                  ? `${exp.evidence_window.country} · ${exp.evidence_window.start_date}`
+                  : exp.window_id}
+              </span>
             </Link>
           ))}
         </div>
