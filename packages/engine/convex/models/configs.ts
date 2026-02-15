@@ -2,9 +2,6 @@ import { zodOutputToConvex } from "convex-helpers/server/zod4";
 import { defineTable } from "convex/server";
 import z from "zod";
 import {
-  PolicyOverridesSchema,
-} from "./core";
-import {
   ExperimentSpecSchema,
   ExperimentSpecInputSchema,
   WindowsTableSchema,
@@ -13,8 +10,6 @@ import {
 export const ConfigTemplateBodySchema = z.object({
   evidence_window: WindowsTableSchema,
   experiment: ExperimentSpecSchema,
-  policies: PolicyOverridesSchema,
-  team_id: z.string().optional(),
 });
 
 export const ConfigTemplateBodyInputSchema = ConfigTemplateBodySchema.extend({

@@ -1,4 +1,4 @@
-import { DEFAULT_RUN_POLICY } from "../../../settings";
+import { ENGINE_SETTINGS } from "../../../settings";
 import type {
   LlmStage,
   ModelType,
@@ -130,7 +130,7 @@ export function selectBatchCandidates(args: {
   if (!selected) return { items: [] };
 
   const policyMax =
-    (selected.policy ?? DEFAULT_RUN_POLICY).max_batch_size ??
+    (selected.policy ?? ENGINE_SETTINGS.run_policy).max_batch_size ??
     Number.POSITIVE_INFINITY;
   const cap = Math.min(max_items, policyMax);
   const items = selected.items.slice(0, cap);

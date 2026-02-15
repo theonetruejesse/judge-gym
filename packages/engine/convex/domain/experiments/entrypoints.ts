@@ -9,7 +9,6 @@ import {
 import { internal } from "../../_generated/api";
 import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import { normalizeExperimentSpec } from "../../utils/config_normalizer";
-import { DEFAULT_RUN_POLICY } from "../../settings";
 import { ConfigTemplatesTableSchema } from "../../models/configs";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
@@ -116,8 +115,6 @@ async function ensureConfigTemplate(
     config_body: {
       evidence_window: args.evidence_window,
       experiment: args.experiment,
-      policies: { global: DEFAULT_RUN_POLICY },
-      team_id: undefined,
     },
     created_at: Date.now(),
     created_by: "initExperiment",

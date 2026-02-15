@@ -1,8 +1,7 @@
 import z from "zod";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
-import { DEFAULT_RUN_POLICY } from "../../../settings";
-import { resolveRunPolicy } from "../../../utils/policy";
+import { ENGINE_SETTINGS } from "../../../settings";
 import type { Doc } from "../../../_generated/dataModel";
 import type { MutationCtx } from "../../../_generated/server";
 
@@ -91,20 +90,7 @@ export const tick = zInternalMutation({
 
     const policies = [];
     for (const run of activeRuns) {
-      try {
-        const runConfig = await ctx.runQuery(
-          internal.domain.configs.repo.getRunConfig,
-          { run_config_id: run.run_config_id },
-        );
-        policies.push(
-          resolveRunPolicy({
-            policies: runConfig.config_body.policies,
-            team_id: runConfig.config_body.team_id,
-          }),
-        );
-      } catch {
-        policies.push(DEFAULT_RUN_POLICY);
-      }
+      policies.push(run.policy_snapshot ?? ENGINE_SETTINGS.run_policy);
     }
 
     const schedulerPolicy = policies.reduce(
@@ -121,10 +107,10 @@ export const tick = zInternalMutation({
         ),
       }),
       {
-        poll_interval_ms: DEFAULT_RUN_POLICY.poll_interval_ms,
-        max_batch_size: DEFAULT_RUN_POLICY.max_batch_size,
-        max_new_batches_per_tick: DEFAULT_RUN_POLICY.max_new_batches_per_tick,
-        max_poll_per_tick: DEFAULT_RUN_POLICY.max_poll_per_tick,
+        poll_interval_ms: ENGINE_SETTINGS.run_policy.poll_interval_ms,
+        max_batch_size: ENGINE_SETTINGS.run_policy.max_batch_size,
+        max_new_batches_per_tick: ENGINE_SETTINGS.run_policy.max_new_batches_per_tick,
+        max_poll_per_tick: ENGINE_SETTINGS.run_policy.max_poll_per_tick,
       },
     );
 
@@ -162,7 +148,7 @@ export const tick = zInternalMutation({
         }
       }
     }
-    for (const spec of DEFAULT_RUN_POLICY.provider_models) {
+    for (const spec of ENGINE_SETTINGS.run_policy.provider_models) {
       for (const model of spec.models) {
         providerModels.set(`${spec.provider}:${model}`, {
           provider: spec.provider,
@@ -215,19 +201,9 @@ async function resolvePolicyForBatch(
   ctx: MutationCtx,
   batch: Doc<"llm_batches">,
 ) {
-  if (!batch.run_id) return DEFAULT_RUN_POLICY;
+  if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
   const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
     run_id: batch.run_id,
   });
-  if (!run?.run_config_id) return DEFAULT_RUN_POLICY;
-  const runConfig = await ctx.runQuery(
-    internal.domain.configs.repo.getRunConfig,
-    { run_config_id: run.run_config_id },
-  );
-  return resolveRunPolicy({
-    policies: runConfig.config_body.policies,
-    team_id: runConfig.config_body.team_id,
-    provider: batch.provider,
-    model: batch.model,
-  });
+  return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
 }

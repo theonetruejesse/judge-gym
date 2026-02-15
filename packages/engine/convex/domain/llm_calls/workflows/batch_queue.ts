@@ -2,9 +2,9 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
+import type { RunPolicy } from "../../../models/core";
 import { modelTypeSchema, providerSchema } from "../../../models/core";
-import { DEFAULT_RUN_POLICY } from "../../../settings";
-import { resolveRunPolicy } from "../../../utils/policy";
+import { ENGINE_SETTINGS } from "../../../settings";
 import type { Id } from "../../../_generated/dataModel";
 import { selectBatchCandidates } from "./batch_queue_logic";
 
@@ -61,24 +61,11 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       activeByRun.set(batch.run_id, (activeByRun.get(batch.run_id) ?? 0) + 1);
     }
 
-    const policyByRun = new Map<string, typeof DEFAULT_RUN_POLICY>();
+    const policyByRun = new Map<string, RunPolicy>();
     for (const run of candidates) {
       if (policyByRun.has(run._id)) continue;
-      try {
-        const runConfig = await ctx.runQuery(
-          internal.domain.configs.repo.getRunConfig,
-          { run_config_id: run.run_config_id },
-        );
-        const resolved = resolveRunPolicy({
-          policies: runConfig.config_body.policies,
-          team_id: runConfig.config_body.team_id,
-          provider,
-          model,
-        });
-        policyByRun.set(run._id, resolved);
-      } catch {
-        policyByRun.set(run._id, DEFAULT_RUN_POLICY);
-      }
+      const snapshot = run.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
+      policyByRun.set(run._id, snapshot);
     }
 
     const selection = selectBatchCandidates({
@@ -89,7 +76,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
         desired_state: run.desired_state,
         stop_at_stage: run.stop_at_stage,
         updated_at: run.updated_at,
-        policy: policyByRun.get(run._id) ?? DEFAULT_RUN_POLICY,
+        policy: policyByRun.get(run._id) ?? ENGINE_SETTINGS.run_policy,
         active_batches: activeByRun.get(run._id) ?? 0,
       })),
       provider,
