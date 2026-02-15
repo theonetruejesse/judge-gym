@@ -461,7 +461,8 @@ export default function RouteOneExperimentPage({
                 {selected.experiment_tag ?? selected.experiment_id}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {selected.experiment_id} · window {selected.window_id}
+                {selected.experiment_id} · window{" "}
+                {selected.window_tag ?? selected.window_id}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

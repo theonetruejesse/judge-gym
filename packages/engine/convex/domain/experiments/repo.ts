@@ -15,21 +15,6 @@ import {
 // --- Experiments ---
 
 export const getExperiment = zInternalQuery({
-  args: z.object({ experiment_tag: z.string() }),
-  handler: async (ctx, { experiment_tag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
-    return experiment;
-  },
-});
-
-export const getExperimentById = zInternalQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, { experiment_id }) => {
     const experiment = await ctx.db.get(experiment_id);
@@ -39,17 +24,14 @@ export const getExperimentById = zInternalQuery({
 });
 
 export const patchExperimentStatus = zInternalMutation({
-  args: z.object({ experiment_tag: z.string(), status: ExperimentStatusSchema }),
-  handler: async (ctx, { experiment_tag, status }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
-    await ctx.db.patch(experiment._id, { status });
+  args: z.object({
+    experiment_id: zid("experiments"),
+    status: ExperimentStatusSchema,
+  }),
+  handler: async (ctx, { experiment_id, status }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
+    await ctx.db.patch(experiment_id, { status });
   },
 });
 

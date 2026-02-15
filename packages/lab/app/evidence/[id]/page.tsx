@@ -31,6 +31,7 @@ type EvidenceWindowItem = {
   country: string;
   concept: string;
   model_id: string;
+  window_tag?: string;
   evidence_count: number;
 };
 
@@ -167,7 +168,9 @@ export default function EvidenceWindowPage({
             className="text-lg font-semibold"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
-            {selectedWindow?.concept ?? "Evidence Window"}
+            {selectedWindow?.window_tag ??
+              selectedWindow?.concept ??
+              "Evidence Window"}
           </h1>
           <p className="text-[11px] opacity-50">
             {selectedWindow?.country ?? "—"} · {selectedWindow?.start_date ?? "—"} -{" "}

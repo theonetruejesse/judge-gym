@@ -5,16 +5,10 @@ import { zQuery } from "../../platform/utils";
 // --- Read queries for analysis consumption ---
 
 export const getExperimentSummary = zQuery({
-  args: z.object({ experiment_tag: z.string() }),
-  handler: async (ctx, { experiment_tag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+  args: z.object({ experiment_id: zid("experiments") }),
+  handler: async (ctx, { experiment_id }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
@@ -33,6 +27,7 @@ export const getExperimentSummary = zQuery({
     );
 
     return {
+      experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
       window_id: experiment.window_id,
       rubric_model_id: experiment.config.rubric_stage.model_id,
@@ -68,6 +63,7 @@ export const listEvidenceWindows = zQuery({
       country: window.country,
       concept: window.concept,
       model_id: window.model_id,
+      window_tag: window.window_tag,
       evidence_count: counts.get(String(window._id)) ?? 0,
     }));
   },
@@ -145,6 +141,7 @@ export const getRunSummary = zQuery({
 
     return {
       run_id: run._id,
+      experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
       rubric_model_id:
         runConfig?.config_body.experiment.config.rubric_stage.model_id ??
@@ -180,23 +177,17 @@ export const getRunSummary = zQuery({
 // Bulk export consumed by the Python analysis package (judge_gym.collect).
 //
 // One HTTP call per experiment — returns everything needed to build DataFrames:
-//   - experiment: tag, rubric/scoring models, concept, config, status
+//   - experiment: id, tag (optional), rubric/scoring models, concept, config, status
 //   - evidence:   id + title for each evidence article
 //   - scores:     flat rows (score fields + sample display fields)
 // ---------------------------------------------------------------------------
 
 export const exportExperimentBundle = zQuery({
-  args: z.object({ experiment_tag: z.string() }),
-  handler: async (ctx, { experiment_tag }) => {
+  args: z.object({ experiment_id: zid("experiments") }),
+  handler: async (ctx, { experiment_id }) => {
     // --- Experiment + window ---
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
@@ -255,6 +246,7 @@ export const exportExperimentBundle = zQuery({
 
     return {
       experiment: {
+        experiment_id: experiment._id,
         experiment_tag: experiment.experiment_tag,
         rubric_model_id: experiment.config.rubric_stage.model_id,
         scoring_model_id: experiment.config.scoring_stage.model_id,
@@ -262,6 +254,8 @@ export const exportExperimentBundle = zQuery({
         task_type: experiment.task_type,
         status: experiment.status,
         config: experiment.config,
+        window_id: window._id,
+        window_tag: window.window_tag,
       },
       evidences,
       rubrics: rubrics.map((rubric) => ({
