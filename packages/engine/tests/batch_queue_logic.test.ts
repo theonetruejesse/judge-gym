@@ -12,6 +12,7 @@ const basePolicy: RunPolicy = {
   max_new_batches_per_tick: 2,
   max_poll_per_tick: 2,
   max_batch_retries: 1,
+  max_request_attempts: 2,
   retry_backoff_ms: 1000,
   provider_models: [
     { provider: "openai", models: ["gpt-4.1"] },

@@ -145,6 +145,7 @@ export const RunPolicySchema = z.object({
   max_concurrent_batches: z.number().int().min(1).optional(),
   max_concurrent_requests: z.number().int().min(1).optional(),
   max_batch_retries: z.number().int().min(0),
+  max_request_attempts: z.number().int().min(1),
   retry_backoff_ms: z.number().int().min(0),
   provider_models: z
     .array(
