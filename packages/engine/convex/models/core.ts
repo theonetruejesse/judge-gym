@@ -75,6 +75,8 @@ export const RubricStageConfigSchema = z.object({
 export const ScoringStageConfigSchema = z.object({
   model_id: modelTypeSchema,
   method: z.union([z.literal("single"), z.literal("subset")]),
+  sample_count: z.number().int().min(1),
+  evidence_cap: z.number().int().min(1),
   randomizations: z.array(
     z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"]),
   ),

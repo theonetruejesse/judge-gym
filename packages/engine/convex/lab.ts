@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zAction, zMutation, zQuery } from "./platform/utils";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import {
   LlmStageSchema,
   LlmRequestStatusSchema,
@@ -11,6 +11,355 @@ import {
   ExperimentStatusSchema,
   TaskTypeSchema,
 } from "./models/core";
+import {
+  ExperimentSpecInputSchema,
+  WindowsTableSchema,
+} from "./models/experiments";
+import { ConfigTemplateBodyInputSchema } from "./models/configs";
+
+export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    evidence_window: WindowsTableSchema,
+  }),
+  returns: z.object({
+    window_id: zid("windows"),
+    reused_window: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.initEvidenceWindow,
+      args,
+    );
+  },
+});
+
+export const initExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    window_id: zid("windows"),
+    experiment: ExperimentSpecInputSchema,
+    template_id: z.string().optional(),
+    template_version: z.number().optional(),
+  }),
+  returns: z.object({
+    window_id: zid("windows"),
+    experiment_id: zid("experiments"),
+    reused_experiment: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.initExperiment,
+      args,
+    );
+  },
+});
+
+export const initExperimentFromTemplate: ReturnType<typeof zMutation> =
+  zMutation({
+    args: z.object({
+      template_id: z.string(),
+      version: z.number().int().min(1),
+    }),
+    returns: z.object({
+      window_id: zid("windows"),
+      experiment_id: zid("experiments"),
+      reused_window: z.boolean(),
+      reused_experiment: z.boolean(),
+    }),
+    handler: async (ctx, args) => {
+      return ctx.runMutation(
+        api.domain.experiments.entrypoints.initExperimentFromTemplate,
+        args,
+      );
+    },
+  });
+
+export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    window_id: zid("windows"),
+    evidence_limit: z.number().optional(),
+  }),
+  returns: z.object({
+    collected: z.number(),
+    total: z.number(),
+    queued_clean: z.number(),
+    queued_neutralize: z.number(),
+    queued_abstract: z.number(),
+    evidence_batch_id: zid("evidence_batches"),
+    evidence_count: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runAction(
+      api.domain.evidence.evidence_entrypoints.collectEvidenceBatch,
+      args,
+    );
+  },
+});
+
+export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+    evidence_batch_id: zid("evidence_batches"),
+  }),
+  returns: z.object({
+    evidence_batch_id: zid("evidence_batches"),
+    evidence_count: z.number(),
+    bound_count: z.number(),
+    evidence_cap: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.bindExperimentEvidence,
+      args,
+    );
+  },
+});
+
+export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    window_id: zid("windows"),
+    evidences: z.array(
+      z.object({
+        title: z.string(),
+        url: z.string(),
+        raw_content: z.string(),
+        cleaned_content: z.string().optional(),
+        neutralized_content: z.string().optional(),
+        abstracted_content: z.string().optional(),
+      }),
+    ),
+  }),
+  returns: z.object({
+    inserted: z.number(),
+    evidence_ids: z.array(zid("evidences")),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.insertEvidenceBatch,
+      args,
+    );
+  },
+});
+
+export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    template_id: z.string(),
+    version: z.number().int().min(1),
+    schema_version: z.number().int().min(1),
+    config_body: ConfigTemplateBodyInputSchema,
+    created_by: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  returns: z.object({
+    template_id: z.string(),
+    version: z.number(),
+    created: z.boolean(),
+    spec_signature: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.configs.entrypoints.seedConfigTemplate,
+      args,
+    );
+  },
+});
+
+export const startExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+    stop_at_stage: LlmStageSchema.optional(),
+    stages: z.array(LlmStageSchema).optional(),
+  }),
+  returns: z.object({
+    ok: z.boolean(),
+    run_id: zid("runs").optional(),
+    error: z.string().optional(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.runs.entrypoints.startExperiment,
+      args,
+    );
+  },
+});
+
+export const updateRunState: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    desired_state: z.enum(["running", "paused", "canceled"]),
+  }),
+  returns: z.object({ ok: z.boolean() }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(api.domain.runs.entrypoints.updateRunState, args);
+  },
+});
+
+export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+    sample_count: z.number().min(1).optional(),
+  }),
+  returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.queueRubricGeneration,
+      args,
+    );
+  },
+});
+
+export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+  }),
+  returns: z.object({
+    samples_created: z.number(),
+    evidence_count: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.queueScoreGeneration,
+      args,
+    );
+  },
+});
+
+export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({}),
+  returns: z.array(
+    z.object({
+      window_id: zid("windows"),
+      start_date: z.string(),
+      end_date: z.string(),
+      country: z.string(),
+      concept: z.string(),
+      model_id: modelTypeSchema,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(api.domain.experiments.data.listEvidenceWindows, args);
+  },
+});
+
+export const listEvidenceBatches: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ window_id: zid("windows") }),
+  returns: z.array(
+    z.object({
+      evidence_batch_id: zid("evidence_batches"),
+      window_id: zid("windows"),
+      evidence_limit: z.number(),
+      evidence_count: z.number(),
+      created_at: z.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      api.domain.evidence.evidence_entrypoints.listEvidenceBatches,
+      args,
+    );
+  },
+});
+
+export const getEvidenceBatch: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ evidence_batch_id: zid("evidence_batches") }),
+  returns: z
+    .object({
+      evidence_batch_id: zid("evidence_batches"),
+      window_id: zid("windows"),
+      evidence_limit: z.number(),
+      evidence_count: z.number(),
+      created_at: z.number(),
+    })
+    .nullable(),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      api.domain.evidence.evidence_entrypoints.getEvidenceBatch,
+      args,
+    );
+  },
+});
+
+export const listEvidenceBatchItems: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ evidence_batch_id: zid("evidence_batches") }),
+  returns: z.array(
+    z.object({
+      evidence_id: zid("evidences"),
+      position: z.number(),
+      title: z.string(),
+      url: z.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      api.domain.evidence.evidence_entrypoints.listEvidenceBatchItems,
+      args,
+    );
+  },
+});
+
+export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ experiment_id: zid("experiments") }),
+  returns: z.array(
+    z.object({
+      evidence_id: zid("evidences"),
+      position: z.number(),
+      title: z.string(),
+      url: z.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      api.domain.experiments.data.listExperimentEvidence,
+      args,
+    );
+  },
+});
+
+export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ experiment_tag: z.string() }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(api.domain.experiments.data.getExperimentSummary, args);
+  },
+});
+
+export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ run_id: zid("runs") }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(api.domain.experiments.data.getRunSummary, args);
+  },
+});
+
+export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+    cleanup_window: z.boolean().optional(),
+  }),
+  returns: z.object({
+    deleted: z.object({
+      experiments: z.number(),
+      runs: z.number(),
+      run_stages: z.number(),
+      run_configs: z.number(),
+      rubrics: z.number(),
+      samples: z.number(),
+      scores: z.number(),
+      experiment_evidence: z.number(),
+      evidence_batches: z.number(),
+      evidence_batch_items: z.number(),
+      evidences: z.number(),
+      windows: z.number(),
+      llm_requests: z.number(),
+      llm_messages: z.number(),
+      llm_batches: z.number(),
+      llm_batch_items: z.number(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      api.domain.experiments.entrypoints.resetExperiment,
+      args,
+    );
+  },
+});
 
 export const listQueuedRequests: ReturnType<typeof zQuery> = zQuery({
   args: z.object({}),
@@ -195,7 +544,9 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       task_type: TaskTypeSchema,
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
-      window: z
+      evidence_batch_id: zid("evidence_batches").optional(),
+      window_id: zid("windows"),
+      evidence_window: z
         .object({
           start_date: z.string(),
           end_date: z.string(),
@@ -246,7 +597,9 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         task_type: experiment.task_type,
         status: experiment.status,
         active_run_id: experiment.active_run_id,
-        window,
+        evidence_batch_id: experiment.evidence_batch_id,
+        window_id: experiment.window_id,
+        evidence_window: window,
       });
     }
 
@@ -263,7 +616,8 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
       experiment_tag: z.string(),
       exists: z.boolean(),
       spec_signature: z.string().optional(),
-      window: z
+      window_id: zid("windows").optional(),
+      evidence_window: z
         .object({
           start_date: z.string(),
           end_date: z.string(),
@@ -274,6 +628,14 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         .optional(),
       evidence_total: z.number().optional(),
       evidence_neutralized: z.number().optional(),
+      evidence_batch: z
+        .object({
+          evidence_batch_id: zid("evidence_batches"),
+          evidence_limit: z.number(),
+          evidence_count: z.number(),
+        })
+        .optional(),
+      evidence_bound_count: z.number().optional(),
       rubric: z
         .object({
           rubric_id: zid("rubrics"),
@@ -322,6 +684,17 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
       const evidence_neutralized = evidence.filter(
         (ev) => (ev.neutralized_content ?? "").trim().length > 0,
       ).length;
+      const evidenceBatch = experiment.evidence_batch_id
+        ? await ctx.db.get(experiment.evidence_batch_id)
+        : null;
+      const boundEvidence = experiment.evidence_batch_id
+        ? await ctx.db
+            .query("experiment_evidence")
+            .withIndex("by_experiment", (q) =>
+              q.eq("experiment_id", experiment._id),
+            )
+            .collect()
+        : [];
 
       const rubric = await ctx.db
         .query("rubrics")
@@ -346,7 +719,8 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         experiment_tag,
         exists: true,
         spec_signature: experiment.spec_signature,
-        window: window
+        window_id: experiment.window_id,
+        evidence_window: window
           ? {
               start_date: window.start_date,
               end_date: window.end_date,
@@ -357,6 +731,14 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
           : undefined,
         evidence_total,
         evidence_neutralized,
+        evidence_batch: evidenceBatch
+          ? {
+              evidence_batch_id: evidenceBatch._id,
+              evidence_limit: evidenceBatch.evidence_limit,
+              evidence_count: evidenceBatch.evidence_count,
+            }
+          : undefined,
+        evidence_bound_count: boundEvidence.length,
         rubric: rubric
           ? {
               rubric_id: rubric._id,
