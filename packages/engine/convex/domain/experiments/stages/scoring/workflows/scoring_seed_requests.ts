@@ -14,17 +14,16 @@ import type { Id } from "../../../../../_generated/dataModel";
 export const seedScoreRequests = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
-    sample_count: z.number().min(1),
-    evidence_limit: z.number().optional(),
   }),
   returns: z.object({
     samples_created: z.number(),
     evidence_count: z.number(),
   }),
-  handler: async (ctx, { experiment_id, sample_count, evidence_limit }) => {
+  handler: async (ctx, { experiment_id }) => {
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
+    const sample_count = experiment.config.scoring_stage.sample_count;
     const rubrics = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
@@ -45,14 +44,23 @@ export const seedScoreRequests = zInternalMutation({
     }
     const rubricById = new Map(parsedRubrics.map((rubric) => [rubric._id, rubric]));
 
-    const evidenceQuery = ctx.db
-      .query("evidences")
-      .withIndex("by_window_id", (q) => q.eq("window_id", experiment.window_id));
-    const evidence = evidence_limit
-      ? await evidenceQuery.take(evidence_limit)
-      : await evidenceQuery.collect();
+    const evidenceItems = await ctx.db
+      .query("experiment_evidence")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .collect();
+    if (evidenceItems.length === 0) {
+      throw new Error("Experiment evidence not bound");
+    }
+    const evidence = [];
+    const orderedEvidenceItems = evidenceItems
+      .slice()
+      .sort((a, b) => a.position - b.position);
+    for (const item of orderedEvidenceItems) {
+      const ev = await ctx.db.get(item.evidence_id);
+      if (ev) evidence.push(ev);
+    }
     if (evidence.length === 0) {
-      throw new Error("No evidence found for window");
+      throw new Error("No evidence found for experiment");
     }
 
     const randomization = resolveRandomizationStrategy(experiment.config);

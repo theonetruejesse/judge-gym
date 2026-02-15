@@ -51,6 +51,44 @@ export const getExperimentSummary = zQuery({
   },
 });
 
+export const listEvidenceWindows = zQuery({
+  args: z.object({}),
+  handler: async (ctx) => {
+    const windows = await ctx.db.query("windows").collect();
+    return windows.map((window) => ({
+      window_id: window._id,
+      start_date: window.start_date,
+      end_date: window.end_date,
+      country: window.country,
+      concept: window.concept,
+      model_id: window.model_id,
+    }));
+  },
+});
+
+export const listExperimentEvidence = zQuery({
+  args: z.object({ experiment_id: zid("experiments") }),
+  handler: async (ctx, { experiment_id }) => {
+    const items = await ctx.db
+      .query("experiment_evidence")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment_id))
+      .collect();
+    const ordered = items.slice().sort((a, b) => a.position - b.position);
+    const results = [];
+    for (const item of ordered) {
+      const evidence = await ctx.db.get(item.evidence_id);
+      if (!evidence) continue;
+      results.push({
+        evidence_id: evidence._id,
+        position: item.position,
+        title: evidence.title,
+        url: evidence.url,
+      });
+    }
+    return results;
+  },
+});
+
 // Kept for internal engine use (e.g. tracker.ts).
 
 export const listExperimentsByTaskType = zQuery({

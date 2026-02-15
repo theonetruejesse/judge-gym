@@ -19,7 +19,7 @@ type SearchResult = { title: string; url: string; raw_content: string };
 
 export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalAction({
   args: z.object({
-    experiment_id: zid("experiments"),
+    window_id: zid("windows"),
     limit: z.number().optional(),
   }),
   returns: z.object({
@@ -28,20 +28,19 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
+    evidence_batch_id: zid("evidence_batches"),
+    evidence_count: z.number(),
   }),
-  handler: async (ctx, { experiment_id, limit }) => {
-    const experiment = await ctx.runQuery(
-      internal.domain.experiments.repo.getExperimentById,
-      { experiment_id },
+  handler: async (ctx, { window_id, limit }) => {
+    const window = await ctx.runQuery(
+      internal.domain.experiments.repo.getWindow,
+      { window_id },
     );
-    const window = await ctx.runQuery(internal.domain.experiments.repo.getWindow, {
-      window_id: experiment.window_id,
-    });
 
     const lim = limit ?? DEFAULT_LIMIT;
     const existingPreview: EvidenceSummary[] = await ctx.runQuery(
       internal.domain.experiments.repo.listEvidenceByWindowSummary,
-      { window_id: experiment.window_id, limit: lim },
+      { window_id, limit: lim },
     );
 
     let insertedCount = 0;
@@ -49,7 +48,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     if (existingPreview.length < lim) {
       const existingAll: EvidenceSummary[] = await ctx.runQuery(
         internal.domain.experiments.repo.listEvidenceByWindowSummary,
-        { window_id: experiment.window_id },
+        { window_id },
       );
       const existingUrls = new Set(
         existingAll.map((row) => normalizeUrl(row.url)),
@@ -76,7 +75,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
 
         for (const result of newResults) {
           await ctx.runMutation(internal.domain.experiments.repo.createEvidence, {
-            window_id: experiment.window_id,
+            window_id,
             title: result.title,
             url: result.url,
             raw_content: result.raw_content,
@@ -89,12 +88,29 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
 
     const evidence = await ctx.runQuery(
       internal.domain.experiments.repo.listEvidenceByWindow,
-      { window_id: experiment.window_id },
+      { window_id },
+    );
+
+    const ordered = evidence
+      .slice()
+      .sort((a, b) => a._creationTime - b._creationTime);
+    const selected = ordered.slice(0, lim);
+    if (selected.length === 0) {
+      throw new Error("No evidence found for window");
+    }
+
+    const batchResult = await ctx.runMutation(
+      internal.domain.evidence.workflows.evidence_collect.createEvidenceBatch,
+      {
+        window_id,
+        evidence_limit: lim,
+        evidence_ids: selected.map((row) => row._id),
+      },
     );
 
     const queueResult = await ctx.runMutation(
       internal.domain.evidence.workflows.evidence_collect.queueEvidenceProcessing,
-      { window_id: experiment.window_id },
+      { window_id },
     );
 
     return {
@@ -103,9 +119,47 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
       queued_clean: queueResult.queued_clean,
       queued_neutralize: queueResult.queued_neutralize,
       queued_abstract: queueResult.queued_abstract,
+      evidence_batch_id: batchResult.evidence_batch_id,
+      evidence_count: batchResult.evidence_count,
     };
   },
 });
+
+export const createEvidenceBatch: ReturnType<typeof zInternalMutation> =
+  zInternalMutation({
+    args: z.object({
+      window_id: zid("windows"),
+      evidence_limit: z.number().min(1),
+      evidence_ids: z.array(zid("evidences")).min(1),
+    }),
+    returns: z.object({
+      evidence_batch_id: zid("evidence_batches"),
+      evidence_count: z.number(),
+    }),
+    handler: async (ctx, { window_id, evidence_limit, evidence_ids }) => {
+      const evidence_batch_id = await ctx.db.insert("evidence_batches", {
+        window_id,
+        evidence_limit,
+        evidence_count: evidence_ids.length,
+        created_at: Date.now(),
+      });
+
+      let position = 1;
+      for (const evidence_id of evidence_ids) {
+        await ctx.db.insert("evidence_batch_items", {
+          batch_id: evidence_batch_id,
+          evidence_id,
+          position,
+        });
+        position += 1;
+      }
+
+      return {
+        evidence_batch_id,
+        evidence_count: evidence_ids.length,
+      };
+    },
+  });
 
 export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
   zInternalMutation({

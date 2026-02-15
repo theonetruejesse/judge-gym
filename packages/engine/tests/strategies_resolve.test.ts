@@ -12,6 +12,8 @@ const config: ExperimentConfig = {
   scoring_stage: {
     model_id: "gpt-4.1",
     method: "subset",
+    sample_count: 1,
+    evidence_cap: 1,
     randomizations: ["anonymize_labels", "shuffle_rubric_order"],
     evidence_view: "l0_raw",
     abstain_enabled: true,

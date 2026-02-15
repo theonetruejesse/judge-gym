@@ -29,6 +29,8 @@ function normalizeConfig(config: ExperimentConfigInput) {
     scoring_stage: {
       model_id: config.scoring_stage.model_id,
       method: config.scoring_stage.method,
+      sample_count: config.scoring_stage.sample_count,
+      evidence_cap: config.scoring_stage.evidence_cap,
       randomizations: [...config.scoring_stage.randomizations],
       evidence_view: normalizeEvidenceView(config.scoring_stage.evidence_view),
       abstain_enabled: config.scoring_stage.abstain_enabled,

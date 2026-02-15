@@ -27,6 +27,7 @@ export const ExperimentsTableSchema = ExperimentSpecSchema.extend({
   config_template_id: z.string(),
   config_template_version: z.number(),
   active_run_id: zid("runs").optional(),
+  evidence_batch_id: zid("evidence_batches").optional(),
 });
 
 export const WindowsTableSchema = z.object({
@@ -45,6 +46,26 @@ export const EvidencesTableSchema = z.object({
   cleaned_content: z.string().optional(),
   neutralized_content: z.string().optional(),
   abstracted_content: z.string().optional(),
+});
+
+export const EvidenceBatchesTableSchema = z.object({
+  window_id: zid("windows"),
+  evidence_limit: z.number().int().min(1),
+  evidence_count: z.number().int().min(0),
+  created_at: z.number(),
+});
+
+export const EvidenceBatchItemsTableSchema = z.object({
+  batch_id: zid("evidence_batches"),
+  evidence_id: zid("evidences"),
+  position: z.number().int().min(1),
+});
+
+export const ExperimentEvidenceTableSchema = z.object({
+  experiment_id: zid("experiments"),
+  evidence_batch_id: zid("evidence_batches"),
+  evidence_id: zid("evidences"),
+  position: z.number().int().min(1),
 });
 
 const StageSchema = z.object({
@@ -104,6 +125,15 @@ export const ScoresTableSchema = z.object({
 export const Experiments = defineTable(zodOutputToConvex(ExperimentsTableSchema));
 export const Windows = defineTable(zodOutputToConvex(WindowsTableSchema));
 export const Evidences = defineTable(zodOutputToConvex(EvidencesTableSchema));
+export const EvidenceBatches = defineTable(
+  zodOutputToConvex(EvidenceBatchesTableSchema),
+);
+export const EvidenceBatchItems = defineTable(
+  zodOutputToConvex(EvidenceBatchItemsTableSchema),
+);
+export const ExperimentEvidence = defineTable(
+  zodOutputToConvex(ExperimentEvidenceTableSchema),
+);
 export const Rubrics = defineTable(zodOutputToConvex(RubricsTableSchema));
 export const Samples = defineTable(zodOutputToConvex(SamplesTableSchema));
 export const Scores = defineTable(zodOutputToConvex(ScoresTableSchema));

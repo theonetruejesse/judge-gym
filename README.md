@@ -120,19 +120,21 @@ Rubric and scoring models are selected separately via the experiment config:
 | Concept         | `evidence_window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `task_type`                      | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
 | Scoring Method  | `config.scoring_stage.method`    | `single`, `subset`                                                                                                               | `subset`                                |
+| Sample Count    | `config.scoring_stage.sample_count` | integer >= 1                                                                                                                | —                                       |
+| Evidence Cap    | `config.scoring_stage.evidence_cap` | integer >= 1                                                                                                               | —                                       |
 | Scale Size      | `config.rubric_stage.scale_size` | `3`, `4`, `5`                                                                                                                    | `4`                                     |
 | Evidence View   | `config.scoring_stage.evidence_view` | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                 | `l2_neutralized`                        |
 | Randomizations  | `config.scoring_stage.randomizations` | array of `anonymize_labels`, `shuffle_rubric_order`, `hide_label_text`                                                       | `["anonymize_labels","shuffle_rubric_order"]` |
 | Abstain Gate    | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                             | `true`                                  |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key.
+Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key. Evidence collection produces frozen evidence batches; experiments bind to a single batch to lock the evidence set.
 
 ---
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Mission Control web UI, Convex CLI, or MCP.
+All experiment operations are exposed via Convex public mutations and queries. The public façade lives in `packages/engine/convex/lab.ts` and mirrors the setup, evidence batch, binding, and run lifecycle entrypoints. Operate via the Mission Control web UI, Convex CLI, or MCP.
 
 ### Option A — Mission Control Web App (recommended)
 
@@ -181,6 +183,8 @@ npx convex run domain/configs/entrypoints:seedConfigTemplate '{
         "scoring_stage": {
           "model_id": "gpt-4.1",
           "method": "subset",
+          "sample_count": 10,
+          "evidence_cap": 10,
           "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
           "evidence_view": "l2_neutralized",
           "abstain_enabled": true
@@ -198,7 +202,7 @@ npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
 }'
 ```
 
-Quick path: `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
+Quick path: `initEvidenceWindow` + `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
 
 #### 2. Start a run + queue work
 
@@ -207,17 +211,21 @@ Quick path: `initExperiment` also works and will auto-seed a template using engi
 npx convex run domain/runs/entrypoints:startExperiment \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
-# Collect evidence (optional, if you want the engine to scrape)
-npx convex run domain/evidence/evidence_entrypoints:collectEvidenceForExperiment \
-  '{"experiment_tag":"pilot_fascism_gpt4.1","evidence_limit":10}'
+# Collect evidence into a frozen batch
+npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
+  '{"window_id":"<window_id>","evidence_limit":10}'
+
+# Bind experiment to the evidence batch (freezes evidence selection)
+npx convex run domain/experiments/entrypoints:bindExperimentEvidence \
+  '{"experiment_tag":"pilot_fascism_gpt4.1","evidence_batch_id":"<batch_id>"}'
 
 # Queue rubric generation
 npx convex run domain/experiments/entrypoints:queueRubricGeneration \
   '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":10}'
 
-# Queue scoring (N samples × evidence items)
+# Queue scoring (sample_count × evidence_cap)
 npx convex run domain/experiments/entrypoints:queueScoreGeneration \
-  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":10,"evidence_limit":10}'
+  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 ```
 
 #### 3. Query results

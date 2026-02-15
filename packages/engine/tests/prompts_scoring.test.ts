@@ -11,6 +11,8 @@ const baseConfig: ExperimentConfig = {
   scoring_stage: {
     model_id: "gpt-4.1",
     method: "single",
+    sample_count: 1,
+    evidence_cap: 1,
     randomizations: [],
     evidence_view: "l0_raw",
     abstain_enabled: true,
