@@ -11,12 +11,14 @@ import {
 } from "./core";
 
 export const ExperimentSpecSchema = z.object({
-  experiment_tag: z.string().optional(),
+  experiment_tag: z.string(),
   task_type: TaskTypeSchema,
   config: ExperimentConfigSchema,
 });
 
-export const ExperimentSpecInputSchema = ExperimentSpecSchema.extend({
+export const ExperimentSpecInputSchema = ExperimentSpecSchema.omit({
+  experiment_tag: true,
+}).extend({
   config: ExperimentConfigInputSchema,
 });
 
@@ -36,7 +38,11 @@ export const WindowsTableSchema = z.object({
   country: z.string(),
   concept: z.string(),
   model_id: modelTypeSchema,
-  window_tag: z.string().optional(),
+  window_tag: z.string(),
+});
+
+export const WindowsInputSchema = WindowsTableSchema.omit({
+  window_tag: true,
 });
 
 export const EvidencesTableSchema = z.object({
