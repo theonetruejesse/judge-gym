@@ -85,10 +85,10 @@ export default function RouteOneExperimentPage({
           </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/1/experiments" className="hover:text-[#ff6b35]">
+          <Link href="/" className="hover:text-[#ff6b35]">
             Experiments
           </Link>
-          <Link href="/1/editor" className="hover:text-[#ff6b35]">
+          <Link href="/editor" className="hover:text-[#ff6b35]">
             Edit
           </Link>
         </div>
@@ -136,7 +136,7 @@ export default function RouteOneExperimentPage({
             {filtered.map((exp) => (
               <Link
                 key={exp.id}
-                href={`/1/experiment/${exp.id}`}
+                href={`/experiment/${exp.id}`}
                 className="block w-full text-left px-3 py-2.5 border-b transition-colors"
                 style={{
                   borderColor: "#1e2433",
@@ -482,7 +482,7 @@ function EvidencePanel({
       {evidence.map((ev) => (
         <Link
           key={ev.id}
-          href={`/1/evidence/${ev.id}`}
+          href={`/evidence/${ev.id}`}
           className="block rounded border p-4 transition hover:bg-[#151a24]"
           style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
         >

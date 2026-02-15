@@ -1,54 +1,123 @@
+"use client";
+
 import Link from "next/link";
-import { Cormorant_Garamond, Source_Code_Pro } from "next/font/google";
+import { useState } from "react";
+import {
+  EXPERIMENTS,
+  STATUS_COLORS,
+  TASK_TYPE_LABELS,
+} from "@/lib/mock-data";
 
-const display = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "700"],
-});
-const mono = Source_Code_Pro({ subsets: ["latin"], weight: ["400", "600"] });
+const statuses = ["running", "complete", "paused", "pending", "canceled"];
 
-const routes = [
-  { id: 1, label: "Route /1 - Industrial Sidebar + Tabs" },
-  { id: 2, label: "Route /2 - Editorial Ledger" },
-  { id: 3, label: "Route /3 - Command Grid" },
-  { id: 4, label: "Route /4 - Dossier Reading Room" },
-  { id: 5, label: "Route /5 - Control Board" },
-];
+export default function RouteOneExperimentsPage() {
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const filtered =
+    statusFilter.length === 0
+      ? EXPERIMENTS
+      : EXPERIMENTS.filter((e) => statusFilter.includes(e.status));
 
-export default function HomePage() {
+  const toggleFilter = (status: string) => {
+    setStatusFilter((prev) =>
+      prev.includes(status)
+        ? prev.filter((s) => s !== status)
+        : [...prev, status],
+    );
+  };
+
   return (
     <div
-      className={`${mono.className} min-h-screen`}
-      style={{ backgroundColor: "#0d1016", color: "#e7e2d9" }}
+      className="min-h-screen"
+      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
     >
-      <div className="mx-auto max-w-5xl px-6 py-16">
-        <p className="text-xs uppercase tracking-[0.4em] text-[#9aa3b2]">
-          judge-gym
-        </p>
-        <h1
-          className={`${display.className} mt-4 text-4xl md:text-5xl`}
-          style={{ color: "#f6b26b" }}
-        >
-          Mission Control Layout Studies
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm text-[#b8c0cc]">
-          Five structurally distinct, multi-page Mission Control implementations.
-          Each route preserves the same workflow and data, but presents it through
-          a different spatial composition.
-        </p>
+      <header
+        className="flex items-center justify-between border-b px-6 py-4"
+        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
+      >
+        <div>
+          <p className="text-[10px] uppercase tracking-widest opacity-50">
+            judge-gym
+          </p>
+          <h1
+            className="text-lg font-semibold"
+            style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
+          >
+            Experiments
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/editor"
+            className="rounded border px-3 py-2 text-[10px] uppercase tracking-wider"
+            style={{ borderColor: "#1e2433", color: "#c8ccd4" }}
+          >
+            New Experiment
+          </Link>
+        </div>
+      </header>
 
-        <div className="mt-10 grid gap-3">
-          {routes.map((route) => (
-            <Link
-              key={route.id}
-              href={`/${route.id}/experiments`}
-              className="group flex items-center justify-between rounded border px-4 py-4 text-sm transition"
-              style={{ borderColor: "#1f2533", backgroundColor: "#111622" }}
+      <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest opacity-50">
+            Status Filters
+          </span>
+          {statuses.map((status) => (
+            <button
+              key={status}
+              onClick={() => toggleFilter(status)}
+              className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
+              style={{
+                backgroundColor: statusFilter.includes(status)
+                  ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}30`
+                  : "#151a24",
+                color: statusFilter.includes(status)
+                  ? STATUS_COLORS[status as keyof typeof STATUS_COLORS]
+                  : "#5a6173",
+                border: `1px solid ${
+                  statusFilter.includes(status)
+                    ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}50`
+                    : "#1e2433"
+                }`,
+              }}
             >
-              <span>{route.label}</span>
-              <span className="text-xs uppercase tracking-widest text-[#6f7c91] group-hover:text-[#f6b26b]">
-                Enter
+              {status}
+            </button>
+          ))}
+        </div>
+
+        <div
+          className="overflow-hidden rounded border"
+          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+        >
+          <div
+            className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr] border-b px-4 py-2 text-[10px] uppercase tracking-wider"
+            style={{ borderColor: "#1e2433", color: "#5a6173" }}
+          >
+            <span>Tag</span>
+            <span>Concept</span>
+            <span>Status</span>
+            <span>Task</span>
+            <span>Scale</span>
+          </div>
+          {filtered.map((exp) => (
+            <Link
+              key={exp.id}
+              href={`/experiment/${exp.id}`}
+              className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr] border-b px-4 py-3 text-xs transition hover:bg-[#151a24]"
+              style={{ borderColor: "#1e2433" }}
+            >
+              <span className="font-medium" style={{ color: "#e8eaed" }}>
+                {exp.tag}
               </span>
+              <span className="opacity-70">{exp.concept}</span>
+              <span
+                className="text-[10px] uppercase tracking-wider"
+                style={{ color: STATUS_COLORS[exp.status] }}
+              >
+                {exp.status}
+              </span>
+              <span className="opacity-70">{TASK_TYPE_LABELS[exp.taskType]}</span>
+              <span className="opacity-70">{exp.scaleSize}-pt</span>
             </Link>
           ))}
         </div>
