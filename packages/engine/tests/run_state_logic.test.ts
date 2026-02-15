@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { computeStageStatus } from "../convex/domain/runs/workflows/run_state";
+import { computeStageStatus } from "../convex/domain/runs/workflows/runs_run_state";
 
 describe("run_state computeStageStatus", () => {
   test("pending when total is zero", () => {

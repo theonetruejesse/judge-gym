@@ -41,7 +41,7 @@ export const ensureScheduler = zInternalMutation({
 
     await ctx.scheduler.runAfter(
       MIN_DELAY_MS,
-      internal.domain.runs.workflows.scheduler.tick,
+      internal.domain.runs.workflows.runs_scheduler.tick,
       { scheduled_at: next_tick_at },
     );
 
@@ -115,7 +115,7 @@ export const tick = zInternalMutation({
     );
 
     const due = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_batches.listBatchesDueForPolling,
+      internal.domain.llm_calls.llm_calls_batches.listBatchesDueForPolling,
       { now },
     )) as Doc<"llm_batches">[];
 
@@ -132,7 +132,7 @@ export const tick = zInternalMutation({
       polled += 1;
       await ctx.scheduler.runAfter(
         0,
-        internal.domain.llm_calls.workflows.batch_poll.pollBatch,
+        internal.domain.llm_calls.workflows.llm_calls_batch_poll.pollBatch,
         { batch_id: batch._id, provider: batch.provider },
       );
     }
@@ -161,7 +161,7 @@ export const tick = zInternalMutation({
     for (const { provider, model } of providerModels.values()) {
       if (submitted >= schedulerPolicy.max_new_batches_per_tick) break;
       const { batch_id } = await ctx.runMutation(
-        internal.domain.llm_calls.workflows.batch_queue.createBatchFromQueued,
+        internal.domain.llm_calls.workflows.llm_calls_batch_queue.createBatchFromQueued,
         {
           provider: provider as never,
           model: model as never,
@@ -172,7 +172,7 @@ export const tick = zInternalMutation({
       submitted += 1;
       await ctx.scheduler.runAfter(
         0,
-        internal.domain.llm_calls.workflows.batch_submit.submitBatch,
+        internal.domain.llm_calls.workflows.llm_calls_batch_submit.submitBatch,
         { batch_id, provider: provider as never },
       );
     }
@@ -189,7 +189,7 @@ export const tick = zInternalMutation({
     });
     await ctx.scheduler.runAfter(
       nextDelay,
-      internal.domain.runs.workflows.scheduler.tick,
+      internal.domain.runs.workflows.runs_scheduler.tick,
       { scheduled_at: nextTickAt },
     );
 
@@ -202,7 +202,7 @@ async function resolvePolicyForBatch(
   batch: Doc<"llm_batches">,
 ) {
   if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
-  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+  const run = await ctx.runQuery(internal.domain.runs.runs_repo.getRun, {
     run_id: batch.run_id,
   });
   return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;

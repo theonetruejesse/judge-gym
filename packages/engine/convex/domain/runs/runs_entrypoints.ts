@@ -190,7 +190,7 @@ async function startExperimentInternal(
     }
 
     const template = await ctx.runQuery(
-      internal.domain.configs.repo.getConfigTemplate,
+      internal.domain.configs.configs_repo.getConfigTemplate,
       {
         template_id: experiment.config_template_id,
         version: experiment.config_template_version,
@@ -215,7 +215,7 @@ async function startExperimentInternal(
     const policySnapshot = structuredClone(ENGINE_SETTINGS.run_policy);
 
     const run_config_id = await ctx.runMutation(
-      internal.domain.configs.repo.createRunConfigFromTemplate,
+      internal.domain.configs.configs_repo.createRunConfigFromTemplate,
       {
         template_id: template.template_id,
         version: template.version,
@@ -259,7 +259,7 @@ async function startExperimentInternal(
     });
 
     await ctx.runMutation(
-      internal.domain.runs.workflows.scheduler.ensureScheduler,
+      internal.domain.runs.workflows.runs_scheduler.ensureScheduler,
       { reason: "run_start" },
     );
 

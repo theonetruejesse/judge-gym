@@ -3,7 +3,7 @@ import {
   selectBatchCandidates,
   type QueuedRequest,
   type RunCandidate,
-} from "../convex/domain/llm_calls/workflows/batch_queue_logic";
+} from "../convex/domain/llm_calls/workflows/llm_calls_batch_queue_logic";
 import type { RunPolicy } from "../convex/models/core";
 
 const basePolicy: RunPolicy = {

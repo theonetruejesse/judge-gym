@@ -33,13 +33,13 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
   }),
   handler: async (ctx, { window_id, limit }) => {
     const window = await ctx.runQuery(
-      internal.domain.experiments.repo.getWindow,
+      internal.domain.experiments.experiments_repo.getWindow,
       { window_id },
     );
 
     const lim = limit ?? DEFAULT_LIMIT;
     const existingPreview: EvidenceSummary[] = await ctx.runQuery(
-      internal.domain.experiments.repo.listEvidenceByWindowSummary,
+      internal.domain.experiments.experiments_repo.listEvidenceByWindowSummary,
       { window_id, limit: lim },
     );
 
@@ -47,7 +47,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
 
     if (existingPreview.length < lim) {
       const existingAll: EvidenceSummary[] = await ctx.runQuery(
-        internal.domain.experiments.repo.listEvidenceByWindowSummary,
+        internal.domain.experiments.experiments_repo.listEvidenceByWindowSummary,
         { window_id },
       );
       const existingUrls = new Set(
@@ -74,7 +74,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
         });
 
         for (const result of newResults) {
-          await ctx.runMutation(internal.domain.experiments.repo.createEvidence, {
+          await ctx.runMutation(internal.domain.experiments.experiments_repo.createEvidence, {
             window_id,
             title: result.title,
             url: result.url,
@@ -87,7 +87,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     }
 
     const evidence = await ctx.runQuery(
-      internal.domain.experiments.repo.listEvidenceByWindow,
+      internal.domain.experiments.experiments_repo.listEvidenceByWindow,
       { window_id },
     );
 
@@ -192,7 +192,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
     for (const row of evidence) {
       if (needsClean && !row.cleaned_content) {
         await ctx.runMutation(
-          internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+          internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_clean",
             provider: providerFor(evidenceModel),
@@ -214,7 +214,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
       if (needsNeutralize && !row.neutralized_content) {
         const source = row.cleaned_content ?? row.raw_content;
         await ctx.runMutation(
-          internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+          internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_neutralize",
             provider: providerFor(evidenceModel),
@@ -237,7 +237,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
         const source =
           row.neutralized_content ?? row.cleaned_content ?? row.raw_content;
         await ctx.runMutation(
-          internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+          internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_abstract",
             provider: providerFor(evidenceModel),

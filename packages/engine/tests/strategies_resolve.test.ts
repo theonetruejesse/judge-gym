@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolveAll } from "../convex/domain/experiments/strategies/resolve";
-import { resolveEvidenceStrategy } from "../convex/domain/experiments/strategies/evidence.strategy";
-import { resolveRandomizationStrategy } from "../convex/domain/experiments/strategies/randomization.strategy";
+import { resolveAll } from "../convex/domain/experiments/strategies/experiments_resolve";
+import { resolveEvidenceStrategy } from "../convex/domain/experiments/strategies/experiments_evidence.strategy";
+import { resolveRandomizationStrategy } from "../convex/domain/experiments/strategies/experiments_randomization.strategy";
 import type { ExperimentConfig } from "../convex/models/core";
 
 const config: ExperimentConfig = {

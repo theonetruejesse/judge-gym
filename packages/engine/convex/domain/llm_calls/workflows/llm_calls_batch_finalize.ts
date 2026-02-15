@@ -15,7 +15,7 @@ async function getPolicyForBatch(
   const batch = await ctx.db.get(batch_id);
   if (!batch) throw new Error("Batch not found");
   if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
-  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+  const run = await ctx.runQuery(internal.domain.runs.runs_repo.getRun, {
     run_id: batch.run_id,
   });
   return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
@@ -100,7 +100,7 @@ export const finalizeBatch = zInternalMutation({
 
       const assistantOutput = result.output?.assistant_output ?? "";
       const messageId = await ctx.runMutation(
-        internal.domain.llm_calls.llm_messages.createLlmMessage,
+        internal.domain.llm_calls.llm_calls_messages.createLlmMessage,
         {
           system_prompt: request.system_prompt ?? undefined,
           user_prompt: request.user_prompt ?? "",
@@ -141,7 +141,7 @@ export const finalizeBatch = zInternalMutation({
       switch (request.stage) {
         case "evidence_clean": {
           if (!request.evidence_id) break;
-          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+          await ctx.runMutation(internal.domain.experiments.experiments_repo.patchEvidence, {
             evidence_id: request.evidence_id,
             cleaned_content: assistantOutput,
           });
@@ -149,7 +149,7 @@ export const finalizeBatch = zInternalMutation({
         }
         case "evidence_neutralize": {
           if (!request.evidence_id) break;
-          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+          await ctx.runMutation(internal.domain.experiments.experiments_repo.patchEvidence, {
             evidence_id: request.evidence_id,
             neutralized_content: assistantOutput,
           });
@@ -157,7 +157,7 @@ export const finalizeBatch = zInternalMutation({
         }
         case "evidence_abstract": {
           if (!request.evidence_id) break;
-          await ctx.runMutation(internal.domain.experiments.repo.patchEvidence, {
+          await ctx.runMutation(internal.domain.experiments.experiments_repo.patchEvidence, {
             evidence_id: request.evidence_id,
             abstracted_content: assistantOutput,
           });
@@ -168,7 +168,7 @@ export const finalizeBatch = zInternalMutation({
           const rubric = await ctx.db.get(request.rubric_id);
           if (!rubric) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.rubric.workflows.rubric_parser_gate
+            internal.domain.experiments.stages.rubric.workflows.experiments_rubric_parser_gate
               .applyRubricParse,
             {
               rubric_id: rubric._id,
@@ -198,7 +198,7 @@ export const finalizeBatch = zInternalMutation({
         case "rubric_critic": {
           if (!request.rubric_id) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.rubric.workflows.rubric_parser_gate
+            internal.domain.experiments.stages.rubric.workflows.experiments_rubric_parser_gate
               .applyRubricCriticParse,
             {
               rubric_id: request.rubric_id,
@@ -238,7 +238,7 @@ export const finalizeBatch = zInternalMutation({
             : null;
           if (!experiment) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.scoring.workflows.scoring_parser_gate
+            internal.domain.experiments.stages.scoring.workflows.experiments_scoring_parser_gate
               .applyScoreParse,
             {
               score_id: score._id,
@@ -278,7 +278,7 @@ export const finalizeBatch = zInternalMutation({
             .first();
           if (!score) break;
           const parseResult = await ctx.runMutation(
-            internal.domain.experiments.stages.scoring.workflows.scoring_parser_gate
+            internal.domain.experiments.stages.scoring.workflows.experiments_scoring_parser_gate
               .applyScoreCriticParse,
             {
               score_id: score._id,
@@ -331,32 +331,32 @@ export const finalizeBatch = zInternalMutation({
 
     for (const experiment_id of rubricCriticExperiments) {
       await ctx.runMutation(
-        internal.domain.experiments.stages.rubric.workflows.rubric_enqueue_critics
+        internal.domain.experiments.stages.rubric.workflows.experiments_rubric_enqueue_critics
           .enqueueRubricCritics,
         { experiment_id },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
         { experiment_id, stage: "rubric_gen" },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
         { experiment_id, stage: "rubric_critic" },
       );
     }
 
     for (const experiment_id of scoreCriticExperiments) {
       await ctx.runMutation(
-        internal.domain.experiments.stages.scoring.workflows.scoring_enqueue_critics
+        internal.domain.experiments.stages.scoring.workflows.experiments_scoring_enqueue_critics
           .enqueueScoreCritics,
         { experiment_id },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
         { experiment_id, stage: "score_gen" },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
         { experiment_id, stage: "score_critic" },
       );
     }
@@ -364,7 +364,7 @@ export const finalizeBatch = zInternalMutation({
     for (const [stage, experiments] of Object.entries(stageRefresh)) {
       for (const experiment_id of experiments) {
         await ctx.runMutation(
-          internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+          internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
           { experiment_id, stage: stage as never },
         );
       }

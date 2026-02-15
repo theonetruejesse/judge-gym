@@ -6,7 +6,7 @@ import type { RunPolicy } from "../../../models/core";
 import { modelTypeSchema, providerSchema } from "../../../models/core";
 import { ENGINE_SETTINGS } from "../../../settings";
 import type { Id } from "../../../_generated/dataModel";
-import { selectBatchCandidates } from "./batch_queue_logic";
+import { selectBatchCandidates } from "./llm_calls_batch_queue_logic";
 
 export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
   zInternalMutation({
@@ -89,7 +89,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
     if (items.length === 0) return { batch_id: null, run_id: undefined };
 
     const batch_id = (await ctx.runMutation(
-      internal.domain.llm_calls.llm_batches.createBatch,
+      internal.domain.llm_calls.llm_calls_batches.createBatch,
       {
         run_id: selection.run_id as Id<"runs"> | undefined,
         provider: provider as never,
@@ -106,7 +106,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
     for (const [index, req] of items.entries()) {
       const custom_id = `${req._id}:${req.stage}:${index}`;
       const batch_item_id = await ctx.runMutation(
-        internal.domain.llm_calls.llm_batches.createBatchItem,
+        internal.domain.llm_calls.llm_calls_batches.createBatchItem,
         {
           batch_id,
           request_id: req._id,
@@ -118,7 +118,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       );
 
       await ctx.runMutation(
-        internal.domain.llm_calls.llm_requests.patchLlmRequest,
+        internal.domain.llm_calls.llm_calls_requests.patchLlmRequest,
         {
         request_id: req._id,
         status: "submitted",
@@ -127,7 +127,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       );
     }
 
-    await ctx.runMutation(internal.domain.llm_calls.llm_batches.patchBatch, {
+    await ctx.runMutation(internal.domain.llm_calls.llm_calls_batches.patchBatch, {
       batch_id,
       status: "queued",
     });

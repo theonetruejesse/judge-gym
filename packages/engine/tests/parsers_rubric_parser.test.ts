@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseRubricResponse,
   parseQualityResponse,
-} from "../convex/domain/experiments/stages/rubric/rubric_parser";
+} from "../convex/domain/experiments/stages/rubric/experiments_rubric_parser";
 
 describe("rubric_parser", () => {
   test("parseRubricResponse parses reasoning and stages", () => {

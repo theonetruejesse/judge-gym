@@ -59,7 +59,7 @@ export const nukeTables: ReturnType<typeof zInternalAction> = zInternalAction({
       let total = 0;
       while (true) {
         const page: any = await ctx.runMutation(
-          internal.domain.admin.danger.deletePage,
+          internal.domain.admin.admin_danger.deletePage,
           { table, cursor },
         );
         total += page.deleted;

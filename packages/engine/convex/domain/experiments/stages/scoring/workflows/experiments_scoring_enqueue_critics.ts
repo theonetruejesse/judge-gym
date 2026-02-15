@@ -2,8 +2,8 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildScoreCriticPrompt } from "../scoring_prompts";
-import { resolveEvidenceStrategy } from "../../../strategies/evidence.strategy";
+import { buildScoreCriticPrompt } from "../experiments_scoring_prompts";
+import { resolveEvidenceStrategy } from "../../../strategies/experiments_evidence.strategy";
 import { providerFor } from "../../../../../platform/utils";
 
 export const enqueueScoreCritics = zInternalMutation({
@@ -39,7 +39,7 @@ export const enqueueScoreCritics = zInternalMutation({
       });
 
       await ctx.runMutation(
-        internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+        internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
         {
           stage: "score_critic",
           provider: providerFor(score.model_id),

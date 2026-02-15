@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../../../platform/utils";
 import { internal } from "../../../../../_generated/api";
-import { buildRubricGenPrompt } from "../rubric_prompts";
+import { buildRubricGenPrompt } from "../experiments_rubric_prompts";
 import { providerFor } from "../../../../../platform/utils";
 import type { Id } from "../../../../../_generated/dataModel";
 
@@ -55,7 +55,7 @@ export const seedRubricRequests = zInternalMutation({
 
     for (const rubric of rubrics) {
       await ctx.runMutation(
-        internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
+        internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
         {
           stage: "rubric_gen",
           provider: providerFor(experiment.config.rubric_stage.model_id),
@@ -74,7 +74,7 @@ export const seedRubricRequests = zInternalMutation({
     }
 
     await ctx.runMutation(
-      internal.domain.runs.workflows.run_state.refreshRunStageCountsForExperiment,
+      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
       { experiment_id: experiment._id, stage: "rubric_gen" },
     );
 
