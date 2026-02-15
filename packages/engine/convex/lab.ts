@@ -233,6 +233,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: z.string(),
       concept: z.string(),
       model_id: modelTypeSchema,
+      evidence_count: z.number(),
     }),
   ),
   handler: async (ctx, args) => {

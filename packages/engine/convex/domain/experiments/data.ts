@@ -55,6 +55,12 @@ export const listEvidenceWindows = zQuery({
   args: z.object({}),
   handler: async (ctx) => {
     const windows = await ctx.db.query("windows").collect();
+    const evidences = await ctx.db.query("evidences").collect();
+    const counts = new Map<string, number>();
+    for (const evidence of evidences) {
+      const key = String(evidence.window_id);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
     return windows.map((window) => ({
       window_id: window._id,
       start_date: window.start_date,
@@ -62,6 +68,7 @@ export const listEvidenceWindows = zQuery({
       country: window.country,
       concept: window.concept,
       model_id: window.model_id,
+      evidence_count: counts.get(String(window._id)) ?? 0,
     }));
   },
 });
