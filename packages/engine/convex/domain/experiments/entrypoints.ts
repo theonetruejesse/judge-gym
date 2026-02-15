@@ -65,8 +65,11 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     if (!windowDoc) throw new Error("Window not found");
 
     const normalizedExperiment = normalizeExperimentSpec(experiment);
-    const configTemplateId =
-      template_id ?? normalizedExperiment.experiment_tag;
+    const specSignature = buildExperimentSpecSignature({
+      evidence_window: windowDoc,
+      experiment: normalizedExperiment,
+    });
+    const configTemplateId = template_id ?? specSignature;
     const configTemplateVersion = template_version ?? 1;
 
     await ensureConfigTemplate(ctx, {
@@ -80,6 +83,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       window_id,
       evidence_window: windowDoc,
       experiment: normalizedExperiment,
+      spec_signature: specSignature,
       config_template_id: configTemplateId,
       config_template_version: configTemplateVersion,
     });
@@ -130,6 +134,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
       window_id,
       evidence_window,
       experiment,
+      spec_signature: template.spec_signature,
       config_template_id: template_id,
       config_template_version: version,
     });
@@ -189,6 +194,7 @@ async function ensureExperimentWithSpec(
     window_id: Id<"windows">;
     evidence_window: z.infer<typeof WindowsTableSchema>;
     experiment: z.infer<typeof ExperimentSpecSchema>;
+    spec_signature: string;
     config_template_id: string;
     config_template_version: number;
   },
@@ -198,41 +204,15 @@ async function ensureExperimentWithSpec(
   reused_experiment: boolean;
 }> {
   const { evidence_window, experiment, window_id } = args;
-  const requestedSignature = buildExperimentSpecSignature({
-    evidence_window,
-    experiment,
-  });
+  const requestedSignature = args.spec_signature;
   const existingExperiment = await ctx.db
     .query("experiments")
-    .withIndex("by_experiment_tag", (q) =>
-      q.eq("experiment_tag", experiment.experiment_tag),
+    .withIndex("by_window_spec", (q) =>
+      q.eq("window_id", window_id).eq("spec_signature", requestedSignature),
     )
     .unique();
   if (existingExperiment) {
-    if (existingExperiment.window_id !== window_id) {
-      throw new Error(
-        `Window mismatch for experiment_tag=${experiment.experiment_tag}`,
-      );
-    }
-    const existingSignature =
-      existingExperiment.spec_signature ??
-      buildExperimentSpecSignature({
-        evidence_window,
-        experiment: {
-          experiment_tag: existingExperiment.experiment_tag,
-          task_type: existingExperiment.task_type,
-          config: existingExperiment.config,
-        },
-      });
-    if (existingSignature !== requestedSignature) {
-      throw new Error(
-        `Experiment config mismatch for experiment_tag=${experiment.experiment_tag}`,
-      );
-    }
     const patch: Record<string, unknown> = {};
-    if (!existingExperiment.spec_signature) {
-      patch.spec_signature = existingSignature;
-    }
     if (
       existingExperiment.config_template_id !== args.config_template_id ||
       existingExperiment.config_template_version !==
@@ -307,19 +287,13 @@ export const insertEvidenceBatch = zMutation({
 
 export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     sample_count: z.number().min(1).optional(),
   }),
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
-  handler: async (ctx, { experiment_tag, sample_count }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+  handler: async (ctx, { experiment_id, sample_count }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
     return ctx.runMutation(
       internal.domain.experiments.stages.rubric.workflows.rubric_seed_requests
         .seedRubricRequests,
@@ -330,21 +304,15 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
 
 export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
   }),
   returns: z.object({
     samples_created: z.number(),
     evidence_count: z.number(),
   }),
-  handler: async (ctx, { experiment_tag }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+  handler: async (ctx, { experiment_id }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
     return ctx.runMutation(
       internal.domain.experiments.stages.scoring.workflows.scoring_seed_requests
         .seedScoreRequests,
@@ -355,7 +323,7 @@ export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
 
 export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     evidence_batch_id: zid("evidence_batches"),
   }),
   returns: z.object({
@@ -364,15 +332,9 @@ export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
     bound_count: z.number(),
     evidence_cap: z.number(),
   }),
-  handler: async (ctx, { experiment_tag, evidence_batch_id }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+  handler: async (ctx, { experiment_id, evidence_batch_id }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
     if (experiment.evidence_batch_id) {
       throw new Error("Experiment already bound to an evidence batch");
     }
@@ -424,7 +386,7 @@ export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
 
 export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    experiment_tag: z.string(),
+    experiment_id: zid("experiments"),
     cleanup_window: z.boolean().optional(),
   }),
   returns: z.object({
@@ -447,15 +409,9 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       llm_batch_items: z.number(),
     }),
   }),
-  handler: async (ctx, { experiment_tag, cleanup_window }) => {
-    const experiment = await ctx.db
-      .query("experiments")
-      .withIndex("by_experiment_tag", (q) =>
-        q.eq("experiment_tag", experiment_tag),
-      )
-      .unique();
-    if (!experiment)
-      throw new Error(`Experiment not found: ${experiment_tag}`);
+  handler: async (ctx, { experiment_id, cleanup_window }) => {
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
 
     const window_id = experiment.window_id;
 

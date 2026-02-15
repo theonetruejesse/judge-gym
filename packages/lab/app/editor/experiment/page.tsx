@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
 import {
   RANDOMIZATION_LABELS,
@@ -10,6 +12,25 @@ import {
   TASK_TYPE_LABELS,
   VIEW_LABELS,
 } from "@/lib/ui";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -22,7 +43,23 @@ type EvidenceWindowItem = {
   model_id: string;
 };
 
-const DEFAULT_EXPERIMENT = {
+const formSchema = z.object({
+  experiment_tag: z.string().optional(),
+  task_type: z.enum(["ecc", "control", "benchmark"]),
+  rubric_model_id: z.string().min(1, "Rubric model is required."),
+  scoring_model_id: z.string().min(1, "Scoring model is required."),
+  scale_size: z.coerce.number().int().min(3).max(5),
+  method: z.enum(["single", "subset"]),
+  sample_count: z.coerce.number().int().min(1, "Sample count must be at least 1."),
+  evidence_cap: z.coerce.number().int().min(1, "Evidence cap must be at least 1."),
+  evidence_view: z.enum(["l0_raw", "l1_cleaned", "l2_neutralized", "l3_abstracted"]),
+  abstain_enabled: z.boolean(),
+  randomizations: z.array(z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"])),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+const DEFAULT_EXPERIMENT: FormValues = {
   experiment_tag: "",
   task_type: "ecc",
   rubric_model_id: "gpt-4.1",
@@ -39,10 +76,7 @@ const DEFAULT_EXPERIMENT = {
 export default function ExperimentEditorPage() {
   if (!hasConvex) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
         <p className="mt-2 text-xs opacity-60">
           Set the Convex URL to enable the editor.
@@ -60,9 +94,12 @@ export default function ExperimentEditorPage() {
   ) as EvidenceWindowItem[] | undefined;
   const initExperiment = useMutation(api.lab.initExperiment);
 
-  const [experimentForm, setExperimentForm] = useState(DEFAULT_EXPERIMENT);
   const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
+
+  const form = useForm<FormValues>({
+    defaultValues: DEFAULT_EXPERIMENT,
+  });
 
   useEffect(() => {
     if (!selectedWindowId && windows && windows.length > 0) {
@@ -70,41 +107,51 @@ export default function ExperimentEditorPage() {
     }
   }, [windows, selectedWindowId]);
 
-  const handleCreateExperiment = async () => {
+  const randomizationOptions = useMemo(
+    () => Object.entries(RANDOMIZATION_LABELS),
+    [],
+  );
+
+  const handleCreateExperiment = async (values: FormValues) => {
     setExperimentStatus(null);
     if (!selectedWindowId) {
       setExperimentStatus("Select an evidence window first.");
       return;
     }
-    if (!experimentForm.experiment_tag) {
-      setExperimentStatus("Experiment tag is required.");
+    const parsed = formSchema.safeParse(values);
+    if (!parsed.success) {
+      parsed.error.issues.forEach((issue) => {
+        const field = issue.path[0];
+        if (typeof field === "string") {
+          form.setError(field as keyof FormValues, {
+            type: "manual",
+            message: issue.message,
+          });
+        }
+      });
       return;
     }
     try {
+      const experiment_tag =
+        parsed.data.experiment_tag?.trim() || undefined;
       await initExperiment({
         window_id: selectedWindowId,
         experiment: {
-          experiment_tag: experimentForm.experiment_tag,
-          task_type: experimentForm.task_type as "ecc" | "control" | "benchmark",
+          experiment_tag,
+          task_type: parsed.data.task_type,
           config: {
             rubric_stage: {
-              scale_size: experimentForm.scale_size,
-              model_id: experimentForm.rubric_model_id,
+              scale_size: parsed.data.scale_size,
+              model_id: parsed.data.rubric_model_id,
             },
             scoring_stage: {
-              model_id: experimentForm.scoring_model_id,
-              method: experimentForm.method as "single" | "subset",
-              sample_count: experimentForm.sample_count,
-              evidence_cap: experimentForm.evidence_cap,
-              randomizations: experimentForm.randomizations as Array<
-                "anonymize_labels" | "shuffle_rubric_order" | "hide_label_text"
-              >,
-              evidence_view: experimentForm.evidence_view as
-                | "l0_raw"
-                | "l1_cleaned"
-                | "l2_neutralized"
-                | "l3_abstracted",
-              abstain_enabled: experimentForm.abstain_enabled,
+              model_id: parsed.data.scoring_model_id,
+              method: parsed.data.method,
+              sample_count: parsed.data.sample_count,
+              evidence_cap: parsed.data.evidence_cap,
+              randomizations: parsed.data.randomizations,
+              evidence_view: parsed.data.evidence_view,
+              abstain_enabled: parsed.data.abstain_enabled,
             },
           },
         },
@@ -118,14 +165,8 @@ export default function ExperimentEditorPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
         <div>
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Experiment Editor
@@ -145,10 +186,7 @@ export default function ExperimentEditorPage() {
       </header>
 
       <div className="mx-auto grid max-w-4xl gap-6 px-6 py-8">
-        <section
-          className="grid gap-5 rounded border p-6"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
               Evidence Window
@@ -157,24 +195,21 @@ export default function ExperimentEditorPage() {
               Select the evidence window to bind with this experiment.
             </p>
           </div>
-          <select
-            className="rounded border px-2 py-2 text-xs"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-            value={selectedWindowId}
-            onChange={(event) => setSelectedWindowId(event.target.value)}
-          >
-            {windows?.map((window) => (
-              <option key={window.window_id} value={window.window_id}>
-                {window.concept} · {window.country} · {window.start_date}
-              </option>
-            ))}
-          </select>
-        </section>
+          <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
+            <SelectTrigger className="mt-4">
+              <SelectValue placeholder="Select window" />
+            </SelectTrigger>
+            <SelectContent>
+              {windows?.map((window) => (
+                <SelectItem key={window.window_id} value={window.window_id}>
+                  {window.concept} · {window.country} · {window.start_date}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Card>
 
-        <section
-          className="grid gap-5 rounded border p-6"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
               Experiment
@@ -184,238 +219,250 @@ export default function ExperimentEditorPage() {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-xs">
-              Tag
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.experiment_tag}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    experiment_tag: event.target.value,
-                  }))
-                }
-                placeholder="ecc-fascism-jan"
-              />
-            </label>
-            <label className="grid gap-2 text-xs">
-              Task Type
-              <select
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.task_type}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    task_type: event.target.value,
-                  }))
-                }
-              >
-                {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-xs">
-              Rubric Model
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.rubric_model_id}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    rubric_model_id: event.target.value,
-                  }))
-                }
-                placeholder="gpt-4.1"
-              />
-            </label>
-            <label className="grid gap-2 text-xs">
-              Scale Size
-              <select
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.scale_size}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    scale_size: Number(event.target.value),
-                  }))
-                }
-              >
-                <option value={3}>3</option>
-                <option value={4}>4</option>
-                <option value={5}>5</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-xs">
-              Scoring Model
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.scoring_model_id}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    scoring_model_id: event.target.value,
-                  }))
-                }
-                placeholder="gpt-4.1"
-              />
-            </label>
-            <label className="grid gap-2 text-xs">
-              Scoring Method
-              <select
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.method}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    method: event.target.value,
-                  }))
-                }
-              >
-                {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-xs">
-              Sample Count
-              <input
-                type="number"
-                min={1}
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.sample_count}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    sample_count: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="grid gap-2 text-xs">
-              Evidence Cap
-              <input
-                type="number"
-                min={1}
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.evidence_cap}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    evidence_cap: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 text-xs">
-              Evidence View
-              <select
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={experimentForm.evidence_view}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    evidence_view: event.target.value,
-                  }))
-                }
-              >
-                {Object.entries(VIEW_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={experimentForm.abstain_enabled}
-                onChange={(event) =>
-                  setExperimentForm((prev) => ({
-                    ...prev,
-                    abstain_enabled: event.target.checked,
-                  }))
-                }
-              />
-              Abstain Enabled
-            </label>
-          </div>
-
-          <div className="grid gap-2 text-xs">
-            <span className="uppercase tracking-widest opacity-50">
-              Randomizations
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(RANDOMIZATION_LABELS).map(([value, label]) => {
-                const active = experimentForm.randomizations.includes(value);
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setExperimentForm((prev) => ({
-                        ...prev,
-                        randomizations: active
-                          ? prev.randomizations.filter((item) => item !== value)
-                          : [...prev.randomizations, value],
-                      }))
-                    }
-                    className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
-                    style={{
-                      backgroundColor: active ? "#ff6b3530" : "#151a24",
-                      color: active ? "#ff6b35" : "#7a8599",
-                      border: `1px solid ${active ? "#ff6b3550" : "#1e2433"}`,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleCreateExperiment}
-              className="rounded px-4 py-2 text-[10px] uppercase tracking-wider"
-              style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleCreateExperiment)}
+              className="mt-6 grid gap-5"
             >
-              Save Experiment
-            </button>
-            {experimentStatus && (
-              <span className="text-[10px] uppercase tracking-wider opacity-60">
-                {experimentStatus}
-              </span>
-            )}
-          </div>
-        </section>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="experiment_tag"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tag</FormLabel>
+                      <FormControl>
+                        <Input placeholder="ecc-fascism-jan" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="task_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Task Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select task" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="rubric_model_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rubric Model</FormLabel>
+                      <FormControl>
+                        <Input placeholder="gpt-4.1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="scale_size"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Scale Size</FormLabel>
+                      <Select onValueChange={field.onChange} value={String(field.value)}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select scale" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {[3, 4, 5].map((value) => (
+                            <SelectItem key={value} value={String(value)}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="scoring_model_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Scoring Model</FormLabel>
+                      <FormControl>
+                        <Input placeholder="gpt-4.1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="method"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Scoring Method</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select method" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="sample_count"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sample Count</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="evidence_cap"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Evidence Cap</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="evidence_view"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Evidence View</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select view" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.entries(VIEW_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="abstain_enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm">Abstain Enabled</FormLabel>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="randomizations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Randomizations</FormLabel>
+                    <div className="flex flex-wrap gap-2">
+                      {randomizationOptions.map(([value, label]) => {
+                        const active = field.value.includes(value as FormValues["randomizations"][number]);
+                        return (
+                          <Button
+                            key={value}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-[10px] uppercase tracking-wider"
+                            style={{
+                              backgroundColor: active ? "#ff6b3530" : "#151a24",
+                              color: active ? "#ff6b35" : "#7a8599",
+                              borderColor: active ? "#ff6b3550" : "#1e2433",
+                            }}
+                            onClick={() => {
+                              const next = active
+                                ? field.value.filter((item) => item !== value)
+                                : [...field.value, value as FormValues["randomizations"][number]];
+                              field.onChange(next);
+                            }}
+                          >
+                            {label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                  Save Experiment
+                </Button>
+                {experimentStatus && (
+                  <span className="text-[10px] uppercase tracking-wider opacity-60">
+                    {experimentStatus}
+                  </span>
+                )}
+              </div>
+            </form>
+          </Form>
+        </Card>
       </div>
     </div>
   );

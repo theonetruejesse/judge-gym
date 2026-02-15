@@ -12,17 +12,39 @@ import {
   TASK_TYPE_LABELS,
   VIEW_LABELS,
 } from "@/lib/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 type ExperimentListItem = {
   experiment_id: string;
-  experiment_tag: string;
+  experiment_tag?: string;
   task_type: string;
   status: string;
   active_run_id?: string;
   evidence_batch_id?: string;
   window_id: string;
+  window_tag?: string;
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -33,7 +55,8 @@ type ExperimentListItem = {
 };
 
 type ExperimentState = {
-  experiment_tag: string;
+  experiment_id: string;
+  experiment_tag?: string;
   exists: boolean;
   evidence_total?: number;
   evidence_neutralized?: number;
@@ -54,7 +77,9 @@ type ExperimentState = {
 };
 
 type ExperimentSummary = {
-  experiment_tag: string;
+  experiment_id: string;
+  experiment_tag?: string;
+  window_id: string;
   rubric_model_id: string;
   scoring_model_id: string;
   concept: string;
@@ -96,7 +121,8 @@ type EvidenceItem = {
 
 type RunListItem = {
   run_id: string;
-  experiment_tag: string;
+  experiment_id: string;
+  experiment_tag?: string;
   status: string;
   desired_state: string;
   current_stage?: string;
@@ -126,20 +152,6 @@ function StatusDot({ status }: { status: string }) {
       className="inline-block h-2 w-2 rounded-full"
       style={{ backgroundColor: color }}
     />
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="h-1.5 w-full rounded-full bg-white/10">
-      <div
-        className="h-full rounded-full transition-all duration-500"
-        style={{
-          width: `${value}%`,
-          backgroundColor: value === 100 ? "#3b82f6" : "#ff6b35",
-        }}
-      />
-    </div>
   );
 }
 
@@ -181,10 +193,7 @@ export default function RouteOneExperimentPage({
 
   if (experimentsLoading) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Loading experiments...</p>
       </div>
     );
@@ -196,15 +205,15 @@ export default function RouteOneExperimentPage({
     experimentRows.find((e) => e.experiment_id === resolvedParams?.id) ??
     experimentRows[0];
 
-  const selectedTag = selected?.experiment_tag;
-
   const summary = useQuery(
     api.lab.getExperimentSummary,
-    selectedTag && hasConvex ? { experiment_tag: selectedTag } : "skip",
+    selected && hasConvex ? { experiment_id: selected.experiment_id } : "skip",
   ) as ExperimentSummary | undefined;
   const states = useQuery(
     api.lab.getExperimentStates,
-    selectedTag && hasConvex ? { experiment_tags: [selectedTag] } : "skip",
+    selected && hasConvex
+      ? { experiment_ids: [selected.experiment_id] }
+      : "skip",
   ) as ExperimentState[] | undefined;
   const state = states?.[0];
 
@@ -225,7 +234,7 @@ export default function RouteOneExperimentPage({
     hasConvex ? {} : "skip",
   ) as RunListItem[] | undefined;
   const activeRunsForExperiment = (activeRuns ?? []).filter(
-    (run) => run.experiment_tag === selectedTag,
+    (run) => run.experiment_id === selected?.experiment_id,
   );
 
   const summaryData = summary;
@@ -265,14 +274,16 @@ export default function RouteOneExperimentPage({
   }, [runSummaryData?.stages]);
 
   const handleStart = async () => {
-    if (!selectedTag) return;
+    if (!selected) return;
     if (!hasConvex) {
       setActionMessage("Convex not configured.");
       return;
     }
     setActionMessage(null);
     try {
-      const result = await startExperiment({ experiment_tag: selectedTag });
+      const result = await startExperiment({
+        experiment_id: selected.experiment_id,
+      });
       if (!result.ok) {
         setActionMessage(result.error ?? "Failed to start experiment.");
         return;
@@ -326,14 +337,14 @@ export default function RouteOneExperimentPage({
   };
 
   const handleQueueRubric = async () => {
-    if (!selectedTag) return;
+    if (!selected) return;
     if (!hasConvex) {
       setActionMessage("Convex not configured.");
       return;
     }
     setActionMessage(null);
     try {
-      await queueRubric({ experiment_tag: selectedTag });
+      await queueRubric({ experiment_id: selected.experiment_id });
       setActionMessage("Queued rubric generation.");
     } catch (error) {
       setActionMessage(
@@ -343,14 +354,14 @@ export default function RouteOneExperimentPage({
   };
 
   const handleQueueScore = async () => {
-    if (!selectedTag) return;
+    if (!selected) return;
     if (!hasConvex) {
       setActionMessage("Convex not configured.");
       return;
     }
     setActionMessage(null);
     try {
-      await queueScore({ experiment_tag: selectedTag });
+      await queueScore({ experiment_id: selected.experiment_id });
       setActionMessage("Queued scoring.");
     } catch (error) {
       setActionMessage(
@@ -385,7 +396,7 @@ export default function RouteOneExperimentPage({
   };
 
   const handleBindEvidence = async () => {
-    if (!selectedTag || !selectedBatchId) return;
+    if (!selected || !selectedBatchId) return;
     if (!hasConvex) {
       setEvidenceMessage("Convex not configured.");
       return;
@@ -393,7 +404,7 @@ export default function RouteOneExperimentPage({
     setEvidenceMessage(null);
     try {
       const result = await bindExperimentEvidence({
-        experiment_tag: selectedTag,
+        experiment_id: selected.experiment_id,
         evidence_batch_id: selectedBatchId,
       });
       setEvidenceMessage(
@@ -408,10 +419,7 @@ export default function RouteOneExperimentPage({
 
   if (!selected) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">No experiments found.</p>
         <Link href="/" className="mt-4 inline-block text-xs">
           Back to judge-gym
@@ -421,19 +429,13 @@ export default function RouteOneExperimentPage({
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex h-11 flex-shrink-0 items-center justify-between border-b px-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="flex h-11 flex-shrink-0 items-center justify-between border-b border-border bg-card/80 px-4">
         <div className="flex items-center gap-3">
           <span className="text-[10px] uppercase tracking-widest opacity-50">
             judge-gym
           </span>
-          <div className="h-3 w-px" style={{ backgroundColor: "#1e2433" }} />
+          <div className="h-3 w-px bg-border" />
           <span
             className="text-sm font-bold tracking-wide"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
@@ -453,67 +455,69 @@ export default function RouteOneExperimentPage({
           <div className="mb-5 flex items-start justify-between">
             <div>
               <h1
-                className="text-xl font-bold tracking-tight"
-                style={{ fontFamily: "var(--font-1-serif)", color: "#e8eaed" }}
+                className="text-xl font-bold tracking-tight text-foreground"
+                style={{ fontFamily: "var(--font-1-serif)" }}
               >
-                {selected.experiment_tag}
+                {selected.experiment_tag ?? selected.experiment_id}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {selected.experiment_id} &middot; window{" "}
-                {selected.window_id}
+                {selected.experiment_id} · window {selected.window_id}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className="rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
+              <Badge
+                className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{
-                  backgroundColor: `${
-                    STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]
-                  }20`,
+                  backgroundColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}20`,
                   color: STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS],
+                  borderColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}40`,
                 }}
               >
                 {selected.status}
-              </span>
-              <button
-                className="rounded px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
-                style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
+              </Badge>
+              <Button
+                size="sm"
+                className="h-8 text-[10px] uppercase tracking-wider"
                 onClick={handleStart}
               >
                 Start
-              </button>
-              <button
-                className="rounded border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: "#1e2433", color: "#5a6173" }}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
                 onClick={handlePause}
               >
                 Pause
-              </button>
-              <button
-                className="rounded border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: "#1e2433", color: "#5a6173" }}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
                 onClick={handleCancel}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider opacity-60">
-            <button
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[10px] uppercase tracking-wider"
               onClick={handleQueueRubric}
-              className="rounded border px-2 py-1"
-              style={{ borderColor: "#1e2433" }}
             >
               Queue Rubric
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[10px] uppercase tracking-wider"
               onClick={handleQueueScore}
-              className="rounded border px-2 py-1"
-              style={{ borderColor: "#1e2433" }}
             >
               Queue Scores
-            </button>
+            </Button>
             {actionMessage && (
               <span className="text-[10px] uppercase tracking-wider opacity-60">
                 {actionMessage}
@@ -521,80 +525,48 @@ export default function RouteOneExperimentPage({
             )}
           </div>
 
-          <div
-            className="mb-4 flex gap-0 border-b"
-            style={{ borderColor: "#1e2433" }}
-          >
-            {(
-              [
-                ["config", "Configuration"],
-                ["runs", "Runs"],
-                ["evidence", "Evidence"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className="border-b-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider"
-                style={{
-                  fontFamily: "var(--font-1-serif)",
-                  borderColor: tab === key ? "#ff6b35" : "transparent",
-                  color: tab === key ? "#ff6b35" : "#5a6173",
-                }}
-              >
-                {label}
-                {key === "runs" && ` (${state?.run_count ?? 0})`}
-                {key === "evidence" && ` (${evidenceItemsData.length})`}
-              </button>
-            ))}
-          </div>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+            <TabsList className="bg-card/80">
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+              <TabsTrigger value="runs">Runs ({state?.run_count ?? 0})</TabsTrigger>
+              <TabsTrigger value="evidence">Evidence ({evidenceItemsData.length})</TabsTrigger>
+            </TabsList>
 
-          {tab === "config" && (
-            <ConfigPanel
-              summary={summaryData}
-              selected={selected}
-              state={state}
-            />
-          )}
-          {tab === "runs" && (
-            <RunsPanel
-              runSummary={runSummaryData}
-              runProgress={runProgress}
-              activeRuns={activeRunsForExperiment}
-            />
-          )}
-          {tab === "evidence" && (
-            <EvidencePanel
-              selected={selected}
-              summary={summaryData}
-              state={state}
-              evidenceBatches={evidenceBatchesData}
-              evidenceItems={evidenceItemsData}
-              evidenceLimit={evidenceLimit}
-              onEvidenceLimitChange={setEvidenceLimit}
-              selectedBatchId={selectedBatchId}
-              onBatchChange={setSelectedBatchId}
-              onCollect={handleCollectEvidence}
-              onBind={handleBindEvidence}
-              evidenceMessage={evidenceMessage}
-            />
-          )}
+            <TabsContent value="config">
+              <ConfigPanel summary={summaryData} selected={selected} state={state} />
+            </TabsContent>
+            <TabsContent value="runs">
+              <RunsPanel
+                runSummary={runSummaryData}
+                runProgress={runProgress}
+                activeRuns={activeRunsForExperiment}
+              />
+            </TabsContent>
+            <TabsContent value="evidence">
+              <EvidencePanel
+                selected={selected}
+                summary={summaryData}
+                state={state}
+                evidenceBatches={evidenceBatchesData}
+                evidenceItems={evidenceItemsData}
+                evidenceLimit={evidenceLimit}
+                onEvidenceLimitChange={setEvidenceLimit}
+                selectedBatchId={selectedBatchId}
+                onBatchChange={setSelectedBatchId}
+                onCollect={handleCollectEvidence}
+                onBind={handleBindEvidence}
+                evidenceMessage={evidenceMessage}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 
-      <footer
-        className="flex h-7 flex-shrink-0 items-center justify-between border-t px-4 text-[10px]"
-        style={{
-          borderColor: "#1e2433",
-          backgroundColor: "#0b0e14",
-          color: "#3a4050",
-        }}
-      >
+      <footer className="flex h-7 flex-shrink-0 items-center justify-between border-t border-border bg-card/80 px-4 text-[10px] text-muted-foreground">
         <span>
-          {experimentRows.length} experiments &middot;{" "}
-          {evidenceItemsData.length} evidence items
+          {experimentRows.length} experiments · {evidenceItemsData.length} evidence items
         </span>
-        <span>Convex live &middot; Last sync: just now</span>
+        <span>Convex live · Last sync: just now</span>
       </footer>
     </div>
   );
@@ -607,7 +579,9 @@ function ConfigPanel({
 }: {
   summary:
     | {
-        experiment_tag: string;
+        experiment_id: string;
+        experiment_tag?: string;
+        window_id: string;
         rubric_model_id: string;
         scoring_model_id: string;
         concept: string;
@@ -654,12 +628,9 @@ function ConfigPanel({
 }) {
   if (!summary) {
     return (
-      <div
-        className="rounded border px-6 py-10 text-center text-xs opacity-40"
-        style={{ borderColor: "#1e2433" }}
-      >
+      <Card className="border-border px-6 py-10 text-center text-xs opacity-40">
         Loading configuration...
-      </div>
+      </Card>
     );
   }
 
@@ -689,10 +660,7 @@ function ConfigPanel({
 
   return (
     <div className="space-y-4">
-      <div
-        className="rounded border p-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-      >
+      <Card className="border-border bg-card/80 p-4">
         <p
           className="mb-2 text-[10px] uppercase tracking-widest opacity-50"
           style={{ fontFamily: "var(--font-1-serif)" }}
@@ -701,67 +669,45 @@ function ConfigPanel({
         </p>
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span>
-            {selected.evidence_window?.concept ?? "—"} &middot;{" "}
-            {selected.evidence_window?.country ?? "—"}
+            {selected.evidence_window?.concept ?? "—"} · {selected.evidence_window?.country ?? "—"}
           </span>
           <span className="opacity-60">
-            {selected.evidence_window?.start_date ?? "—"} →{" "}
-            {selected.evidence_window?.end_date ?? "—"}
+            {selected.evidence_window?.start_date ?? "—"} - {selected.evidence_window?.end_date ?? "—"}
           </span>
           <span className="opacity-60">
             {selected.evidence_window?.model_id ?? "—"}
           </span>
         </div>
-        <div className="mt-2 text-[11px] opacity-50">
-          Window ID: {selected.window_id}
-        </div>
-      </div>
+        <div className="mt-2 text-[11px] opacity-50">Window ID: {selected.window_id}</div>
+      </Card>
 
-      <div
-        className="rounded border"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-      >
-        <table className="w-full">
-          <tbody>
+      <Card className="border-border bg-card/80">
+        <Table>
+          <TableBody>
             {rows.map(([label, value]) => (
-              <tr
-                key={label}
-                className="border-b last:border-b-0"
-                style={{ borderColor: "#1e2433" }}
-              >
-                <td
-                  className="w-52 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ color: "#5a6173" }}
-                >
+              <TableRow key={label}>
+                <TableCell className="w-52 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {label}
-                </td>
-                <td
-                  className="px-4 py-2.5 text-xs"
-                  style={{ color: "#e8eaed" }}
-                >
-                  {value}
-                </td>
-              </tr>
+                </TableCell>
+                <TableCell className="text-xs text-foreground">{value}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
 
-      <div
-        className="grid gap-2 rounded border p-4 text-xs"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-      >
+      <Card className="border-border bg-card/80 p-4 text-xs">
         <span className="uppercase tracking-widest opacity-50">
           Evidence Batch Snapshot
         </span>
-        <div className="flex flex-wrap gap-3">
+        <div className="mt-2 flex flex-wrap gap-3">
           <span>Total Evidence: {state?.evidence_total ?? 0}</span>
           <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
           <span>Batch Limit: {state?.evidence_batch?.evidence_limit ?? 0}</span>
           <span>Batch Count: {state?.evidence_batch?.evidence_count ?? 0}</span>
           <span>Bound: {state?.evidence_bound_count ?? 0}</span>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -790,7 +736,8 @@ function RunsPanel({
   runProgress: number;
   activeRuns: Array<{
     run_id: string;
-    experiment_tag: string;
+    experiment_id: string;
+    experiment_tag?: string;
     status: string;
     desired_state: string;
     current_stage?: string;
@@ -798,39 +745,27 @@ function RunsPanel({
 }) {
   if (!runSummary && activeRuns.length === 0) {
     return (
-      <div
-        className="rounded border px-6 py-10 text-center text-xs opacity-40"
-        style={{ borderColor: "#1e2433" }}
-      >
+      <Card className="border-border px-6 py-10 text-center text-xs opacity-40">
         No runs yet. Click Start to begin.
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-4">
       {runSummary && (
-        <div
-          className="rounded border"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
-          <div
-            className="flex items-center justify-between border-b px-4 py-3"
-            style={{ borderColor: "#1e2433" }}
-          >
+        <Card className="border-border bg-card/80">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-3">
               <StatusDot status={runSummary.status} />
-              <span className="text-xs font-medium" style={{ color: "#e8eaed" }}>
-                {runSummary.run_id}
-              </span>
+              <span className="text-xs font-medium text-foreground">{runSummary.run_id}</span>
               <span className="text-[10px] opacity-40">
-                {runSummary.current_stage ?? "no stage"} · desired{" "}
-                {runSummary.desired_state}
+                {runSummary.current_stage ?? "no stage"} · desired {runSummary.desired_state}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-32">
-                <ProgressBar value={runProgress} />
+                <Progress value={runProgress} />
               </div>
               <span className="text-[11px] font-medium" style={{ color: "#ff6b35" }}>
                 {runProgress}%
@@ -838,62 +773,38 @@ function RunsPanel({
             </div>
           </div>
 
-          <table className="w-full">
-            <thead>
-              <tr className="border-b" style={{ borderColor: "#1e2433" }}>
-                <th
-                  className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider"
-                  style={{ color: "#3a4050" }}
-                >
-                  Stage
-                </th>
-                <th
-                  className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider"
-                  style={{ color: "#3a4050" }}
-                >
-                  Status
-                </th>
-                <th
-                  className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider"
-                  style={{ color: "#3a4050" }}
-                >
-                  Completed
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <TableRow>
+                <TableHead>Stage</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Completed</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {runSummary.stages.map((stage) => (
-                <tr
-                  key={stage.stage}
-                  className="border-b last:border-b-0"
-                  style={{ borderColor: "#1e2433" }}
-                >
-                  <td className="px-4 py-2 text-xs" style={{ color: "#c8ccd4" }}>
-                    {stage.stage}
-                  </td>
-                  <td className="px-4 py-2">
+                <TableRow key={stage.stage}>
+                  <TableCell className="text-xs">{stage.stage}</TableCell>
+                  <TableCell>
                     <span className="flex items-center gap-1.5">
                       <StatusDot status={stage.status} />
                       <span className="text-[10px] uppercase tracking-wider opacity-60">
                         {stage.status}
                       </span>
                     </span>
-                  </td>
-                  <td className="px-4 py-2 text-right text-xs opacity-60">
+                  </TableCell>
+                  <TableCell className="text-right text-xs opacity-60">
                     {stage.completed_requests}/{stage.total_requests}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       {activeRuns.length > 0 && (
-        <div
-          className="rounded border p-4 text-xs"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-4 text-xs">
           <p className="mb-2 text-[10px] uppercase tracking-widest opacity-50">
             Active Runs
           </p>
@@ -907,7 +818,7 @@ function RunsPanel({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -928,7 +839,8 @@ function EvidencePanel({
   evidenceMessage,
 }: {
   selected: {
-    experiment_tag: string;
+    experiment_id: string;
+    experiment_tag?: string;
     window_id: string;
     evidence_window?: {
       start_date: string;
@@ -977,30 +889,22 @@ function EvidencePanel({
 }) {
   return (
     <div className="space-y-4">
-      <div
-        className="rounded border p-4 text-xs"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-      >
+      <Card className="border-border bg-card/80 p-4 text-xs">
         <p className="mb-2 text-[10px] uppercase tracking-widest opacity-50">
           Evidence Window
         </p>
         <div className="flex flex-wrap gap-3">
           <span>
-            {selected.evidence_window?.concept ?? "—"} ·{" "}
-            {selected.evidence_window?.country ?? "—"}
+            {selected.evidence_window?.concept ?? "—"} · {selected.evidence_window?.country ?? "—"}
           </span>
           <span className="opacity-60">
-            {selected.evidence_window?.start_date ?? "—"} →{" "}
-            {selected.evidence_window?.end_date ?? "—"}
+            {selected.evidence_window?.start_date ?? "—"} - {selected.evidence_window?.end_date ?? "—"}
           </span>
           <span className="opacity-60">
             {selected.evidence_window?.model_id ?? "—"}
           </span>
           <span className="opacity-60">
-            Evidence View:{" "}
-            {summary
-              ? VIEW_LABELS[summary.config.scoring_stage.evidence_view]
-              : "—"}
+            Evidence View: {summary ? VIEW_LABELS[summary.config.scoring_stage.evidence_view] : "—"}
           </span>
         </div>
         <div className="mt-2 flex flex-wrap gap-3 opacity-60">
@@ -1008,12 +912,9 @@ function EvidencePanel({
           <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
           <span>Bound: {state?.evidence_bound_count ?? 0}</span>
         </div>
-      </div>
+      </Card>
 
-      <div
-        className="rounded border p-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-      >
+      <Card className="border-border bg-card/80 p-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
@@ -1024,100 +925,98 @@ function EvidencePanel({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <input
+            <Input
               type="number"
               min={1}
-              className="w-24 rounded border px-2 py-1 text-xs"
-              style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
+              className="h-9 w-24"
               placeholder="limit"
               value={evidenceLimit}
               onChange={(event) => onEvidenceLimitChange(event.target.value)}
             />
-            <button
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-[10px] uppercase tracking-wider"
               onClick={onCollect}
-              className="rounded border px-3 py-1 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#5a6173" }}
             >
               Collect Batch
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="mt-4 grid gap-2 text-xs">
-          <select
-            className="rounded border px-2 py-1 text-xs"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-            value={selectedBatchId}
-            onChange={(event) => onBatchChange(event.target.value)}
-          >
-            {(evidenceBatches ?? []).map((batch) => (
-              <option key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
-                {batch.evidence_batch_id} · {batch.evidence_count}/
-                {batch.evidence_limit} · {formatDate(batch.created_at)}
-              </option>
-            ))}
-          </select>
-          <button
+          <Select value={selectedBatchId} onValueChange={onBatchChange}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select batch" />
+            </SelectTrigger>
+            <SelectContent>
+              {(evidenceBatches ?? []).map((batch) => (
+                <SelectItem key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
+                  {batch.evidence_batch_id} · {batch.evidence_count}/{batch.evidence_limit} · {formatDate(batch.created_at)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit text-[10px] uppercase tracking-wider"
             onClick={onBind}
-            className="w-fit rounded border px-3 py-1 text-[10px] uppercase tracking-wider"
-            style={{ borderColor: "#1e2433", color: "#5a6173" }}
           >
             Bind Batch to Experiment
-          </button>
+          </Button>
           {evidenceMessage && (
             <span className="text-[10px] uppercase tracking-wider opacity-60">
               {evidenceMessage}
             </span>
           )}
         </div>
-      </div>
+      </Card>
 
       <div className="space-y-3">
         {(evidenceItems ?? []).length === 0 && (
-          <div
-            className="rounded border px-6 py-10 text-center text-xs opacity-40"
-            style={{ borderColor: "#1e2433" }}
-          >
+          <Card className="border-border px-6 py-10 text-center text-xs opacity-40">
             No evidence bound to this experiment yet.
-          </div>
+          </Card>
         )}
         {(evidenceItems ?? []).map((ev) => (
-          <Link
+          <Card
             key={ev.evidence_id}
-            href={`/evidence/${selected.window_id}`}
-            className="block rounded border p-4 transition hover:bg-[#151a24]"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+            className="border-border bg-card/80 p-4 transition hover:bg-muted/30"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-semibold" style={{ color: "#e8eaed" }}>
-                  {ev.position}. {ev.title}
+            <Link href={`/evidence/${selected.window_id}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold text-foreground">
+                    {ev.position}. {ev.title}
+                  </div>
+                  <div className="mt-1 text-[11px] opacity-50">{ev.url}</div>
                 </div>
-                <div className="mt-1 text-[11px] opacity-50">{ev.url}</div>
+                <span className="text-[10px] uppercase tracking-wider opacity-40">
+                  {selected.experiment_tag ?? selected.experiment_id}
+                </span>
               </div>
-              <span className="text-[10px] uppercase tracking-wider opacity-40">
-                {selected.experiment_tag}
-              </span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {NORMALIZATION_LEVELS.map((level) => {
-                const active = level.key === summary?.config.scoring_stage.evidence_view;
-                return (
-                  <span
-                    key={level.key}
-                    className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider"
-                    style={{
-                      backgroundColor: active ? "#ff6b3530" : "#151a24",
-                      color: active ? "#ff6b35" : "#7a8599",
-                      border: `1px solid ${active ? "#ff6b3550" : "#1e2433"}`,
-                    }}
-                  >
-                    {VIEW_LABELS[level.key]}
-                  </span>
-                );
-              })}
-            </div>
-          </Link>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {NORMALIZATION_LEVELS.map((level) => {
+                  const active = level.key === summary?.config.scoring_stage.evidence_view;
+                  return (
+                    <Badge
+                      key={level.key}
+                      variant={active ? "default" : "secondary"}
+                      className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider"
+                      style={{
+                        backgroundColor: active ? "#ff6b3530" : "#151a24",
+                        color: active ? "#ff6b35" : "#7a8599",
+                        borderColor: active ? "#ff6b3550" : "#1e2433",
+                      }}
+                    >
+                      {VIEW_LABELS[level.key]}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </Link>
+          </Card>
         ))}
       </div>
     </div>

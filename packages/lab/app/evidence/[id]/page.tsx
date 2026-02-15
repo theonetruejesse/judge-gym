@@ -5,6 +5,22 @@ import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@judge-gym/engine";
 import { NORMALIZATION_LEVELS, VIEW_LABELS } from "@/lib/ui";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -115,10 +131,7 @@ export default function EvidenceWindowPage({
 
   if (!resolvedParams) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Loading evidence window...</p>
       </div>
     );
@@ -126,10 +139,7 @@ export default function EvidenceWindowPage({
 
   if (!selectedWindow && !windowsLoading) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Evidence window not found.</p>
         <Link href="/" className="mt-4 inline-block text-xs">
           Back to judge-gym
@@ -140,24 +150,15 @@ export default function EvidenceWindowPage({
 
   if (windowsLoading) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Loading evidence window...</p>
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
         <div>
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Evidence Window
@@ -169,9 +170,8 @@ export default function EvidenceWindowPage({
             {selectedWindow?.concept ?? "Evidence Window"}
           </h1>
           <p className="text-[11px] opacity-50">
-            {selectedWindow?.country ?? "—"} · {selectedWindow?.start_date ?? "—"}{" "}
-            → {selectedWindow?.end_date ?? "—"} ·{" "}
-            {selectedWindow?.model_id ?? "—"}
+            {selectedWindow?.country ?? "—"} · {selectedWindow?.start_date ?? "—"} -{" "}
+            {selectedWindow?.end_date ?? "—"} · {selectedWindow?.model_id ?? "—"}
           </p>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
@@ -183,10 +183,7 @@ export default function EvidenceWindowPage({
 
       <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1fr_1.2fr]">
         <section className="space-y-4">
-          <div
-            className="rounded border p-4"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-          >
+          <Card className="border-border bg-card/80 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[10px] uppercase tracking-widest opacity-50">
                 Evidence Batch
@@ -196,115 +193,102 @@ export default function EvidenceWindowPage({
               </span>
             </div>
             {batchesLoading && (
-              <div className="mt-3 text-xs opacity-60">
-                Loading batches...
-              </div>
+              <div className="mt-3 text-xs opacity-60">Loading batches...</div>
             )}
             {!batchesLoading && batchRows.length === 0 && (
               <div className="mt-3 text-xs opacity-60">No batches yet.</div>
             )}
             {batchRows.length > 0 && (
               <div className="mt-3 flex items-center gap-3">
-                <select
-                  value={selectedBatchId}
-                  onChange={(event) => setSelectedBatchId(event.target.value)}
-                  className="rounded border px-2 py-1 text-xs"
-                  style={{ borderColor: "#1e2433", backgroundColor: "#0f1219" }}
-                >
-                  {batchRows.map((batch) => (
-                    <option key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
-                      {batch.evidence_batch_id} · {batch.evidence_count} items
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                  <SelectTrigger className="h-9 w-[280px] text-xs">
+                    <SelectValue placeholder="Select batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batchRows.map((batch) => (
+                      <SelectItem key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
+                        {batch.evidence_batch_id} · {batch.evidence_count} items
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <span className="text-xs opacity-50">
                   Limit {batchRows.find((batch) => batch.evidence_batch_id === selectedBatchId)?.evidence_limit ?? "—"}
                 </span>
               </div>
             )}
-          </div>
+          </Card>
 
-          <div
-            className="overflow-hidden rounded border"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-          >
-            <div
-              className="grid grid-cols-[0.2fr_1.6fr] border-b px-4 py-2 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#5a6173" }}
-            >
-              <span>#</span>
-              <span>Evidence Items</span>
-            </div>
-            {evidenceRows.length === 0 && (
-              <div className="px-4 py-6 text-xs opacity-50">
-                No evidence items found.
-              </div>
-            )}
-            {evidenceRows.map((item) => {
-              const selected = item.evidence_id === selectedEvidenceId;
-              return (
-                <button
-                  key={item.evidence_id}
-                  onClick={() => setSelectedEvidenceId(item.evidence_id)}
-                  className="grid w-full grid-cols-[0.2fr_1.6fr] border-b px-4 py-3 text-left text-xs transition"
-                  style={{
-                    borderColor: "#1e2433",
-                    backgroundColor: selected ? "#151a24" : "transparent",
-                  }}
-                >
-                  <span className="opacity-50">{item.position}</span>
-                  <div>
-                    <div
-                      className="font-medium"
-                      style={{ color: selected ? "#ff6b35" : "#e8eaed" }}
+          <Card className="border-border bg-card/80">
+            <Table>
+              <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <TableRow>
+                  <TableHead className="w-16">#</TableHead>
+                  <TableHead>Evidence Items</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {evidenceRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-xs opacity-50">
+                      No evidence items found.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {evidenceRows.map((item) => {
+                  const selected = item.evidence_id === selectedEvidenceId;
+                  return (
+                    <TableRow
+                      key={item.evidence_id}
+                      className={selected ? "bg-muted/60" : undefined}
+                      onClick={() => setSelectedEvidenceId(item.evidence_id)}
                     >
-                      {item.title}
-                    </div>
-                    <div className="text-[10px] opacity-50">{item.url}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                      <TableCell className="opacity-50">{item.position}</TableCell>
+                      <TableCell>
+                        <div
+                          className="font-medium"
+                          style={{ color: selected ? "#ff6b35" : "#e8eaed" }}
+                        >
+                          {item.title}
+                        </div>
+                        <div className="text-[10px] opacity-50">{item.url}</div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
         </section>
 
         <section className="space-y-4">
           {!selectedEvidenceId && (
-            <div
-              className="rounded border px-6 py-10 text-center text-xs opacity-50"
-              style={{ borderColor: "#1e2433" }}
-            >
+            <Card className="border-border px-6 py-10 text-center text-xs opacity-50">
               Select an evidence item to preview.
-            </div>
+            </Card>
           )}
           {selectedEvidenceId && !activeEvidence && (
-            <div
-              className="rounded border px-6 py-10 text-center text-xs opacity-50"
-              style={{ borderColor: "#1e2433" }}
-            >
+            <Card className="border-border px-6 py-10 text-center text-xs opacity-50">
               Loading evidence content...
-            </div>
+            </Card>
           )}
           {selectedEvidenceId && activeEvidence && (
             <>
-              <div
-                className="rounded border p-5"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-              >
+              <Card className="border-border bg-card/80 p-5">
                 <p
                   className="text-[10px] uppercase tracking-widest opacity-50"
                   style={{ fontFamily: "var(--font-1-serif)" }}
                 >
                   Raw Article
                 </p>
-                <h2 className="mt-2 text-sm font-semibold text-[#e8eaed]">
+                <h2 className="mt-2 text-sm font-semibold text-foreground">
                   {activeEvidence.title}
                 </h2>
                 <p className="text-[11px] opacity-50">{activeEvidence.url}</p>
                 <div className="mt-4 whitespace-pre-line text-sm leading-relaxed">
                   {activeEvidence.raw_content}
                 </div>
-              </div>
+              </Card>
 
               {NORMALIZATION_LEVELS.map((level) => {
                 const contentMap: Record<string, string | undefined> = {
@@ -315,14 +299,7 @@ export default function EvidenceWindowPage({
                 };
                 const value = contentMap[level.key];
                 return (
-                  <div
-                    key={level.key}
-                    className="rounded border p-4"
-                    style={{
-                      borderColor: "#1e2433",
-                      backgroundColor: "#0b0e1499",
-                    }}
-                  >
+                  <Card key={level.key} className="border-border bg-card/80 p-4">
                     <div className="flex items-center justify-between">
                       <p className="text-xs uppercase tracking-wider opacity-60">
                         {VIEW_LABELS[level.key]}
@@ -331,7 +308,7 @@ export default function EvidenceWindowPage({
                     <div className="mt-3 whitespace-pre-line text-sm leading-relaxed">
                       {value?.trim().length ? value : "—"}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </>

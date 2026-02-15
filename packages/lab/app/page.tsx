@@ -1,10 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@judge-gym/engine";
 import { STATUS_COLORS, STATUS_COLORS_MUTED, TASK_TYPE_LABELS } from "@/lib/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const statuses = ["pending", "running", "paused", "complete", "canceled"];
 const statusOrder = new Map(statuses.map((status, index) => [status, index]));
@@ -12,12 +22,13 @@ const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 type ExperimentListItem = {
   experiment_id: string;
-  experiment_tag: string;
+  experiment_tag?: string;
   task_type: string;
   status: string;
   active_run_id?: string;
   evidence_batch_id?: string;
   window_id: string;
+  window_tag?: string;
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -34,10 +45,12 @@ type EvidenceWindowItem = {
   country: string;
   concept: string;
   model_id: string;
+  window_tag?: string;
   evidence_count: number;
 };
 
 export default function RouteOneExperimentsPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const experiments = useQuery(
@@ -77,14 +90,8 @@ export default function RouteOneExperimentsPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
         <div>
           <h1
             className="text-lg font-semibold"
@@ -95,7 +102,7 @@ export default function RouteOneExperimentsPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-6 py-6 space-y-8">
+      <div className="mx-auto max-w-6xl space-y-8 px-6 py-6">
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -106,102 +113,102 @@ export default function RouteOneExperimentsPage() {
                 {filtered.length} active rows
               </p>
             </div>
-            <Link
-              href="/editor/experiment"
-              className="rounded border px-3 py-2 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#c8ccd4" }}
-            >
-              New Experiment
-            </Link>
+            <Button asChild variant="outline" className="text-[10px] uppercase tracking-wider">
+              <Link href="/editor/experiment">New Experiment</Link>
+            </Button>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-widest opacity-50">
               Status Filters
             </span>
-            {statuses.map((status) => (
-              <button
-                key={status}
-                onClick={() => toggleFilter(status)}
-                className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
-                style={{
-                  backgroundColor: statusFilter.includes(status)
-                    ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}30`
-                    : `${STATUS_COLORS_MUTED[status as keyof typeof STATUS_COLORS_MUTED]}10`,
-                  color: statusFilter.includes(status)
-                    ? STATUS_COLORS[status as keyof typeof STATUS_COLORS]
-                    : STATUS_COLORS_MUTED[
-                        status as keyof typeof STATUS_COLORS_MUTED
-                      ],
-                  border: `1px solid ${
-                    statusFilter.includes(status)
-                      ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}50`
-                      : `${STATUS_COLORS_MUTED[status as keyof typeof STATUS_COLORS_MUTED]}30`
-                  }`,
-                }}
-              >
-                {status}
-              </button>
-            ))}
+            {statuses.map((status) => {
+              const active = statusFilter.includes(status);
+              const activeColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS];
+              const mutedColor =
+                STATUS_COLORS_MUTED[status as keyof typeof STATUS_COLORS_MUTED];
+              return (
+                <Button
+                  key={status}
+                  type="button"
+                  variant="outline"
+                  onClick={() => toggleFilter(status)}
+                  className="h-8 px-2 text-[10px] uppercase tracking-wider"
+                  style={{
+                    backgroundColor: active ? `${activeColor}30` : `${mutedColor}10`,
+                    color: active ? activeColor : mutedColor,
+                    borderColor: active ? `${activeColor}50` : `${mutedColor}30`,
+                  }}
+                >
+                  {status}
+                </Button>
+              );
+            })}
           </div>
 
-          <div
-            className="overflow-hidden rounded border"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-          >
-            <div
-              className="grid grid-cols-[88px_1.45fr_1fr_1fr_1.2fr] gap-x-4 border-b px-4 py-2 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#5a6173" }}
-            >
-              <span className="text-center">Status</span>
-              <span>Tag</span>
-              <span>Concept</span>
-              <span>Task</span>
-              <span>Window</span>
-            </div>
-            {experimentsLoading && (
-              <div className="px-4 py-6 text-xs opacity-50">
-                Loading experiments...
-              </div>
-            )}
-            {!experimentsLoading && filtered.length === 0 && (
-              <div className="px-4 py-6 text-xs opacity-50">
-                No experiments found.
-              </div>
-            )}
-            {filtered.map((exp) => (
-              <Link
-                key={exp.experiment_id}
-                href={`/experiment/${exp.experiment_id}`}
-                className="grid grid-cols-[88px_1.45fr_1fr_1fr_1.2fr] gap-x-4 border-b px-4 py-3 text-xs transition hover:bg-[#151a24]"
-                style={{ borderColor: "#1e2433" }}
-              >
-                <span className="flex items-center justify-center" title={exp.status}>
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{
-                      backgroundColor:
-                        STATUS_COLORS[exp.status as keyof typeof STATUS_COLORS] ??
-                        "#6b7280",
-                    }}
-                  />
-                </span>
-                <span className="font-medium" style={{ color: "#e8eaed" }}>
-                  {exp.experiment_tag}
-                </span>
-                <span className="opacity-70">
-                  {exp.evidence_window?.concept ?? "—"}
-                </span>
-                <span className="opacity-70">
-                  {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type}
-                </span>
-                <span className="opacity-70">
-                  {exp.evidence_window
-                    ? `${exp.evidence_window.country} · ${exp.evidence_window.start_date}`
-                    : exp.window_id}
-                </span>
-              </Link>
-            ))}
+          <div className="overflow-hidden rounded border border-border bg-card/80">
+            <Table>
+              <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <TableRow>
+                  <TableHead className="w-20 text-center">Status</TableHead>
+                  <TableHead>Tag</TableHead>
+                  <TableHead>Concept</TableHead>
+                  <TableHead>Task</TableHead>
+                  <TableHead>Window</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {experimentsLoading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-xs opacity-50">
+                      Loading experiments...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!experimentsLoading && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-xs opacity-50">
+                      No experiments found.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filtered.map((exp) => (
+                  <TableRow
+                    key={exp.experiment_id}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/experiment/${exp.experiment_id}`)}
+                  >
+                    <TableCell className="text-center">
+                      <span className="inline-flex items-center justify-center" title={exp.status}>
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{
+                            backgroundColor:
+                              STATUS_COLORS[
+                                exp.status as keyof typeof STATUS_COLORS
+                              ] ?? "#6b7280",
+                          }}
+                        />
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground">
+                      {exp.experiment_tag ?? exp.experiment_id}
+                    </TableCell>
+                    <TableCell className="opacity-70">
+                      {exp.evidence_window?.concept ?? "—"}
+                    </TableCell>
+                    <TableCell className="opacity-70">
+                      {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type}
+                    </TableCell>
+                    <TableCell className="opacity-70">
+                      {exp.evidence_window
+                        ? `${exp.evidence_window.country} · ${exp.evidence_window.start_date}`
+                        : exp.window_tag ?? exp.window_id}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </section>
 
@@ -213,59 +220,59 @@ export default function RouteOneExperimentsPage() {
               </p>
               <p className="text-xs opacity-60">{windowRows.length} windows</p>
             </div>
-            <Link
-              href="/editor/window"
-              className="rounded border px-3 py-2 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#c8ccd4" }}
-            >
-              New Window
-            </Link>
+            <Button asChild variant="outline" className="text-[10px] uppercase tracking-wider">
+              <Link href="/editor/window">New Window</Link>
+            </Button>
           </div>
 
-          <div
-            className="overflow-hidden rounded border"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-          >
-            <div
-              className="grid grid-cols-[1.6fr_0.8fr_1.1fr_1.2fr_0.6fr] border-b px-4 py-2 text-[10px] uppercase tracking-wider"
-              style={{ borderColor: "#1e2433", color: "#5a6173" }}
-            >
-              <span>Concept</span>
-              <span>Country</span>
-              <span>Model</span>
-              <span>Window</span>
-              <span className="text-right">Evidence</span>
-            </div>
-            {windowsLoading && (
-              <div className="px-4 py-6 text-xs opacity-50">
-                Loading evidence windows...
-              </div>
-            )}
-            {!windowsLoading && windowRows.length === 0 && (
-              <div className="px-4 py-6 text-xs opacity-50">
-                No evidence windows found.
-              </div>
-            )}
-            {windowRows.map((window) => (
-              <Link
-                key={window.window_id}
-                href={`/evidence/${window.window_id}`}
-                className="grid grid-cols-[1.6fr_0.8fr_1.1fr_1.2fr_0.6fr] border-b px-4 py-3 text-xs transition hover:bg-[#151a24]"
-                style={{ borderColor: "#1e2433" }}
-              >
-                <span className="font-medium" style={{ color: "#e8eaed" }}>
-                  {window.concept}
-                </span>
-                <span className="opacity-70">{window.country}</span>
-                <span className="opacity-70">{window.model_id}</span>
-                <span className="opacity-70">
-                  {window.start_date} → {window.end_date}
-                </span>
-                <span className="text-right opacity-70">
-                  {window.evidence_count ?? 0}
-                </span>
-              </Link>
-            ))}
+          <div className="overflow-hidden rounded border border-border bg-card/80">
+            <Table>
+              <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <TableRow>
+                  <TableHead>Concept</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead>Window</TableHead>
+                  <TableHead className="text-right">Evidence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {windowsLoading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-xs opacity-50">
+                      Loading evidence windows...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!windowsLoading && windowRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-xs opacity-50">
+                      No evidence windows found.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {windowRows.map((window) => (
+                  <TableRow
+                    key={window.window_id}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/evidence/${window.window_id}`)}
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      {window.concept}
+                    </TableCell>
+                    <TableCell className="opacity-70">{window.country}</TableCell>
+                    <TableCell className="opacity-70">{window.model_id}</TableCell>
+                    <TableCell className="opacity-70">
+                      {window.window_tag ??
+                        `${window.start_date} -> ${window.end_date}`}
+                    </TableCell>
+                    <TableCell className="text-right opacity-70">
+                      {window.evidence_count ?? 0}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </section>
       </div>
