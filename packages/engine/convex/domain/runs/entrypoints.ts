@@ -4,7 +4,8 @@ import { zMutation } from "../../platform/utils";
 import { LlmStageSchema } from "../../models/core";
 import { internal } from "../../_generated/api";
 import { preflightCheck } from "../../env";
-import { requiredEnvsForConfig } from "../../utils/env_requirements";
+import { requiredEnvsForExperiment } from "../../utils/env_requirements";
+import { ENGINE_SETTINGS } from "../../settings";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 
@@ -200,7 +201,7 @@ async function startExperimentInternal(
     }
 
     try {
-      preflightCheck(requiredEnvsForConfig(template.config_body));
+      preflightCheck(requiredEnvsForExperiment(template.config_body.experiment));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: message };
@@ -210,6 +211,8 @@ async function startExperimentInternal(
       process.env.GIT_SHA ??
       process.env.VERCEL_GIT_COMMIT_SHA ??
       "unknown";
+
+    const policySnapshot = structuredClone(ENGINE_SETTINGS.run_policy);
 
     const run_config_id = await ctx.runMutation(
       internal.domain.configs.repo.createRunConfigFromTemplate,
@@ -225,6 +228,7 @@ async function startExperimentInternal(
     const run_id = await ctx.db.insert("runs", {
       experiment_id: experiment._id,
       run_config_id,
+      policy_snapshot: policySnapshot,
       status: "running",
       desired_state: "running",
       stop_at_stage,

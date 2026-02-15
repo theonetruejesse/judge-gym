@@ -519,5 +519,3 @@ export const ENGINE_SETTINGS: EngineSettings = {
     },
   },
 };
-
-export const DEFAULT_RUN_POLICY: RunPolicy = ENGINE_SETTINGS.run_policy;

@@ -156,15 +156,6 @@ export const RunPolicySchema = z.object({
 
 export type RunPolicy = z.infer<typeof RunPolicySchema>;
 
-export const PolicyOverridesSchema = z.object({
-  global: RunPolicySchema,
-  team: z.record(z.string(), RunPolicySchema.partial()).optional(),
-  provider: z.record(z.string(), RunPolicySchema.partial()).optional(),
-  model: z.record(z.string(), RunPolicySchema.partial()).optional(),
-  experiment: RunPolicySchema.partial().optional(),
-});
-
-export type PolicyOverrides = z.infer<typeof PolicyOverridesSchema>;
 
 export const LlmStageSchema = z.union([
   z.literal("evidence_clean"),

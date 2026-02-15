@@ -4,8 +4,7 @@ import { zInternalAction } from "../../../platform/utils";
 import { batchAdapterRegistry } from "../../../platform/utils/batch_registry";
 import { internal } from "../../../_generated/api";
 import { providerSchema } from "../../../models/core";
-import { DEFAULT_RUN_POLICY } from "../../../settings";
-import { resolveRunPolicy } from "../../../utils/policy";
+import { ENGINE_SETTINGS } from "../../../settings";
 import type { Doc } from "../../../_generated/dataModel";
 import type { ActionCtx } from "../../../_generated/server";
 import { computeRetryDecision } from "./batch_poll_logic";
@@ -13,20 +12,11 @@ import { computeRetryDecision } from "./batch_poll_logic";
 const LOCK_MS = 60_000;
 
 async function getPolicyForBatch(ctx: ActionCtx, batch: Doc<"llm_batches">) {
-  if (!batch.run_id) return DEFAULT_RUN_POLICY;
+  if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
   const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
     run_id: batch.run_id,
   });
-  if (!run?.run_config_id) return DEFAULT_RUN_POLICY;
-  const runConfig = await ctx.runQuery(internal.domain.configs.repo.getRunConfig, {
-    run_config_id: run.run_config_id,
-  });
-  return resolveRunPolicy({
-    policies: runConfig.config_body.policies,
-    team_id: runConfig.config_body.team_id,
-    provider: batch.provider,
-    model: batch.model,
-  });
+  return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
 }
 
 export const pollBatch: ReturnType<typeof zInternalAction> = zInternalAction({

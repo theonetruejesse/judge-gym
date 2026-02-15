@@ -1,8 +1,3 @@
-export const NEUTRALIZE_INSTRUCTIONS = `
-You are a clinical editor. Your job is to strip all stylistic and
-rhetorical content from news articles, producing only factual summaries.
-`;
-
 export const EVIDENCE_CLEANING_INSTRUCTIONS = `
 You are cleaning scraped news article markdown. The input often contains
 navigation menus, footer links, social/share widgets, repeated sections,
@@ -22,13 +17,6 @@ RULES:
 
 Return ONLY the cleaned markdown body. Do not return JSON or any wrapper.
 `;
-
-export const STRUCTURAL_ABSTRACTION_INSTRUCTIONS = `
-You are a structural abstractor. Your job is to remove specific names,
-places, organizations, and unique identifiers while preserving the type
-and role of each entity and the factual relationships.
-`;
-
 export const cleanPrompt = (rawContent: string) => `
 Clean the following scraped article markdown:
 
@@ -36,6 +24,11 @@ ARTICLE:
 ${rawContent}
 `;
 
+
+export const NEUTRALIZE_INSTRUCTIONS = `
+You are a clinical editor. Your job is to strip all stylistic and
+rhetorical content from news articles, producing only factual summaries.
+`;
 export const neutralizePrompt = (rawContent: string) => `
 Rewrite the following article as a 200-word clinical summary.
 
@@ -53,6 +46,12 @@ ${rawContent}
 Start your response with "Article Summary:".
 `;
 
+
+export const STRUCTURAL_ABSTRACTION_INSTRUCTIONS = `
+You are a structural abstractor. Your job is to remove specific names,
+places, organizations, and unique identifiers while preserving the type
+and role of each entity and the factual relationships.
+`;
 export const abstractPrompt = (neutralizedContent: string) => `
 Rewrite the following text to anonymize specific entities and locations.
 

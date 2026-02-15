@@ -6,11 +6,13 @@ import {
   RunDesiredStateSchema,
   RunStageStatusSchema,
   RunStatusSchema,
+  RunPolicySchema,
 } from "./core";
 
 export const RunsTableSchema = z.object({
   experiment_id: zid("experiments"),
   run_config_id: zid("run_configs"),
+  policy_snapshot: RunPolicySchema,
   status: RunStatusSchema,
   desired_state: RunDesiredStateSchema,
   stop_at_stage: LlmStageSchema.optional(),

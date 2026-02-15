@@ -117,7 +117,7 @@ Rubric and scoring models are selected separately via the experiment config:
 | :-------------- | :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
 | Rubric Model    | `config.rubric_stage.model_id`   | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
 | Scoring Model   | `config.scoring_stage.model_id`  | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept         | `window.concept`                 | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
+| Concept         | `evidence_window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `task_type`                      | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
 | Scoring Method  | `config.scoring_stage.method`    | `single`, `subset`                                                                                                               | `subset`                                |
 | Scale Size      | `config.rubric_stage.scale_size` | `3`, `4`, `5`                                                                                                                    | `4`                                     |
@@ -126,7 +126,7 @@ Rubric and scoring models are selected separately via the experiment config:
 | Abstain Gate    | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                             | `true`                                  |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows are defined by `window.start_date`, `window.end_date`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
+Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key.
 
 ---
 
@@ -163,29 +163,30 @@ npx convex run domain/configs/entrypoints:seedConfigTemplate '{
   "version": 1,
   "schema_version": 1,
   "config_body": {
-    "window": {
+    "evidence_window": {
       "start_date": "2026-01-01",
       "end_date": "2026-01-31",
       "country": "USA",
-      "concept": "fascism"
+      "concept": "fascism",
+      "model_id": "gpt-4.1"
     },
-      "experiment": {
-        "experiment_tag": "pilot_fascism_gpt4.1",
-        "task_type": "ecc",
-        "config": {
-          "rubric_stage": {
-            "scale_size": 4,
-            "model_id": "gpt-4.1"
-          },
-          "scoring_stage": {
-            "model_id": "gpt-4.1",
-            "method": "subset",
-            "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
-            "evidence_view": "l2_neutralized",
-            "abstain_enabled": true
-          }
+    "experiment": {
+      "experiment_tag": "pilot_fascism_gpt4.1",
+      "task_type": "ecc",
+      "config": {
+        "rubric_stage": {
+          "scale_size": 4,
+          "model_id": "gpt-4.1"
+        },
+        "scoring_stage": {
+          "model_id": "gpt-4.1",
+          "method": "subset",
+          "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
+          "evidence_view": "l2_neutralized",
+          "abstain_enabled": true
         }
       }
+    }
   },
   "created_by": "cli",
   "notes": "manual seed"
@@ -202,7 +203,7 @@ Quick path: `initExperiment` also works and will auto-seed a template using engi
 #### 2. Start a run + queue work
 
 ```bash
-# Start a run (creates a run_config snapshot and enforces single-run invariant)
+# Start a run (snapshots run policy and enforces single-run invariant)
 npx convex run domain/runs/entrypoints:startExperiment \
   '{"experiment_tag":"pilot_fascism_gpt4.1"}'
 
@@ -304,15 +305,15 @@ Run policy defaults and provider rate limits live in a single source of truth:
 `packages/engine/convex/settings.ts` (`ENGINE_SETTINGS`). The Mission Control UI
 does not define or pass policies.
 
-If you update `ENGINE_SETTINGS.run_policy`, bump the config template version to
-ensure new runs capture the updated policy. Existing run-config snapshots remain
-unchanged for reproducibility.
+Each run snapshots the current `ENGINE_SETTINGS.run_policy` at start time.
+Updating settings only affects new runs; existing runs keep their snapshot for
+reproducibility.
 
 ---
 
 ## Policy Enforcement + Infra Sync
 
-Run policies are stored in immutable run-config snapshots (derived from
+Run policies are stored as immutable per-run snapshots (derived from
 `ENGINE_SETTINGS`) and enforced server-side across the batch lifecycle. The
 engine scheduler handles queueing, submission, and polling.
 
