@@ -3,7 +3,27 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -16,7 +36,17 @@ type EvidenceWindowItem = {
   model_id: string;
 };
 
-const DEFAULT_WINDOW = {
+const formSchema = z.object({
+  concept: z.string().min(1, "Concept is required."),
+  country: z.string().min(1, "Country is required."),
+  start_date: z.string().min(1, "Start date is required."),
+  end_date: z.string().min(1, "End date is required."),
+  model_id: z.string().min(1, "Model ID is required."),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+const DEFAULT_WINDOW: FormValues = {
   concept: "",
   country: "USA",
   start_date: "",
@@ -27,10 +57,7 @@ const DEFAULT_WINDOW = {
 export default function EvidenceWindowEditorPage() {
   if (!hasConvex) {
     return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
+      <div className="min-h-screen px-6 py-12">
         <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
         <p className="mt-2 text-xs opacity-60">
           Set the Convex URL to enable the editor.
@@ -48,9 +75,12 @@ export default function EvidenceWindowEditorPage() {
   ) as EvidenceWindowItem[] | undefined;
   const initEvidenceWindow = useMutation(api.lab.initEvidenceWindow);
 
-  const [windowForm, setWindowForm] = useState(DEFAULT_WINDOW);
   const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
+
+  const form = useForm<FormValues>({
+    defaultValues: DEFAULT_WINDOW,
+  });
 
   useEffect(() => {
     if (!selectedWindowId && windows && windows.length > 0) {
@@ -58,20 +88,24 @@ export default function EvidenceWindowEditorPage() {
     }
   }, [windows, selectedWindowId]);
 
-  const handleCreateWindow = async () => {
+  const handleCreateWindow = async (values: FormValues) => {
     setWindowStatus(null);
-    if (
-      !windowForm.concept ||
-      !windowForm.country ||
-      !windowForm.start_date ||
-      !windowForm.end_date
-    ) {
-      setWindowStatus("Fill all evidence window fields.");
+    const parsed = formSchema.safeParse(values);
+    if (!parsed.success) {
+      parsed.error.issues.forEach((issue) => {
+        const field = issue.path[0];
+        if (typeof field === "string") {
+          form.setError(field as keyof FormValues, {
+            type: "manual",
+            message: issue.message,
+          });
+        }
+      });
       return;
     }
     try {
       const result = await initEvidenceWindow({
-        evidence_window: windowForm,
+        evidence_window: parsed.data,
       });
       setSelectedWindowId(result.window_id);
       setWindowStatus(
@@ -85,14 +119,8 @@ export default function EvidenceWindowEditorPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
         <div>
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Evidence Window Editor
@@ -112,10 +140,7 @@ export default function EvidenceWindowEditorPage() {
       </header>
 
       <div className="mx-auto grid max-w-3xl gap-6 px-6 py-8">
-        <section
-          className="grid gap-5 rounded border p-6"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
               Evidence Window
@@ -125,120 +150,110 @@ export default function EvidenceWindowEditorPage() {
             </p>
           </div>
 
-          <div className="grid gap-3">
-            <label className="grid gap-2 text-xs">
-              Concept
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={windowForm.concept}
-                onChange={(event) =>
-                  setWindowForm((prev) => ({
-                    ...prev,
-                    concept: event.target.value,
-                  }))
-                }
-                placeholder="fascism"
-              />
-            </label>
-            <label className="grid gap-2 text-xs">
-              Country
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={windowForm.country}
-                onChange={(event) =>
-                  setWindowForm((prev) => ({
-                    ...prev,
-                    country: event.target.value,
-                  }))
-                }
-                placeholder="USA"
-              />
-            </label>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="grid gap-2 text-xs">
-                Start Date
-                <input
-                  type="date"
-                  className="rounded border px-3 py-2 text-sm"
-                  style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                  value={windowForm.start_date}
-                  onChange={(event) =>
-                    setWindowForm((prev) => ({
-                      ...prev,
-                      start_date: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="grid gap-2 text-xs">
-                End Date
-                <input
-                  type="date"
-                  className="rounded border px-3 py-2 text-sm"
-                  style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                  value={windowForm.end_date}
-                  onChange={(event) =>
-                    setWindowForm((prev) => ({
-                      ...prev,
-                      end_date: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            </div>
-            <label className="grid gap-2 text-xs">
-              Evidence Model
-              <input
-                className="rounded border px-3 py-2 text-sm"
-                style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-                value={windowForm.model_id}
-                onChange={(event) =>
-                  setWindowForm((prev) => ({
-                    ...prev,
-                    model_id: event.target.value,
-                  }))
-                }
-                placeholder="gpt-4.1"
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleCreateWindow}
-              className="rounded px-4 py-2 text-[10px] uppercase tracking-wider"
-              style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleCreateWindow)}
+              className="mt-6 grid gap-4"
             >
-              Create Window
-            </button>
-            {windowStatus && (
-              <span className="text-[10px] uppercase tracking-wider opacity-60">
-                {windowStatus}
-              </span>
-            )}
-          </div>
+              <FormField
+                control={form.control}
+                name="concept"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Concept</FormLabel>
+                    <FormControl>
+                      <Input placeholder="fascism" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Country</FormLabel>
+                    <FormControl>
+                      <Input placeholder="USA" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="model_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Evidence Model</FormLabel>
+                    <FormControl>
+                      <Input placeholder="gpt-4.1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <div className="grid gap-2 text-[11px] opacity-60">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                  Create Window
+                </Button>
+                {windowStatus && (
+                  <span className="text-[10px] uppercase tracking-wider opacity-60">
+                    {windowStatus}
+                  </span>
+                )}
+              </div>
+            </form>
+          </Form>
+
+          <div className="mt-6 grid gap-2 text-[11px] opacity-60">
             <span className="uppercase tracking-widest opacity-40">
               Existing Windows
             </span>
-            <select
-              className="rounded border px-2 py-1 text-xs"
-              style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-              value={selectedWindowId}
-              onChange={(event) => setSelectedWindowId(event.target.value)}
-            >
-              {windows?.map((window) => (
-                <option key={window.window_id} value={window.window_id}>
-                  {window.concept} · {window.country} · {window.start_date}
-                </option>
-              ))}
-            </select>
+            <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select window" />
+              </SelectTrigger>
+              <SelectContent>
+                {windows?.map((window) => (
+                  <SelectItem key={window.window_id} value={window.window_id}>
+                    {window.concept} · {window.country} · {window.start_date}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </section>
+        </Card>
       </div>
     </div>
   );

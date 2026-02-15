@@ -48,6 +48,7 @@ The Mission Control UI ships a multi-page layout focused on experiments and evid
 It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
 The UI does not ship mock data; empty tables will render until Convex has data.
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
+The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 
 Routes:
 - `/` - Experiments + evidence windows
@@ -212,12 +213,14 @@ npx convex run domain/experiments/entrypoints:initExperimentFromTemplate '{
 
 Quick path: `initEvidenceWindow` + `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
 
+Both init flows return an `experiment_id`. Use that ID for all subsequent operations (tags are display-only).
+
 #### 2. Start a run + queue work
 
 ```bash
 # Start a run (snapshots run policy and enforces single-run invariant)
 npx convex run domain/runs/entrypoints:startExperiment \
-  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+  '{"experiment_id":"<experiment_id>"}'
 
 # Collect evidence into a frozen batch
 npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
@@ -225,15 +228,15 @@ npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
 
 # Bind experiment to the evidence batch (freezes evidence selection)
 npx convex run domain/experiments/entrypoints:bindExperimentEvidence \
-  '{"experiment_tag":"pilot_fascism_gpt4.1","evidence_batch_id":"<batch_id>"}'
+  '{"experiment_id":"<experiment_id>","evidence_batch_id":"<batch_id>"}'
 
 # Queue rubric generation
 npx convex run domain/experiments/entrypoints:queueRubricGeneration \
-  '{"experiment_tag":"pilot_fascism_gpt4.1","sample_count":10}'
+  '{"experiment_id":"<experiment_id>","sample_count":10}'
 
 # Queue scoring (sample_count × evidence_cap)
 npx convex run domain/experiments/entrypoints:queueScoreGeneration \
-  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+  '{"experiment_id":"<experiment_id>"}'
 ```
 
 #### 3. Query results
@@ -241,11 +244,11 @@ npx convex run domain/experiments/entrypoints:queueScoreGeneration \
 ```bash
 # Experiment summary
 npx convex run domain/experiments/data:getExperimentSummary \
-  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+  '{"experiment_id":"<experiment_id>"}'
 
 # Export bundle for analysis (scores + evidence + rubrics)
 npx convex run domain/experiments/data:exportExperimentBundle \
-  '{"experiment_tag":"pilot_fascism_gpt4.1"}'
+  '{"experiment_id":"<experiment_id>"}'
 ```
 
 ---

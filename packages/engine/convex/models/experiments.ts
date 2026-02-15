@@ -11,7 +11,7 @@ import {
 } from "./core";
 
 export const ExperimentSpecSchema = z.object({
-  experiment_tag: z.string(),
+  experiment_tag: z.string().optional(),
   task_type: TaskTypeSchema,
   config: ExperimentConfigSchema,
 });
@@ -36,6 +36,7 @@ export const WindowsTableSchema = z.object({
   country: z.string(),
   concept: z.string(),
   model_id: modelTypeSchema,
+  window_tag: z.string().optional(),
 });
 
 export const EvidencesTableSchema = z.object({

@@ -21,9 +21,9 @@ import {
 } from "./models/llm_calls";
 
 export default defineSchema({
-  experiments: Experiments.index("by_experiment_tag", ["experiment_tag"]).index(
-    "by_task_type",
-    ["task_type"],
+  experiments: Experiments.index("by_task_type", ["task_type"]).index(
+    "by_window_spec",
+    ["window_id", "spec_signature"],
   ),
   windows: Windows.index("by_window_key", [
     "start_date",

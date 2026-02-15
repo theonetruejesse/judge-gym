@@ -1,17 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export default function EditorLandingPage() {
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-    >
-      <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-      >
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
         <div>
           <h1
             className="text-lg font-semibold"
@@ -31,10 +27,7 @@ export default function EditorLandingPage() {
       </header>
 
       <div className="mx-auto grid max-w-4xl gap-6 px-6 py-8 md:grid-cols-2">
-        <section
-          className="grid gap-4 rounded border p-6"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
               Experiment
@@ -43,19 +36,12 @@ export default function EditorLandingPage() {
               Configure rubric + scoring settings and bind to an evidence window.
             </p>
           </div>
-          <Link
-            href="/editor/experiment"
-            className="rounded px-4 py-2 text-center text-[10px] uppercase tracking-wider"
-            style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
-          >
-            New Experiment
-          </Link>
-        </section>
+          <Button asChild className="mt-4 w-full text-[10px] uppercase tracking-wider">
+            <Link href="/editor/experiment">New Experiment</Link>
+          </Button>
+        </Card>
 
-        <section
-          className="grid gap-4 rounded border p-6"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
+        <Card className="border-border bg-card/80 p-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
               Evidence Window
@@ -64,14 +50,10 @@ export default function EditorLandingPage() {
               Define a scraping window and model for evidence collection.
             </p>
           </div>
-          <Link
-            href="/editor/window"
-            className="rounded px-4 py-2 text-center text-[10px] uppercase tracking-wider"
-            style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
-          >
-            New Window
-          </Link>
-        </section>
+          <Button asChild className="mt-4 w-full text-[10px] uppercase tracking-wider">
+            <Link href="/editor/window">New Window</Link>
+          </Button>
+        </Card>
       </div>
     </div>
   );
