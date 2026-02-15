@@ -3,7 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zAction, zQuery } from "../../platform/utils";
 import { internal } from "../../_generated/api";
 import { preflightCheck } from "../../env";
-import { EVIDENCE_ENV_REQUIREMENTS } from "../../utils/env_requirements";
+import { requiredEnvsForEvidenceWindow } from "../../utils/env_requirements";
 import type { Id } from "../../_generated/dataModel";
 
 export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
@@ -21,7 +21,11 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
     evidence_count: z.number(),
   }),
   handler: async (ctx, { window_id, evidence_limit }) => {
-    preflightCheck(EVIDENCE_ENV_REQUIREMENTS);
+    const window = await ctx.runQuery(
+      internal.domain.experiments.repo.getWindow,
+      { window_id },
+    );
+    preflightCheck(requiredEnvsForEvidenceWindow(window));
     const result = await ctx.runAction(
       internal.domain.evidence.workflows.evidence_collect.collectEvidence,
       { window_id, limit: evidence_limit },
