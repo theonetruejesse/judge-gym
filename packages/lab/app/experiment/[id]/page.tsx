@@ -1,16 +1,124 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { api } from "@judge-gym/engine";
 import {
-  EXPERIMENTS,
   NORMALIZATION_LEVELS,
+  RANDOMIZATION_LABELS,
+  SCORING_METHOD_LABELS,
   STATUS_COLORS,
   TASK_TYPE_LABELS,
   VIEW_LABELS,
-  getEvidenceForExperiment,
-  type MockExperiment,
-} from "@/lib/mock-data";
+} from "@/lib/ui";
+
+const statuses = ["running", "complete", "paused", "pending", "canceled"];
+const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+
+type ExperimentListItem = {
+  experiment_id: string;
+  experiment_tag: string;
+  task_type: string;
+  status: string;
+  active_run_id?: string;
+  evidence_batch_id?: string;
+  window_id: string;
+  evidence_window?: {
+    start_date: string;
+    end_date: string;
+    country: string;
+    concept: string;
+    model_id: string;
+  };
+};
+
+type ExperimentState = {
+  experiment_tag: string;
+  exists: boolean;
+  evidence_total?: number;
+  evidence_neutralized?: number;
+  evidence_batch?: {
+    evidence_batch_id: string;
+    evidence_limit: number;
+    evidence_count: number;
+  };
+  evidence_bound_count?: number;
+  run_count?: number;
+  latest_run?: {
+    run_id: string;
+    status: string;
+    desired_state: string;
+    current_stage?: string;
+    updated_at?: number;
+  };
+};
+
+type ExperimentSummary = {
+  experiment_tag: string;
+  rubric_model_id: string;
+  scoring_model_id: string;
+  concept: string;
+  task_type: string;
+  status: string;
+  config: {
+    rubric_stage: { scale_size: number; model_id: string };
+    scoring_stage: {
+      model_id: string;
+      method: string;
+      sample_count: number;
+      evidence_cap: number;
+      randomizations: string[];
+      evidence_view: string;
+      abstain_enabled: boolean;
+    };
+  };
+  counts: {
+    samples: number;
+    scores: number;
+    abstained: number;
+    critics: number;
+  };
+};
+
+type EvidenceBatchListItem = {
+  evidence_batch_id: string;
+  evidence_limit: number;
+  evidence_count: number;
+  created_at: number;
+};
+
+type EvidenceItem = {
+  evidence_id: string;
+  position: number;
+  title: string;
+  url: string;
+};
+
+type RunListItem = {
+  run_id: string;
+  experiment_tag: string;
+  status: string;
+  desired_state: string;
+  current_stage?: string;
+  stop_at_stage?: string;
+  updated_at?: number;
+};
+
+type RunSummary = {
+  run_id: string;
+  status: string;
+  desired_state: string;
+  current_stage?: string;
+  stop_at_stage?: string;
+  stages: Array<{
+    stage: string;
+    status: string;
+    total_requests: number;
+    completed_requests: number;
+    failed_requests: number;
+  }>;
+};
 
 function StatusDot({ status }: { status: string }) {
   const color = STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
@@ -36,22 +144,125 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+function formatDate(value?: number) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString();
+}
+
 export default function RouteOneExperimentPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [tab, setTab] = useState<"config" | "runs" | "evidence">("config");
+  const [evidenceLimit, setEvidenceLimit] = useState<string>("");
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [evidenceMessage, setEvidenceMessage] = useState<string | null>(null);
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(
+    null,
+  );
 
-  const selected =
-    EXPERIMENTS.find((e) => e.id === params.id) ?? EXPERIMENTS[0];
-  const evidence = getEvidenceForExperiment(selected.id);
+  useEffect(() => {
+    const maybePromise = params as unknown as {
+      then?: (onfulfilled: (value: { id: string }) => void) => void;
+    };
+    if (typeof maybePromise.then === "function") {
+      maybePromise.then(setResolvedParams);
+    } else {
+      setResolvedParams(params as unknown as { id: string });
+    }
+  }, [params]);
 
+  if (!hasConvex) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
+        <p className="mt-2 text-xs opacity-60">
+          Set the Convex URL to load experiments in Mission Control.
+        </p>
+      </div>
+    );
+  }
+
+  const experiments = useQuery(
+    api.lab.listExperiments,
+    {},
+  ) as ExperimentListItem[] | undefined;
   const filtered =
     statusFilter.length === 0
-      ? EXPERIMENTS
-      : EXPERIMENTS.filter((e) => statusFilter.includes(e.status));
+      ? experiments ?? []
+      : (experiments ?? []).filter((e) => statusFilter.includes(e.status));
+
+  const selected =
+    (experiments ?? []).find(
+      (e) => e.experiment_id === resolvedParams?.id,
+    ) ?? (experiments ?? [])[0];
+
+  const selectedTag = selected?.experiment_tag;
+
+  const summary = useQuery(
+    api.lab.getExperimentSummary,
+    selectedTag ? { experiment_tag: selectedTag } : "skip",
+  ) as ExperimentSummary | undefined;
+  const states = useQuery(
+    api.lab.getExperimentStates,
+    selectedTag ? { experiment_tags: [selectedTag] } : "skip",
+  ) as ExperimentState[] | undefined;
+  const state = states?.[0];
+
+  const evidenceBatches = useQuery(
+    api.lab.listEvidenceBatches,
+    selected ? { window_id: selected.window_id } : "skip",
+  ) as EvidenceBatchListItem[] | undefined;
+  const evidenceItems = useQuery(
+    api.lab.listExperimentEvidence,
+    selected ? { experiment_id: selected.experiment_id } : "skip",
+  ) as EvidenceItem[] | undefined;
+
+  const activeRuns = useQuery(
+    api.lab.listRuns,
+    {},
+  ) as RunListItem[] | undefined;
+  const runSummary = useQuery(
+    api.lab.getRunSummary,
+    state?.latest_run?.run_id ? { run_id: state.latest_run.run_id } : "skip",
+  ) as RunSummary | undefined;
+
+  const startExperiment = useMutation(api.lab.startExperiment);
+  const updateRunState = useMutation(api.lab.updateRunState);
+  const queueRubric = useMutation(api.lab.queueRubricGeneration);
+  const queueScore = useMutation(api.lab.queueScoreGeneration);
+  const collectEvidenceBatch = useAction(api.lab.collectEvidenceBatch);
+  const bindExperimentEvidence = useMutation(api.lab.bindExperimentEvidence);
+
+  useEffect(() => {
+    if (!selectedBatchId && evidenceBatches && evidenceBatches.length > 0) {
+      setSelectedBatchId(evidenceBatches[0].evidence_batch_id);
+    }
+  }, [evidenceBatches, selectedBatchId]);
+
+  const activeRunsForExperiment = (activeRuns ?? []).filter(
+    (run) => run.experiment_tag === selectedTag,
+  );
+
+  const runProgress = useMemo(() => {
+    if (!runSummary?.stages) return 0;
+    const totals = runSummary.stages.reduce(
+      (acc, stage) => {
+        acc.total += stage.total_requests;
+        acc.done += stage.completed_requests + stage.failed_requests;
+        return acc;
+      },
+      { total: 0, done: 0 },
+    );
+    if (totals.total === 0) return 0;
+    return Math.round((totals.done / totals.total) * 100);
+  }, [runSummary?.stages]);
 
   const toggleFilter = (status: string) => {
     setStatusFilter((prev) =>
@@ -61,7 +272,144 @@ export default function RouteOneExperimentPage({
     );
   };
 
-  const statuses = ["running", "complete", "paused", "pending", "canceled"];
+  const handleStart = async () => {
+    if (!selectedTag) return;
+    setActionMessage(null);
+    try {
+      const result = await startExperiment({ experiment_tag: selectedTag });
+      if (!result.ok) {
+        setActionMessage(result.error ?? "Failed to start experiment.");
+        return;
+      }
+      setActionMessage(`Run started: ${result.run_id ?? "pending"}`);
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to start experiment.",
+      );
+    }
+  };
+
+  const handlePause = async () => {
+    if (!state?.latest_run?.run_id) return;
+    setActionMessage(null);
+    try {
+      await updateRunState({
+        run_id: state.latest_run.run_id,
+        desired_state: "paused",
+      });
+      setActionMessage("Run paused.");
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to pause run.",
+      );
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!state?.latest_run?.run_id) return;
+    setActionMessage(null);
+    try {
+      await updateRunState({
+        run_id: state.latest_run.run_id,
+        desired_state: "canceled",
+      });
+      setActionMessage("Run canceled.");
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to cancel run.",
+      );
+    }
+  };
+
+  const handleQueueRubric = async () => {
+    if (!selectedTag) return;
+    setActionMessage(null);
+    try {
+      await queueRubric({ experiment_tag: selectedTag });
+      setActionMessage("Queued rubric generation.");
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to queue rubric.",
+      );
+    }
+  };
+
+  const handleQueueScore = async () => {
+    if (!selectedTag) return;
+    setActionMessage(null);
+    try {
+      await queueScore({ experiment_tag: selectedTag });
+      setActionMessage("Queued scoring.");
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to queue scoring.",
+      );
+    }
+  };
+
+  const handleCollectEvidence = async () => {
+    if (!selected) return;
+    setEvidenceMessage(null);
+    const parsed = Number(evidenceLimit);
+    const evidence_limit =
+      Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    try {
+      const result = await collectEvidenceBatch({
+        window_id: selected.window_id,
+        evidence_limit,
+      });
+      setEvidenceMessage(
+        `Collected ${result.collected} evidence (batch ${result.evidence_batch_id}).`,
+      );
+    } catch (error) {
+      setEvidenceMessage(
+        error instanceof Error ? error.message : "Failed to collect evidence.",
+      );
+    }
+  };
+
+  const handleBindEvidence = async () => {
+    if (!selectedTag || !selectedBatchId) return;
+    setEvidenceMessage(null);
+    try {
+      const result = await bindExperimentEvidence({
+        experiment_tag: selectedTag,
+        evidence_batch_id: selectedBatchId,
+      });
+      setEvidenceMessage(
+        `Bound ${result.bound_count}/${result.evidence_count} evidence.`,
+      );
+    } catch (error) {
+      setEvidenceMessage(
+        error instanceof Error ? error.message : "Failed to bind evidence.",
+      );
+    }
+  };
+
+  if (!experiments) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Loading experiments...</p>
+      </div>
+    );
+  }
+
+  if (experiments.length === 0 || !selected) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">No experiments found.</p>
+        <Link href="/editor" className="mt-4 inline-block text-xs">
+          Create one
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -135,12 +483,15 @@ export default function RouteOneExperimentPage({
           <div className="flex-1 overflow-y-auto">
             {filtered.map((exp) => (
               <Link
-                key={exp.id}
-                href={`/experiment/${exp.id}`}
+                key={exp.experiment_id}
+                href={`/experiment/${exp.experiment_id}`}
                 className="block w-full text-left px-3 py-2.5 border-b transition-colors"
                 style={{
                   borderColor: "#1e2433",
-                  backgroundColor: exp.id === selected.id ? "#151a24" : "transparent",
+                  backgroundColor:
+                    exp.experiment_id === selected.experiment_id
+                      ? "#151a24"
+                      : "transparent",
                 }}
               >
                 <div className="flex items-center gap-2 mb-0.5">
@@ -148,15 +499,19 @@ export default function RouteOneExperimentPage({
                   <span
                     className="truncate text-xs font-medium"
                     style={{
-                      color: exp.id === selected.id ? "#ff6b35" : "#c8ccd4",
+                      color:
+                        exp.experiment_id === selected.experiment_id
+                          ? "#ff6b35"
+                          : "#c8ccd4",
                     }}
                   >
-                    {exp.tag}
+                    {exp.experiment_tag}
                   </span>
                 </div>
                 <div className="ml-4 text-[10px] opacity-40">
-                  {TASK_TYPE_LABELS[exp.taskType]} &middot; {exp.window.country} &middot;{" "}
-                  {exp.scaleSize}pt
+                  {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type} &middot;{" "}
+                  {exp.evidence_window?.country ?? "—"} &middot;{" "}
+                  {exp.evidence_window?.start_date ?? "—"}
                 </div>
               </Link>
             ))}
@@ -170,11 +525,11 @@ export default function RouteOneExperimentPage({
                 className="text-xl font-bold tracking-tight"
                 style={{ fontFamily: "var(--font-1-serif)", color: "#e8eaed" }}
               >
-                {selected.tag}
+                {selected.experiment_tag}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {selected.id} &middot; created{" "}
-                {new Date(selected.createdAt).toLocaleDateString()}
+                {selected.experiment_id} &middot; window{" "}
+                {selected.window_id}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -192,28 +547,47 @@ export default function RouteOneExperimentPage({
               <button
                 className="rounded px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{ backgroundColor: "#ff6b35", color: "#0b0e14" }}
+                onClick={handleStart}
               >
                 Start
               </button>
               <button
                 className="rounded border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{ borderColor: "#1e2433", color: "#5a6173" }}
+                onClick={handlePause}
               >
-                Stop
+                Pause
               </button>
               <button
                 className="rounded border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{ borderColor: "#1e2433", color: "#5a6173" }}
+                onClick={handleCancel}
               >
-                Add Samples
-              </button>
-              <button
-                className="rounded border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: "#1e2433", color: "#5a6173" }}
-              >
-                Clone
+                Cancel
               </button>
             </div>
+          </div>
+
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider opacity-60">
+            <button
+              onClick={handleQueueRubric}
+              className="rounded border px-2 py-1"
+              style={{ borderColor: "#1e2433" }}
+            >
+              Queue Rubric
+            </button>
+            <button
+              onClick={handleQueueScore}
+              className="rounded border px-2 py-1"
+              style={{ borderColor: "#1e2433" }}
+            >
+              Queue Scores
+            </button>
+            {actionMessage && (
+              <span className="text-[10px] uppercase tracking-wider opacity-60">
+                {actionMessage}
+              </span>
+            )}
           </div>
 
           <div
@@ -238,16 +612,37 @@ export default function RouteOneExperimentPage({
                 }}
               >
                 {label}
-                {key === "runs" && ` (${selected.runs.length})`}
-                {key === "evidence" && ` (${evidence.length})`}
+                {key === "runs" && ` (${state?.run_count ?? 0})`}
+                {key === "evidence" && ` (${evidenceItems?.length ?? 0})`}
               </button>
             ))}
           </div>
 
-          {tab === "config" && <ConfigPanel experiment={selected} />}
-          {tab === "runs" && <RunsPanel experiment={selected} />}
+          {tab === "config" && (
+            <ConfigPanel summary={summary} selected={selected} state={state} />
+          )}
+          {tab === "runs" && (
+            <RunsPanel
+              runSummary={runSummary}
+              runProgress={runProgress}
+              activeRuns={activeRunsForExperiment}
+            />
+          )}
           {tab === "evidence" && (
-            <EvidencePanel experimentId={selected.id} evidence={evidence} />
+            <EvidencePanel
+              selected={selected}
+              summary={summary}
+              state={state}
+              evidenceBatches={evidenceBatches}
+              evidenceItems={evidenceItems}
+              evidenceLimit={evidenceLimit}
+              onEvidenceLimitChange={setEvidenceLimit}
+              selectedBatchId={selectedBatchId}
+              onBatchChange={setSelectedBatchId}
+              onCollect={handleCollectEvidence}
+              onBind={handleBindEvidence}
+              evidenceMessage={evidenceMessage}
+            />
           )}
         </main>
       </div>
@@ -261,36 +656,100 @@ export default function RouteOneExperimentPage({
         }}
       >
         <span>
-          {filtered.length} of {EXPERIMENTS.length} shown &middot; {evidence.length} evidence
-          items
+          {filtered.length} of {experiments.length} shown &middot;{" "}
+          {evidenceItems?.length ?? 0} evidence items
         </span>
-        <span>Mock data &middot; Last sync: just now</span>
+        <span>Convex live &middot; Last sync: just now</span>
       </footer>
     </div>
   );
 }
 
-function ConfigPanel({ experiment }: { experiment: MockExperiment }) {
+function ConfigPanel({
+  summary,
+  selected,
+  state,
+}: {
+  summary:
+    | {
+        experiment_tag: string;
+        rubric_model_id: string;
+        scoring_model_id: string;
+        concept: string;
+        task_type: string;
+        status: string;
+        config: {
+          rubric_stage: { scale_size: number; model_id: string };
+          scoring_stage: {
+            model_id: string;
+            method: string;
+            sample_count: number;
+            evidence_cap: number;
+            randomizations: string[];
+            evidence_view: string;
+            abstain_enabled: boolean;
+          };
+        };
+        counts: {
+          samples: number;
+          scores: number;
+          abstained: number;
+          critics: number;
+        };
+      }
+    | undefined;
+  selected: {
+    evidence_window?: {
+      start_date: string;
+      end_date: string;
+      country: string;
+      concept: string;
+      model_id: string;
+    };
+    window_id: string;
+  };
+  state:
+    | {
+        evidence_total?: number;
+        evidence_neutralized?: number;
+        evidence_batch?: { evidence_limit: number; evidence_count: number };
+        evidence_bound_count?: number;
+      }
+    | undefined;
+}) {
+  if (!summary) {
+    return (
+      <div
+        className="rounded border px-6 py-10 text-center text-xs opacity-40"
+        style={{ borderColor: "#1e2433" }}
+      >
+        Loading configuration...
+      </div>
+    );
+  }
+
+  const randomizations =
+    summary.config.scoring_stage.randomizations.length > 0
+      ? summary.config.scoring_stage.randomizations
+          .map((item) => RANDOMIZATION_LABELS[item] ?? item)
+          .join(", ")
+      : "None";
+
   const rows: [string, string][] = [
-    ["Task Type", TASK_TYPE_LABELS[experiment.taskType]],
-    ["Rubric Model", experiment.rubricModel],
-    ["Scoring Model", experiment.scoringModel],
-    ["Scale Size", `${experiment.scaleSize}-point`],
-    ["Evidence View", VIEW_LABELS[experiment.evidenceView]],
-    ["Scoring Method", experiment.scoringMethod],
-    ["Abstain Enabled", experiment.abstainEnabled ? "Yes" : "No"],
+    ["Task Type", TASK_TYPE_LABELS[summary.task_type] ?? summary.task_type],
+    ["Rubric Model", summary.config.rubric_stage.model_id],
+    ["Scoring Model", summary.config.scoring_stage.model_id],
+    ["Scale Size", `${summary.config.rubric_stage.scale_size}-point`],
+    ["Evidence View", VIEW_LABELS[summary.config.scoring_stage.evidence_view]],
     [
-      "Randomizations",
-      experiment.randomizations.length > 0
-        ? experiment.randomizations.join(", ")
-        : "None",
+      "Scoring Method",
+      SCORING_METHOD_LABELS[summary.config.scoring_stage.method] ??
+        summary.config.scoring_stage.method,
     ],
-    ["Window Concept", experiment.window.concept],
-    ["Window Country", experiment.window.country],
-    [
-      "Window Period",
-      `${experiment.window.startDate} -> ${experiment.window.endDate}`,
-    ],
+    ["Sample Count", `${summary.config.scoring_stage.sample_count}`],
+    ["Evidence Cap", `${summary.config.scoring_stage.evidence_cap}`],
+    ["Abstain Enabled", summary.config.scoring_stage.abstain_enabled ? "Yes" : "No"],
+    ["Randomizations", randomizations],
   ];
 
   return (
@@ -305,26 +764,21 @@ function ConfigPanel({ experiment }: { experiment: MockExperiment }) {
         >
           Evidence Window
         </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            className="rounded border px-2 py-1 text-xs"
-            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-          >
-            <option>
-              {experiment.window.concept}
-              {" -> "}
-              {experiment.window.country}
-              {" -> "}
-              {experiment.window.startDate}
-            </option>
-            <option>alternate-window-us-2025</option>
-          </select>
-          <button
-            className="rounded border px-3 py-1 text-[10px] uppercase tracking-wider"
-            style={{ borderColor: "#1e2433", color: "#5a6173" }}
-          >
-            Create New Window
-          </button>
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span>
+            {selected.evidence_window?.concept ?? "—"} &middot;{" "}
+            {selected.evidence_window?.country ?? "—"}
+          </span>
+          <span className="opacity-60">
+            {selected.evidence_window?.start_date ?? "—"} →{" "}
+            {selected.evidence_window?.end_date ?? "—"}
+          </span>
+          <span className="opacity-60">
+            {selected.evidence_window?.model_id ?? "—"}
+          </span>
+        </div>
+        <div className="mt-2 text-[11px] opacity-50">
+          Window ID: {selected.window_id}
         </div>
       </div>
 
@@ -341,7 +795,7 @@ function ConfigPanel({ experiment }: { experiment: MockExperiment }) {
                 style={{ borderColor: "#1e2433" }}
               >
                 <td
-                  className="w-48 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider"
+                  className="w-52 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider"
                   style={{ color: "#5a6173" }}
                 >
                   {label}
@@ -357,12 +811,57 @@ function ConfigPanel({ experiment }: { experiment: MockExperiment }) {
           </tbody>
         </table>
       </div>
+
+      <div
+        className="grid gap-2 rounded border p-4 text-xs"
+        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+      >
+        <span className="uppercase tracking-widest opacity-50">
+          Evidence Batch Snapshot
+        </span>
+        <div className="flex flex-wrap gap-3">
+          <span>Total Evidence: {state?.evidence_total ?? 0}</span>
+          <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
+          <span>Batch Limit: {state?.evidence_batch?.evidence_limit ?? 0}</span>
+          <span>Batch Count: {state?.evidence_batch?.evidence_count ?? 0}</span>
+          <span>Bound: {state?.evidence_bound_count ?? 0}</span>
+        </div>
+      </div>
     </div>
   );
 }
 
-function RunsPanel({ experiment }: { experiment: MockExperiment }) {
-  if (experiment.runs.length === 0) {
+function RunsPanel({
+  runSummary,
+  runProgress,
+  activeRuns,
+}: {
+  runSummary:
+    | {
+        run_id: string;
+        status: string;
+        desired_state: string;
+        current_stage?: string;
+        stop_at_stage?: string;
+        stages: Array<{
+          stage: string;
+          status: string;
+          total_requests: number;
+          completed_requests: number;
+          failed_requests: number;
+        }>;
+      }
+    | undefined;
+  runProgress: number;
+  activeRuns: Array<{
+    run_id: string;
+    experiment_tag: string;
+    status: string;
+    desired_state: string;
+    current_stage?: string;
+  }>;
+}) {
+  if (!runSummary && activeRuns.length === 0) {
     return (
       <div
         className="rounded border px-6 py-10 text-center text-xs opacity-40"
@@ -375,9 +874,8 @@ function RunsPanel({ experiment }: { experiment: MockExperiment }) {
 
   return (
     <div className="space-y-4">
-      {experiment.runs.map((run) => (
+      {runSummary && (
         <div
-          key={run.id}
           className="rounded border"
           style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
         >
@@ -386,20 +884,21 @@ function RunsPanel({ experiment }: { experiment: MockExperiment }) {
             style={{ borderColor: "#1e2433" }}
           >
             <div className="flex items-center gap-3">
-              <StatusDot status={run.status} />
+              <StatusDot status={runSummary.status} />
               <span className="text-xs font-medium" style={{ color: "#e8eaed" }}>
-                {run.id}
+                {runSummary.run_id}
               </span>
               <span className="text-[10px] opacity-40">
-                {run.completedSamples}/{run.totalSamples} samples
+                {runSummary.current_stage ?? "no stage"} · desired{" "}
+                {runSummary.desired_state}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-32">
-                <ProgressBar value={run.progress} />
+                <ProgressBar value={runProgress} />
               </div>
               <span className="text-[11px] font-medium" style={{ color: "#ff6b35" }}>
-                {run.progress}%
+                {runProgress}%
               </span>
             </div>
           </div>
@@ -423,19 +922,19 @@ function RunsPanel({ experiment }: { experiment: MockExperiment }) {
                   className="px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider"
                   style={{ color: "#3a4050" }}
                 >
-                  Progress
+                  Completed
                 </th>
               </tr>
             </thead>
             <tbody>
-              {run.stages.map((stage) => (
+              {runSummary.stages.map((stage) => (
                 <tr
-                  key={stage.name}
+                  key={stage.stage}
                   className="border-b last:border-b-0"
                   style={{ borderColor: "#1e2433" }}
                 >
                   <td className="px-4 py-2 text-xs" style={{ color: "#c8ccd4" }}>
-                    {stage.name}
+                    {stage.stage}
                   </td>
                   <td className="px-4 py-2">
                     <span className="flex items-center gap-1.5">
@@ -446,78 +945,245 @@ function RunsPanel({ experiment }: { experiment: MockExperiment }) {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right text-xs opacity-60">
-                    {stage.progress}%
+                    {stage.completed_requests}/{stage.total_requests}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      ))}
+      )}
+
+      {activeRuns.length > 0 && (
+        <div
+          className="rounded border p-4 text-xs"
+          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+        >
+          <p className="mb-2 text-[10px] uppercase tracking-widest opacity-50">
+            Active Runs
+          </p>
+          <div className="space-y-1">
+            {activeRuns.map((run) => (
+              <div key={run.run_id} className="flex items-center justify-between">
+                <span>
+                  {run.run_id} · {run.status}
+                </span>
+                <span className="opacity-60">{run.current_stage ?? "—"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function EvidencePanel({
-  experimentId,
-  evidence,
+  selected,
+  summary,
+  state,
+  evidenceBatches,
+  evidenceItems,
+  evidenceLimit,
+  onEvidenceLimitChange,
+  selectedBatchId,
+  onBatchChange,
+  onCollect,
+  onBind,
+  evidenceMessage,
 }: {
-  experimentId: string;
-  evidence: ReturnType<typeof getEvidenceForExperiment>;
+  selected: {
+    experiment_tag: string;
+    window_id: string;
+    evidence_window?: {
+      start_date: string;
+      end_date: string;
+      country: string;
+      concept: string;
+      model_id: string;
+    };
+  };
+  summary:
+    | {
+        config: { scoring_stage: { evidence_view: string } };
+      }
+    | undefined;
+  state:
+    | {
+        evidence_total?: number;
+        evidence_neutralized?: number;
+        evidence_batch?: { evidence_limit: number; evidence_count: number };
+        evidence_bound_count?: number;
+      }
+    | undefined;
+  evidenceBatches:
+    | Array<{
+        evidence_batch_id: string;
+        evidence_limit: number;
+        evidence_count: number;
+        created_at: number;
+      }>
+    | undefined;
+  evidenceItems:
+    | Array<{
+        evidence_id: string;
+        position: number;
+        title: string;
+        url: string;
+      }>
+    | undefined;
+  evidenceLimit: string;
+  onEvidenceLimitChange: (value: string) => void;
+  selectedBatchId: string;
+  onBatchChange: (value: string) => void;
+  onCollect: () => void;
+  onBind: () => void;
+  evidenceMessage: string | null;
 }) {
-  if (evidence.length === 0) {
-    return (
-      <div
-        className="rounded border px-6 py-10 text-center text-xs opacity-40"
-        style={{ borderColor: "#1e2433" }}
-      >
-        No evidence collected for this experiment.
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-3">
-      {evidence.map((ev) => (
-        <Link
-          key={ev.id}
-          href={`/evidence/${ev.id}`}
-          className="block rounded border p-4 transition hover:bg-[#151a24]"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-semibold" style={{ color: "#e8eaed" }}>
-                {ev.title}
-              </div>
-              <div className="mt-1 text-[11px] opacity-50">{ev.sourceUrl}</div>
-            </div>
-            <span className="text-[10px] uppercase tracking-wider opacity-40">
-              {new Date(ev.collectedAt).toLocaleDateString()}
+    <div className="space-y-4">
+      <div
+        className="rounded border p-4 text-xs"
+        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+      >
+        <p className="mb-2 text-[10px] uppercase tracking-widest opacity-50">
+          Evidence Window
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <span>
+            {selected.evidence_window?.concept ?? "—"} ·{" "}
+            {selected.evidence_window?.country ?? "—"}
+          </span>
+          <span className="opacity-60">
+            {selected.evidence_window?.start_date ?? "—"} →{" "}
+            {selected.evidence_window?.end_date ?? "—"}
+          </span>
+          <span className="opacity-60">
+            {selected.evidence_window?.model_id ?? "—"}
+          </span>
+          <span className="opacity-60">
+            Evidence View:{" "}
+            {summary
+              ? VIEW_LABELS[summary.config.scoring_stage.evidence_view]
+              : "—"}
+          </span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-3 opacity-60">
+          <span>Total Evidence: {state?.evidence_total ?? 0}</span>
+          <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
+          <span>Bound: {state?.evidence_bound_count ?? 0}</span>
+        </div>
+      </div>
+
+      <div
+        className="rounded border p-4"
+        style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest opacity-50">
+              Evidence Batches
+            </p>
+            <p className="mt-1 text-xs opacity-60">
+              Collect or bind a frozen batch for this experiment.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <input
+              type="number"
+              min={1}
+              className="w-24 rounded border px-2 py-1 text-xs"
+              style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
+              placeholder="limit"
+              value={evidenceLimit}
+              onChange={(event) => onEvidenceLimitChange(event.target.value)}
+            />
+            <button
+              onClick={onCollect}
+              className="rounded border px-3 py-1 text-[10px] uppercase tracking-wider"
+              style={{ borderColor: "#1e2433", color: "#5a6173" }}
+            >
+              Collect Batch
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-xs">
+          <select
+            className="rounded border px-2 py-1 text-xs"
+            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
+            value={selectedBatchId}
+            onChange={(event) => onBatchChange(event.target.value)}
+          >
+            {(evidenceBatches ?? []).map((batch) => (
+              <option key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
+                {batch.evidence_batch_id} · {batch.evidence_count}/
+                {batch.evidence_limit} · {formatDate(batch.created_at)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={onBind}
+            className="w-fit rounded border px-3 py-1 text-[10px] uppercase tracking-wider"
+            style={{ borderColor: "#1e2433", color: "#5a6173" }}
+          >
+            Bind Batch to Experiment
+          </button>
+          {evidenceMessage && (
+            <span className="text-[10px] uppercase tracking-wider opacity-60">
+              {evidenceMessage}
             </span>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {(evidenceItems ?? []).length === 0 && (
+          <div
+            className="rounded border px-6 py-10 text-center text-xs opacity-40"
+            style={{ borderColor: "#1e2433" }}
+          >
+            No evidence bound to this experiment yet.
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {NORMALIZATION_LEVELS.map((level) => {
-              const active = level.key === ev.view;
-              return (
-                <span
-                  key={level.key}
-                  className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider"
-                  style={{
-                    backgroundColor: active ? "#ff6b3530" : "#151a24",
-                    color: active ? "#ff6b35" : "#7a8599",
-                    border: `1px solid ${active ? "#ff6b3550" : "#1e2433"}`,
-                  }}
-                >
-                  {VIEW_LABELS[level.key]}
-                </span>
-              );
-            })}
-          </div>
-        </Link>
-      ))}
-      <div className="text-[10px] opacity-40">
-        {evidence.length} evidence items for {experimentId}
+        )}
+        {(evidenceItems ?? []).map((ev) => (
+          <Link
+            key={ev.evidence_id}
+            href={`/evidence/${ev.evidence_id}`}
+            className="block rounded border p-4 transition hover:bg-[#151a24]"
+            style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold" style={{ color: "#e8eaed" }}>
+                  {ev.position}. {ev.title}
+                </div>
+                <div className="mt-1 text-[11px] opacity-50">{ev.url}</div>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider opacity-40">
+                {selected.experiment_tag}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {NORMALIZATION_LEVELS.map((level) => {
+                const active = level.key === summary?.config.scoring_stage.evidence_view;
+                return (
+                  <span
+                    key={level.key}
+                    className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider"
+                    style={{
+                      backgroundColor: active ? "#ff6b3530" : "#151a24",
+                      color: active ? "#ff6b35" : "#7a8599",
+                      border: `1px solid ${active ? "#ff6b3550" : "#1e2433"}`,
+                    }}
+                  >
+                    {VIEW_LABELS[level.key]}
+                  </span>
+                );
+              })}
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   );

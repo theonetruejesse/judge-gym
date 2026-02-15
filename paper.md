@@ -1,4 +1,4 @@
-# Sectarian Judges: Measuring Epistemic Entrenchment in LLM-as-Judge Evaluation of Contested Political Concepts
+# Measuring Epistemic Entrenchment in LLM-as-Judge Evaluation of Contested Political Concepts
 
 _this document is a temporary generative artifact. it reflects collaborative development with AI assistance. All empirical claims and citations require further verification. Pilot data preliminary; full results forthcoming._
 _tldr; i'm treating this as a save state. DO NOT INTERPRET THIS AS REAL PAPER._
@@ -9,7 +9,7 @@ _tldr; i'm treating this as a save state. DO NOT INTERPRET THIS AS REAL PAPER._
 
 ## Abstract
 
-Large language models are increasingly deployed as automated evaluators ("LLM-as-Judge") for tasks ranging from summarization quality to political content analysis. We investigate whether divergent safety training regimes produce _Sectarian Judges_ — models that yield conflicting evaluations of essentially contested political concepts while simultaneously hallucinating expert consensus. We introduce **judge-gym**, an open-source design space engine that treats each evaluation dimension — model family, rubric source, concept, evidence, scoring method — as an axis in a configurable ablation surface. Pilot results (n=540 scores, 4 models, 9 evidence items) reveal a striking geometric divergence: GPT-4.1 exhibits smooth, graded adjudication; Gemini-3.0-flash shows selective abstention; GPT-5.2-chat demonstrates extreme expressive compression (binary Stage-1/Abstain collapse with rare Stage-4 spikes); and Qwen-235b maintains expressive bandwidth comparable to GPT-4.1. This pattern suggests that **alignment-induced adjudicative compression** — not vendor identity or model scale — determines evaluative geometry in contested domains. Our experimental design tests four hypotheses: (1) epistemic entrenchment; (2) consensus hallucination; (3) framework sensitivity; and (4) forced-choice inflation. We employ seven methodological controls and validate against discriminant benchmarks. This paper presents the full theoretical motivation, pilot findings, refined methodology, and analysis plan.
+Large language models are increasingly deployed as automated evaluators ("LLM-as-Judge") for tasks ranging from summarization quality to political content analysis. We investigate whether divergent safety training regimes produce **epistemic entrenchment** — models that yield conflicting evaluations of essentially contested political concepts while simultaneously overestimating expert agreement. We introduce **judge-gym**, an open-source design space engine that treats each evaluation dimension — model family, rubric source, concept, evidence, scoring method — as an axis in a configurable ablation surface. Pilot results (n=540 scores, 4 models, 9 evidence items) reveal a striking geometric divergence: GPT-4.1 exhibits smooth, graded adjudication; Gemini-3.0-flash shows selective abstention; GPT-5.2-chat demonstrates extreme expressive compression (binary Stage-1/Abstain collapse with rare Stage-4 spikes); and Qwen-235b maintains expressive bandwidth comparable to GPT-4.1. This pattern suggests that **alignment-induced adjudicative compression** — not vendor identity or model scale — determines evaluative geometry in contested domains. Our experimental design tests four hypotheses: (1) epistemic entrenchment; (2) consensus hallucination; (3) framework sensitivity; and (4) forced-choice inflation. We employ seven methodological controls and validate against discriminant benchmarks. This paper presents the full theoretical motivation, pilot findings, refined methodology, and analysis plan.
 
 ---
 
@@ -19,7 +19,7 @@ The use of LLMs as automated judges has scaled rapidly. MT-Bench (Zheng et al., 
 
 But consistency is not neutrality. Every frontier model arrives shaped by a training regime — RLHF reward models, constitutional AI principles, red-team filters — that encodes implicit evaluative commitments. For factual tasks (math, coding, factual QA), these commitments are largely irrelevant: the answer is right or wrong. For _essentially contested concepts_ (Gallie, 1956) — fascism, democratic backsliding, populism — the situation is different. There is no ground truth. The question is not whether the model gets the answer right, but whether models _trained under different normative regimes_ systematically disagree, and whether they are aware they disagree.
 
-We call this the **Sectarian Judge** problem: a model that (a) produces evaluations that diverge from the model ensemble on contested concepts, and (b) assigns high probability to expert agreement with its own verdict — hallucinating consensus where none exists. If this pattern holds, it has immediate implications for any pipeline that uses LLM-as-Judge on politically or ethically contested content: the choice of model is not a neutral engineering decision but an implicit normative commitment.
+We call this the **epistemic entrenchment** problem: a model that (a) produces evaluations that diverge from the model ensemble on contested concepts, and (b) assigns high probability to expert agreement with its own verdict — hallucinating consensus where none exists. If this pattern holds, it has immediate implications for any pipeline that uses LLM-as-Judge on politically or ethically contested content: the choice of model is not a neutral engineering decision but an implicit normative commitment.
 
 ### 1.1. Pilot Discovery: Alignment-Induced Adjudicative Compression
 
@@ -92,11 +92,11 @@ Gallie (1956) defined an _essentially contested concept_ as one where: (1) appra
 
 When an LLM judge evaluates evidence about "fascism in the United States," it makes evaluative commitments that would be recognized as contested in human context. The question is whether different models make _different_ commitments, and whether they recognize contestedness.
 
-### 3.2. The Sectarian Judge
+### 3.2. Epistemic Entrenchment
 
 _this formulation i don't agree with. legacy generation from hypothetical framing._
 
-We define a **Sectarian Judge** as model $M_i$ exhibiting:
+We define an **entrenched judge** as model $M_i$ exhibiting:
 
 1. **Divergence:** For contested concept $c$, $M_i$'s score distribution $p_i$ diverges from ensemble $\bar{p}$, with $\text{JSD}(p_i \| \bar{p}) > \tau$.
 
@@ -110,7 +110,7 @@ High $E_i$ is pathological: the model disagrees with peers _and_ believes everyo
 
 ### 3.3. Adjudicative Compression
 
-Our pilot suggests a structural phenomenon beyond sectarianism: **alignment-induced adjudicative compression** — the collapse of expressive dynamic range to binary or near-binary output (Stage 1 vs. Abstain/Stage 4), with attenuated or absent intermediate classification.
+Our pilot suggests a structural phenomenon beyond simple disagreement: **alignment-induced adjudicative compression** — the collapse of expressive dynamic range to binary or near-binary output (Stage 1 vs. Abstain/Stage 4), with attenuated or absent intermediate classification.
 
 Formal characterization: A model exhibits compression when, across evidence samples, the entropy of its stage distribution $H(p_i) < \epsilon$ despite evidence heterogeneity, and abstention mass $m(\emptyset)$ or Stage-1 mass $p(s_1)$ dominates.
 

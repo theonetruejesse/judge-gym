@@ -1,20 +1,75 @@
+"use client";
+
 import Link from "next/link";
-import {
-  NORMALIZATION_LEVELS,
-  VIEW_LABELS,
-  getEvidenceById,
-  getEvidenceContentById,
-} from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@judge-gym/engine";
+import { NORMALIZATION_LEVELS, VIEW_LABELS } from "@/lib/ui";
+
+const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+
+type EvidenceContent = {
+  evidence_id: string;
+  window_id: string;
+  title: string;
+  url: string;
+  raw_content: string;
+  cleaned_content?: string;
+  neutralized_content?: string;
+  abstracted_content?: string;
+};
 
 export default function RouteOneEvidenceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const evidence = getEvidenceById(params.id);
-  const content = evidence ? getEvidenceContentById(evidence.id) : undefined;
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(
+    null,
+  );
 
-  if (!evidence || !content) {
+  useEffect(() => {
+    const maybePromise = params as unknown as {
+      then?: (onfulfilled: (value: { id: string }) => void) => void;
+    };
+    if (typeof maybePromise.then === "function") {
+      maybePromise.then(setResolvedParams);
+    } else {
+      setResolvedParams(params as unknown as { id: string });
+    }
+  }, [params]);
+
+  if (!hasConvex) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
+        <p className="mt-2 text-xs opacity-60">
+          Set the Convex URL to load evidence content.
+        </p>
+      </div>
+    );
+  }
+
+  const evidence = useQuery(
+    api.lab.getEvidenceContent,
+    resolvedParams ? { evidence_id: resolvedParams.id } : "skip",
+  ) as EvidenceContent | null | undefined;
+
+  if (!resolvedParams) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Loading evidence...</p>
+      </div>
+    );
+  }
+
+  if (evidence === null) {
     return (
       <div
         className="min-h-screen px-6 py-12"
@@ -27,6 +82,24 @@ export default function RouteOneEvidenceDetailPage({
       </div>
     );
   }
+
+  if (!evidence) {
+    return (
+      <div
+        className="min-h-screen px-6 py-12"
+        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
+      >
+        <p className="text-sm">Loading evidence...</p>
+      </div>
+    );
+  }
+
+  const contentMap: Record<string, string | undefined> = {
+    l0_raw: evidence.raw_content,
+    l1_cleaned: evidence.cleaned_content,
+    l2_neutralized: evidence.neutralized_content,
+    l3_abstracted: evidence.abstracted_content,
+  };
 
   return (
     <div
@@ -47,11 +120,15 @@ export default function RouteOneEvidenceDetailPage({
           >
             {evidence.title}
           </h1>
-          <p className="text-[11px] opacity-50">{evidence.sourceUrl}</p>
+          <p className="text-[11px] opacity-50">{evidence.url}</p>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href={`/experiment/${evidence.experimentId}`}>Back</Link>
-          <Link href="/">Experiments</Link>
+          <Link href="/" className="hover:text-[#ff6b35]">
+            Experiments
+          </Link>
+          <Link href="/editor" className="hover:text-[#ff6b35]">
+            Editor
+          </Link>
         </div>
       </header>
 
@@ -67,44 +144,29 @@ export default function RouteOneEvidenceDetailPage({
             Raw Article
           </p>
           <div className="mt-4 whitespace-pre-line text-sm leading-relaxed">
-            {content.raw}
+            {evidence.raw_content}
           </div>
         </section>
 
         <section className="space-y-4">
           {NORMALIZATION_LEVELS.map((level) => {
-            const contentMap = {
-              l0_raw: content.raw,
-              l1_cleaned: content.l1_cleaned,
-              l2_neutralized: content.l2_neutralized,
-              l3_abstracted: content.l3_abstracted,
-            };
             const value = contentMap[level.key];
-            const active = level.key === evidence.view;
             return (
               <div
                 key={level.key}
                 className="rounded border p-4"
                 style={{
                   borderColor: "#1e2433",
-                  backgroundColor: active ? "#151a24" : "#0b0e1499",
+                  backgroundColor: "#0b0e1499",
                 }}
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs uppercase tracking-wider opacity-60">
                     {VIEW_LABELS[level.key]}
                   </p>
-                  {active && (
-                    <span
-                      className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider"
-                      style={{ backgroundColor: "#ff6b3530", color: "#ff6b35" }}
-                    >
-                      Selected
-                    </span>
-                  )}
                 </div>
                 <div className="mt-3 whitespace-pre-line text-sm leading-relaxed">
-                  {value}
+                  {value?.trim().length ? value : "—"}
                 </div>
               </div>
             );

@@ -4,7 +4,7 @@ An open-source LLM-as-Judge design space engine. Systematically explore how rubr
 
 Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
 
-Read [`paper.md`](./paper.md) for the research motivation and theoretical framework.
+Read [`paper.md`](./paper.md) for the research motivation, epistemic entrenchment framing, and theoretical framework.
 
 ---
 
@@ -45,6 +45,8 @@ judge-gym/
 ## Mission Control UI (Lab)
 
 The Mission Control UI ships a single multi-page layout (Industrial sidebar + tabs).
+It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
+Evidence content can be retrieved via `lab.getEvidenceContent` when wiring the evidence detail view.
 
 Routes:
 - `/` - Experiments list

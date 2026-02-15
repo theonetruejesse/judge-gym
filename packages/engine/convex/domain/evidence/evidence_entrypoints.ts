@@ -129,3 +129,35 @@ export const listEvidenceBatchItems: ReturnType<typeof zQuery> = zQuery({
     return result;
   },
 });
+
+export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    evidence_id: zid("evidences"),
+  }),
+  returns: z
+    .object({
+      evidence_id: zid("evidences"),
+      window_id: zid("windows"),
+      title: z.string(),
+      url: z.string(),
+      raw_content: z.string(),
+      cleaned_content: z.string().optional(),
+      neutralized_content: z.string().optional(),
+      abstracted_content: z.string().optional(),
+    })
+    .nullable(),
+  handler: async (ctx, { evidence_id }) => {
+    const evidence = await ctx.db.get(evidence_id);
+    if (!evidence) return null;
+    return {
+      evidence_id: evidence._id,
+      window_id: evidence.window_id,
+      title: evidence.title,
+      url: evidence.url,
+      raw_content: evidence.raw_content,
+      cleaned_content: evidence.cleaned_content,
+      neutralized_content: evidence.neutralized_content,
+      abstracted_content: evidence.abstracted_content,
+    };
+  },
+});

@@ -296,6 +296,28 @@ export const listEvidenceBatchItems: ReturnType<typeof zQuery> = zQuery({
   },
 });
 
+export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ evidence_id: zid("evidences") }),
+  returns: z
+    .object({
+      evidence_id: zid("evidences"),
+      window_id: zid("windows"),
+      title: z.string(),
+      url: z.string(),
+      raw_content: z.string(),
+      cleaned_content: z.string().optional(),
+      neutralized_content: z.string().optional(),
+      abstracted_content: z.string().optional(),
+    })
+    .nullable(),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      api.domain.evidence.evidence_entrypoints.getEvidenceContent,
+      args,
+    );
+  },
+});
+
 export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   returns: z.array(
