@@ -24,7 +24,7 @@ export const seedRubricRequests = zInternalMutation({
       .withIndex("by_experiment_model", (q) =>
         q
           .eq("experiment_id", experiment_id)
-          .eq("model_id", experiment.config.rubric_model_id),
+          .eq("model_id", experiment.config.rubric_stage.model_id),
       )
       .collect();
 
@@ -37,9 +37,9 @@ export const seedRubricRequests = zInternalMutation({
     while (rubrics.length < targetCount) {
       const rubric_id = await ctx.db.insert("rubrics", {
         experiment_id: experiment._id,
-        model_id: experiment.config.rubric_model_id,
+        model_id: experiment.config.rubric_stage.model_id,
         concept: window.concept,
-        scale_size: experiment.config.scale_size,
+        scale_size: experiment.config.rubric_stage.scale_size,
         stages: [],
         parse_status: "pending",
         attempt_count: 0,
@@ -49,9 +49,8 @@ export const seedRubricRequests = zInternalMutation({
 
     const prompts = buildRubricGenPrompt({
       concept: window.concept,
-      scale_size: experiment.config.scale_size,
+      scale_size: experiment.config.rubric_stage.scale_size,
       config: experiment.config,
-      hypothetical_frame: experiment.hypothetical_frame,
     });
 
     for (const rubric of rubrics) {
@@ -59,8 +58,8 @@ export const seedRubricRequests = zInternalMutation({
         internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
         {
           stage: "rubric_gen",
-          provider: providerFor(experiment.config.rubric_model_id),
-          model: experiment.config.rubric_model_id,
+          provider: providerFor(experiment.config.rubric_stage.model_id),
+          model: experiment.config.rubric_stage.model_id,
           system_prompt: prompts.system_prompt,
           user_prompt: prompts.user_prompt,
           experiment_id: experiment._id,

@@ -5,7 +5,6 @@ import {
   ExperimentConfigSchema,
   ExperimentConfigInputSchema,
   ExperimentStatusSchema,
-  GroundTruthSchema,
   ParseStatusSchema,
   TaskTypeSchema,
   modelTypeSchema,
@@ -14,12 +13,7 @@ import {
 export const ExperimentSpecSchema = z.object({
   experiment_tag: z.string(),
   task_type: TaskTypeSchema,
-  ground_truth: GroundTruthSchema.optional(),
   config: ExperimentConfigSchema,
-  hypothetical_frame: z.string().optional(),
-  label_neutralization_mode: z
-    .enum(["none", "mask", "generic"])
-    .optional(),
 });
 
 export const ExperimentSpecInputSchema = ExperimentSpecSchema.extend({
@@ -40,6 +34,7 @@ export const WindowsTableSchema = z.object({
   end_date: z.string(),
   country: z.string(),
   concept: z.string(),
+  model_id: modelTypeSchema,
 });
 
 export const EvidencesTableSchema = z.object({

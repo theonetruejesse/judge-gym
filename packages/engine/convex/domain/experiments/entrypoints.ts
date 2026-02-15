@@ -18,7 +18,7 @@ import type { MutationCtx } from "../../_generated/server";
 
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    window: WindowsTableSchema,
+    evidence_window: WindowsTableSchema,
     experiment: ExperimentSpecInputSchema,
     template_id: z.string().optional(),
     template_version: z.number().optional(),
@@ -29,7 +29,10 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     reused_window: z.boolean(),
     reused_experiment: z.boolean(),
   }),
-  handler: async (ctx, { window, experiment, template_id, template_version }) => {
+  handler: async (
+    ctx,
+    { evidence_window, experiment, template_id, template_version },
+  ) => {
     const normalizedExperiment = normalizeExperimentSpec(experiment);
     const configTemplateId =
       template_id ?? normalizedExperiment.experiment_tag;
@@ -38,12 +41,12 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     await ensureConfigTemplate(ctx, {
       template_id: configTemplateId,
       version: configTemplateVersion,
-      window,
+      evidence_window,
       experiment: normalizedExperiment,
     });
 
     return ensureExperimentWithSpec(ctx, {
-      window,
+      evidence_window,
       experiment: normalizedExperiment,
       config_template_id: configTemplateId,
       config_template_version: configTemplateVersion,
@@ -70,9 +73,9 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
     if (!template) {
       throw new Error(`Config template not found: ${template_id} v${version}`);
     }
-    const { window, experiment } = template.config_body;
+    const { evidence_window, experiment } = template.config_body;
     return ensureExperimentWithSpec(ctx, {
-      window,
+      evidence_window,
       experiment,
       config_template_id: template_id,
       config_template_version: version,
@@ -85,12 +88,12 @@ async function ensureConfigTemplate(
   args: {
     template_id: string;
     version: number;
-    window: z.infer<typeof WindowsTableSchema>;
+    evidence_window: z.infer<typeof WindowsTableSchema>;
     experiment: z.infer<typeof ExperimentSpecSchema>;
   },
 ) {
   const spec_signature = buildExperimentSpecSignature({
-    window: args.window,
+    evidence_window: args.evidence_window,
     experiment: args.experiment,
   });
   const existing = await ctx.runQuery(
@@ -111,7 +114,7 @@ async function ensureConfigTemplate(
     version: args.version,
     schema_version: 1,
     config_body: {
-      window: args.window,
+      evidence_window: args.evidence_window,
       experiment: args.experiment,
       policies: { global: DEFAULT_RUN_POLICY },
       team_id: undefined,
@@ -126,7 +129,7 @@ async function ensureConfigTemplate(
 async function ensureExperimentWithSpec(
   ctx: MutationCtx,
   args: {
-    window: z.infer<typeof WindowsTableSchema>;
+    evidence_window: z.infer<typeof WindowsTableSchema>;
     experiment: z.infer<typeof ExperimentSpecSchema>;
     config_template_id: string;
     config_template_version: number;
@@ -137,9 +140,9 @@ async function ensureExperimentWithSpec(
   reused_window: boolean;
   reused_experiment: boolean;
 }> {
-  const { window, experiment } = args;
+  const { evidence_window, experiment } = args;
   const requestedSignature = buildExperimentSpecSignature({
-    window,
+    evidence_window,
     experiment,
   });
   const existingExperiment = await ctx.db
@@ -152,10 +155,11 @@ async function ensureExperimentWithSpec(
     const existingWindow = await ctx.db.get(existingExperiment.window_id);
     if (!existingWindow) throw new Error("Window not found");
     if (
-      existingWindow.start_date !== window.start_date ||
-      existingWindow.end_date !== window.end_date ||
-      existingWindow.country !== window.country ||
-      existingWindow.concept !== window.concept
+      existingWindow.start_date !== evidence_window.start_date ||
+      existingWindow.end_date !== evidence_window.end_date ||
+      existingWindow.country !== evidence_window.country ||
+      existingWindow.concept !== evidence_window.concept ||
+      existingWindow.model_id !== evidence_window.model_id
     ) {
       throw new Error(
         `Window mismatch for experiment_tag=${experiment.experiment_tag}`,
@@ -164,14 +168,11 @@ async function ensureExperimentWithSpec(
     const existingSignature =
       existingExperiment.spec_signature ??
       buildExperimentSpecSignature({
-        window: existingWindow,
+        evidence_window: existingWindow,
         experiment: {
           experiment_tag: existingExperiment.experiment_tag,
           task_type: existingExperiment.task_type,
           config: existingExperiment.config,
-          ground_truth: existingExperiment.ground_truth,
-          hypothetical_frame: existingExperiment.hypothetical_frame,
-          label_neutralization_mode: existingExperiment.label_neutralization_mode,
         },
       });
     if (existingSignature !== requestedSignature) {
@@ -206,15 +207,16 @@ async function ensureExperimentWithSpec(
     .query("windows")
     .withIndex("by_window_key", (q) =>
       q
-        .eq("start_date", window.start_date)
-        .eq("end_date", window.end_date)
-        .eq("country", window.country)
-        .eq("concept", window.concept),
+        .eq("start_date", evidence_window.start_date)
+        .eq("end_date", evidence_window.end_date)
+        .eq("country", evidence_window.country)
+        .eq("concept", evidence_window.concept)
+        .eq("model_id", evidence_window.model_id),
     )
     .first();
 
   const window_id =
-    existingWindow?._id ?? (await ctx.db.insert("windows", window));
+    existingWindow?._id ?? (await ctx.db.insert("windows", evidence_window));
   const experiment_id = await ctx.db.insert("experiments", {
     ...experiment,
     window_id,

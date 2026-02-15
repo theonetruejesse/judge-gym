@@ -4,14 +4,17 @@ import { buildRubricGenPrompt } from "../convex/domain/experiments/stages/rubric
 import type { ExperimentConfig } from "../convex/models/core";
 
 const baseConfig: ExperimentConfig = {
-  scale_size: 2,
-  rubric_model_id: "gpt-4.1",
-  scoring_model_id: "gpt-4.1",
-  randomizations: [],
-  evidence_view: "l0_raw",
-  scoring_method: "freeform-suffix-single",
-  prompt_ordering: "rubric-first",
-  abstain_enabled: true,
+  rubric_stage: {
+    scale_size: 2,
+    model_id: "gpt-4.1",
+  },
+  scoring_stage: {
+    model_id: "gpt-4.1",
+    method: "single",
+    randomizations: [],
+    evidence_view: "l0_raw",
+    abstain_enabled: true,
+  },
 };
 
 describe("prompts", () => {
@@ -43,7 +46,13 @@ describe("prompts", () => {
 
   test("buildScoreGenPrompt uses anon labels when provided", () => {
     const prompt = buildScoreGenPrompt({
-      config: { ...baseConfig, randomizations: ["anon-label"] },
+      config: {
+        ...baseConfig,
+        scoring_stage: {
+          ...baseConfig.scoring_stage,
+          randomizations: ["anonymize_labels"],
+        },
+      },
       evidence: { raw_content: "Evidence" },
       rubric: {
         stages: [

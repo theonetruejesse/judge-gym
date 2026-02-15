@@ -201,6 +201,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
           end_date: z.string(),
           country: z.string(),
           concept: z.string(),
+          model_id: modelTypeSchema,
         })
         .optional(),
     }),
@@ -218,6 +219,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         end_date: string;
         country: string;
         concept: string;
+        model_id: z.infer<typeof modelTypeSchema>;
       }
     >();
 
@@ -232,6 +234,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
             end_date: windowDoc.end_date,
             country: windowDoc.country,
             concept: windowDoc.concept,
+            model_id: windowDoc.model_id,
           };
           windows.set(experiment.window_id, window);
         }
@@ -266,6 +269,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
           end_date: z.string(),
           country: z.string(),
           concept: z.string(),
+          model_id: modelTypeSchema,
         })
         .optional(),
       evidence_total: z.number().optional(),
@@ -324,7 +328,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         .withIndex("by_experiment_model", (q) =>
           q
             .eq("experiment_id", experiment._id)
-            .eq("model_id", experiment.config.rubric_model_id),
+            .eq("model_id", experiment.config.rubric_stage.model_id),
         )
         .first();
 
@@ -348,6 +352,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
               end_date: window.end_date,
               country: window.country,
               concept: window.concept,
+              model_id: window.model_id,
             }
           : undefined,
         evidence_total,

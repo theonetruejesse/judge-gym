@@ -61,7 +61,6 @@ export interface MockExperiment {
   scaleSize: 3 | 4 | 5;
   evidenceView: EvidenceView;
   scoringMethod: string;
-  promptOrdering: string;
   abstainEnabled: boolean;
   randomizations: string[];
   window: ExperimentWindow;
@@ -102,7 +101,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 5,
     evidenceView: "l2_neutralized",
     scoringMethod: "rubric_guided",
-    promptOrdering: "evidence_first",
     abstainEnabled: true,
     randomizations: ["evidence_order", "scale_direction"],
     window: {
@@ -140,7 +138,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 4,
     evidenceView: "l1_cleaned",
     scoringMethod: "rubric_guided",
-    promptOrdering: "rubric_first",
     abstainEnabled: false,
     randomizations: ["evidence_order"],
     window: {
@@ -179,7 +176,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 3,
     evidenceView: "l0_raw",
     scoringMethod: "direct",
-    promptOrdering: "evidence_first",
     abstainEnabled: false,
     randomizations: [],
     window: {
@@ -216,7 +212,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 5,
     evidenceView: "l3_abstracted",
     scoringMethod: "rubric_guided",
-    promptOrdering: "interleaved",
     abstainEnabled: true,
     randomizations: ["evidence_order", "scale_direction", "rubric_shuffle"],
     window: {
@@ -255,7 +250,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 5,
     evidenceView: "l2_neutralized",
     scoringMethod: "rubric_guided",
-    promptOrdering: "evidence_first",
     abstainEnabled: true,
     randomizations: ["evidence_order", "scale_direction"],
     window: {
@@ -278,7 +272,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 4,
     evidenceView: "l1_cleaned",
     scoringMethod: "direct",
-    promptOrdering: "rubric_first",
     abstainEnabled: false,
     randomizations: ["scale_direction"],
     window: {
@@ -315,7 +308,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 3,
     evidenceView: "l2_neutralized",
     scoringMethod: "rubric_guided",
-    promptOrdering: "evidence_first",
     abstainEnabled: true,
     randomizations: ["evidence_order"],
     window: {
@@ -351,7 +343,6 @@ export const EXPERIMENTS: MockExperiment[] = [
     scaleSize: 5,
     evidenceView: "l1_cleaned",
     scoringMethod: "rubric_guided",
-    promptOrdering: "rubric_first",
     abstainEnabled: true,
     randomizations: ["evidence_order", "rubric_shuffle"],
     window: {

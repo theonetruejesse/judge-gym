@@ -1,0 +1,86 @@
+{
+  "template_id": "pilot_fascism_ecc_2026_01_01",
+  "version": 1,
+  "schema_version": 1,
+  "config_body": {
+    "evidence_window": {
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-07",
+      "country": "USA",
+      "concept": "fascism",
+      "model_id": "gpt-4.1"
+    },
+    "experiment": {
+      "experiment_tag": "pilot_fascism_ecc_2026_01_01",
+      "task_type": "ecc",
+      "config": {
+        "rubric_stage": {
+          "scale_size": 4,
+          "model_id": "gpt-4.1"
+        },
+        "scoring_stage": {
+          "model_id": "gpt-4.1",
+          "method": "subset",
+          "randomizations": [
+            "anonymize_labels",
+            "shuffle_rubric_order",
+            "hide_label_text"
+          ],
+          "evidence_view": "l2_neutralized",
+          "abstain_enabled": true
+        }
+      }
+    },
+    "policies": {
+      "global": {
+        "poll_interval_ms": 5000,
+        "max_batch_size": 500,
+        "max_new_batches_per_tick": 4,
+        "max_poll_per_tick": 10,
+        "max_concurrent_batches": 4,
+        "max_concurrent_requests": 200,
+        "max_batch_retries": 2,
+        "retry_backoff_ms": 60000,
+        "provider_models": [
+          {
+            "provider": "openai",
+            "models": [
+              "gpt-4.1",
+              "gpt-4.1-mini",
+              "gpt-5.2",
+              "gpt-5.2-chat"
+            ]
+          },
+          {
+            "provider": "anthropic",
+            "models": [
+              "claude-sonnet-4.5",
+              "claude-haiku-4.5"
+            ]
+          }
+        ]
+      },
+      "team": {
+        "team_example": {
+          "max_batch_size": 100
+        }
+      },
+      "provider": {
+        "openai": {
+          "max_concurrent_requests": 300
+        }
+      },
+      "model": {
+        "gpt-4.1": {
+          "max_batch_size": 250
+        }
+      },
+      "experiment": {
+        "max_new_batches_per_tick": 2
+      }
+    },
+    "team_id": "team_example"
+  },
+  "created_by": "example",
+  "notes": "example config template args for seedConfigTemplate (all optional fields included)"
+}

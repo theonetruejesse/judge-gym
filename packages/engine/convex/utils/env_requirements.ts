@@ -10,8 +10,8 @@ const PROVIDER_ENV: Record<Provider, string> = {
 
 export function requiredEnvsForConfig(body: ConfigTemplateBody): string[] {
   const providers = new Set<Provider>();
-  providers.add(providerFor(body.experiment.config.rubric_model_id));
-  providers.add(providerFor(body.experiment.config.scoring_model_id));
+  providers.add(providerFor(body.experiment.config.rubric_stage.model_id));
+  providers.add(providerFor(body.experiment.config.scoring_stage.model_id));
   for (const spec of body.policies.global.provider_models) {
     providers.add(spec.provider);
   }

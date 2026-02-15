@@ -127,11 +127,12 @@ def _flatten_bundle(bundle: dict[str, Any]) -> pd.DataFrame:
     df["scoring_model_id"] = exp.get("scoring_model_id")
     df["concept"] = exp["concept"]
     df["task_type"] = exp["task_type"]
-    df["scale_size"] = config.get("scale_size")
-    df["scoring_method"] = config.get("scoring_method")
-    df["evidence_view"] = config.get("evidence_view")
-    df["prompt_ordering"] = config.get("prompt_ordering")
-    df["randomizations"] = [config.get("randomizations")] * len(df)
+    rubric_stage = config.get("rubric_stage", {}) or {}
+    scoring_stage = config.get("scoring_stage", {}) or {}
+    df["scale_size"] = rubric_stage.get("scale_size")
+    df["scoring_method"] = scoring_stage.get("method")
+    df["evidence_view"] = scoring_stage.get("evidence_view")
+    df["randomizations"] = [scoring_stage.get("randomizations")] * len(df)
 
     # Type coercion
     df["decoded_scores"] = df["decoded_scores"].apply(_coerce_scores)
