@@ -3,10 +3,23 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
 import type { Id } from "../../../_generated/dataModel";
+import type { MutationCtx } from "../../../_generated/server";
 import { providerSchema } from "../../../models/core";
 import { getRateLimitKeysForModel, rateLimiter } from "../../../platform/rate_limiter";
+import { ENGINE_SETTINGS } from "../../../settings";
 
-const MAX_ATTEMPTS = 2;
+async function getPolicyForBatch(
+  ctx: MutationCtx,
+  batch_id: Id<"llm_batches">,
+) {
+  const batch = await ctx.db.get(batch_id);
+  if (!batch) throw new Error("Batch not found");
+  if (!batch.run_id) return ENGINE_SETTINGS.run_policy;
+  const run = await ctx.runQuery(internal.domain.runs.repo.getRun, {
+    run_id: batch.run_id,
+  });
+  return run?.policy_snapshot ?? ENGINE_SETTINGS.run_policy;
+}
 
 export const finalizeBatch = zInternalMutation({
   args: z.object({
@@ -33,6 +46,8 @@ export const finalizeBatch = zInternalMutation({
   }),
   returns: z.object({ processed: z.number() }),
   handler: async (ctx, { batch_id, provider, results }) => {
+    const now = Date.now();
+    const policy = await getPolicyForBatch(ctx, batch_id);
     const items = await ctx.db
       .query("llm_batch_items")
       .withIndex("by_batch", (q) => q.eq("batch_id", batch_id))
@@ -61,7 +76,10 @@ export const finalizeBatch = zInternalMutation({
 
       if (result.status === "error") {
         const nextAttempt = (request.attempt ?? 0) + 1;
-        const shouldRetry = nextAttempt < MAX_ATTEMPTS;
+        const shouldRetry = nextAttempt < policy.max_request_attempts;
+        const next_retry_at = shouldRetry
+          ? now + policy.retry_backoff_ms
+          : undefined;
         await ctx.db.patch(item._id, {
           status: "error",
           last_error: result.error ?? "provider_error",
@@ -70,6 +88,7 @@ export const finalizeBatch = zInternalMutation({
           status: shouldRetry ? "queued" : "error",
           attempt: nextAttempt,
           last_error: result.error ?? "provider_error",
+          next_retry_at,
         });
         if (request.experiment_id) {
           const refreshSet =
@@ -160,11 +179,15 @@ export const finalizeBatch = zInternalMutation({
           );
           if (!parseResult.ok) {
             const nextAttempt = (request.attempt ?? 0) + 1;
-            const shouldRetry = nextAttempt < MAX_ATTEMPTS;
+            const shouldRetry = nextAttempt < policy.max_request_attempts;
+            const next_retry_at = shouldRetry
+              ? now + policy.retry_backoff_ms
+              : undefined;
             await ctx.db.patch(request._id, {
               status: shouldRetry ? "queued" : "error",
               attempt: nextAttempt,
               parse_error: parseResult.error ?? "parse_error",
+              next_retry_at,
             });
           }
           if (parseResult.ok && request.experiment_id) {
@@ -185,11 +208,15 @@ export const finalizeBatch = zInternalMutation({
           );
           if (!parseResult.ok) {
             const nextAttempt = (request.attempt ?? 0) + 1;
-            const shouldRetry = nextAttempt < MAX_ATTEMPTS;
+            const shouldRetry = nextAttempt < policy.max_request_attempts;
+            const next_retry_at = shouldRetry
+              ? now + policy.retry_backoff_ms
+              : undefined;
             await ctx.db.patch(request._id, {
               status: shouldRetry ? "queued" : "error",
               attempt: nextAttempt,
               parse_error: parseResult.error ?? "parse_error",
+              next_retry_at,
             });
           }
           break;
@@ -224,11 +251,15 @@ export const finalizeBatch = zInternalMutation({
           );
           if (!parseResult.ok) {
             const nextAttempt = (request.attempt ?? 0) + 1;
-            const shouldRetry = nextAttempt < MAX_ATTEMPTS;
+            const shouldRetry = nextAttempt < policy.max_request_attempts;
+            const next_retry_at = shouldRetry
+              ? now + policy.retry_backoff_ms
+              : undefined;
             await ctx.db.patch(request._id, {
               status: shouldRetry ? "queued" : "error",
               attempt: nextAttempt,
               parse_error: parseResult.error ?? "parse_error",
+              next_retry_at,
             });
           }
           if (parseResult.ok && request.experiment_id) {
@@ -257,11 +288,15 @@ export const finalizeBatch = zInternalMutation({
           );
           if (!parseResult.ok) {
             const nextAttempt = (request.attempt ?? 0) + 1;
-            const shouldRetry = nextAttempt < MAX_ATTEMPTS;
+            const shouldRetry = nextAttempt < policy.max_request_attempts;
+            const next_retry_at = shouldRetry
+              ? now + policy.retry_backoff_ms
+              : undefined;
             await ctx.db.patch(request._id, {
               status: shouldRetry ? "queued" : "error",
               attempt: nextAttempt,
               parse_error: parseResult.error ?? "parse_error",
+              next_retry_at,
             });
           }
           break;

@@ -46,13 +46,16 @@ judge-gym/
 
 The Mission Control UI ships a multi-page layout focused on experiments and evidence windows.
 It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
+The UI does not ship mock data; empty tables will render until Convex has data.
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 
 Routes:
 - `/` - Experiments + evidence windows
 - `/experiment/[id]` - Experiment detail
 - `/evidence/[id]` - Evidence window preview
-- `/editor` - Experiment editor
+- `/editor` - Editor landing
+- `/editor/experiment` - Experiment editor
+- `/editor/window` - Evidence window editor
 
 ## Prerequisites
 
@@ -321,6 +324,9 @@ does not define or pass policies.
 Each run snapshots the current `ENGINE_SETTINGS.run_policy` at start time.
 Updating settings only affects new runs; existing runs keep their snapshot for
 reproducibility.
+
+The run policy includes `max_request_attempts` (total attempts per request,
+including parse retries) and `max_batch_retries` (batch-level failures).
 
 ---
 
