@@ -1,9 +1,17 @@
 export const STATUS_COLORS: Record<string, string> = {
-  running: "#ff6b35",
-  complete: "#22c55e",
-  paused: "#f59e0b",
-  pending: "#3b82f6",
-  canceled: "#6b7280",
+  running: "#22c55e",
+  complete: "#3b82f6",
+  paused: "#8b5cf6",
+  pending: "#6b7280",
+  canceled: "#ef4444",
+};
+
+export const STATUS_COLORS_MUTED: Record<string, string> = {
+  running: "#3f8f5b",
+  complete: "#3b6ea5",
+  paused: "#6b4aa5",
+  pending: "#7b8190",
+  canceled: "#a44545",
 };
 
 export const TASK_TYPE_LABELS: Record<string, string> = {

@@ -13,7 +13,6 @@ import {
   VIEW_LABELS,
 } from "@/lib/ui";
 
-const statuses = ["running", "complete", "paused", "pending", "canceled"];
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 type ExperimentListItem = {
@@ -154,7 +153,6 @@ export default function RouteOneExperimentPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [tab, setTab] = useState<"config" | "runs" | "evidence">("config");
   const [evidenceLimit, setEvidenceLimit] = useState<string>("");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
@@ -175,63 +173,69 @@ export default function RouteOneExperimentPage({
     }
   }, [params]);
 
-  if (!hasConvex) {
+  const experiments = useQuery(
+    api.lab.listExperiments,
+    hasConvex ? {} : "skip",
+  ) as ExperimentListItem[] | undefined;
+  const experimentsLoading = hasConvex && experiments === undefined;
+
+  if (experimentsLoading) {
     return (
       <div
         className="min-h-screen px-6 py-12"
         style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
       >
-        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
-        <p className="mt-2 text-xs opacity-60">
-          Set the Convex URL to load experiments in Mission Control.
-        </p>
+        <p className="text-sm">Loading experiments...</p>
       </div>
     );
   }
 
-  const experiments = useQuery(
-    api.lab.listExperiments,
-    {},
-  ) as ExperimentListItem[] | undefined;
-  const filtered =
-    statusFilter.length === 0
-      ? experiments ?? []
-      : (experiments ?? []).filter((e) => statusFilter.includes(e.status));
+  const experimentRows = experiments ?? [];
 
   const selected =
-    (experiments ?? []).find(
-      (e) => e.experiment_id === resolvedParams?.id,
-    ) ?? (experiments ?? [])[0];
+    experimentRows.find((e) => e.experiment_id === resolvedParams?.id) ??
+    experimentRows[0];
 
   const selectedTag = selected?.experiment_tag;
 
   const summary = useQuery(
     api.lab.getExperimentSummary,
-    selectedTag ? { experiment_tag: selectedTag } : "skip",
+    selectedTag && hasConvex ? { experiment_tag: selectedTag } : "skip",
   ) as ExperimentSummary | undefined;
   const states = useQuery(
     api.lab.getExperimentStates,
-    selectedTag ? { experiment_tags: [selectedTag] } : "skip",
+    selectedTag && hasConvex ? { experiment_tags: [selectedTag] } : "skip",
   ) as ExperimentState[] | undefined;
   const state = states?.[0];
 
   const evidenceBatches = useQuery(
     api.lab.listEvidenceBatches,
-    selected ? { window_id: selected.window_id } : "skip",
+    selected && hasConvex ? { window_id: selected.window_id } : "skip",
   ) as EvidenceBatchListItem[] | undefined;
+  const evidenceBatchesData = evidenceBatches ?? [];
+
   const evidenceItems = useQuery(
     api.lab.listExperimentEvidence,
-    selected ? { experiment_id: selected.experiment_id } : "skip",
+    selected && hasConvex ? { experiment_id: selected.experiment_id } : "skip",
   ) as EvidenceItem[] | undefined;
+  const evidenceItemsData = evidenceItems ?? [];
 
   const activeRuns = useQuery(
     api.lab.listRuns,
-    {},
+    hasConvex ? {} : "skip",
   ) as RunListItem[] | undefined;
+  const activeRunsForExperiment = (activeRuns ?? []).filter(
+    (run) => run.experiment_tag === selectedTag,
+  );
+
+  const summaryData = summary;
   const runSummary = useQuery(
     api.lab.getRunSummary,
-    state?.latest_run?.run_id ? { run_id: state.latest_run.run_id } : "skip",
+    state?.latest_run?.run_id && hasConvex
+      ? { run_id: state.latest_run.run_id }
+      : "skip",
   ) as RunSummary | undefined;
+  const runSummaryData = runSummary;
 
   const startExperiment = useMutation(api.lab.startExperiment);
   const updateRunState = useMutation(api.lab.updateRunState);
@@ -241,18 +245,14 @@ export default function RouteOneExperimentPage({
   const bindExperimentEvidence = useMutation(api.lab.bindExperimentEvidence);
 
   useEffect(() => {
-    if (!selectedBatchId && evidenceBatches && evidenceBatches.length > 0) {
-      setSelectedBatchId(evidenceBatches[0].evidence_batch_id);
+    if (!selectedBatchId && evidenceBatchesData.length > 0) {
+      setSelectedBatchId(evidenceBatchesData[0].evidence_batch_id);
     }
-  }, [evidenceBatches, selectedBatchId]);
-
-  const activeRunsForExperiment = (activeRuns ?? []).filter(
-    (run) => run.experiment_tag === selectedTag,
-  );
+  }, [evidenceBatchesData, selectedBatchId]);
 
   const runProgress = useMemo(() => {
-    if (!runSummary?.stages) return 0;
-    const totals = runSummary.stages.reduce(
+    if (!runSummaryData?.stages) return 0;
+    const totals = runSummaryData.stages.reduce(
       (acc, stage) => {
         acc.total += stage.total_requests;
         acc.done += stage.completed_requests + stage.failed_requests;
@@ -262,18 +262,14 @@ export default function RouteOneExperimentPage({
     );
     if (totals.total === 0) return 0;
     return Math.round((totals.done / totals.total) * 100);
-  }, [runSummary?.stages]);
-
-  const toggleFilter = (status: string) => {
-    setStatusFilter((prev) =>
-      prev.includes(status)
-        ? prev.filter((s) => s !== status)
-        : [...prev, status],
-    );
-  };
+  }, [runSummaryData?.stages]);
 
   const handleStart = async () => {
     if (!selectedTag) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
     setActionMessage(null);
     try {
       const result = await startExperiment({ experiment_tag: selectedTag });
@@ -291,6 +287,10 @@ export default function RouteOneExperimentPage({
 
   const handlePause = async () => {
     if (!state?.latest_run?.run_id) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
     setActionMessage(null);
     try {
       await updateRunState({
@@ -307,6 +307,10 @@ export default function RouteOneExperimentPage({
 
   const handleCancel = async () => {
     if (!state?.latest_run?.run_id) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
     setActionMessage(null);
     try {
       await updateRunState({
@@ -323,6 +327,10 @@ export default function RouteOneExperimentPage({
 
   const handleQueueRubric = async () => {
     if (!selectedTag) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
     setActionMessage(null);
     try {
       await queueRubric({ experiment_tag: selectedTag });
@@ -336,6 +344,10 @@ export default function RouteOneExperimentPage({
 
   const handleQueueScore = async () => {
     if (!selectedTag) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
     setActionMessage(null);
     try {
       await queueScore({ experiment_tag: selectedTag });
@@ -349,6 +361,10 @@ export default function RouteOneExperimentPage({
 
   const handleCollectEvidence = async () => {
     if (!selected) return;
+    if (!hasConvex) {
+      setEvidenceMessage("Convex not configured.");
+      return;
+    }
     setEvidenceMessage(null);
     const parsed = Number(evidenceLimit);
     const evidence_limit =
@@ -370,6 +386,10 @@ export default function RouteOneExperimentPage({
 
   const handleBindEvidence = async () => {
     if (!selectedTag || !selectedBatchId) return;
+    if (!hasConvex) {
+      setEvidenceMessage("Convex not configured.");
+      return;
+    }
     setEvidenceMessage(null);
     try {
       const result = await bindExperimentEvidence({
@@ -386,26 +406,15 @@ export default function RouteOneExperimentPage({
     }
   };
 
-  if (!experiments) {
-    return (
-      <div
-        className="min-h-screen px-6 py-12"
-        style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
-      >
-        <p className="text-sm">Loading experiments...</p>
-      </div>
-    );
-  }
-
-  if (experiments.length === 0 || !selected) {
+  if (!selected) {
     return (
       <div
         className="min-h-screen px-6 py-12"
         style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
       >
         <p className="text-sm">No experiments found.</p>
-        <Link href="/editor" className="mt-4 inline-block text-xs">
-          Create one
+        <Link href="/" className="mt-4 inline-block text-xs">
+          Back to judge-gym
         </Link>
       </div>
     );
@@ -413,7 +422,7 @@ export default function RouteOneExperimentPage({
 
   return (
     <div
-      className="fixed inset-0 flex flex-col overflow-hidden"
+      className="min-h-screen flex flex-col"
       style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
     >
       <header
@@ -429,96 +438,18 @@ export default function RouteOneExperimentPage({
             className="text-sm font-bold tracking-wide"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
-            MISSION CONTROL
+            EXPERIMENT DETAIL
           </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
           <Link href="/" className="hover:text-[#ff6b35]">
-            Experiments
-          </Link>
-          <Link href="/editor" className="hover:text-[#ff6b35]">
-            Edit
+            judge-gym
           </Link>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside
-          className="flex w-64 flex-shrink-0 flex-col border-r overflow-hidden"
-          style={{ borderColor: "#1e2433", backgroundColor: "#0b0e14" }}
-        >
-          <div className="border-b px-3 py-3" style={{ borderColor: "#1e2433" }}>
-            <p
-              className="mb-2 text-[10px] font-semibold uppercase tracking-widest opacity-40"
-              style={{ fontFamily: "var(--font-1-serif)" }}
-            >
-              Filter
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {statuses.map((status) => (
-                <button
-                  key={status}
-                  onClick={() => toggleFilter(status)}
-                  className="rounded px-2 py-0.5 text-[10px] uppercase tracking-wider transition-all"
-                  style={{
-                    backgroundColor: statusFilter.includes(status)
-                      ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}30`
-                      : "#151a24",
-                    color: statusFilter.includes(status)
-                      ? STATUS_COLORS[status as keyof typeof STATUS_COLORS]
-                      : "#5a6173",
-                    border: `1px solid ${
-                      statusFilter.includes(status)
-                        ? `${STATUS_COLORS[status as keyof typeof STATUS_COLORS]}50`
-                        : "#1e2433"
-                    }`,
-                  }}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {filtered.map((exp) => (
-              <Link
-                key={exp.experiment_id}
-                href={`/experiment/${exp.experiment_id}`}
-                className="block w-full text-left px-3 py-2.5 border-b transition-colors"
-                style={{
-                  borderColor: "#1e2433",
-                  backgroundColor:
-                    exp.experiment_id === selected.experiment_id
-                      ? "#151a24"
-                      : "transparent",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-0.5">
-                  <StatusDot status={exp.status} />
-                  <span
-                    className="truncate text-xs font-medium"
-                    style={{
-                      color:
-                        exp.experiment_id === selected.experiment_id
-                          ? "#ff6b35"
-                          : "#c8ccd4",
-                    }}
-                  >
-                    {exp.experiment_tag}
-                  </span>
-                </div>
-                <div className="ml-4 text-[10px] opacity-40">
-                  {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type} &middot;{" "}
-                  {exp.evidence_window?.country ?? "—"} &middot;{" "}
-                  {exp.evidence_window?.start_date ?? "—"}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </aside>
-
-        <main className="flex-1 overflow-y-auto p-5">
+      <main className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto max-w-6xl">
           <div className="mb-5 flex items-start justify-between">
             <div>
               <h1
@@ -613,17 +544,21 @@ export default function RouteOneExperimentPage({
               >
                 {label}
                 {key === "runs" && ` (${state?.run_count ?? 0})`}
-                {key === "evidence" && ` (${evidenceItems?.length ?? 0})`}
+                {key === "evidence" && ` (${evidenceItemsData.length})`}
               </button>
             ))}
           </div>
 
           {tab === "config" && (
-            <ConfigPanel summary={summary} selected={selected} state={state} />
+            <ConfigPanel
+              summary={summaryData}
+              selected={selected}
+              state={state}
+            />
           )}
           {tab === "runs" && (
             <RunsPanel
-              runSummary={runSummary}
+              runSummary={runSummaryData}
               runProgress={runProgress}
               activeRuns={activeRunsForExperiment}
             />
@@ -631,10 +566,10 @@ export default function RouteOneExperimentPage({
           {tab === "evidence" && (
             <EvidencePanel
               selected={selected}
-              summary={summary}
+              summary={summaryData}
               state={state}
-              evidenceBatches={evidenceBatches}
-              evidenceItems={evidenceItems}
+              evidenceBatches={evidenceBatchesData}
+              evidenceItems={evidenceItemsData}
               evidenceLimit={evidenceLimit}
               onEvidenceLimitChange={setEvidenceLimit}
               selectedBatchId={selectedBatchId}
@@ -644,8 +579,8 @@ export default function RouteOneExperimentPage({
               evidenceMessage={evidenceMessage}
             />
           )}
-        </main>
-      </div>
+        </div>
+      </main>
 
       <footer
         className="flex h-7 flex-shrink-0 items-center justify-between border-t px-4 text-[10px]"
@@ -656,8 +591,8 @@ export default function RouteOneExperimentPage({
         }}
       >
         <span>
-          {filtered.length} of {experiments.length} shown &middot;{" "}
-          {evidenceItems?.length ?? 0} evidence items
+          {experimentRows.length} experiments &middot;{" "}
+          {evidenceItemsData.length} evidence items
         </span>
         <span>Convex live &middot; Last sync: just now</span>
       </footer>
@@ -1149,7 +1084,7 @@ function EvidencePanel({
         {(evidenceItems ?? []).map((ev) => (
           <Link
             key={ev.evidence_id}
-            href={`/evidence/${ev.evidence_id}`}
+            href={`/evidence/${selected.window_id}`}
             className="block rounded border p-4 transition hover:bg-[#151a24]"
             style={{ borderColor: "#1e2433", backgroundColor: "#0b0e1499" }}
           >
