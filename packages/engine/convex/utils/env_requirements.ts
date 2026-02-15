@@ -21,4 +21,15 @@ export function requiredEnvsForExperiment(experiment: ExperimentSpec): string[] 
     .filter((env): env is string => Boolean(env));
 }
 
+export function requiredEnvsForEvidenceWindow(window: {
+  model_id: ExperimentSpec["config"]["rubric_stage"]["model_id"];
+}): string[] {
+  const providers = new Set<Provider>();
+  providers.add(providerFor(window.model_id));
+  const providerEnvs = Array.from(providers)
+    .map((provider) => PROVIDER_ENV[provider])
+    .filter((env): env is string => Boolean(env));
+  return ["FIRECRAWL_API_KEY", ...providerEnvs];
+}
+
 export const EVIDENCE_ENV_REQUIREMENTS = ["FIRECRAWL_API_KEY"];

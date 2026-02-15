@@ -44,14 +44,14 @@ judge-gym/
 
 ## Mission Control UI (Lab)
 
-The Mission Control UI ships a single multi-page layout (Industrial sidebar + tabs).
+The Mission Control UI ships a multi-page layout focused on experiments and evidence windows.
 It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
-Evidence content can be retrieved via `lab.getEvidenceContent` when wiring the evidence detail view.
+Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 
 Routes:
-- `/` - Experiments list
+- `/` - Experiments + evidence windows
 - `/experiment/[id]` - Experiment detail
-- `/evidence/[id]` - Evidence detail
+- `/evidence/[id]` - Evidence window preview
 - `/editor` - Experiment editor
 
 ## Prerequisites
@@ -72,6 +72,9 @@ Set these in your Convex deployment environment:
 | `XAI_API_KEY`        | Optional | Grok 4.1 Fast                        |
 | `GOOGLE_API_KEY`     | Optional | Gemini 3.0 Flash                     |
 | `OPENROUTER_API_KEY` | Optional | OpenRouter models (e.g., Qwen3 235B) |
+
+Evidence normalization uses `evidence_window.model_id`, so you must provide the
+matching provider API key for the model you select.
 
 ---
 
