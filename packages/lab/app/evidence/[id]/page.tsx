@@ -21,7 +21,7 @@ export default function RouteOneEvidenceDetailPage({
         style={{ backgroundColor: "#0f1219", color: "#c8ccd4" }}
       >
         <p className="text-sm">Evidence not found.</p>
-        <Link href="/1/experiments" className="mt-4 inline-block text-xs">
+        <Link href="/" className="mt-4 inline-block text-xs">
           Back to Experiments
         </Link>
       </div>
@@ -50,8 +50,8 @@ export default function RouteOneEvidenceDetailPage({
           <p className="text-[11px] opacity-50">{evidence.sourceUrl}</p>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href={`/1/experiment/${evidence.experimentId}`}>Back</Link>
-          <Link href="/1/experiments">Experiments</Link>
+          <Link href={`/experiment/${evidence.experimentId}`}>Back</Link>
+          <Link href="/">Experiments</Link>
         </div>
       </header>
 

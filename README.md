@@ -44,13 +44,13 @@ judge-gym/
 
 ## Mission Control UI (Lab)
 
-The Mission Control UI has five distinct multi-page layout studies under the lab app. Each route contains experiments list, experiment detail, evidence detail, and experiment editor pages.
+The Mission Control UI ships a single multi-page layout (Industrial sidebar + tabs).
 
-1. `/1/experiments` - Industrial sidebar + tabs layout
-2. `/2/experiments` - Editorial ledger layout
-3. `/3/experiments` - Command grid layout
-4. `/4/experiments` - Dossier reading room layout
-5. `/5/experiments` - Control board layout
+Routes:
+- `/` - Experiments list
+- `/experiment/[id]` - Experiment detail
+- `/evidence/[id]` - Evidence detail
+- `/editor` - Experiment editor
 
 ## Prerequisites
 

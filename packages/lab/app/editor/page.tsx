@@ -22,7 +22,7 @@ export default function RouteOneEditorPage() {
           </h1>
         </div>
         <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/1/experiments">Back</Link>
+          <Link href="/">Back</Link>
         </div>
       </header>
 
@@ -136,7 +136,7 @@ export default function RouteOneEditorPage() {
               Save Experiment
             </button>
             <Link
-              href="/1/experiments"
+              href="/"
               className="rounded border px-4 py-2 text-[10px] uppercase tracking-wider"
               style={{ borderColor: "#1e2433", color: "#5a6173" }}
             >
