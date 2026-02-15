@@ -113,19 +113,17 @@ CONVEX_URL=https://<your-deployment>.convex.cloud
 An **experiment** is a single point in the design space. Each axis is independently configurable.
 Rubric and scoring models are selected separately via the experiment config:
 
-| Axis            | Config Field             | Values                                                                                                                           | Default                                 |
-| :-------------- | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Rubric Model    | `config.rubric_model_id` | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Scoring Model   | `config.scoring_model_id` | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept         | `window.concept`         | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
-| Task Type       | `task_type`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoring_method`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
-| Scale Size      | `config.scale_size`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View   | `config.evidence_view`   | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                     | `l2_neutralized`                        |
-| Randomizations  | `config.randomizations`  | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
-| Prompt Ordering | `config.prompt_ordering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
-| Abstain Gate    | `config.abstain_enabled` | `true` / `false`                                                                                                                 | `true`                                  |
-| Ground Truth    | `ground_truth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
+| Axis            | Config Field                     | Values                                                                                                                           | Default                                 |
+| :-------------- | :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
+| Rubric Model    | `config.rubric_stage.model_id`   | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Scoring Model   | `config.scoring_stage.model_id`  | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
+| Concept         | `window.concept`                 | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
+| Task Type       | `task_type`                      | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
+| Scoring Method  | `config.scoring_stage.method`    | `single`, `subset`                                                                                                               | `subset`                                |
+| Scale Size      | `config.rubric_stage.scale_size` | `3`, `4`, `5`                                                                                                                    | `4`                                     |
+| Evidence View   | `config.scoring_stage.evidence_view` | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                 | `l2_neutralized`                        |
+| Randomizations  | `config.scoring_stage.randomizations` | array of `anonymize_labels`, `shuffle_rubric_order`, `hide_label_text`                                                       | `["anonymize_labels","shuffle_rubric_order"]` |
+| Abstain Gate    | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                             | `true`                                  |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
 Evidence windows are defined by `window.start_date`, `window.end_date`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
@@ -171,20 +169,23 @@ npx convex run domain/configs/entrypoints:seedConfigTemplate '{
       "country": "USA",
       "concept": "fascism"
     },
-    "experiment": {
-      "experiment_tag": "pilot_fascism_gpt4.1",
-      "task_type": "ecc",
-      "config": {
-        "scale_size": 4,
-        "rubric_model_id": "gpt-4.1",
-        "scoring_model_id": "gpt-4.1",
-        "randomizations": ["anon-label", "rubric-order-shuffle"],
-        "evidence_view": "l2_neutralized",
-        "scoring_method": "freeform-suffix-subset",
-        "prompt_ordering": "rubric-first",
-        "abstain_enabled": true
+      "experiment": {
+        "experiment_tag": "pilot_fascism_gpt4.1",
+        "task_type": "ecc",
+        "config": {
+          "rubric_stage": {
+            "scale_size": 4,
+            "model_id": "gpt-4.1"
+          },
+          "scoring_stage": {
+            "model_id": "gpt-4.1",
+            "method": "subset",
+            "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
+            "evidence_view": "l2_neutralized",
+            "abstain_enabled": true
+          }
+        }
       }
-    }
   },
   "created_by": "cli",
   "notes": "manual seed"

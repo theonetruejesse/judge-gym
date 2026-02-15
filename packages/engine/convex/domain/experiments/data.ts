@@ -35,8 +35,8 @@ export const getExperimentSummary = zQuery({
     return {
       experiment_tag: experiment.experiment_tag,
       window_id: experiment.window_id,
-      rubric_model_id: experiment.config.rubric_model_id,
-      scoring_model_id: experiment.config.scoring_model_id,
+      rubric_model_id: experiment.config.rubric_stage.model_id,
+      scoring_model_id: experiment.config.scoring_stage.model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: experiment.status,
@@ -102,11 +102,11 @@ export const getRunSummary = zQuery({
       run_id: run._id,
       experiment_tag: experiment.experiment_tag,
       rubric_model_id:
-        runConfig?.config_body.experiment.config.rubric_model_id ??
-        experiment.config.rubric_model_id,
+        runConfig?.config_body.experiment.config.rubric_stage.model_id ??
+        experiment.config.rubric_stage.model_id,
       scoring_model_id:
-        runConfig?.config_body.experiment.config.scoring_model_id ??
-        experiment.config.scoring_model_id,
+        runConfig?.config_body.experiment.config.scoring_stage.model_id ??
+        experiment.config.scoring_stage.model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: run.status,
@@ -211,8 +211,8 @@ export const exportExperimentBundle = zQuery({
     return {
       experiment: {
         experiment_tag: experiment.experiment_tag,
-        rubric_model_id: experiment.config.rubric_model_id,
-        scoring_model_id: experiment.config.scoring_model_id,
+        rubric_model_id: experiment.config.rubric_stage.model_id,
+        scoring_model_id: experiment.config.scoring_stage.model_id,
         concept: window.concept,
         task_type: experiment.task_type,
         status: experiment.status,

@@ -10,7 +10,7 @@ export interface ScaleStrategy {
 export function resolveScaleStrategy(
   config: ExperimentConfig,
 ): ScaleStrategy {
-  const n = config.scale_size;
+  const n = config.rubric_stage.scale_size;
   const isOdd = n % 2 === 1;
   const letters = Array.from({ length: n }, (_, i) =>
     String.fromCharCode(65 + i),

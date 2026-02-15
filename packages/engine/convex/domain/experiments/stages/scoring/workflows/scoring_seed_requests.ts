@@ -30,7 +30,7 @@ export const seedScoreRequests = zInternalMutation({
       .withIndex("by_experiment_model", (q) =>
         q
           .eq("experiment_id", experiment._id)
-          .eq("model_id", experiment.config.rubric_model_id),
+          .eq("model_id", experiment.config.rubric_stage.model_id),
       )
       .collect();
     if (rubrics.length === 0) throw new Error("Rubric not found");
@@ -69,7 +69,7 @@ export const seedScoreRequests = zInternalMutation({
 
       const sampleId = await ctx.db.insert("samples", {
         experiment_id: experiment._id,
-        model_id: experiment.config.scoring_model_id,
+        model_id: experiment.config.scoring_stage.model_id,
         rubric_id: rubric._id,
         label_mapping,
         display_seed,
@@ -85,7 +85,7 @@ export const seedScoreRequests = zInternalMutation({
         const score_id = await ctx.db.insert("scores", {
           sample_id: sampleDoc._id,
           experiment_id: experiment._id,
-          model_id: experiment.config.scoring_model_id,
+          model_id: experiment.config.scoring_stage.model_id,
           rubric_id: sampleDoc.rubric_id,
           evidence_id: ev._id,
           abstained: false,
@@ -113,16 +113,14 @@ export const seedScoreRequests = zInternalMutation({
             label_mapping: sampleDoc.label_mapping ?? undefined,
             display_seed: sampleDoc.display_seed ?? undefined,
           },
-          hypothetical_frame: experiment.hypothetical_frame,
-          label_neutralization_mode: experiment.label_neutralization_mode,
         });
 
         await ctx.runMutation(
           internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
           {
             stage: "score_gen",
-            provider: providerFor(experiment.config.scoring_model_id),
-            model: experiment.config.scoring_model_id,
+            provider: providerFor(experiment.config.scoring_stage.model_id),
+            model: experiment.config.scoring_stage.model_id,
             system_prompt: prompts.system_prompt,
             user_prompt: prompts.user_prompt,
             experiment_id: experiment._id,

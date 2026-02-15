@@ -27,6 +27,7 @@ export default defineSchema({
     "end_date",
     "country",
     "concept",
+    "model_id",
   ]),
   evidences: Evidences.index("by_window_id", ["window_id"]),
   rubrics: Rubrics.index("by_experiment_model", ["experiment_id", "model_id"]),

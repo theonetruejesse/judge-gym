@@ -66,37 +66,33 @@ export function normalizeEvidenceView(
   }
 }
 
-// --- Ground truth ---
-export const GroundTruthSchema = z.object({
-  source: z.string(),
-  value: z.number().optional(),
-  label: z.string().optional(),
+// --- Experiment config (design space axes) ---
+export const RubricStageConfigSchema = z.object({
+  scale_size: z.number(),
+  model_id: modelTypeSchema,
 });
 
-// --- Experiment config (design space axes) ---
-export const ExperimentConfigSchema = z.object({
-  scale_size: z.number(),
-  rubric_model_id: modelTypeSchema,
-  scoring_model_id: modelTypeSchema,
+export const ScoringStageConfigSchema = z.object({
+  model_id: modelTypeSchema,
+  method: z.union([z.literal("single"), z.literal("subset")]),
   randomizations: z.array(
-    z.enum(["anon-label", "rubric-order-shuffle", "hide-label-name"]),
+    z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"]),
   ),
   evidence_view: EvidenceViewSchema,
-  scoring_method: z.union([
-    z.literal("freeform-suffix-single"),
-    z.literal("freeform-suffix-subset"),
-  ]),
-  prompt_ordering: z.union([
-    z.literal("rubric-first"),
-    z.literal("evidence-first"),
-  ]),
   abstain_enabled: z.boolean(),
+});
+
+export const ExperimentConfigSchema = z.object({
+  rubric_stage: RubricStageConfigSchema,
+  scoring_stage: ScoringStageConfigSchema,
 });
 
 export type ExperimentConfig = z.infer<typeof ExperimentConfigSchema>;
 
 export const ExperimentConfigInputSchema = ExperimentConfigSchema.extend({
-  evidence_view: EvidenceViewInputSchema,
+  scoring_stage: ScoringStageConfigSchema.extend({
+    evidence_view: EvidenceViewInputSchema,
+  }),
 });
 
 export type ExperimentConfigInput = z.infer<typeof ExperimentConfigInputSchema>;

@@ -12,7 +12,7 @@ export function resolveEvidenceStrategy(
   config: ExperimentConfig,
 ): EvidenceStrategy {
   const contentField = (() => {
-    switch (config.evidence_view) {
+    switch (config.scoring_stage.evidence_view) {
       case "l1_cleaned":
         return "cleaned_content";
       case "l2_neutralized":

@@ -1,9 +1,11 @@
 import { resolveEvidenceStrategy } from "../../strategies/evidence.strategy";
-import { resolveOrderingStrategy } from "../../strategies/ordering.strategy";
 import { resolveRandomizationStrategy } from "../../strategies/randomization.strategy";
 import { resolveScaleStrategy } from "../../strategies/scale.strategy";
 import { resolveScoringStrategy } from "../../strategies/scoring.strategy";
 import type { ExperimentConfig } from "../../../../models/core";
+
+const DEFAULT_HYPOTHETICAL_FRAME =
+  "Assume this evidence is part of a controlled hypothetical scenario.";
 
 type RubricStage = { label: string; criteria: string[] };
 
@@ -22,8 +24,6 @@ type ScorePromptArgs = {
     label_mapping?: Record<string, number>;
     display_seed?: number;
   };
-  hypothetical_frame?: string;
-  label_neutralization_mode?: "none" | "mask" | "generic";
 };
 
 function mulberry32(seed: number): () => number {
@@ -64,7 +64,6 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
   const scoring = resolveScoringStrategy(config);
   const scale = resolveScaleStrategy(config);
   const randomization = resolveRandomizationStrategy(config);
-  const ordering = resolveOrderingStrategy(config);
   const evidenceStrategy = resolveEvidenceStrategy(config);
 
   const evidenceContent =
@@ -94,29 +93,15 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
   });
 
   const promptParts: string[] = [];
-  if (args.hypothetical_frame) {
-    promptParts.push(`Hypothetical framing: ${args.hypothetical_frame}`);
-    promptParts.push("");
-  }
-  if (args.label_neutralization_mode && args.label_neutralization_mode !== "none") {
-    promptParts.push(
-      "Use neutral language for the concept label; do not rely on loaded terminology.",
-    );
-    promptParts.push("");
-  }
+  promptParts.push(`Hypothetical framing: ${DEFAULT_HYPOTHETICAL_FRAME}`);
+  promptParts.push("");
 
   const rubricBlock = `RUBRIC STAGES:\n${rubricLines.join("\n")}`;
   const evidenceBlock = `EVIDENCE:\n${evidenceContent}`;
 
-  if (ordering.rubricFirst) {
-    promptParts.push(rubricBlock);
-    promptParts.push("");
-    promptParts.push(evidenceBlock);
-  } else {
-    promptParts.push(evidenceBlock);
-    promptParts.push("");
-    promptParts.push(rubricBlock);
-  }
+  promptParts.push(rubricBlock);
+  promptParts.push("");
+  promptParts.push(evidenceBlock);
 
   promptParts.push("");
   promptParts.push(scoring.systemInstruction);

@@ -5,14 +5,17 @@ import { resolveRandomizationStrategy } from "../convex/domain/experiments/strat
 import type { ExperimentConfig } from "../convex/models/core";
 
 const config: ExperimentConfig = {
-  scale_size: 5,
-  rubric_model_id: "gpt-4.1",
-  scoring_model_id: "gpt-4.1",
-  randomizations: ["anon-label", "rubric-order-shuffle"],
-  evidence_view: "l0_raw",
-  scoring_method: "freeform-suffix-subset",
-  prompt_ordering: "evidence-first",
-  abstain_enabled: true,
+  rubric_stage: {
+    scale_size: 5,
+    model_id: "gpt-4.1",
+  },
+  scoring_stage: {
+    model_id: "gpt-4.1",
+    method: "subset",
+    randomizations: ["anonymize_labels", "shuffle_rubric_order"],
+    evidence_view: "l0_raw",
+    abstain_enabled: true,
+  },
 };
 
 describe("strategies resolve", () => {
@@ -23,7 +26,6 @@ describe("strategies resolve", () => {
     expect(resolved.scale.hasMidpoint).toBe(true);
     expect(resolved.scale.midpointLabel).toBe("C");
     expect(resolved.evidence.contentField).toBe("raw_content");
-    expect(resolved.ordering.rubricFirst).toBe(false);
     expect(resolved.randomization.anonLabel).toBe(true);
     expect(resolved.randomization.rubricOrderShuffle).toBe(true);
     expect(resolved.randomization.hideLabelName).toBe(false);
@@ -33,20 +35,45 @@ describe("strategies resolve", () => {
   });
 
   test("resolveEvidenceStrategy maps evidence_view to content field", () => {
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l0_raw" }))
-      .toEqual({ contentField: "raw_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l1_cleaned" }))
-      .toEqual({ contentField: "cleaned_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l2_neutralized" }))
-      .toEqual({ contentField: "neutralized_content" });
-    expect(resolveEvidenceStrategy({ ...config, evidence_view: "l3_abstracted" }))
-      .toEqual({ contentField: "abstracted_content" });
+    expect(
+      resolveEvidenceStrategy({
+        ...config,
+        scoring_stage: { ...config.scoring_stage, evidence_view: "l0_raw" },
+      }),
+    ).toEqual({ contentField: "raw_content" });
+    expect(
+      resolveEvidenceStrategy({
+        ...config,
+        scoring_stage: { ...config.scoring_stage, evidence_view: "l1_cleaned" },
+      }),
+    ).toEqual({ contentField: "cleaned_content" });
+    expect(
+      resolveEvidenceStrategy({
+        ...config,
+        scoring_stage: {
+          ...config.scoring_stage,
+          evidence_view: "l2_neutralized",
+        },
+      }),
+    ).toEqual({ contentField: "neutralized_content" });
+    expect(
+      resolveEvidenceStrategy({
+        ...config,
+        scoring_stage: {
+          ...config.scoring_stage,
+          evidence_view: "l3_abstracted",
+        },
+      }),
+    ).toEqual({ contentField: "abstracted_content" });
   });
 
   test("resolveRandomizationStrategy maps flags", () => {
     const strategy = resolveRandomizationStrategy({
       ...config,
-      randomizations: ["anon-label", "rubric-order-shuffle"],
+      scoring_stage: {
+        ...config.scoring_stage,
+        randomizations: ["anonymize_labels", "shuffle_rubric_order"],
+      },
     });
     expect(strategy.anonLabel).toBe(true);
     expect(strategy.rubricOrderShuffle).toBe(true);

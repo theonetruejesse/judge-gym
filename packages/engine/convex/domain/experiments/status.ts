@@ -19,6 +19,7 @@ export const getExperimentStatus = zQuery({
         end_date: z.string(),
         country: z.string(),
         concept: z.string(),
+        model_id: modelTypeSchema,
       })
       .optional(),
     evidence_total: z.number().optional(),
@@ -68,7 +69,9 @@ export const getExperimentStatus = zQuery({
     const rubric = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>
-        q.eq("experiment_id", experiment._id).eq("model_id", experiment.config.rubric_model_id),
+        q
+          .eq("experiment_id", experiment._id)
+          .eq("model_id", experiment.config.rubric_stage.model_id),
       )
       .first();
 
@@ -92,6 +95,7 @@ export const getExperimentStatus = zQuery({
             end_date: window.end_date,
             country: window.country,
             concept: window.concept,
+            model_id: window.model_id,
           }
         : undefined,
       evidence_total,

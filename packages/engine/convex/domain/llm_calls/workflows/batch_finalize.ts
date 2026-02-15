@@ -218,7 +218,8 @@ export const finalizeBatch = zInternalMutation({
               message_id: messageId,
               raw_output: assistantOutput,
               label_mapping: sample.label_mapping ?? undefined,
-              scoring_method: experiment.config.scoring_method,
+              scoring_method: experiment.config.scoring_stage.method,
+              abstain_enabled: experiment.config.scoring_stage.abstain_enabled,
             },
           );
           if (!parseResult.ok) {

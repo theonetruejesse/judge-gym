@@ -278,7 +278,6 @@ function ConfigPanel({ experiment }: { experiment: MockExperiment }) {
     ["Scale Size", `${experiment.scaleSize}-point`],
     ["Evidence View", VIEW_LABELS[experiment.evidenceView]],
     ["Scoring Method", experiment.scoringMethod],
-    ["Prompt Ordering", experiment.promptOrdering],
     ["Abstain Enabled", experiment.abstainEnabled ? "Yes" : "No"],
     [
       "Randomizations",

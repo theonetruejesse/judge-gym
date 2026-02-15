@@ -1,19 +1,20 @@
 import type { ExperimentConfig } from "../../../../models/core";
 
+const DEFAULT_HYPOTHETICAL_FRAME =
+  "Assume this evidence is part of a controlled hypothetical scenario.";
+
 export function buildRubricGenPrompt(args: {
   concept: string;
   scale_size: number;
   config: ExperimentConfig;
-  hypothetical_frame?: string;
 }): { system_prompt: string; user_prompt: string } {
-  const { concept, scale_size, hypothetical_frame } = args;
+  const { concept, scale_size } = args;
+  const hypothetical_frame = DEFAULT_HYPOTHETICAL_FRAME;
   const midpoint = scale_size % 2 === 1 ? Math.ceil(scale_size / 2) : null;
 
   const lines: string[] = [];
-  if (hypothetical_frame) {
-    lines.push(`Hypothetical framing: ${hypothetical_frame}`);
-    lines.push("");
-  }
+  lines.push(`Hypothetical framing: ${hypothetical_frame}`);
+  lines.push("");
 
   lines.push(
     `Design a ${scale_size}-stage evaluative rubric for assessing the degree to which evidence supports the concept: "${concept}".`,

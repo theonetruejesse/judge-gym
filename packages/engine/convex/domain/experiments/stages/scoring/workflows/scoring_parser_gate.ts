@@ -18,20 +18,31 @@ export const applyScoreParse = zInternalMutation({
     message_id: zid("llm_messages"),
     raw_output: z.string(),
     label_mapping: z.record(z.string(), z.number()).optional(),
-    scoring_method: z.enum(["freeform-suffix-single", "freeform-suffix-subset"]),
+    scoring_method: z.enum(["single", "subset"]),
+    abstain_enabled: z.boolean(),
   }),
   returns: ParseResultSchema,
   handler: async (
     ctx,
-    { score_id, message_id, raw_output, label_mapping, scoring_method },
+    {
+      score_id,
+      message_id,
+      raw_output,
+      label_mapping,
+      scoring_method,
+      abstain_enabled,
+    },
   ) => {
     const score = await ctx.db.get(score_id);
     const attempt = (score?.attempt_count ?? 0) + 1;
     try {
       const parsed =
-        scoring_method === "freeform-suffix-subset"
+        scoring_method === "subset"
           ? parseSubsetVerdict(raw_output, label_mapping)
           : parseSingleVerdict(raw_output, label_mapping);
+      if (!abstain_enabled && parsed.abstained) {
+        throw new Error("Abstain not permitted by config");
+      }
       await ctx.db.patch(score_id, {
         score_message_id: message_id,
         raw_verdict: parsed.rawVerdict,

@@ -1,9 +1,9 @@
 import type { ExperimentConfig } from "../../../models/core";
 
 export type RandomizationMode =
-  | "anon-label"
-  | "rubric-order-shuffle"
-  | "hide-label-name";
+  | "anonymize_labels"
+  | "shuffle_rubric_order"
+  | "hide_label_text";
 
 export interface RandomizationStrategy {
   anonLabel: boolean;
@@ -14,10 +14,10 @@ export interface RandomizationStrategy {
 export function resolveRandomizationStrategy(
   config: ExperimentConfig,
 ): RandomizationStrategy {
-  const modes = new Set<RandomizationMode>(config.randomizations);
+  const modes = new Set<RandomizationMode>(config.scoring_stage.randomizations);
   return {
-    anonLabel: modes.has("anon-label"),
-    rubricOrderShuffle: modes.has("rubric-order-shuffle"),
-    hideLabelName: modes.has("hide-label-name"),
+    anonLabel: modes.has("anonymize_labels"),
+    rubricOrderShuffle: modes.has("shuffle_rubric_order"),
+    hideLabelName: modes.has("hide_label_text"),
   };
 }

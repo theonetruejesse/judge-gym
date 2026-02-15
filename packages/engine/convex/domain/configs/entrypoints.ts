@@ -32,7 +32,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
       policies: { global: ENGINE_SETTINGS.run_policy },
     };
     const spec_signature = buildExperimentSpecSignature({
-      window: normalizedWithPolicy.window,
+      evidence_window: normalizedWithPolicy.evidence_window,
       experiment: normalizedWithPolicy.experiment,
     });
 

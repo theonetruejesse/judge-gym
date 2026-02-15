@@ -4,11 +4,6 @@ import { zInternalAction, zInternalMutation } from "../../../platform/utils";
 import { internal } from "../../../_generated/api";
 import { providerFor } from "../../../platform/utils";
 import {
-  EvidenceViewInputSchema,
-  normalizeEvidenceView,
-  type ModelType,
-} from "../../../models/core";
-import {
   EVIDENCE_CLEANING_INSTRUCTIONS,
   NEUTRALIZE_INSTRUCTIONS,
   STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
@@ -18,7 +13,6 @@ import {
 } from "../evidence_prompts";
 
 const DEFAULT_LIMIT = 15;
-const EVIDENCE_MODEL: ModelType = "gpt-4.1";
 
 type EvidenceSummary = { title: string; url: string };
 type SearchResult = { title: string; url: string; raw_content: string };
@@ -45,8 +39,6 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     });
 
     const lim = limit ?? DEFAULT_LIMIT;
-    const evidenceView = experiment.config.evidence_view;
-
     const existingPreview: EvidenceSummary[] = await ctx.runQuery(
       internal.domain.experiments.repo.listEvidenceByWindowSummary,
       { window_id: experiment.window_id, limit: lim },
@@ -102,7 +94,7 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
 
     const queueResult = await ctx.runMutation(
       internal.domain.evidence.workflows.evidence_collect.queueEvidenceProcessing,
-      { window_id: experiment.window_id, evidence_view: evidenceView },
+      { window_id: experiment.window_id },
     );
 
     return {
@@ -119,25 +111,25 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
   zInternalMutation({
   args: z.object({
     window_id: zid("windows"),
-    evidence_view: EvidenceViewInputSchema,
   }),
   returns: z.object({
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
   }),
-  handler: async (ctx, { window_id, evidence_view }) => {
-    const normalizedView = normalizeEvidenceView(evidence_view);
+  handler: async (ctx, { window_id }) => {
+    const window = await ctx.db.get(window_id);
+    if (!window) throw new Error("Window not found");
+    const evidenceModel = window.model_id;
+
     const evidence = await ctx.db
       .query("evidences")
       .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
       .collect();
 
-    const needsClean = normalizedView !== "l0_raw";
-    const needsNeutralize =
-      normalizedView === "l2_neutralized" ||
-      normalizedView === "l3_abstracted";
-    const needsAbstract = normalizedView === "l3_abstracted";
+    const needsClean = true;
+    const needsNeutralize = true;
+    const needsAbstract = true;
 
     let queuedClean = 0;
     let queuedNeutralize = 0;
@@ -149,8 +141,8 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
           internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_clean",
-            provider: providerFor(EVIDENCE_MODEL),
-            model: EVIDENCE_MODEL,
+            provider: providerFor(evidenceModel),
+            model: evidenceModel,
             system_prompt: EVIDENCE_CLEANING_INSTRUCTIONS,
             user_prompt: cleanPrompt(row.raw_content),
             experiment_id: null,
@@ -171,8 +163,8 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
           internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_neutralize",
-            provider: providerFor(EVIDENCE_MODEL),
-            model: EVIDENCE_MODEL,
+            provider: providerFor(evidenceModel),
+            model: evidenceModel,
             system_prompt: NEUTRALIZE_INSTRUCTIONS,
             user_prompt: neutralizePrompt(source),
             experiment_id: null,
@@ -194,8 +186,8 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
           internal.domain.llm_calls.llm_requests.getOrCreateLlmRequest,
           {
             stage: "evidence_abstract",
-            provider: providerFor(EVIDENCE_MODEL),
-            model: EVIDENCE_MODEL,
+            provider: providerFor(evidenceModel),
+            model: evidenceModel,
             system_prompt: STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
             user_prompt: abstractPrompt(source),
             experiment_id: null,

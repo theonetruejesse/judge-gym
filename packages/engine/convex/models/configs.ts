@@ -11,7 +11,7 @@ import {
 } from "./experiments";
 
 export const ConfigTemplateBodySchema = z.object({
-  window: WindowsTableSchema,
+  evidence_window: WindowsTableSchema,
   experiment: ExperimentSpecSchema,
   policies: PolicyOverridesSchema,
   team_id: z.string().optional(),

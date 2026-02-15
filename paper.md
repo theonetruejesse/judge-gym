@@ -152,7 +152,7 @@ Inspired by GraphGym (You et al., 2020), judge-gym treats evaluation as a design
 | Rubric Model        | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
 | Scoring Model       | GPT-4.1, GPT-5.2-chat, Gemini-3.0-flash, Qwen-235b, Claude, Grok, etc. |
 | Concept             | "fascism," "democratic backsliding," "democracy quality," benchmark    |
-| Scoring Method      | `freeform-suffix-single`, `freeform-suffix-subset`                     |
+| Scoring Method      | `single`, `subset`                                                     |
 | Scale Size          | 3, 4 (default), 5                                                      |
 | Tone Neutralization | On / Off                                                               |
 | Label Randomization | On / Off                                                               |

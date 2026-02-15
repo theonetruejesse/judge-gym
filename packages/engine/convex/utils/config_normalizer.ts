@@ -23,7 +23,10 @@ export function normalizeExperimentConfig(
 ): z.infer<typeof ExperimentConfigSchema> {
   return {
     ...config,
-    evidence_view: normalizeEvidenceView(config.evidence_view),
+    scoring_stage: {
+      ...config.scoring_stage,
+      evidence_view: normalizeEvidenceView(config.scoring_stage.evidence_view),
+    },
   };
 }
 
