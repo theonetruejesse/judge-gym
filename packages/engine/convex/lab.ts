@@ -569,6 +569,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
       evidence_batch_id: zid("evidence_batches").optional(),
+      sample_count: z.number(),
+      evidence_limit: z.number(),
       window_id: zid("windows"),
       window_tag: z.string(),
       evidence_window: z
@@ -636,6 +638,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         status: experiment.status,
         active_run_id: experiment.active_run_id,
         evidence_batch_id: experiment.evidence_batch_id,
+        sample_count: experiment.config.scoring_stage.sample_count,
+        evidence_limit: experiment.config.scoring_stage.evidence_cap,
         window_id: experiment.window_id,
         window_tag: window.window_tag,
         evidence_window: window,
