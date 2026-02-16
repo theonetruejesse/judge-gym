@@ -39,9 +39,10 @@ export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
       .first();
 
     if (existingWindow) {
-      if (!existingWindow.window_tag) {
+      const expectedTag = buildWindowTag(existingWindow);
+      if (existingWindow.window_tag !== expectedTag) {
         await ctx.db.patch(existingWindow._id, {
-          window_tag: buildWindowTag(existingWindow),
+          window_tag: expectedTag,
         });
       }
       return { window_id: existingWindow._id, reused_window: true };
@@ -138,8 +139,11 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
         window_tag: buildWindowTag(evidence_window),
       }));
     const reused_window = Boolean(window);
-    if (window && !window.window_tag) {
-      await ctx.db.patch(window._id, { window_tag: buildWindowTag(window) });
+    if (window) {
+      const expectedTag = buildWindowTag(window);
+      if (window.window_tag !== expectedTag) {
+        await ctx.db.patch(window._id, { window_tag: expectedTag });
+      }
     }
     const result = await createExperiment(ctx, {
       window_id,

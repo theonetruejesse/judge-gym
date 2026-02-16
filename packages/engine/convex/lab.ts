@@ -14,13 +14,13 @@ import {
 } from "./models/core";
 import {
   ExperimentSpecInputSchema,
-  WindowsTableSchema,
+  WindowsInputSchema,
 } from "./models/experiments";
 import { ConfigTemplateBodyInputSchema } from "./models/configs";
 
 export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    evidence_window: WindowsTableSchema,
+    evidence_window: WindowsInputSchema,
   }),
   returns: z.object({
     window_id: zid("windows"),

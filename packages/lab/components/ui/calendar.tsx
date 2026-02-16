@@ -27,11 +27,11 @@ function Calendar({
         nav: "absolute inset-x-1 top-1 flex items-center justify-between",
         button_previous: cn(
           buttonVariants({ variant: "outline", size: "icon" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+          "h-7 w-7 bg-transparent p-0 opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100",
         ),
         button_next: cn(
           buttonVariants({ variant: "outline", size: "icon" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+          "h-7 w-7 bg-transparent p-0 opacity-60 hover:bg-muted hover:text-foreground hover:opacity-100",
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",
@@ -41,7 +41,7 @@ function Calendar({
         day: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
+          "h-9 w-9 p-0 font-normal hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent aria-selected:opacity-100",
         ),
         range_end: "day-range-end",
         selected:
@@ -62,6 +62,12 @@ function Calendar({
           }
           return <ChevronRight className="h-4 w-4" />;
         },
+        PreviousMonthButton: (props) => (
+          <button {...props} type="button" />
+        ),
+        NextMonthButton: (props) => (
+          <button {...props} type="button" />
+        ),
       }}
       {...props}
     />
