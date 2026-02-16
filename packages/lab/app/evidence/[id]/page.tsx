@@ -16,8 +16,6 @@ import {
 } from "@/components/ui/table";
 import LabNavbar from "@/components/lab_navbar";
 
-const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-
 type EvidenceWindowItem = {
   window_id: string;
   start_date: string;
@@ -71,24 +69,21 @@ export default function EvidenceWindowPage({
 
   const windows = useQuery(
     api.lab.listEvidenceWindows,
-    hasConvex ? {} : "skip",
+    {},
   ) as EvidenceWindowItem[] | undefined;
 
   const evidenceItems = useQuery(
     api.lab.listEvidenceByWindow,
-    resolvedParams && hasConvex ? { window_id: resolvedParams.id } : "skip",
+    resolvedParams ? { window_id: resolvedParams.id } : "skip",
   ) as EvidenceItem[] | undefined;
 
   const evidenceContent = useQuery(
     api.lab.getEvidenceContent,
-    selectedEvidenceId && hasConvex
-      ? { evidence_id: selectedEvidenceId }
-      : "skip",
+    selectedEvidenceId ? { evidence_id: selectedEvidenceId } : "skip",
   ) as EvidenceContent | null | undefined;
 
-  const windowsLoading = hasConvex && windows === undefined;
-  const evidenceLoading =
-    hasConvex && !!resolvedParams && evidenceItems === undefined;
+  const windowsLoading = windows === undefined;
+  const evidenceLoading = !!resolvedParams && evidenceItems === undefined;
   const windowRows = windows ?? [];
   const matchedWindow = windowRows.find(
     (window) => window.window_id === resolvedParams?.id,

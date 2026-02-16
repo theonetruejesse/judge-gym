@@ -34,8 +34,6 @@ import {
 } from "@/components/ui/select";
 import LabNavbar from "@/components/lab_navbar";
 
-const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-
 type EvidenceWindowItem = {
   window_id: string;
   start_date: string;
@@ -100,20 +98,6 @@ function parseNumberParam(value: string | null) {
 }
 
 export default function ExperimentEditorPage() {
-  if (!hasConvex) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <LabNavbar />
-        <div className="px-6 py-12">
-          <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
-          <p className="mt-2 text-xs opacity-60">
-            Set the Convex URL to enable the editor.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return <ExperimentEditorWithConvex />;
 }
 
