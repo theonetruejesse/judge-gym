@@ -3,21 +3,24 @@ import { zInternalAction, zInternalMutation } from "../../platform/utils";
 import { internal } from "../../_generated/api";
 
 const TABLES = [
+  "experiments",
+  "windows",
+  "evidences",
+  "evidence_batches",
+  "evidence_batch_items",
+  "experiment_evidence",
+  "rubrics",
+  "samples",
+  "scores",
   "config_templates",
   "run_configs",
   "scheduler_state",
-  "llm_batch_items",
-  "llm_batches",
-  "llm_messages",
-  "llm_requests",
-  "run_stages",
   "runs",
-  "scores",
-  "samples",
-  "rubrics",
-  "evidences",
-  "experiments",
-  "windows",
+  "run_stages",
+  "llm_requests",
+  "llm_messages",
+  "llm_batches",
+  "llm_batch_items",
 ] as const;
 
 const TableNameSchema = z.enum(TABLES);

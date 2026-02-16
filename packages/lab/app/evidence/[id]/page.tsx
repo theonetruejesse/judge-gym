@@ -6,6 +6,12 @@ import { api } from "@judge-gym/engine";
 import { NORMALIZATION_LEVELS, VIEW_LABELS } from "@/lib/ui";
 import { Card } from "@/components/ui/card";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   Table,
   TableBody,
   TableCell,
@@ -13,13 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
@@ -70,6 +69,7 @@ export default function EvidenceWindowPage({
   );
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("");
+  const [selectedLevel, setSelectedLevel] = useState<string>("l0_raw");
 
   useEffect(() => {
     const maybePromise = params as unknown as {
@@ -167,7 +167,7 @@ export default function EvidenceWindowPage({
     <div className="min-h-screen bg-background text-foreground">
       <LabNavbar />
 
-      <div className="px-6 py-6">
+      <div className="w-full max-w-full px-6 py-6">
         <div className="mb-6">
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Evidence Window
@@ -176,9 +176,10 @@ export default function EvidenceWindowPage({
             className="text-lg font-semibold"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
-            {selectedWindow?.window_tag ??
+            {(selectedWindow?.window_tag ??
               selectedWindow?.concept ??
-              "Evidence Window"}
+              "Evidence Window") +
+              ` (${selectedWindow?.evidence_count ?? 0})`}
           </h1>
           <p className="text-[11px] opacity-50">
             {selectedWindow?.country ?? "—"} · {selectedWindow?.start_date ?? "—"} -{" "}
@@ -186,54 +187,32 @@ export default function EvidenceWindowPage({
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <section className="space-y-4">
-          <Card className="border-border bg-card/80 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest opacity-50">
-                Evidence Batch
-              </p>
-              <span className="text-xs opacity-60">
-                {selectedWindow?.evidence_count ?? 0} total
-              </span>
-            </div>
-            {batchesLoading && (
-              <div className="mt-3 text-xs opacity-60">Loading batches...</div>
-            )}
-            {!batchesLoading && batchRows.length === 0 && (
-              <div className="mt-3 text-xs opacity-60">No batches yet.</div>
-            )}
-            {batchRows.length > 0 && (
-              <div className="mt-3 flex items-center gap-3">
-                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
-                  <SelectTrigger className="h-9 w-[280px] text-xs">
-                    <SelectValue placeholder="Select batch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {batchRows.map((batch) => (
-                      <SelectItem key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
-                        {batch.evidence_batch_id} · {batch.evidence_count} items
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-xs opacity-50">
-                  Limit {batchRows.find((batch) => batch.evidence_batch_id === selectedBatchId)?.evidence_limit ?? "—"}
-                </span>
-              </div>
-            )}
-          </Card>
-
-          <Card className="border-border bg-card/80">
-            <Table>
+        <div className="flex w-full flex-col gap-6 lg:flex-row lg:items-start">
+        <section className="min-w-0 flex-1 space-y-4 lg:basis-[38%] lg:max-w-[38%]">
+          <Card className="w-full border-border bg-card/80">
+            <Table className="w-full table-fixed">
               <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 <TableRow>
                   <TableHead className="w-16">#</TableHead>
-                  <TableHead>Evidence Items</TableHead>
+                  <TableHead className="w-full">Evidence Items</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {evidenceRows.length === 0 && (
+                {batchesLoading && evidenceRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-xs opacity-50">
+                      Loading evidence items...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!batchesLoading && batchRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-xs opacity-50">
+                      No batches yet.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {batchRows.length > 0 && evidenceRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={2} className="text-xs opacity-50">
                       No evidence items found.
@@ -251,12 +230,12 @@ export default function EvidenceWindowPage({
                       <TableCell className="opacity-50">{item.position}</TableCell>
                       <TableCell>
                         <div
-                          className="font-medium"
+                          className="break-words font-medium"
                           style={{ color: selected ? "#ff6b35" : "#e8eaed" }}
                         >
                           {item.title}
                         </div>
-                        <div className="text-[10px] opacity-50">{item.url}</div>
+                        <div className="break-all text-[10px] opacity-50">{item.url}</div>
                       </TableCell>
                     </TableRow>
                   );
@@ -266,7 +245,7 @@ export default function EvidenceWindowPage({
           </Card>
         </section>
 
-        <section className="space-y-4">
+        <section className="min-w-0 flex-1 space-y-4 lg:basis-[62%]">
           {!selectedEvidenceId && (
             <Card className="border-border px-6 py-10 text-center text-xs opacity-50">
               Select an evidence item to preview.
@@ -279,43 +258,45 @@ export default function EvidenceWindowPage({
           )}
           {selectedEvidenceId && activeEvidence && (
             <>
-              <Card className="border-border bg-card/80 p-5">
-                <p
-                  className="text-[10px] uppercase tracking-widest opacity-50"
-                  style={{ fontFamily: "var(--font-1-serif)" }}
-                >
-                  Raw Article
-                </p>
-                <h2 className="mt-2 text-sm font-semibold text-foreground">
+              <Card className="w-full border-border bg-card/80 p-5">
+                <h2 className="break-words text-sm font-semibold text-foreground">
                   {activeEvidence.title}
                 </h2>
-                <p className="text-[11px] opacity-50">{activeEvidence.url}</p>
-                <div className="mt-4 whitespace-pre-line text-sm leading-relaxed">
-                  {activeEvidence.raw_content}
-                </div>
-              </Card>
+                <p className="break-all text-[11px] opacity-50">{activeEvidence.url}</p>
 
-              {NORMALIZATION_LEVELS.map((level) => {
-                const contentMap: Record<string, string | undefined> = {
-                  l0_raw: activeEvidence.raw_content,
-                  l1_cleaned: activeEvidence.cleaned_content,
-                  l2_neutralized: activeEvidence.neutralized_content,
-                  l3_abstracted: activeEvidence.abstracted_content,
-                };
-                const value = contentMap[level.key];
-                return (
-                  <Card key={level.key} className="border-border bg-card/80 p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-wider opacity-60">
+                <Tabs
+                  className="mt-4"
+                  value={selectedLevel}
+                  onValueChange={setSelectedLevel}
+                >
+                  <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
+                    {NORMALIZATION_LEVELS.map((level) => (
+                      <TabsTrigger key={level.key} value={level.key} className="text-xs">
                         {VIEW_LABELS[level.key]}
-                      </p>
-                    </div>
-                    <div className="mt-3 whitespace-pre-line text-sm leading-relaxed">
-                      {value?.trim().length ? value : "—"}
-                    </div>
-                  </Card>
-                );
-              })}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
+                  {(() => {
+                    const contentMap: Record<string, string | undefined> = {
+                      l0_raw: activeEvidence.raw_content,
+                      l1_cleaned: activeEvidence.cleaned_content,
+                      l2_neutralized: activeEvidence.neutralized_content,
+                      l3_abstracted: activeEvidence.abstracted_content,
+                    };
+                    return NORMALIZATION_LEVELS.map((level) => {
+                      const value = contentMap[level.key];
+                      return (
+                        <TabsContent key={level.key} value={level.key}>
+                          <div className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">
+                            {value?.trim().length ? value : "—"}
+                          </div>
+                        </TabsContent>
+                      );
+                    });
+                  })()}
+                </Tabs>
+              </Card>
             </>
           )}
         </section>
