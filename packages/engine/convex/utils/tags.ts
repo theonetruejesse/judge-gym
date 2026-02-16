@@ -9,7 +9,7 @@ type WindowTagInput = {
   model_id: string;
 };
 
-const NON_ALNUM = /[^a-z0-9]+/g;
+const NON_ALNUM = /[^a-z0-9_]+/g;
 const DASH_RUN = /-+/g;
 
 export function slugifyTagComponent(value: string): string {
@@ -37,11 +37,18 @@ export function buildWindowTag(input: WindowTagInput): string {
   return [
     input.country,
     input.concept,
-    input.start_date,
-    input.end_date,
+    formatDateTag(input.start_date),
+    formatDateTag(input.end_date),
     input.model_id,
   ]
     .map(slugifyTagComponent)
     .filter(Boolean)
     .join("-");
+}
+
+function formatDateTag(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value.replaceAll("-", "_");
+  }
+  return value;
 }
