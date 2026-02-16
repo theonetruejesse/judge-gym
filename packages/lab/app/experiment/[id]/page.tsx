@@ -126,7 +126,8 @@ type RunSummary = {
 };
 
 function StatusDot({ status }: { status: string }) {
-  const color = STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
+  const color =
+    STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
   return (
     <span
       className="inline-block h-2 w-2 rounded-full"
@@ -190,10 +191,9 @@ export default function RouteOneExperimentPage({
   ) as EvidenceItem[] | undefined;
   const evidenceItemsData = evidenceItems ?? [];
 
-  const activeRuns = useQuery(
-    api.lab.listRuns,
-    hasConvex ? {} : "skip",
-  ) as RunListItem[] | undefined;
+  const activeRuns = useQuery(api.lab.listRuns, hasConvex ? {} : "skip") as
+    | RunListItem[]
+    | undefined;
   const activeRunsForExperiment = (activeRuns ?? []).filter(
     (run) => run.experiment_id === selected?.experiment_id,
   );
@@ -364,9 +364,7 @@ export default function RouteOneExperimentPage({
         window_id: selected.window_id,
         evidence_limit,
       });
-      setEvidenceMessage(
-        `Collected ${result.collected} evidence.`,
-      );
+      setEvidenceMessage(`Collected ${result.collected} evidence.`);
     } catch (error) {
       setEvidenceMessage(
         error instanceof Error ? error.message : "Failed to collect evidence.",
@@ -423,7 +421,10 @@ export default function RouteOneExperimentPage({
                 className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{
                   backgroundColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}20`,
-                  color: STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS],
+                  color:
+                    STATUS_COLORS[
+                      selected.status as keyof typeof STATUS_COLORS
+                    ],
                   borderColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}40`,
                 }}
               >
@@ -489,15 +490,26 @@ export default function RouteOneExperimentPage({
             )}
           </div>
 
-          <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as typeof tab)}
+          >
             <TabsList className="bg-card/80">
               <TabsTrigger value="config">Configuration</TabsTrigger>
-              <TabsTrigger value="runs">Runs ({state?.run_count ?? 0})</TabsTrigger>
-              <TabsTrigger value="evidence">Evidence ({evidenceItemsData.length})</TabsTrigger>
+              <TabsTrigger value="runs">
+                Runs ({state?.run_count ?? 0})
+              </TabsTrigger>
+              <TabsTrigger value="evidence">
+                Evidence ({evidenceItemsData.length})
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="config">
-              <ConfigPanel summary={summaryData} selected={selected} state={state} />
+              <ConfigPanel
+                summary={summaryData}
+                selected={selected}
+                state={state}
+              />
             </TabsContent>
             <TabsContent value="runs">
               <RunsPanel
@@ -524,7 +536,8 @@ export default function RouteOneExperimentPage({
 
       <footer className="flex h-7 flex-shrink-0 items-center justify-between border-t border-border bg-card/80 px-4 text-[10px] text-muted-foreground">
         <span>
-          {experimentRows.length} experiments · {evidenceItemsData.length} evidence items
+          {experimentRows.length} experiments · {evidenceItemsData.length}{" "}
+          evidence items
         </span>
         <span>Convex live · Last sync: just now</span>
       </footer>
@@ -609,7 +622,10 @@ function ConfigPanel({
       SCORING_METHOD_LABELS[summary.config.scoring_stage.method] ??
         summary.config.scoring_stage.method,
     ],
-    ["Abstain Enabled", summary.config.scoring_stage.abstain_enabled ? "Yes" : "No"],
+    [
+      "Abstain Enabled",
+      summary.config.scoring_stage.abstain_enabled ? "Yes" : "No",
+    ],
     ["Randomizations", randomizations],
   ];
 
@@ -624,16 +640,20 @@ function ConfigPanel({
         </p>
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span>
-            {selected.evidence_window?.concept ?? "—"} · {selected.evidence_window?.country ?? "—"}
+            {selected.evidence_window?.concept ?? "—"} ·{" "}
+            {selected.evidence_window?.country ?? "—"}
           </span>
           <span className="opacity-60">
-            {selected.evidence_window?.start_date ?? "—"} - {selected.evidence_window?.end_date ?? "—"}
+            {selected.evidence_window?.start_date ?? "—"} -{" "}
+            {selected.evidence_window?.end_date ?? "—"}
           </span>
           <span className="opacity-60">
             {selected.evidence_window?.model_id ?? "—"}
           </span>
         </div>
-        <div className="mt-2 text-[11px] opacity-50">Window ID: {selected.window_id}</div>
+        <div className="mt-2 text-[11px] opacity-50">
+          Window ID: {selected.window_id}
+        </div>
       </Card>
 
       <Card className="border-border bg-card/80">
@@ -644,7 +664,9 @@ function ConfigPanel({
                 <TableCell className="w-52 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {label}
                 </TableCell>
-                <TableCell className="text-xs text-foreground">{value}</TableCell>
+                <TableCell className="text-xs text-foreground">
+                  {value}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -712,9 +734,12 @@ function RunsPanel({
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-3">
               <StatusDot status={runSummary.status} />
-              <span className="text-xs font-medium text-foreground">{runSummary.run_id}</span>
+              <span className="text-xs font-medium text-foreground">
+                {runSummary.run_id}
+              </span>
               <span className="text-[10px] opacity-40">
-                {runSummary.current_stage ?? "no stage"} · desired {runSummary.desired_state}
+                {runSummary.current_stage ?? "no stage"} · desired{" "}
+                {runSummary.desired_state}
               </span>
               {runSummary.run_counts && (
                 <span className="text-[10px] uppercase tracking-wider opacity-40">
@@ -726,7 +751,10 @@ function RunsPanel({
               <div className="w-32">
                 <Progress value={runProgress} />
               </div>
-              <span className="text-[11px] font-medium" style={{ color: "#ff6b35" }}>
+              <span
+                className="text-[11px] font-medium"
+                style={{ color: "#ff6b35" }}
+              >
                 {runProgress}%
               </span>
             </div>
@@ -769,7 +797,10 @@ function RunsPanel({
           </p>
           <div className="space-y-1">
             {activeRuns.map((run) => (
-              <div key={run.run_id} className="flex items-center justify-between">
+              <div
+                key={run.run_id}
+                className="flex items-center justify-between"
+              >
                 <span>
                   {run.run_id} · {run.status}
                 </span>
@@ -838,16 +869,21 @@ function EvidencePanel({
         </p>
         <div className="flex flex-wrap gap-3">
           <span>
-            {selected.evidence_window?.concept ?? "—"} · {selected.evidence_window?.country ?? "—"}
+            {selected.evidence_window?.concept ?? "—"} ·{" "}
+            {selected.evidence_window?.country ?? "—"}
           </span>
           <span className="opacity-60">
-            {selected.evidence_window?.start_date ?? "—"} - {selected.evidence_window?.end_date ?? "—"}
+            {selected.evidence_window?.start_date ?? "—"} -{" "}
+            {selected.evidence_window?.end_date ?? "—"}
           </span>
           <span className="opacity-60">
             {selected.evidence_window?.model_id ?? "—"}
           </span>
           <span className="opacity-60">
-            Evidence View: {summary ? VIEW_LABELS[summary.config.scoring_stage.evidence_view] : "—"}
+            Evidence View:{" "}
+            {summary
+              ? VIEW_LABELS[summary.config.scoring_stage.evidence_view]
+              : "—"}
           </span>
         </div>
         <div className="mt-2 flex flex-wrap gap-3 opacity-60">
@@ -855,43 +891,6 @@ function EvidencePanel({
           <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
           <span>Selected: {state?.evidence_selected_count ?? 0}</span>
         </div>
-      </Card>
-
-      <Card className="border-border bg-card/80 p-4">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest opacity-50">
-              Evidence Collection
-            </p>
-            <p className="mt-1 text-xs opacity-60">
-              Collect more evidence for this window (does not change selections).
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Input
-              type="number"
-              min={1}
-              className="h-9 w-24"
-              placeholder="limit"
-              value={evidenceLimit}
-              onChange={(event) => onEvidenceLimitChange(event.target.value)}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 text-[10px] uppercase tracking-wider"
-              onClick={onCollect}
-            >
-              Collect Evidence
-            </Button>
-          </div>
-        </div>
-
-        {evidenceMessage && (
-          <div className="mt-3 text-[10px] uppercase tracking-wider opacity-60">
-            {evidenceMessage}
-          </div>
-        )}
       </Card>
 
       <div className="space-y-3">
@@ -919,7 +918,8 @@ function EvidencePanel({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {NORMALIZATION_LEVELS.map((level) => {
-                  const active = level.key === summary?.config.scoring_stage.evidence_view;
+                  const active =
+                    level.key === summary?.config.scoring_stage.evidence_view;
                   return (
                     <Badge
                       key={level.key}
