@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
@@ -41,10 +42,10 @@ type EvidenceWindowItem = {
   country: string;
   concept: string;
   model_id: string;
+  window_tag?: string;
 };
 
 const formSchema = z.object({
-  experiment_tag: z.string().optional(),
   task_type: z.enum(["ecc", "control", "benchmark"]),
   rubric_model_id: z.string().min(1, "Rubric model is required."),
   scoring_model_id: z.string().min(1, "Scoring model is required."),
@@ -58,20 +59,6 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
-
-const DEFAULT_EXPERIMENT: FormValues = {
-  experiment_tag: "",
-  task_type: "ecc",
-  rubric_model_id: "gpt-4.1",
-  scoring_model_id: "gpt-4.1",
-  scale_size: 4,
-  method: "subset",
-  sample_count: 10,
-  evidence_cap: 10,
-  evidence_view: "l2_neutralized",
-  abstain_enabled: true,
-  randomizations: ["anonymize_labels", "shuffle_rubric_order"],
-};
 
 export default function ExperimentEditorPage() {
   if (!hasConvex) {
@@ -88,17 +75,27 @@ export default function ExperimentEditorPage() {
     );
   }
 
+  const searchParams = useSearchParams();
+  const cloneId = searchParams.get("clone_id");
+
   const windows = useQuery(
     api.lab.listEvidenceWindows,
     {},
   ) as EvidenceWindowItem[] | undefined;
   const initExperiment = useMutation(api.lab.initExperiment);
+  const cloneExperiment = useQuery(
+    api.lab.getExperimentSummary,
+    cloneId ? { experiment_id: cloneId } : "skip",
+  );
 
   const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    defaultValues: DEFAULT_EXPERIMENT,
+    defaultValues: {
+      abstain_enabled: false,
+      randomizations: [],
+    },
   });
 
   useEffect(() => {
@@ -106,6 +103,24 @@ export default function ExperimentEditorPage() {
       setSelectedWindowId(windows[0].window_id);
     }
   }, [windows, selectedWindowId]);
+
+  useEffect(() => {
+    if (!cloneExperiment) return;
+    const config = cloneExperiment.config;
+    form.reset({
+      task_type: cloneExperiment.task_type,
+      rubric_model_id: config.rubric_stage.model_id,
+      scoring_model_id: config.scoring_stage.model_id,
+      scale_size: config.rubric_stage.scale_size,
+      method: config.scoring_stage.method,
+      sample_count: config.scoring_stage.sample_count,
+      evidence_cap: config.scoring_stage.evidence_cap,
+      evidence_view: config.scoring_stage.evidence_view,
+      abstain_enabled: config.scoring_stage.abstain_enabled,
+      randomizations: config.scoring_stage.randomizations,
+    });
+    setSelectedWindowId(cloneExperiment.window_id);
+  }, [cloneExperiment, form]);
 
   const randomizationOptions = useMemo(
     () => Object.entries(RANDOMIZATION_LABELS),
@@ -132,12 +147,9 @@ export default function ExperimentEditorPage() {
       return;
     }
     try {
-      const experiment_tag =
-        parsed.data.experiment_tag?.trim() || undefined;
       await initExperiment({
         window_id: selectedWindowId,
         experiment: {
-          experiment_tag,
           task_type: parsed.data.task_type,
           config: {
             rubric_stage: {
@@ -202,7 +214,7 @@ export default function ExperimentEditorPage() {
             <SelectContent>
               {windows?.map((window) => (
                 <SelectItem key={window.window_id} value={window.window_id}>
-                  {window.concept} · {window.country} · {window.start_date}
+                  {window.window_tag ?? window.concept}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -224,45 +236,30 @@ export default function ExperimentEditorPage() {
               onSubmit={form.handleSubmit(handleCreateExperiment)}
               className="mt-6 grid gap-5"
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="experiment_tag"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tag (Optional)</FormLabel>
+              <FormField
+                control={form.control}
+                name="task_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Task Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
                       <FormControl>
-                        <Input placeholder="ecc-fascism-jan" {...field} />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select task" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="task_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Task Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select task" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                      <SelectContent>
+                        {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
@@ -272,7 +269,7 @@ export default function ExperimentEditorPage() {
                     <FormItem>
                       <FormLabel>Rubric Model</FormLabel>
                       <FormControl>
-                        <Input placeholder="gpt-4.1" {...field} />
+                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -284,7 +281,10 @@ export default function ExperimentEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Scale Size</FormLabel>
-                      <Select onValueChange={field.onChange} value={String(field.value)}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ? String(field.value) : ""}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select scale" />
@@ -312,7 +312,7 @@ export default function ExperimentEditorPage() {
                     <FormItem>
                       <FormLabel>Scoring Model</FormLabel>
                       <FormControl>
-                        <Input placeholder="gpt-4.1" {...field} />
+                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -324,7 +324,7 @@ export default function ExperimentEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Scoring Method</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select method" />
@@ -380,7 +380,7 @@ export default function ExperimentEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Evidence View</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select view" />
@@ -404,7 +404,10 @@ export default function ExperimentEditorPage() {
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
                       <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        <Checkbox
+                          checked={Boolean(field.value)}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
                       <FormLabel className="text-sm">Abstain Enabled</FormLabel>
                     </FormItem>

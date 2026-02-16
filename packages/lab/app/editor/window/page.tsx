@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
@@ -38,7 +39,6 @@ type EvidenceWindowItem = {
 };
 
 const formSchema = z.object({
-  window_tag: z.string().optional(),
   concept: z.string().min(1, "Concept is required."),
   country: z.string().min(1, "Country is required."),
   start_date: z.string().min(1, "Start date is required."),
@@ -47,15 +47,6 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
-
-const DEFAULT_WINDOW: FormValues = {
-  window_tag: "",
-  concept: "",
-  country: "USA",
-  start_date: "",
-  end_date: "",
-  model_id: "gpt-4.1",
-};
 
 export default function EvidenceWindowEditorPage() {
   if (!hasConvex) {
@@ -72,6 +63,9 @@ export default function EvidenceWindowEditorPage() {
     );
   }
 
+  const searchParams = useSearchParams();
+  const cloneId = searchParams.get("clone_id");
+
   const windows = useQuery(
     api.lab.listEvidenceWindows,
     {},
@@ -82,7 +76,7 @@ export default function EvidenceWindowEditorPage() {
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
-    defaultValues: DEFAULT_WINDOW,
+    defaultValues: {},
   });
 
   useEffect(() => {
@@ -90,6 +84,20 @@ export default function EvidenceWindowEditorPage() {
       setSelectedWindowId(windows[0].window_id);
     }
   }, [windows, selectedWindowId]);
+
+  useEffect(() => {
+    if (!cloneId || !windows) return;
+    const match = windows.find((window) => window.window_id === cloneId);
+    if (!match) return;
+    form.reset({
+      concept: match.concept,
+      country: match.country,
+      start_date: match.start_date,
+      end_date: match.end_date,
+      model_id: match.model_id,
+    });
+    setSelectedWindowId(match.window_id);
+  }, [cloneId, windows, form]);
 
   const handleCreateWindow = async (values: FormValues) => {
     setWindowStatus(null);
@@ -107,11 +115,9 @@ export default function EvidenceWindowEditorPage() {
       return;
     }
     try {
-      const window_tag = parsed.data.window_tag?.trim() || undefined;
       const result = await initEvidenceWindow({
         evidence_window: {
           ...parsed.data,
-          window_tag,
         },
       });
       setSelectedWindowId(result.window_id);
@@ -164,25 +170,12 @@ export default function EvidenceWindowEditorPage() {
             >
               <FormField
                 control={form.control}
-                name="window_tag"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Window Tag (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="pilot_fascism_2026_01" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="concept"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Concept</FormLabel>
                     <FormControl>
-                      <Input placeholder="fascism" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -195,7 +188,7 @@ export default function EvidenceWindowEditorPage() {
                   <FormItem>
                     <FormLabel>Country</FormLabel>
                     <FormControl>
-                      <Input placeholder="USA" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -236,7 +229,7 @@ export default function EvidenceWindowEditorPage() {
                   <FormItem>
                     <FormLabel>Evidence Model</FormLabel>
                     <FormControl>
-                      <Input placeholder="gpt-4.1" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -267,7 +260,7 @@ export default function EvidenceWindowEditorPage() {
               <SelectContent>
                 {windows?.map((window) => (
                   <SelectItem key={window.window_id} value={window.window_id}>
-                    {window.window_tag ?? window.concept} · {window.country} · {window.start_date}
+                    {window.window_tag ?? window.concept}
                   </SelectItem>
                 ))}
               </SelectContent>

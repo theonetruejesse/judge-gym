@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@judge-gym/engine";
 import { STATUS_COLORS, STATUS_COLORS_MUTED, TASK_TYPE_LABELS } from "@/lib/ui";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ type ExperimentListItem = {
   evidence_batch_id?: string;
   window_id: string;
   window_tag?: string;
+  sample_count?: number;
+  evidence_limit?: number;
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -52,6 +54,8 @@ type EvidenceWindowItem = {
 export default function RouteOneExperimentsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const startExperiment = useMutation(api.lab.startExperiment);
+  const updateRunState = useMutation(api.lab.updateRunState);
 
   const experiments = useQuery(
     api.lab.listExperiments,
@@ -87,6 +91,25 @@ export default function RouteOneExperimentsPage() {
         ? prev.filter((s) => s !== status)
         : [...prev, status],
     );
+  };
+
+  const handleStart = async (experimentId: string) => {
+    try {
+      await startExperiment({ experiment_id: experimentId });
+    } catch (error) {
+      console.error("Failed to start experiment", error);
+    }
+  };
+
+  const handleRunState = async (
+    runId: string,
+    desired_state: "running" | "paused",
+  ) => {
+    try {
+      await updateRunState({ run_id: runId, desired_state });
+    } catch (error) {
+      console.error("Failed to update run state", error);
+    }
   };
 
   return (
@@ -152,22 +175,24 @@ export default function RouteOneExperimentsPage() {
                 <TableRow>
                   <TableHead className="w-20 text-center">Status</TableHead>
                   <TableHead>Tag</TableHead>
-                  <TableHead>Concept</TableHead>
                   <TableHead>Task</TableHead>
-                  <TableHead>Window</TableHead>
+                  <TableHead>Range</TableHead>
+                  <TableHead className="text-right">Samples</TableHead>
+                  <TableHead className="text-right">Evidence</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {experimentsLoading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-xs opacity-50">
+                    <TableCell colSpan={7} className="text-xs opacity-50">
                       Loading experiments...
                     </TableCell>
                   </TableRow>
                 )}
                 {!experimentsLoading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-xs opacity-50">
+                    <TableCell colSpan={7} className="text-xs opacity-50">
                       No experiments found.
                     </TableCell>
                   </TableRow>
@@ -195,15 +220,71 @@ export default function RouteOneExperimentsPage() {
                       {exp.experiment_tag ?? exp.experiment_id}
                     </TableCell>
                     <TableCell className="opacity-70">
-                      {exp.evidence_window?.concept ?? "—"}
-                    </TableCell>
-                    <TableCell className="opacity-70">
                       {TASK_TYPE_LABELS[exp.task_type] ?? exp.task_type}
                     </TableCell>
                     <TableCell className="opacity-70">
-                      {exp.evidence_window
-                        ? `${exp.evidence_window.country} · ${exp.evidence_window.start_date}`
-                        : exp.window_tag ?? exp.window_id}
+                      {exp.window_tag ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right opacity-70">
+                      {exp.sample_count ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right opacity-70">
+                      {exp.evidence_limit ?? "—"}
+                    </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-end gap-2">
+                        {exp.status === "pending" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                            onClick={() => handleStart(exp.experiment_id)}
+                          >
+                            Start
+                          </Button>
+                        )}
+                        {exp.status === "running" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                            onClick={() =>
+                              exp.active_run_id &&
+                              handleRunState(exp.active_run_id, "paused")
+                            }
+                            disabled={!exp.active_run_id}
+                          >
+                            Pause
+                          </Button>
+                        )}
+                        {exp.status === "paused" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                            onClick={() =>
+                              exp.active_run_id &&
+                              handleRunState(exp.active_run_id, "running")
+                            }
+                            disabled={!exp.active_run_id}
+                          >
+                            Resume
+                          </Button>
+                        )}
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                        >
+                          <Link href={`/editor/experiment?clone_id=${exp.experiment_id}`}>
+                            Clone
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -229,24 +310,25 @@ export default function RouteOneExperimentsPage() {
             <Table>
               <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 <TableRow>
-                  <TableHead>Concept</TableHead>
+                  <TableHead>Window</TableHead>
                   <TableHead>Country</TableHead>
                   <TableHead>Model</TableHead>
                   <TableHead>Window</TableHead>
                   <TableHead className="text-right">Evidence</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {windowsLoading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-xs opacity-50">
+                    <TableCell colSpan={6} className="text-xs opacity-50">
                       Loading evidence windows...
                     </TableCell>
                   </TableRow>
                 )}
                 {!windowsLoading && windowRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-xs opacity-50">
+                    <TableCell colSpan={6} className="text-xs opacity-50">
                       No evidence windows found.
                     </TableCell>
                   </TableRow>
@@ -258,16 +340,30 @@ export default function RouteOneExperimentsPage() {
                     onClick={() => router.push(`/evidence/${window.window_id}`)}
                   >
                     <TableCell className="font-medium text-foreground">
-                      {window.concept}
+                      {window.window_tag ?? "—"}
                     </TableCell>
                     <TableCell className="opacity-70">{window.country}</TableCell>
                     <TableCell className="opacity-70">{window.model_id}</TableCell>
                     <TableCell className="opacity-70">
-                      {window.window_tag ??
-                        `${window.start_date} -> ${window.end_date}`}
+                      {`${window.start_date} -> ${window.end_date}`}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
                       {window.evidence_count ?? 0}
+                    </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                      >
+                        <Link href={`/editor/window?clone_id=${window.window_id}`}>
+                          Clone
+                        </Link>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
