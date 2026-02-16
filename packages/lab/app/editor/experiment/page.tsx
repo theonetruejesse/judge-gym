@@ -59,21 +59,30 @@ const formSchema = z.object({
     .string()
     .min(1, "Rubric model is required.")
     .refine(
-      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      (value) =>
+        MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
       "Invalid rubric model.",
     ),
   scoring_model_id: z
     .string()
     .min(1, "Scoring model is required.")
     .refine(
-      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      (value) =>
+        MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
       "Invalid scoring model.",
     ),
   scale_size: z.coerce.number().int().min(1),
   method: z.enum(["single", "subset"]),
-  evidence_view: z.enum(["l0_raw", "l1_cleaned", "l2_neutralized", "l3_abstracted"]),
+  evidence_view: z.enum([
+    "l0_raw",
+    "l1_cleaned",
+    "l2_neutralized",
+    "l3_abstracted",
+  ]),
   abstain_enabled: z.boolean(),
-  randomizations: z.array(z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"])),
+  randomizations: z.array(
+    z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"]),
+  ),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -93,14 +102,17 @@ export default function ExperimentEditorPage() {
     );
   }
 
+  return <ExperimentEditorWithConvex />;
+}
+
+function ExperimentEditorWithConvex() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const cloneId = searchParams.get("clone_id");
 
-  const windows = useQuery(
-    api.lab.listEvidenceWindows,
-    {},
-  ) as EvidenceWindowItem[] | undefined;
+  const windows = useQuery(api.lab.listEvidenceWindows, {}) as
+    | EvidenceWindowItem[]
+    | undefined;
   const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
@@ -261,7 +273,9 @@ export default function ExperimentEditorPage() {
                   </SelectItem>
                 ))}
                 {windows && windows.length > 0 ? <SelectSeparator /> : null}
-                <SelectItem value={createWindowValue}>Create new window</SelectItem>
+                <SelectItem value={createWindowValue}>
+                  Create new window
+                </SelectItem>
               </SelectContent>
             </Select>
           </Card>
@@ -318,9 +332,14 @@ export default function ExperimentEditorPage() {
                     </tr>
                   )}
                   {(evidenceItems ?? []).map((item) => {
-                    const checked = selectedEvidenceIds.includes(item.evidence_id);
+                    const checked = selectedEvidenceIds.includes(
+                      item.evidence_id,
+                    );
                     return (
-                      <tr key={item.evidence_id} className="border-t border-border">
+                      <tr
+                        key={item.evidence_id}
+                        className="border-t border-border"
+                      >
                         <td className="px-3 py-2">
                           <Checkbox
                             checked={checked}
@@ -331,14 +350,18 @@ export default function ExperimentEditorPage() {
                                   ? prev.includes(item.evidence_id)
                                     ? prev
                                     : [...prev, item.evidence_id]
-                                  : prev.filter((id) => id !== item.evidence_id),
+                                  : prev.filter(
+                                      (id) => id !== item.evidence_id,
+                                    ),
                               );
                             }}
                           />
                         </td>
                         <td className="px-3 py-2 text-xs">
                           <div className="line-clamp-2">{item.title}</div>
-                          <div className="text-[10px] opacity-50">{item.url}</div>
+                          <div className="text-[10px] opacity-50">
+                            {item.url}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -362,18 +385,23 @@ export default function ExperimentEditorPage() {
                   name="task_type"
                   render={({ field }) => (
                     <FormItem>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Task type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
+                          {Object.entries(TASK_TYPE_LABELS).map(
+                            ([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -391,12 +419,15 @@ export default function ExperimentEditorPage() {
                     name="rubric_model_id"
                     render={({ field }) => (
                       <FormItem>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Rubric model" />
-                          </SelectTrigger>
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Rubric model" />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
                             {MODEL_OPTIONS.map((modelId) => (
                               <SelectItem key={modelId} value={modelId}>
@@ -420,7 +451,9 @@ export default function ExperimentEditorPage() {
                             min={1}
                             placeholder="Scale size"
                             value={field.value ?? ""}
-                            onChange={(event) => field.onChange(event.target.value)}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
                           />
                         </FormControl>
                         <FormMessage />
@@ -439,12 +472,15 @@ export default function ExperimentEditorPage() {
                     name="scoring_model_id"
                     render={({ field }) => (
                       <FormItem>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Scoring model" />
-                          </SelectTrigger>
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Scoring model" />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
                             {MODEL_OPTIONS.map((modelId) => (
                               <SelectItem key={modelId} value={modelId}>
@@ -462,18 +498,23 @@ export default function ExperimentEditorPage() {
                     name="method"
                     render={({ field }) => (
                       <FormItem>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Scoring method" />
-                          </SelectTrigger>
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Scoring method" />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
-                            {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            ))}
+                            {Object.entries(SCORING_METHOD_LABELS).map(
+                              ([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ),
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -488,18 +529,23 @@ export default function ExperimentEditorPage() {
                     name="evidence_view"
                     render={({ field }) => (
                       <FormItem>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Evidence view" />
-                          </SelectTrigger>
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ?? ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Evidence view" />
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>
-                            {Object.entries(VIEW_LABELS).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            ))}
+                            {Object.entries(VIEW_LABELS).map(
+                              ([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ),
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -531,7 +577,9 @@ export default function ExperimentEditorPage() {
                       <span className="text-sm">Randomizations</span>
                       <div className="flex flex-wrap gap-2">
                         {randomizationOptions.map(([value, label]) => {
-                          const active = field.value.includes(value as FormValues["randomizations"][number]);
+                          const active = field.value.includes(
+                            value as FormValues["randomizations"][number],
+                          );
                           return (
                             <Button
                               key={value}
@@ -540,14 +588,19 @@ export default function ExperimentEditorPage() {
                               size="sm"
                               className="h-8 text-[10px] uppercase tracking-wider"
                               style={{
-                                backgroundColor: active ? "#ff6b3530" : "#151a24",
+                                backgroundColor: active
+                                  ? "#ff6b3530"
+                                  : "#151a24",
                                 color: active ? "#ff6b35" : "#7a8599",
                                 borderColor: active ? "#ff6b3550" : "#1e2433",
                               }}
                               onClick={() => {
                                 const next = active
                                   ? field.value.filter((item) => item !== value)
-                                  : [...field.value, value as FormValues["randomizations"][number]];
+                                  : [
+                                      ...field.value,
+                                      value as FormValues["randomizations"][number],
+                                    ];
                                 field.onChange(next);
                               }}
                             >
@@ -562,7 +615,10 @@ export default function ExperimentEditorPage() {
                 />
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                  <Button
+                    type="submit"
+                    className="text-[10px] uppercase tracking-wider"
+                  >
                     Save Experiment
                   </Button>
                   {experimentStatus && (
