@@ -34,6 +34,39 @@ export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
+export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    evidence_window: WindowsInputSchema,
+    evidence_limit: z.number().optional(),
+  }),
+  returns: z.object({
+    window_id: zid("windows"),
+    reused_window: z.boolean(),
+    collected: z.number(),
+    total: z.number(),
+    queued_clean: z.number(),
+    queued_neutralize: z.number(),
+    queued_abstract: z.number(),
+    evidence_batch_id: zid("evidence_batches"),
+    evidence_count: z.number(),
+  }),
+  handler: async (ctx, { evidence_window, evidence_limit }) => {
+    const initResult = await ctx.runMutation(
+      api.domain.experiments.experiments_entrypoints.initEvidenceWindow,
+      { evidence_window },
+    );
+    const batchResult = await ctx.runAction(
+      api.domain.evidence.evidence_entrypoints.collectEvidenceBatch,
+      { window_id: initResult.window_id, evidence_limit },
+    );
+    return {
+      window_id: initResult.window_id,
+      reused_window: initResult.reused_window,
+      ...batchResult,
+    };
+  },
+});
+
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     window_id: zid("windows"),
@@ -238,6 +271,13 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       model_id: modelTypeSchema,
       window_tag: z.string(),
       evidence_count: z.number(),
+      evidence_status: z.enum([
+        "scraping",
+        "cleaning",
+        "neutralizing",
+        "abstracting",
+        "ready",
+      ]),
     }),
   ),
   handler: async (ctx, args) => {

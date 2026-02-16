@@ -75,6 +75,15 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     const windowDoc = await ctx.db.get(window_id);
     if (!windowDoc) throw new Error("Window not found");
 
+    const evidenceWindow: z.infer<typeof WindowsTableSchema> = {
+      start_date: windowDoc.start_date,
+      end_date: windowDoc.end_date,
+      country: windowDoc.country,
+      concept: windowDoc.concept,
+      model_id: windowDoc.model_id,
+      window_tag: windowDoc.window_tag,
+    };
+
     const normalizedExperiment = normalizeExperimentSpec(experiment);
     const configTemplateId = template_id ?? `template_${generateId()}`;
     const configTemplateVersion = template_version ?? 1;
@@ -82,7 +91,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     await ensureConfigTemplate(ctx, {
       template_id: configTemplateId,
       version: configTemplateVersion,
-      evidence_window: windowDoc,
+      evidence_window: evidenceWindow,
       experiment: normalizedExperiment,
     });
 

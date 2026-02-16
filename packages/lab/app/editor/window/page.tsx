@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { useSearchParams } from "next/navigation";
+import { useAction, useQuery } from "convex/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
@@ -56,6 +56,11 @@ const formSchema = z.object({
       (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
       "Invalid evidence model.",
     ),
+  evidence_limit: z
+    .coerce
+    .number({ invalid_type_error: "Starting count is required." })
+    .int("Starting count must be a whole number.")
+    .min(1, "Starting count must be at least 1."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -77,19 +82,24 @@ export default function EvidenceWindowEditorPage() {
 
   const searchParams = useSearchParams();
   const cloneId = searchParams.get("clone_id");
+  const router = useRouter();
 
   const windows = useQuery(
     api.lab.listEvidenceWindows,
     {},
   ) as EvidenceWindowItem[] | undefined;
-  const initEvidenceWindow = useMutation(api.lab.initEvidenceWindow);
+  const initEvidenceWindowAndCollect = useAction(
+    api.lab.initEvidenceWindowAndCollect,
+  );
 
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
 
   const form = useForm<FormValues>({
-    defaultValues: {},
+    defaultValues: {
+      evidence_limit: 15,
+    },
   });
 
   useEffect(() => {
@@ -121,14 +131,17 @@ export default function EvidenceWindowEditorPage() {
       return;
     }
     try {
-      const result = await initEvidenceWindow({
-        evidence_window: {
-          ...parsed.data,
-        },
+      const { evidence_limit, ...evidence_window } = parsed.data;
+      const result = await initEvidenceWindowAndCollect({
+        evidence_window,
+        evidence_limit,
       });
       setWindowStatus(
-        result.reused_window ? "Reused existing window." : "Created new window.",
+        result.reused_window
+          ? `Reused existing window. Collected ${result.collected} (batch ${result.evidence_batch_id}).`
+          : `Created new window. Collected ${result.collected} (batch ${result.evidence_batch_id}).`,
       );
+      router.push("/");
     } catch (error) {
       setWindowStatus(
         error instanceof Error ? error.message : "Failed to create window.",
@@ -169,7 +182,7 @@ export default function EvidenceWindowEditorPage() {
                 Evidence Window
               </p>
               <p className="mt-1 text-xs opacity-60">
-                Define the evidence time window and scraping model.
+                Define the evidence time window, starting count, and scraping model.
               </p>
             </div>
 
@@ -320,10 +333,28 @@ export default function EvidenceWindowEditorPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="evidence_limit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Starting Count</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="number"
+                          min={1}
+                          step={1}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex flex-wrap items-center gap-3">
                   <Button type="submit" className="text-[10px] uppercase tracking-wider">
-                    Create Window
+                    Create Window & Collect
                   </Button>
                   {windowStatus && (
                     <span className="text-[10px] uppercase tracking-wider opacity-60">

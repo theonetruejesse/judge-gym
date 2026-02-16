@@ -181,16 +181,13 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
       .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
       .collect();
 
-    const needsClean = true;
-    const needsNeutralize = true;
-    const needsAbstract = true;
-
     let queuedClean = 0;
     let queuedNeutralize = 0;
     let queuedAbstract = 0;
 
     for (const row of evidence) {
-      if (needsClean && !row.cleaned_content) {
+      // Enforce a strict L1 -> L2 -> L3 pipeline per evidence item.
+      if (!row.cleaned_content) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
@@ -205,14 +202,14 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             evidence_id: row._id,
             request_version: 1,
             temperature: 0.2,
-            max_tokens: 1200,
           },
         );
         queuedClean += 1;
+        continue;
       }
 
-      if (needsNeutralize && !row.neutralized_content) {
-        const source = row.cleaned_content ?? row.raw_content;
+      if (!row.neutralized_content) {
+        const source = row.cleaned_content;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
@@ -227,15 +224,14 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             evidence_id: row._id,
             request_version: 1,
             temperature: 0.2,
-            max_tokens: 1000,
           },
         );
         queuedNeutralize += 1;
+        continue;
       }
 
-      if (needsAbstract && !row.abstracted_content) {
-        const source =
-          row.neutralized_content ?? row.cleaned_content ?? row.raw_content;
+      if (!row.abstracted_content) {
+        const source = row.neutralized_content;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_calls_requests.getOrCreateLlmRequest,
           {
@@ -250,7 +246,6 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             evidence_id: row._id,
             request_version: 1,
             temperature: 0.2,
-            max_tokens: 1200,
           },
         );
         queuedAbstract += 1;

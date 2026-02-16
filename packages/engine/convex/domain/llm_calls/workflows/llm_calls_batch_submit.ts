@@ -69,6 +69,7 @@ export const submitBatch = zInternalAction({
     })) as Doc<"llm_batch_items">[];
 
     const policy = await getPolicyForBatch(ctx, batch);
+    const maxTokens = policy.max_tokens ?? ENGINE_SETTINGS.run_policy.max_tokens;
     if (!policyAllowsModel(policy, provider, batch.model)) {
       await failBatch(ctx, batch, items, "policy_denied");
       return { submitted: 0 };
@@ -91,7 +92,7 @@ export const submitBatch = zInternalAction({
           temperature: req.temperature ?? undefined,
           top_p: req.top_p ?? undefined,
           seed: req.seed ?? undefined,
-          max_tokens: req.max_tokens ?? undefined,
+          max_tokens: maxTokens,
           stop: req.stop ?? undefined,
         };
       }),

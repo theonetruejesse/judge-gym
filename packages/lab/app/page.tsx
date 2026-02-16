@@ -53,6 +53,7 @@ type EvidenceWindowItem = {
   model_id: string;
   window_tag?: string;
   evidence_count: number;
+  evidence_status: "scraping" | "cleaning" | "neutralizing" | "abstracting" | "ready";
 };
 
 export default function RouteOneExperimentsPage() {
@@ -329,6 +330,7 @@ export default function RouteOneExperimentsPage() {
                   <TableHead>Country</TableHead>
                   <TableHead>Model</TableHead>
                   <TableHead>Window</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Evidence</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -336,14 +338,14 @@ export default function RouteOneExperimentsPage() {
               <TableBody>
                 {windowsLoading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-xs opacity-50">
+                    <TableCell colSpan={7} className="text-xs opacity-50">
                       Loading evidence windows...
                     </TableCell>
                   </TableRow>
                 )}
                 {!windowsLoading && windowRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-xs opacity-50">
+                    <TableCell colSpan={7} className="text-xs opacity-50">
                       No evidence windows found.
                     </TableCell>
                   </TableRow>
@@ -361,6 +363,9 @@ export default function RouteOneExperimentsPage() {
                     <TableCell className="opacity-70">{window.model_id}</TableCell>
                     <TableCell className="opacity-70">
                       {`${window.start_date} -> ${window.end_date}`}
+                    </TableCell>
+                    <TableCell className="opacity-70">
+                      {window.evidence_status ?? "—"}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
                       {window.evidence_count ?? 0}
