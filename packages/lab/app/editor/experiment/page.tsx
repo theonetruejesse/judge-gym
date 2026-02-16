@@ -46,6 +46,13 @@ type EvidenceWindowItem = {
   window_tag?: string;
 };
 
+type EvidenceItem = {
+  evidence_id: string;
+  title: string;
+  url: string;
+  created_at: number;
+};
+
 const formSchema = z.object({
   task_type: z.enum(["ecc", "control", "benchmark"]),
   rubric_model_id: z
@@ -94,15 +101,23 @@ export default function ExperimentEditorPage() {
     api.lab.listEvidenceWindows,
     {},
   ) as EvidenceWindowItem[] | undefined;
+  const [selectedWindowId, setSelectedWindowId] = useState<string>("");
+  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
+  const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
+  const createWindowValue = "__create_window__";
+  const evidenceItems = useQuery(
+    api.lab.listEvidenceByWindow,
+    selectedWindowId ? { window_id: selectedWindowId } : "skip",
+  ) as EvidenceItem[] | undefined;
   const initExperiment = useMutation(api.lab.initExperiment);
   const cloneExperiment = useQuery(
     api.lab.getExperimentSummary,
     cloneId ? { experiment_id: cloneId } : "skip",
   );
-
-  const [selectedWindowId, setSelectedWindowId] = useState<string>("");
-  const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
-  const createWindowValue = "__create_window__";
+  const cloneEvidence = useQuery(
+    api.lab.listExperimentEvidence,
+    cloneId ? { experiment_id: cloneId } : "skip",
+  ) as Array<{ evidence_id: string }> | undefined;
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -116,6 +131,11 @@ export default function ExperimentEditorPage() {
       setSelectedWindowId(windows[0].window_id);
     }
   }, [windows, selectedWindowId]);
+
+  useEffect(() => {
+    if (!selectedWindowId || !evidenceItems) return;
+    setSelectedEvidenceIds(evidenceItems.map((item) => item.evidence_id));
+  }, [selectedWindowId, evidenceItems]);
 
   const handleWindowChange = (value: string) => {
     if (value === createWindowValue) {
@@ -141,6 +161,11 @@ export default function ExperimentEditorPage() {
     setSelectedWindowId(cloneExperiment.window_id);
   }, [cloneExperiment, form]);
 
+  useEffect(() => {
+    if (!cloneId || !cloneEvidence) return;
+    setSelectedEvidenceIds(cloneEvidence.map((row) => row.evidence_id));
+  }, [cloneId, cloneEvidence]);
+
   const randomizationOptions = useMemo(
     () => Object.entries(RANDOMIZATION_LABELS),
     [],
@@ -150,6 +175,10 @@ export default function ExperimentEditorPage() {
     setExperimentStatus(null);
     if (!selectedWindowId) {
       setExperimentStatus("Select an evidence window first.");
+      return;
+    }
+    if (selectedEvidenceIds.length === 0) {
+      setExperimentStatus("Select at least one evidence item.");
       return;
     }
     const parsed = formSchema.safeParse(values);
@@ -168,6 +197,7 @@ export default function ExperimentEditorPage() {
     try {
       await initExperiment({
         window_id: selectedWindowId,
+        evidence_ids: selectedEvidenceIds,
         experiment: {
           task_type: parsed.data.task_type,
           config: {
@@ -217,7 +247,7 @@ export default function ExperimentEditorPage() {
                 Evidence Window
               </p>
               <p className="mt-1 text-xs opacity-60">
-                Select the evidence window to bind with this experiment.
+                Select the evidence window for this experiment.
               </p>
             </div>
             <Select value={selectedWindowId} onValueChange={handleWindowChange}>
@@ -234,6 +264,91 @@ export default function ExperimentEditorPage() {
                 <SelectItem value={createWindowValue}>Create new window</SelectItem>
               </SelectContent>
             </Select>
+          </Card>
+
+          <Card className="border-border bg-card/80 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Evidence Selection
+                </p>
+                <p className="mt-1 text-xs opacity-60">
+                  Choose the evidence items to freeze into this experiment.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                  onClick={() =>
+                    setSelectedEvidenceIds(
+                      (evidenceItems ?? []).map((item) => item.evidence_id),
+                    )
+                  }
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                  onClick={() => setSelectedEvidenceIds([])}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 max-h-72 overflow-auto rounded border border-border">
+              <table className="w-full table-fixed">
+                <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="w-10 px-3 py-2 text-left">Use</th>
+                    <th className="px-3 py-2 text-left">Title</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(evidenceItems ?? []).length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="px-3 py-3 text-xs opacity-60">
+                        {selectedWindowId
+                          ? "No evidence collected for this window."
+                          : "Select a window to see evidence."}
+                      </td>
+                    </tr>
+                  )}
+                  {(evidenceItems ?? []).map((item) => {
+                    const checked = selectedEvidenceIds.includes(item.evidence_id);
+                    return (
+                      <tr key={item.evidence_id} className="border-t border-border">
+                        <td className="px-3 py-2">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              const next = Boolean(value);
+                              setSelectedEvidenceIds((prev) =>
+                                next
+                                  ? prev.includes(item.evidence_id)
+                                    ? prev
+                                    : [...prev, item.evidence_id]
+                                  : prev.filter((id) => id !== item.evidence_id),
+                              );
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <div className="line-clamp-2">{item.title}</div>
+                          <div className="text-[10px] opacity-50">{item.url}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-[10px] uppercase tracking-widest opacity-50">
+              Selected: {selectedEvidenceIds.length}
+            </p>
           </Card>
 
           <Card className="border-border bg-card/80 p-6">

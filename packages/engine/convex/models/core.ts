@@ -84,7 +84,6 @@ export const ScoringStageConfigSchema = z.object({
 
 export const RunCountsSchema = z.object({
   sample_count: z.number().int().min(1),
-  evidence_cap: z.number().int().min(1),
 });
 
 export const ExperimentConfigSchema = z.object({

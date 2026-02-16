@@ -138,8 +138,8 @@ export default function EvidenceWindowEditorPage() {
       });
       setWindowStatus(
         result.reused_window
-          ? `Reused existing window. Collected ${result.collected} (batch ${result.evidence_batch_id}).`
-          : `Created new window. Collected ${result.collected} (batch ${result.evidence_batch_id}).`,
+          ? `Reused existing window. Collected ${result.collected}.`
+          : `Created new window. Collected ${result.collected}.`,
       );
       router.push("/");
     } catch (error) {

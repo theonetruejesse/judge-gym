@@ -6,8 +6,6 @@ const TABLES = [
   "experiments",
   "windows",
   "evidences",
-  "evidence_batches",
-  "evidence_batch_items",
   "experiment_evidence",
   "rubrics",
   "samples",

@@ -3,8 +3,6 @@ import {
   Experiments,
   Windows,
   Evidences,
-  EvidenceBatches,
-  EvidenceBatchItems,
   ExperimentEvidence,
   Rubrics,
   Samples,
@@ -30,15 +28,9 @@ export default defineSchema({
     "model_id",
   ]),
   evidences: Evidences.index("by_window_id", ["window_id"]),
-  evidence_batches: EvidenceBatches.index("by_window_id", ["window_id"]),
-  evidence_batch_items: EvidenceBatchItems.index("by_batch", [
-    "batch_id",
-  ]).index("by_evidence", ["evidence_id"]),
   experiment_evidence: ExperimentEvidence.index("by_experiment", [
     "experiment_id",
-  ])
-    .index("by_batch", ["evidence_batch_id"])
-    .index("by_evidence", ["evidence_id"]),
+  ]).index("by_evidence", ["evidence_id"]),
   rubrics: Rubrics.index("by_experiment_model", ["experiment_id", "model_id"]),
   samples: Samples.index("by_experiment", ["experiment_id"]).index(
     "by_rubric",

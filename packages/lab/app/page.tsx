@@ -27,14 +27,12 @@ type ExperimentListItem = {
   task_type: string;
   status: string;
   active_run_id?: string;
-  evidence_batch_id?: string;
   window_id: string;
   window_tag?: string;
   run_counts?: {
     sample_count: number;
-    evidence_cap: number;
   };
-  evidence_bound_count?: number;
+  evidence_selected_count?: number;
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -106,14 +104,7 @@ export default function RouteOneExperimentsPage() {
       window.alert("Sample count must be a positive number.");
       return null;
     }
-    const evidenceInput = window.prompt("Evidence cap", "10");
-    if (evidenceInput === null) return null;
-    const evidence_cap = Number(evidenceInput);
-    if (!Number.isFinite(evidence_cap) || evidence_cap < 1) {
-      window.alert("Evidence cap must be a positive number.");
-      return null;
-    }
-    return { sample_count, evidence_cap };
+    return { sample_count };
   };
 
   const handleStart = async (experimentId: string) => {
@@ -194,7 +185,7 @@ export default function RouteOneExperimentsPage() {
                   <TableHead>Task</TableHead>
                   <TableHead>Range</TableHead>
                   <TableHead className="text-right">Samples</TableHead>
-                  <TableHead className="text-right">Evidence Cap</TableHead>
+                  <TableHead className="text-right">Evidence</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -245,7 +236,7 @@ export default function RouteOneExperimentsPage() {
                       {exp.run_counts?.sample_count ?? "—"}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
-                      {exp.run_counts?.evidence_cap ?? "—"}
+                      {exp.evidence_selected_count ?? "—"}
                     </TableCell>
                     <TableCell
                       className="text-right"

@@ -4,9 +4,8 @@ import { zAction, zQuery } from "../../platform/utils";
 import { internal } from "../../_generated/api";
 import { preflightCheck } from "../../env";
 import { requiredEnvsForEvidenceWindow } from "../../utils/env_requirements";
-import type { Id } from "../../_generated/dataModel";
 
-export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
+export const collectEvidence: ReturnType<typeof zAction> = zAction({
   args: z.object({
     window_id: zid("windows"),
     evidence_limit: z.number().optional(),
@@ -17,7 +16,6 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
-    evidence_batch_id: zid("evidence_batches"),
     evidence_count: z.number(),
   }),
   handler: async (ctx, { window_id, evidence_limit }) => {
@@ -33,103 +31,6 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
     await ctx.runMutation(internal.domain.runs.workflows.runs_scheduler.ensureScheduler, {
       reason: "evidence",
     });
-    return result;
-  },
-});
-
-export const listEvidenceBatches: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({
-    window_id: zid("windows"),
-  }),
-  returns: z.array(
-    z.object({
-      evidence_batch_id: zid("evidence_batches"),
-      window_id: zid("windows"),
-      evidence_limit: z.number(),
-      evidence_count: z.number(),
-      created_at: z.number(),
-    }),
-  ),
-  handler: async (ctx, { window_id }) => {
-    const batches = await ctx.db
-      .query("evidence_batches")
-      .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
-      .collect();
-    return batches
-      .slice()
-      .sort((a, b) => b.created_at - a.created_at)
-      .map((batch) => ({
-        evidence_batch_id: batch._id,
-        window_id: batch.window_id,
-        evidence_limit: batch.evidence_limit,
-        evidence_count: batch.evidence_count,
-        created_at: batch.created_at,
-      }));
-  },
-});
-
-export const getEvidenceBatch: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({
-    evidence_batch_id: zid("evidence_batches"),
-  }),
-  returns: z
-    .object({
-      evidence_batch_id: zid("evidence_batches"),
-      window_id: zid("windows"),
-      evidence_limit: z.number(),
-      evidence_count: z.number(),
-      created_at: z.number(),
-    })
-    .nullable(),
-  handler: async (ctx, { evidence_batch_id }) => {
-    const batch = await ctx.db.get(evidence_batch_id);
-    if (!batch) return null;
-    return {
-      evidence_batch_id: batch._id,
-      window_id: batch.window_id,
-      evidence_limit: batch.evidence_limit,
-      evidence_count: batch.evidence_count,
-      created_at: batch.created_at,
-    };
-  },
-});
-
-export const listEvidenceBatchItems: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({
-    evidence_batch_id: zid("evidence_batches"),
-  }),
-  returns: z.array(
-    z.object({
-      evidence_id: zid("evidences"),
-      position: z.number(),
-      title: z.string(),
-      url: z.string(),
-    }),
-  ),
-  handler: async (ctx, { evidence_batch_id }) => {
-    const items = await ctx.db
-      .query("evidence_batch_items")
-      .withIndex("by_batch", (q) => q.eq("batch_id", evidence_batch_id))
-      .collect();
-    const ordered = items.slice().sort((a, b) => a.position - b.position);
-    const result: Array<{
-      evidence_id: Id<"evidences">;
-      position: number;
-      title: string;
-      url: string;
-    }> = [];
-
-    for (const item of ordered) {
-      const evidence = await ctx.db.get(item.evidence_id);
-      if (!evidence) continue;
-      result.push({
-        evidence_id: evidence._id,
-        position: item.position,
-        title: evidence.title,
-        url: evidence.url,
-      });
-    }
-
     return result;
   },
 });

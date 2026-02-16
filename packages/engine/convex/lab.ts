@@ -47,7 +47,6 @@ export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction(
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
-    evidence_batch_id: zid("evidence_batches"),
     evidence_count: z.number(),
   }),
   handler: async (ctx, { evidence_window, evidence_limit }) => {
@@ -56,7 +55,7 @@ export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction(
       { evidence_window },
     );
     const batchResult = await ctx.runAction(
-      api.domain.evidence.evidence_entrypoints.collectEvidenceBatch,
+      api.domain.evidence.evidence_entrypoints.collectEvidence,
       { window_id: initResult.window_id, evidence_limit },
     );
     return {
@@ -71,6 +70,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     window_id: zid("windows"),
     experiment: ExperimentSpecInputSchema,
+    evidence_ids: z.array(zid("evidences")).min(1),
     template_id: z.string().optional(),
     template_version: z.number().optional(),
   }),
@@ -92,6 +92,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> =
     args: z.object({
       template_id: z.string(),
       version: z.number().int().min(1),
+      evidence_ids: z.array(zid("evidences")).min(1),
     }),
     returns: z.object({
       window_id: zid("windows"),
@@ -107,7 +108,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> =
     },
   });
 
-export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
+export const collectEvidence: ReturnType<typeof zAction> = zAction({
   args: z.object({
     window_id: zid("windows"),
     evidence_limit: z.number().optional(),
@@ -118,32 +119,11 @@ export const collectEvidenceBatch: ReturnType<typeof zAction> = zAction({
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
-    evidence_batch_id: zid("evidence_batches"),
     evidence_count: z.number(),
   }),
   handler: async (ctx, args) => {
     return ctx.runAction(
-      api.domain.evidence.evidence_entrypoints.collectEvidenceBatch,
-      args,
-    );
-  },
-});
-
-export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    evidence_batch_id: zid("evidence_batches"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({
-    evidence_batch_id: zid("evidence_batches"),
-    evidence_count: z.number(),
-    bound_count: z.number(),
-    evidence_cap: z.number(),
-  }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      api.domain.experiments.experiments_entrypoints.bindExperimentEvidence,
+      api.domain.evidence.evidence_entrypoints.collectEvidence,
       args,
     );
   },
@@ -285,61 +265,33 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
   },
 });
 
-export const listEvidenceBatches: ReturnType<typeof zQuery> = zQuery({
+export const listEvidenceByWindow: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ window_id: zid("windows") }),
   returns: z.array(
     z.object({
-      evidence_batch_id: zid("evidence_batches"),
-      window_id: zid("windows"),
-      evidence_limit: z.number(),
-      evidence_count: z.number(),
-      created_at: z.number(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    return ctx.runQuery(
-      api.domain.evidence.evidence_entrypoints.listEvidenceBatches,
-      args,
-    );
-  },
-});
-
-export const getEvidenceBatch: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ evidence_batch_id: zid("evidence_batches") }),
-  returns: z
-    .object({
-      evidence_batch_id: zid("evidence_batches"),
-      window_id: zid("windows"),
-      evidence_limit: z.number(),
-      evidence_count: z.number(),
-      created_at: z.number(),
-    })
-    .nullable(),
-  handler: async (ctx, args) => {
-    return ctx.runQuery(
-      api.domain.evidence.evidence_entrypoints.getEvidenceBatch,
-      args,
-    );
-  },
-});
-
-export const listEvidenceBatchItems: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ evidence_batch_id: zid("evidence_batches") }),
-  returns: z.array(
-    z.object({
       evidence_id: zid("evidences"),
-      position: z.number(),
       title: z.string(),
       url: z.string(),
+      created_at: z.number(),
     }),
   ),
-  handler: async (ctx, args) => {
-    return ctx.runQuery(
-      api.domain.evidence.evidence_entrypoints.listEvidenceBatchItems,
-      args,
-    );
+  handler: async (ctx, { window_id }) => {
+    const rows = await ctx.db
+      .query("evidences")
+      .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
+      .collect();
+    return rows
+      .slice()
+      .sort((a, b) => a._creationTime - b._creationTime)
+      .map((row) => ({
+        evidence_id: row._id,
+        title: row.title,
+        url: row.url,
+        created_at: row._creationTime,
+      }));
   },
 });
+
 
 export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ evidence_id: zid("evidences") }),
@@ -410,8 +362,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       samples: z.number(),
       scores: z.number(),
       experiment_evidence: z.number(),
-      evidence_batches: z.number(),
-      evidence_batch_items: z.number(),
       evidences: z.number(),
       windows: z.number(),
       llm_requests: z.number(),
@@ -611,9 +561,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       task_type: TaskTypeSchema,
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
-      evidence_batch_id: zid("evidence_batches").optional(),
       run_counts: RunCountsSchema.optional(),
-      evidence_bound_count: z.number().optional(),
+      evidence_selected_count: z.number().optional(),
       window_id: zid("windows"),
       window_tag: z.string(),
       evidence_window: z
@@ -685,9 +634,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         task_type: experiment.task_type,
         status: experiment.status,
         active_run_id: experiment.active_run_id,
-        evidence_batch_id: experiment.evidence_batch_id,
         run_counts: runConfig?.run_counts,
-        evidence_bound_count: experiment.evidence_count,
+        evidence_selected_count: experiment.evidence_count,
         window_id: experiment.window_id,
         window_tag: window.window_tag,
         evidence_window: window,
@@ -719,14 +667,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         .optional(),
       evidence_total: z.number().optional(),
       evidence_neutralized: z.number().optional(),
-      evidence_batch: z
-        .object({
-          evidence_batch_id: zid("evidence_batches"),
-          evidence_limit: z.number(),
-          evidence_count: z.number(),
-        })
-        .optional(),
-      evidence_bound_count: z.number().optional(),
+      evidence_selected_count: z.number().optional(),
       rubric: z
         .object({
           rubric_id: zid("rubrics"),
@@ -770,17 +711,10 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
       const evidence_neutralized = evidence.filter(
         (ev) => (ev.neutralized_content ?? "").trim().length > 0,
       ).length;
-      const evidenceBatch = experiment.evidence_batch_id
-        ? await ctx.db.get(experiment.evidence_batch_id)
-        : null;
-      const boundEvidence = experiment.evidence_batch_id
-        ? await ctx.db
-            .query("experiment_evidence")
-            .withIndex("by_experiment", (q) =>
-              q.eq("experiment_id", experiment._id),
-            )
-            .collect()
-        : [];
+      const selectedEvidence = await ctx.db
+        .query("experiment_evidence")
+        .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+        .collect();
 
       const rubric = await ctx.db
         .query("rubrics")
@@ -817,14 +751,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
           : undefined,
         evidence_total,
         evidence_neutralized,
-        evidence_batch: evidenceBatch
-          ? {
-              evidence_batch_id: evidenceBatch._id,
-              evidence_limit: evidenceBatch.evidence_limit,
-              evidence_count: evidenceBatch.evidence_count,
-            }
-          : undefined,
-        evidence_bound_count: boundEvidence.length,
+        evidence_selected_count: selectedEvidence.length,
         rubric: rubric
           ? {
               rubric_id: rubric._id,

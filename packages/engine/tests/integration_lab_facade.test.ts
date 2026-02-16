@@ -57,8 +57,20 @@ describe("lab facade integration", () => {
         evidence_window: buildWindow(concept),
       });
 
+      const inserted = await client.mutation(api.lab.insertEvidenceBatch, {
+        window_id,
+        evidences: [
+          {
+            title: "Evidence Init",
+            url: `https://example.com/${suffix}/init`,
+            raw_content: "Evidence init content",
+          },
+        ],
+      });
+
       const initResult = await client.mutation(api.lab.initExperiment, {
         window_id,
+        evidence_ids: inserted.evidence_ids,
         experiment: buildExperimentSpec(experiment_tag, concept),
       });
       if (!initResult.experiment_id) {
@@ -73,7 +85,7 @@ describe("lab facade integration", () => {
 
       const start = await client.mutation(api.lab.startExperiment, {
         experiment_id,
-        run_counts: { sample_count: 1, evidence_cap: 2 },
+        run_counts: { sample_count: 1 },
       });
 
       if (hasRunEnvs) {
@@ -93,7 +105,7 @@ describe("lab facade integration", () => {
     }
   });
 
-  test("evidence batch + bind flow", async () => {
+  test("evidence selection flow", async () => {
     if (!shouldRun) return;
     if (!hasFirecrawl) return;
     const client = new ConvexHttpClient(CONVEX_URL!);
@@ -107,16 +119,7 @@ describe("lab facade integration", () => {
         evidence_window: buildWindow(concept),
       });
 
-      const initResult = await client.mutation(api.lab.initExperiment, {
-        window_id,
-        experiment: buildExperimentSpec(experiment_tag, concept),
-      });
-      if (!initResult.experiment_id) {
-        throw new Error("Missing experiment_id");
-      }
-      experiment_id = initResult.experiment_id;
-
-      await client.mutation(api.lab.insertEvidenceBatch, {
+      const inserted = await client.mutation(api.lab.insertEvidenceBatch, {
         window_id,
         evidences: [
           {
@@ -132,35 +135,28 @@ describe("lab facade integration", () => {
         ],
       });
 
-      const collected = await client.action(api.lab.collectEvidenceBatch, {
+      const collected = await client.action(api.lab.collectEvidence, {
         window_id,
         evidence_limit: 2,
       });
 
       expect(collected.evidence_count).toBe(2);
 
-      const batches = await client.query(api.lab.listEvidenceBatches, {
+      const initResult = await client.mutation(api.lab.initExperiment, {
         window_id,
+        evidence_ids: inserted.evidence_ids,
+        experiment: buildExperimentSpec(experiment_tag, concept),
       });
-      expect(batches.length).toBeGreaterThan(0);
-
-      const items = await client.query(api.lab.listEvidenceBatchItems, {
-        evidence_batch_id: collected.evidence_batch_id,
-      });
-      expect(items.length).toBe(2);
+      if (!initResult.experiment_id) {
+        throw new Error("Missing experiment_id");
+      }
+      experiment_id = initResult.experiment_id;
 
       const start = await client.mutation(api.lab.startExperiment, {
         experiment_id,
-        run_counts: { sample_count: 1, evidence_cap: 2 },
+        run_counts: { sample_count: 1 },
       });
       if (!start.ok || !start.run_id) return;
-
-      const bound = await client.mutation(api.lab.bindExperimentEvidence, {
-        experiment_id,
-        evidence_batch_id: collected.evidence_batch_id,
-        run_id: start.run_id,
-      });
-      expect(bound.bound_count).toBe(2);
 
       const experimentEvidence = await client.query(
         api.lab.listExperimentEvidence,
@@ -173,7 +169,7 @@ describe("lab facade integration", () => {
       const states = await client.query(api.lab.getExperimentStates, {
         experiment_ids: [experiment_id],
       });
-      expect(states[0].evidence_batch?.evidence_count).toBe(2);
+      expect(states[0].evidence_selected_count).toBe(2);
     } finally {
       if (experiment_id) {
         await client.mutation(api.lab.resetExperiment, {
