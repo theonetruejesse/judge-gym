@@ -22,7 +22,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -31,8 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import LabNavbar from "@/components/lab_navbar";
-
-const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 const formSchema = z.object({
   concept: z.string().min(1, "Concept is required."),
@@ -43,17 +45,26 @@ const formSchema = z.object({
     .string()
     .min(1, "Evidence model is required.")
     .refine(
-      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      (value) =>
+        MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
       "Invalid evidence model.",
     ),
-  evidence_limit: z
-    .coerce
+  evidence_limit: z.coerce
     .number({ invalid_type_error: "Starting count is required." })
     .int("Starting count must be a whole number.")
     .min(1, "Starting count must be at least 1."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const DEFAULT_FORM_VALUES: FormValues = {
+  concept: "",
+  country: "",
+  start_date: "",
+  end_date: "",
+  model_id: "",
+  evidence_limit: 15,
+};
 
 function parseNumberParam(value: string | null) {
   if (!value) return undefined;
@@ -62,20 +73,6 @@ function parseNumberParam(value: string | null) {
 }
 
 export default function EvidenceWindowEditorPage() {
-  if (!hasConvex) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <LabNavbar />
-        <div className="px-6 py-12">
-          <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
-          <p className="mt-2 text-xs opacity-60">
-            Set the Convex URL to enable the editor.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const searchParams = useSearchParams();
   const router = useRouter();
   const initEvidenceWindowAndCollect = useAction(
@@ -88,9 +85,7 @@ export default function EvidenceWindowEditorPage() {
   const initializedRef = useRef(false);
 
   const form = useForm<FormValues>({
-    defaultValues: {
-      evidence_limit: 15,
-    },
+    defaultValues: DEFAULT_FORM_VALUES,
   });
 
   useEffect(() => {
@@ -104,13 +99,18 @@ export default function EvidenceWindowEditorPage() {
     const evidenceLimit = parseNumberParam(searchParams.get("evidence_limit"));
 
     form.reset({
+      ...DEFAULT_FORM_VALUES,
       ...values,
-      concept: concept ?? values.concept,
-      country: country ?? values.country,
-      start_date: startDate ?? values.start_date,
-      end_date: endDate ?? values.end_date,
-      model_id: modelId ?? values.model_id,
-      evidence_limit: evidenceLimit ?? values.evidence_limit,
+      concept: concept ?? values.concept ?? DEFAULT_FORM_VALUES.concept,
+      country: country ?? values.country ?? DEFAULT_FORM_VALUES.country,
+      start_date:
+        startDate ?? values.start_date ?? DEFAULT_FORM_VALUES.start_date,
+      end_date: endDate ?? values.end_date ?? DEFAULT_FORM_VALUES.end_date,
+      model_id: modelId ?? values.model_id ?? DEFAULT_FORM_VALUES.model_id,
+      evidence_limit:
+        evidenceLimit ??
+        values.evidence_limit ??
+        DEFAULT_FORM_VALUES.evidence_limit,
     });
 
     initializedRef.current = true;
@@ -123,7 +123,8 @@ export default function EvidenceWindowEditorPage() {
     const params = new URLSearchParams();
     if (watchedValues.concept) params.set("concept", watchedValues.concept);
     if (watchedValues.country) params.set("country", watchedValues.country);
-    if (watchedValues.start_date) params.set("start_date", watchedValues.start_date);
+    if (watchedValues.start_date)
+      params.set("start_date", watchedValues.start_date);
     if (watchedValues.end_date) params.set("end_date", watchedValues.end_date);
     if (watchedValues.model_id) params.set("model_id", watchedValues.model_id);
     if (Number.isFinite(watchedValues.evidence_limit)) {
@@ -206,7 +207,8 @@ export default function EvidenceWindowEditorPage() {
                 Evidence Window
               </p>
               <p className="mt-1 text-xs opacity-60">
-                Define the evidence time window, starting count, and scraping model.
+                Define the evidence time window, starting count, and scraping
+                model.
               </p>
             </div>
 
@@ -222,7 +224,7 @@ export default function EvidenceWindowEditorPage() {
                     <FormItem>
                       <FormLabel>Concept</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -235,7 +237,7 @@ export default function EvidenceWindowEditorPage() {
                     <FormItem>
                       <FormLabel>Country</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -248,7 +250,10 @@ export default function EvidenceWindowEditorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Start Date</FormLabel>
-                        <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                        <Popover
+                          open={startDateOpen}
+                          onOpenChange={setStartDateOpen}
+                        >
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -272,7 +277,9 @@ export default function EvidenceWindowEditorPage() {
                               mode="single"
                               selected={parseDateValue(field.value)}
                               onSelect={(date) => {
-                                field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                                field.onChange(
+                                  date ? format(date, "yyyy-MM-dd") : "",
+                                );
                                 setStartDateOpen(false);
                                 const currentEnd = parseDateValue(endDateValue);
                                 if (date && currentEnd && currentEnd < date) {
@@ -293,7 +300,10 @@ export default function EvidenceWindowEditorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>End Date</FormLabel>
-                        <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                        <Popover
+                          open={endDateOpen}
+                          onOpenChange={setEndDateOpen}
+                        >
                           <PopoverTrigger asChild>
                             <FormControl>
                               <Button
@@ -317,7 +327,9 @@ export default function EvidenceWindowEditorPage() {
                               mode="single"
                               selected={parseDateValue(field.value)}
                               onSelect={(date) => {
-                                field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                                field.onChange(
+                                  date ? format(date, "yyyy-MM-dd") : "",
+                                );
                                 setEndDateOpen(false);
                               }}
                               disabled={(date) => {
@@ -339,7 +351,10 @@ export default function EvidenceWindowEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Evidence Model</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || undefined}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select model" />
@@ -366,6 +381,7 @@ export default function EvidenceWindowEditorPage() {
                       <FormControl>
                         <Input
                           {...field}
+                          value={field.value ?? ""}
                           type="number"
                           min={1}
                           step={1}
@@ -377,7 +393,10 @@ export default function EvidenceWindowEditorPage() {
                 />
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                  <Button
+                    type="submit"
+                    className="text-[10px] uppercase tracking-wider"
+                  >
                     Create Window & Collect
                   </Button>
                   {windowStatus && (
@@ -388,7 +407,6 @@ export default function EvidenceWindowEditorPage() {
                 </div>
               </form>
             </Form>
-
           </Card>
         </div>
       </div>

@@ -28,8 +28,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LabNavbar from "@/components/lab_navbar";
 
-const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-
 type ExperimentListItem = {
   experiment_id: string;
   experiment_tag?: string;
@@ -164,9 +162,9 @@ export default function RouteOneExperimentPage({
 
   const experiments = useQuery(
     api.lab.listExperiments,
-    hasConvex ? {} : "skip",
+    {},
   ) as ExperimentListItem[] | undefined;
-  const experimentsLoading = hasConvex && experiments === undefined;
+  const experimentsLoading = experiments === undefined;
 
   const experimentRows = experiments ?? [];
 
@@ -176,23 +174,21 @@ export default function RouteOneExperimentPage({
 
   const summary = useQuery(
     api.lab.getExperimentSummary,
-    selected && hasConvex ? { experiment_id: selected.experiment_id } : "skip",
+    selected ? { experiment_id: selected.experiment_id } : "skip",
   ) as ExperimentSummary | undefined;
   const states = useQuery(
     api.lab.getExperimentStates,
-    selected && hasConvex
-      ? { experiment_ids: [selected.experiment_id] }
-      : "skip",
+    selected ? { experiment_ids: [selected.experiment_id] } : "skip",
   ) as ExperimentState[] | undefined;
   const state = states?.[0];
 
   const evidenceItems = useQuery(
     api.lab.listExperimentEvidence,
-    selected && hasConvex ? { experiment_id: selected.experiment_id } : "skip",
+    selected ? { experiment_id: selected.experiment_id } : "skip",
   ) as EvidenceItem[] | undefined;
   const evidenceItemsData = evidenceItems ?? [];
 
-  const activeRuns = useQuery(api.lab.listRuns, hasConvex ? {} : "skip") as
+  const activeRuns = useQuery(api.lab.listRuns, {}) as
     | RunListItem[]
     | undefined;
   const activeRunsForExperiment = (activeRuns ?? []).filter(
@@ -202,9 +198,7 @@ export default function RouteOneExperimentPage({
   const summaryData = summary;
   const runSummary = useQuery(
     api.lab.getRunSummary,
-    state?.latest_run?.run_id && hasConvex
-      ? { run_id: state.latest_run.run_id }
-      : "skip",
+    state?.latest_run?.run_id ? { run_id: state.latest_run.run_id } : "skip",
   ) as RunSummary | undefined;
   const runSummaryData = runSummary;
 
@@ -233,10 +227,6 @@ export default function RouteOneExperimentPage({
 
   const handleStart = async () => {
     if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
     setActionMessage(null);
     const sampleCount = Number(runSampleCount);
     if (!Number.isFinite(sampleCount) || sampleCount < 1) {
@@ -267,10 +257,6 @@ export default function RouteOneExperimentPage({
 
   const handlePause = async () => {
     if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
     const runningRuns = activeRunsForExperiment.filter(
       (run) => run.status === "running",
     );
@@ -297,10 +283,6 @@ export default function RouteOneExperimentPage({
 
   const handleResume = async () => {
     if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
     const pausedRuns = activeRunsForExperiment.filter(
       (run) => run.status === "paused",
     );
@@ -327,10 +309,6 @@ export default function RouteOneExperimentPage({
 
   const handleCancel = async () => {
     if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
     const cancellable = activeRunsForExperiment.filter(
       (run) => run.status !== "canceled" && run.status !== "complete",
     );
@@ -357,10 +335,6 @@ export default function RouteOneExperimentPage({
 
   const handleCollectEvidence = async () => {
     if (!selected) return;
-    if (!hasConvex) {
-      setEvidenceMessage("Convex not configured.");
-      return;
-    }
     setEvidenceMessage(null);
     const parsed = Number(evidenceLimit);
     const evidence_limit =
