@@ -1,0 +1,17 @@
+{
+  "challengeID": "nc_h_A1_001",
+  "microHypothesisID": "h_A1_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Find alternate override paths for sample_count/evidence_cap outside experiment config.",
+      "falsificationQueries": [
+        "rg \"sample_count\" packages/engine/convex",
+        "rg \"evidence_cap\" packages/engine/convex"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "No alternate override paths found; scoring and binding read experiment.config.scoring_stage directly.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

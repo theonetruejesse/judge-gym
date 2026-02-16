@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A1_001",
+  "areaOfAnalysisID": "A1_Current_Model",
+  "statement": "sample_count and evidence_cap are currently embedded in experiment.config.scoring_stage and directly govern evidence binding and scoring sample creation.",
+  "confidence": 0.72,
+  "rationale": "Core schema defines both fields in ScoringStageConfig; bindExperimentEvidence and scoring seed workflows read them directly.",
+  "keyAssumptions": [
+    "No alternative override path exists for counts outside experiment config."
+  ],
+  "validationCriteria": [
+    "Trace all uses of sample_count/evidence_cap and confirm they read experiment.config.scoring_stage."
+  ],
+  "critiquePoints": [
+    "There may be hidden overrides in lab or CLI paths not yet checked."
+  ],
+  "questions": [
+    "Are there any run-level overrides already supported?"
+  ]
+}

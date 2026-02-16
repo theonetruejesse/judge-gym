@@ -1,0 +1,25 @@
+{
+  "microHypothesisID": "h_A2_001",
+  "outcome": "Failed",
+  "falsificationAttempts": [
+    {
+      "description": "Reviewed the spec-signature builder and UI forms to see whether they tolerate removing counts from experiment config.",
+      "result": "`buildExperimentSpecSignature` normalizes and serializes `sample_count` and `evidence_cap`, and the lab editor/experiment detail pages expect those fields on `config.scoring_stage`, so dropping them would change template dedup logic and break the public form contract.",
+      "files": [
+        "packages/engine/convex/utils/spec_signature.ts",
+        "packages/lab/app/editor/experiment/page.tsx"
+      ]
+    }
+  ],
+  "counterEvidence": [
+    {
+      "description": "Spec signatures currently include counts, so removing them alters the deduplication/checksum that governs template reuse.",
+      "files": ["packages/engine/convex/utils/spec_signature.ts"]
+    },
+    {
+      "description": "Lab editor and experiment page both treat `sample_count`/`evidence_cap` as experiment-config fields (validation, display, and exposed inputs).",
+      "files": ["packages/lab/app/editor/experiment/page.tsx"]
+    }
+  ],
+  "notes": "The hidden dependencies on experiment-scoped counts mean the migration path assumes capabilities that the current system explicitly violates, so the hypothesis cannot be accepted without additional refactors."
+}

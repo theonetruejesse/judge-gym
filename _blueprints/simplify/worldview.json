@@ -1,0 +1,248 @@
+{
+  "meta": {
+    "originalQuestion": "Simplify judge-gym engine architecture to align with desired workflow: experiments/windows configs separate from engine; counts (sample_count, evidence_cap) defined per run; ensure evidence consistency across runs; reduce overengineering while preserving policy snapshots and reproducibility.",
+    "runFolderPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/simplify",
+    "finalPlanPath": "/Users/jesselee/dev/research/judge-gym/_blueprints/simplify/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "assistant",
+    "researchers": [
+      "019c63db-57f9-7e32-8bca-ef05f497529d",
+      "019c63db-5807-7323-a09d-4ccc17d650a7",
+      "019c63db-5823-74d1-837f-5f244eba06e5",
+      "019c63db-584a-7793-b8f9-2a44095cdc42"
+    ],
+    "falsifier": "019c63dd-e11d-7a60-b968-2d22ac137aa6",
+    "certaintyScorer": "019c63e2-61f2-7261-9bfe-5cab04b8c626",
+    "synthesizer": "assistant"
+  },
+  "assignments": [
+    {
+      "assignmentID": "A1_Current_Model",
+      "areaOfAnalysisID": "A1_Current_Model",
+      "assignedAgentId": "019c63db-57f9-7e32-8bca-ef05f497529d",
+      "status": "completed"
+    },
+    {
+      "assignmentID": "A2_Simplified_Model",
+      "areaOfAnalysisID": "A2_Simplified_Model",
+      "assignedAgentId": "019c63db-5807-7323-a09d-4ccc17d650a7",
+      "status": "completed"
+    },
+    {
+      "assignmentID": "A3_Evidence_Policy",
+      "areaOfAnalysisID": "A3_Evidence_Policy",
+      "assignedAgentId": "019c63db-5823-74d1-837f-5f244eba06e5",
+      "status": "completed"
+    },
+    {
+      "assignmentID": "A4_Migration_Surface",
+      "areaOfAnalysisID": "A4_Migration_Surface",
+      "assignedAgentId": "019c63db-584a-7793-b8f9-2a44095cdc42",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "entryID": "k_001_evidence",
+        "path": "knowledge/k_001_evidence.md"
+      },
+      {
+        "entryID": "k_002_evidence",
+        "path": "knowledge/k_002_evidence.md"
+      },
+      {
+        "entryID": "k_003_evidence",
+        "path": "knowledge/k_003_evidence.md"
+      },
+      {
+        "entryID": "k_004_evidence",
+        "path": "knowledge/k_004_evidence.md"
+      },
+      {
+        "entryID": "k_005_evidence",
+        "path": "knowledge/k_005_evidence.md"
+      },
+      {
+        "entryID": "k_006_evidence",
+        "path": "knowledge/k_006_evidence.md"
+      },
+      {
+        "entryID": "k_007_evidence",
+        "path": "knowledge/k_007_evidence.md"
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "k_001_evidence",
+        "type": "evidence",
+        "score": 0.78
+      },
+      {
+        "id": "k_002_evidence",
+        "type": "evidence",
+        "score": 0.76
+      },
+      {
+        "id": "k_003_evidence",
+        "type": "evidence",
+        "score": 0.74
+      },
+      {
+        "id": "k_004_evidence",
+        "type": "evidence",
+        "score": 0.72
+      },
+      {
+        "id": "k_005_evidence",
+        "type": "evidence",
+        "score": 0.7
+      },
+      {
+        "id": "k_006_evidence",
+        "type": "evidence",
+        "score": 0.7
+      },
+      {
+        "id": "k_007_evidence",
+        "type": "evidence",
+        "score": 0.68
+      },
+      {
+        "id": "h_A1_001",
+        "type": "hypothesis",
+        "score": 0.72
+      },
+      {
+        "id": "h_A2_001",
+        "type": "hypothesis",
+        "score": 0.37
+      },
+      {
+        "id": "h_A3_001",
+        "type": "hypothesis",
+        "score": 0.62
+      },
+      {
+        "id": "h_A4_001",
+        "type": "hypothesis",
+        "score": 0.4
+      },
+      {
+        "id": "S1",
+        "type": "step",
+        "score": 0.7
+      },
+      {
+        "id": "S2",
+        "type": "step",
+        "score": 0.45
+      },
+      {
+        "id": "S3",
+        "type": "step",
+        "score": 0.6
+      },
+      {
+        "id": "S4",
+        "type": "step",
+        "score": 0.5
+      },
+      {
+        "id": "S5",
+        "type": "step",
+        "score": 0.52
+      },
+      {
+        "id": "S6",
+        "type": "step",
+        "score": 0.48
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaOfAnalysisID": "A1_Current_Model",
+      "title": "Current Data Model & Execution Flow",
+      "description": "Map experiments/runs/config templates, evidence binding, and where sample_count/evidence_cap are defined and consumed.",
+      "assignedAgentId": "019c63db-57f9-7e32-8bca-ef05f497529d"
+    },
+    {
+      "areaOfAnalysisID": "A2_Simplified_Model",
+      "title": "Simplified Target Model",
+      "description": "Design a minimal model aligned with desired workflow (counts on runs, experiments/windows configs separate from engine).",
+      "assignedAgentId": "019c63db-5807-7323-a09d-4ccc17d650a7"
+    },
+    {
+      "areaOfAnalysisID": "A3_Evidence_Policy",
+      "title": "Evidence Consistency & Policy Snapshot",
+      "description": "Assess evidence freeze mechanics and run policy snapshots; implications of moving counts to runs.",
+      "assignedAgentId": "019c63db-5823-74d1-837f-5f244eba06e5"
+    },
+    {
+      "areaOfAnalysisID": "A4_Migration_Surface",
+      "title": "Migration & API/CLI Surface",
+      "description": "Identify required schema/entrypoint/test/README changes and propose minimal migration strategy.",
+      "assignedAgentId": "019c63db-584a-7793-b8f9-2a44095cdc42"
+    }
+  ],
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A1_001",
+      "path": "hypotheses/hyp_h_A1_001_v1_counts_in_experiment.json"
+    },
+    {
+      "microHypothesisID": "h_A2_001",
+      "path": "hypotheses/hyp_h_A2_001_v1_counts_on_runs.json"
+    },
+    {
+      "microHypothesisID": "h_A3_001",
+      "path": "hypotheses/hyp_h_A3_001_v1_evidence_freeze.json"
+    },
+    {
+      "microHypothesisID": "h_A4_001",
+      "path": "hypotheses/hyp_h_A4_001_v1_migration_path.json"
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md",
+  "nullChallenges": [
+    {
+      "challengeID": null,
+      "path": "null_challenges/nc_h_A1_001.json"
+    },
+    {
+      "challengeID": "nc_h_A1_001",
+      "path": "null_challenges/nc_h_A1_001_challenge.json"
+    },
+    {
+      "challengeID": null,
+      "path": "null_challenges/nc_h_A2_001.json"
+    },
+    {
+      "challengeID": "nc_h_A2_001",
+      "path": "null_challenges/nc_h_A2_001_challenge.json"
+    },
+    {
+      "challengeID": null,
+      "path": "null_challenges/nc_h_A3_001.json"
+    },
+    {
+      "challengeID": "nc_h_A3_001",
+      "path": "null_challenges/nc_h_A3_001_challenge.json"
+    },
+    {
+      "challengeID": null,
+      "path": "null_challenges/nc_h_A4_001.json"
+    },
+    {
+      "challengeID": "nc_h_A4_001",
+      "path": "null_challenges/nc_h_A4_001_challenge.json"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A2_001",
+  "areaOfAnalysisID": "A2_Simplified_Model",
+  "statement": "Moving sample_count/evidence_cap to run-level configuration can reduce template/version churn while preserving reproducibility if run records snapshot those values.",
+  "confidence": 0.66,
+  "rationale": "Runs already snapshot policy and have a run_config link; counts can be added there without changing experiment identity.",
+  "keyAssumptions": [
+    "Spec signatures can exclude counts without breaking uniqueness semantics."
+  ],
+  "validationCriteria": [
+    "Spec signature consumers tolerate removal of count fields; run summaries expose run-level counts."
+  ],
+  "critiquePoints": [
+    "Dropping counts from spec signatures may reduce drift detection."
+  ],
+  "questions": [
+    "Do any consumers depend on counts being in experiment config for filtering/analytics?"
+  ]
+}

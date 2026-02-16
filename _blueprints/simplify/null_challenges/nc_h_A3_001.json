@@ -1,0 +1,16 @@
+{
+  "microHypothesisID": "h_A3_001",
+  "outcome": "Passed",
+  "falsificationAttempts": [
+    {
+      "description": "Verified that evidence binding and scoring always reference the experiment-wide evidence set.",
+      "result": "`bindExperimentEvidence` slices the batch by `experiment.config.scoring_stage.evidence_cap`, and `experiments_scoring_seed_requests` reads the bound `experiment_evidence` set without rerunning per run, so no per-run evidence subset exists today.",
+      "files": [
+        "packages/engine/convex/domain/experiments/experiments_entrypoints.ts",
+        "packages/engine/convex/domain/experiments/stages/scoring/workflows/experiments_scoring_seed_requests.ts"
+      ]
+    }
+  ],
+  "counterEvidence": [],
+  "notes": "Evidence binding is unequivocally tied to the experiment record, leaving no contradictory implementation that re-slices evidence per run; the hypothesis holds."
+}

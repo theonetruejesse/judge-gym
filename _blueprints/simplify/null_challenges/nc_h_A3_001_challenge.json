@@ -1,0 +1,16 @@
+{
+  "challengeID": "nc_h_A3_001",
+  "microHypothesisID": "h_A3_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Check for per-run evidence slicing or re-binding that would contradict experiment-level freeze.",
+      "falsificationQueries": [
+        "rg \"experiment_evidence\" packages/engine/convex/domain -n"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "No per-run evidence slicing found; evidence binding and scoring read experiment-level evidence only.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

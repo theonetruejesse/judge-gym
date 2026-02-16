@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -193,8 +194,11 @@ export default function RouteOneExperimentPage({
 
   if (experimentsLoading) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Loading experiments...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Loading experiments...</p>
+        </div>
       </div>
     );
   }
@@ -419,41 +423,26 @@ export default function RouteOneExperimentPage({
 
   if (!selected) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">No experiments found.</p>
-        <Link href="/" className="mt-4 inline-block text-xs">
-          Back to judge-gym
-        </Link>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">No experiments found.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="flex h-11 flex-shrink-0 items-center justify-between border-b border-border bg-card/80 px-4">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-widest opacity-50">
-            judge-gym
-          </span>
-          <div className="h-3 w-px bg-border" />
-          <span
-            className="text-sm font-bold tracking-wide"
-            style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
-          >
-            EXPERIMENT DETAIL
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/" className="hover:text-[#ff6b35]">
-            judge-gym
-          </Link>
-        </div>
-      </header>
+      <LabNavbar />
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-6xl">
           <div className="mb-5 flex items-start justify-between">
             <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Experiment Detail
+              </p>
               <h1
                 className="text-xl font-bold tracking-tight text-foreground"
                 style={{ fontFamily: "var(--font-1-serif)" }}

@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A2_001",
+  "microHypothesisID": "h_A2_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Check if counts are part of spec signature and UI contracts.",
+      "falsificationQueries": [
+        "rg \"sample_count\" packages/engine/convex/utils/spec_signature.ts",
+        "rg \"sample_count\" packages/lab/app/editor/experiment/page.tsx"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/convex/utils/spec_signature.ts",
+        "packages/lab/app/editor/experiment/page.tsx"
+      ],
+      "falsificationAnalysis": "Spec signatures include counts, and UI validates/displays counts from experiment config, so moving counts purely to runs would break template dedupe and UI assumptions.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

@@ -1,0 +1,25 @@
+{
+  "microHypothesisID": "h_A4_001",
+  "outcome": "Failed",
+  "falsificationAttempts": [
+    {
+      "description": "Looked for dependents that would break if experiment-level counts were removed and only stored on runs.",
+      "result": "`buildExperimentSpecSignature` serializes the counts, and the lab editor/experiment detail views read the same fields from `config.scoring_stage`, so dual-source counts or fallbacks would create ambiguity unless these dependencies are rewritten.",
+      "files": [
+        "packages/engine/convex/utils/spec_signature.ts",
+        "packages/lab/app/editor/experiment/page.tsx"
+      ]
+    }
+  ],
+  "counterEvidence": [
+    {
+      "description": "Templates and run configs rely on the spec signature that currently embeds counts, so keeping experiment-level counts as fallback is needed just to preserve dedup/checksum behavior.",
+      "files": ["packages/engine/convex/utils/spec_signature.ts"]
+    },
+    {
+      "description": "The Lab editor and experiment detail UI treat counts as experiment-borne fields, so any migration must first move or extend those inputs rather than relying on run_config fallbacks.",
+      "files": ["packages/lab/app/editor/experiment/page.tsx"]
+    }
+  ],
+  "notes": "Because the existing system tightly couples counts to experiment config for template uniqueness and UI contracts, the claimed minimal migration (with run-level fallbacks) exposes contradictions in the assumptions."
+}

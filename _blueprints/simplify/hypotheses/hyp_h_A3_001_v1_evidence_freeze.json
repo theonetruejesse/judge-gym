@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A3_001",
+  "areaOfAnalysisID": "A3_Evidence_Policy",
+  "statement": "Evidence consistency across runs can be preserved by keeping experiment-level evidence binding while allowing run-level evidence_cap to decide how many bound items are used.",
+  "confidence": 0.62,
+  "rationale": "Evidence is frozen via experiment_evidence derived from a batch; run-level caps can operate on that frozen set if binding is unchanged.",
+  "keyAssumptions": [
+    "Binding can remain experiment-scoped without requiring per-run evidence subsets."
+  ],
+  "validationCriteria": [
+    "Confirm scoring reads experiment_evidence only; introduce run-level cap without altering bound set."
+  ],
+  "critiquePoints": [
+    "Per-run caps may need per-run evidence subsets for fairness or logging."
+  ],
+  "questions": [
+    "Should runs ever re-slice evidence for different caps, or must cap be enforced at bind time?"
+  ]
+}
