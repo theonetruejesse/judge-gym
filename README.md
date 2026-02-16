@@ -50,6 +50,7 @@ judge-gym/
 The Mission Control UI ships a multi-page layout focused on experiments and evidence windows.
 It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
 The UI does not ship mock data; empty tables will render until Convex has data.
+Experiment listings surface the configured sample count and evidence cap from each experiment config.
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 
