@@ -177,7 +177,7 @@ export const getRunSummary = zQuery({
 // Bulk export consumed by the Python analysis package (judge_gym.collect).
 //
 // One HTTP call per experiment — returns everything needed to build DataFrames:
-//   - experiment: id, tag (optional), rubric/scoring models, concept, config, status
+//   - experiment: id, tag, rubric/scoring models, concept, config, status
 //   - evidence:   id + title for each evidence article
 //   - scores:     flat rows (score fields + sample display fields)
 // ---------------------------------------------------------------------------

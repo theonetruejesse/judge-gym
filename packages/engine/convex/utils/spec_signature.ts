@@ -2,7 +2,6 @@ import type { ExperimentConfigInput, TaskType } from "../models/core";
 import { normalizeEvidenceView } from "../models/core";
 
 type ExperimentSpec = {
-  experiment_tag?: string;
   task_type: TaskType;
   config: ExperimentConfigInput;
 };

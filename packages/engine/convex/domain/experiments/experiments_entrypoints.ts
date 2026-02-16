@@ -3,13 +3,15 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation } from "../../platform/utils";
 import {
   ExperimentSpecInputSchema,
-  ExperimentSpecSchema,
+  ExperimentSpecNormalizedSchema,
+  WindowsInputSchema,
   WindowsTableSchema,
 } from "../../models/experiments";
 import { internal } from "../../_generated/api";
 import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import { normalizeExperimentSpec } from "../../utils/config_normalizer";
 import { ConfigTemplatesTableSchema } from "../../models/configs";
+import { buildExperimentTag, buildWindowTag } from "../../utils/tags";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 
@@ -17,7 +19,7 @@ import type { MutationCtx } from "../../_generated/server";
 
 export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    evidence_window: WindowsTableSchema,
+    evidence_window: WindowsInputSchema,
   }),
   returns: z.object({
     window_id: zid("windows"),
@@ -37,10 +39,18 @@ export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
       .first();
 
     if (existingWindow) {
+      if (!existingWindow.window_tag) {
+        await ctx.db.patch(existingWindow._id, {
+          window_tag: buildWindowTag(existingWindow),
+        });
+      }
       return { window_id: existingWindow._id, reused_window: true };
     }
 
-    const window_id = await ctx.db.insert("windows", evidence_window);
+    const window_id = await ctx.db.insert("windows", {
+      ...evidence_window,
+      window_tag: buildWindowTag(evidence_window),
+    });
     return { window_id, reused_window: false };
   },
 });
@@ -128,8 +138,15 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
       )
       .first();
     const window_id =
-      window?._id ?? (await ctx.db.insert("windows", evidence_window));
+      window?._id ??
+      (await ctx.db.insert("windows", {
+        ...evidence_window,
+        window_tag: buildWindowTag(evidence_window),
+      }));
     const reused_window = Boolean(window);
+    if (window && !window.window_tag) {
+      await ctx.db.patch(window._id, { window_tag: buildWindowTag(window) });
+    }
     const result = await ensureExperimentWithSpec(ctx, {
       window_id,
       evidence_window,
@@ -153,7 +170,7 @@ async function ensureConfigTemplate(
     template_id: string;
     version: number;
     evidence_window: z.infer<typeof WindowsTableSchema>;
-    experiment: z.infer<typeof ExperimentSpecSchema>;
+    experiment: z.infer<typeof ExperimentSpecNormalizedSchema>;
   },
 ) {
   const spec_signature = buildExperimentSpecSignature({
@@ -193,7 +210,7 @@ async function ensureExperimentWithSpec(
   args: {
     window_id: Id<"windows">;
     evidence_window: z.infer<typeof WindowsTableSchema>;
-    experiment: z.infer<typeof ExperimentSpecSchema>;
+    experiment: z.infer<typeof ExperimentSpecNormalizedSchema>;
     spec_signature: string;
     config_template_id: string;
     config_template_version: number;
@@ -221,6 +238,9 @@ async function ensureExperimentWithSpec(
       patch.config_template_id = args.config_template_id;
       patch.config_template_version = args.config_template_version;
     }
+    if (!existingExperiment.experiment_tag) {
+      patch.experiment_tag = buildExperimentTag();
+    }
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(existingExperiment._id, patch);
     }
@@ -233,6 +253,7 @@ async function ensureExperimentWithSpec(
 
   const experiment_id = await ctx.db.insert("experiments", {
     ...experiment,
+    experiment_tag: buildExperimentTag(),
     window_id,
     spec_signature: requestedSignature,
     status: "pending",

@@ -22,6 +22,10 @@ export const ExperimentSpecInputSchema = ExperimentSpecSchema.omit({
   config: ExperimentConfigInputSchema,
 });
 
+export const ExperimentSpecNormalizedSchema = ExperimentSpecSchema.omit({
+  experiment_tag: true,
+});
+
 export const ExperimentsTableSchema = ExperimentSpecSchema.extend({
   window_id: zid("windows"),
   spec_signature: z.string(),

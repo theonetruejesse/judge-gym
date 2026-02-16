@@ -233,7 +233,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: z.string(),
       concept: z.string(),
       model_id: modelTypeSchema,
-      window_tag: z.string().optional(),
+      window_tag: z.string(),
       evidence_count: z.number(),
     }),
   ),
@@ -564,13 +564,13 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(
     z.object({
       experiment_id: zid("experiments"),
-      experiment_tag: z.string().optional(),
+      experiment_tag: z.string(),
       task_type: TaskTypeSchema,
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
       evidence_batch_id: zid("evidence_batches").optional(),
       window_id: zid("windows"),
-      window_tag: z.string().optional(),
+      window_tag: z.string(),
       evidence_window: z
         .object({
           start_date: z.string(),
@@ -585,8 +585,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   handler: async (ctx) => {
     const experiments = await ctx.db.query("experiments").collect();
     experiments.sort((a, b) => {
-      const left = a.experiment_tag ?? a._id;
-      const right = b.experiment_tag ?? b._id;
+      const left = a.experiment_tag;
+      const right = b.experiment_tag;
       return left.localeCompare(right);
     });
 
@@ -598,7 +598,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         country: string;
         concept: string;
         model_id: z.infer<typeof modelTypeSchema>;
-        window_tag?: string;
+        window_tag: string;
       }
     >();
 
@@ -608,6 +608,9 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       if (!window) {
         const windowDoc = await ctx.db.get(experiment.window_id);
         if (windowDoc) {
+          if (!windowDoc.window_tag) {
+            throw new Error("Window tag missing");
+          }
           window = {
             start_date: windowDoc.start_date,
             end_date: windowDoc.end_date,
@@ -619,6 +622,12 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
           windows.set(experiment.window_id, window);
         }
       }
+      if (!experiment.experiment_tag) {
+        throw new Error("Experiment tag missing");
+      }
+      if (!window) {
+        throw new Error("Window not found");
+      }
 
       results.push({
         experiment_id: experiment._id,
@@ -628,7 +637,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         active_run_id: experiment.active_run_id,
         evidence_batch_id: experiment.evidence_batch_id,
         window_id: experiment.window_id,
-        window_tag: window?.window_tag,
+        window_tag: window.window_tag,
         evidence_window: window,
       });
     }
@@ -796,7 +805,7 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
     z.object({
       run_id: zid("runs"),
       experiment_id: zid("experiments"),
-      experiment_tag: z.string().optional(),
+      experiment_tag: z.string(),
       status: z.string(),
       desired_state: z.string(),
       current_stage: LlmStageSchema.optional(),
@@ -819,19 +828,22 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
       .collect();
 
     const all = runs.concat(paused, pending);
-    const experiments = new Map<string, string | undefined>();
+    const experiments = new Map<string, string>();
 
     for (const run of all) {
       if (!experiments.has(run.experiment_id)) {
         const experiment = await ctx.db.get(run.experiment_id);
-        experiments.set(run.experiment_id, experiment?.experiment_tag);
+        if (!experiment || !experiment.experiment_tag) {
+          throw new Error("Experiment tag missing");
+        }
+        experiments.set(run.experiment_id, experiment.experiment_tag);
       }
     }
 
     return all.map((run) => ({
       run_id: run._id,
       experiment_id: run.experiment_id,
-      experiment_tag: experiments.get(run.experiment_id),
+      experiment_tag: experiments.get(run.experiment_id)!,
       status: run.status,
       desired_state: run.desired_state,
       current_stage: run.current_stage ?? undefined,
