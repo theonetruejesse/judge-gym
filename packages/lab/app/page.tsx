@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import LabNavbar from "@/components/lab_navbar";
 
 const statuses = ["pending", "running", "paused", "complete", "canceled"];
 const statusOrder = new Map(statuses.map((status, index) => [status, index]));
@@ -114,16 +115,7 @@ export default function RouteOneExperimentsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
-        <div>
-          <h1
-            className="text-lg font-semibold"
-            style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
-          >
-            judge-gym
-          </h1>
-        </div>
-      </header>
+      <LabNavbar />
 
       <div className="mx-auto max-w-6xl space-y-8 px-6 py-6">
         <section>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useSearchParams } from "next/navigation";
@@ -25,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -51,14 +51,14 @@ type FormValues = z.infer<typeof formSchema>;
 export default function EvidenceWindowEditorPage() {
   if (!hasConvex) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
-        <p className="mt-2 text-xs opacity-60">
-          Set the Convex URL to enable the editor.
-        </p>
-        <Link href="/" className="mt-4 inline-block text-xs">
-          Back to judge-gym
-        </Link>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
+          <p className="mt-2 text-xs opacity-60">
+            Set the Convex URL to enable the editor.
+          </p>
+        </div>
       </div>
     );
   }
@@ -133,8 +133,10 @@ export default function EvidenceWindowEditorPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
-        <div>
+      <LabNavbar />
+
+      <div className="mx-auto max-w-3xl px-6 py-8">
+        <div className="mb-6">
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Evidence Window Editor
           </p>
@@ -145,128 +147,123 @@ export default function EvidenceWindowEditorPage() {
             Create Evidence Window
           </h1>
         </div>
-        <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/" className="hover:text-[#ff6b35]">
-            Back to judge-gym
-          </Link>
+
+        <div className="grid gap-6">
+          <Card className="border-border bg-card/80 p-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Evidence Window
+              </p>
+              <p className="mt-1 text-xs opacity-60">
+                Define the evidence time window and scraping model.
+              </p>
+            </div>
+
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(handleCreateWindow)}
+                className="mt-6 grid gap-4"
+              >
+                <FormField
+                  control={form.control}
+                  name="concept"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Concept</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="start_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Start Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="end_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>End Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="model_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Evidence Model</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                    Create Window
+                  </Button>
+                  {windowStatus && (
+                    <span className="text-[10px] uppercase tracking-wider opacity-60">
+                      {windowStatus}
+                    </span>
+                  )}
+                </div>
+              </form>
+            </Form>
+
+            <div className="mt-6 grid gap-2 text-[11px] opacity-60">
+              <span className="uppercase tracking-widest opacity-40">
+                Existing Windows
+              </span>
+              <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select window" />
+                </SelectTrigger>
+                <SelectContent>
+                  {windows?.map((window) => (
+                    <SelectItem key={window.window_id} value={window.window_id}>
+                      {window.window_tag ?? window.concept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
         </div>
-      </header>
-
-      <div className="mx-auto grid max-w-3xl gap-6 px-6 py-8">
-        <Card className="border-border bg-card/80 p-6">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest opacity-50">
-              Evidence Window
-            </p>
-            <p className="mt-1 text-xs opacity-60">
-              Define the evidence time window and scraping model.
-            </p>
-          </div>
-
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleCreateWindow)}
-              className="mt-6 grid gap-4"
-            >
-              <FormField
-                control={form.control}
-                name="concept"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Concept</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Country</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid gap-3 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="start_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Start Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="end_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>End Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={form.control}
-                name="model_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Evidence Model</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Button type="submit" className="text-[10px] uppercase tracking-wider">
-                  Create Window
-                </Button>
-                {windowStatus && (
-                  <span className="text-[10px] uppercase tracking-wider opacity-60">
-                    {windowStatus}
-                  </span>
-                )}
-              </div>
-            </form>
-          </Form>
-
-          <div className="mt-6 grid gap-2 text-[11px] opacity-60">
-            <span className="uppercase tracking-widest opacity-40">
-              Existing Windows
-            </span>
-            <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Select window" />
-              </SelectTrigger>
-              <SelectContent>
-                {windows?.map((window) => (
-                  <SelectItem key={window.window_id} value={window.window_id}>
-                    {window.window_tag ?? window.concept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
       </div>
     </div>
   );

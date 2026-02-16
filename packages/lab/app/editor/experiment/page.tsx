@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useSearchParams } from "next/navigation";
@@ -32,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -63,14 +63,14 @@ type FormValues = z.infer<typeof formSchema>;
 export default function ExperimentEditorPage() {
   if (!hasConvex) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
-        <p className="mt-2 text-xs opacity-60">
-          Set the Convex URL to enable the editor.
-        </p>
-        <Link href="/" className="mt-4 inline-block text-xs">
-          Back to judge-gym
-        </Link>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Missing `NEXT_PUBLIC_CONVEX_URL`.</p>
+          <p className="mt-2 text-xs opacity-60">
+            Set the Convex URL to enable the editor.
+          </p>
+        </div>
       </div>
     );
   }
@@ -178,8 +178,10 @@ export default function ExperimentEditorPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
-        <div>
+      <LabNavbar />
+
+      <div className="mx-auto max-w-4xl px-6 py-8">
+        <div className="mb-6">
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Experiment Editor
           </p>
@@ -190,282 +192,277 @@ export default function ExperimentEditorPage() {
             Create Experiment
           </h1>
         </div>
-        <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/" className="hover:text-[#ff6b35]">
-            Back to judge-gym
-          </Link>
+
+        <div className="grid gap-6">
+          <Card className="border-border bg-card/80 p-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Evidence Window
+              </p>
+              <p className="mt-1 text-xs opacity-60">
+                Select the evidence window to bind with this experiment.
+              </p>
+            </div>
+            <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
+              <SelectTrigger className="mt-4">
+                <SelectValue placeholder="Select window" />
+              </SelectTrigger>
+              <SelectContent>
+                {windows?.map((window) => (
+                  <SelectItem key={window.window_id} value={window.window_id}>
+                    {window.window_tag ?? window.concept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Card>
+
+          <Card className="border-border bg-card/80 p-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Experiment
+              </p>
+              <p className="mt-1 text-xs opacity-60">
+                Configure rubric + scoring stages and bind to an evidence window.
+              </p>
+            </div>
+
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(handleCreateExperiment)}
+                className="mt-6 grid gap-5"
+              >
+                <FormField
+                  control={form.control}
+                  name="task_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Task Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select task" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="rubric_model_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rubric Model</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="scale_size"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Scale Size</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value ? String(field.value) : ""}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select scale" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {[3, 4, 5].map((value) => (
+                              <SelectItem key={value} value={String(value)}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="scoring_model_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Scoring Model</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="method"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Scoring Method</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select method" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="sample_count"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sample Count</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={1} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="evidence_cap"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Evidence Cap</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={1} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="evidence_view"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Evidence View</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select view" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.entries(VIEW_LABELS).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="abstain_enabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={Boolean(field.value)}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel className="text-sm">Abstain Enabled</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="randomizations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Randomizations</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {randomizationOptions.map(([value, label]) => {
+                          const active = field.value.includes(value as FormValues["randomizations"][number]);
+                          return (
+                            <Button
+                              key={value}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-[10px] uppercase tracking-wider"
+                              style={{
+                                backgroundColor: active ? "#ff6b3530" : "#151a24",
+                                color: active ? "#ff6b35" : "#7a8599",
+                                borderColor: active ? "#ff6b3550" : "#1e2433",
+                              }}
+                              onClick={() => {
+                                const next = active
+                                  ? field.value.filter((item) => item !== value)
+                                  : [...field.value, value as FormValues["randomizations"][number]];
+                                field.onChange(next);
+                              }}
+                            >
+                              {label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="submit" className="text-[10px] uppercase tracking-wider">
+                    Save Experiment
+                  </Button>
+                  {experimentStatus && (
+                    <span className="text-[10px] uppercase tracking-wider opacity-60">
+                      {experimentStatus}
+                    </span>
+                  )}
+                </div>
+              </form>
+            </Form>
+          </Card>
         </div>
-      </header>
-
-      <div className="mx-auto grid max-w-4xl gap-6 px-6 py-8">
-        <Card className="border-border bg-card/80 p-6">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest opacity-50">
-              Evidence Window
-            </p>
-            <p className="mt-1 text-xs opacity-60">
-              Select the evidence window to bind with this experiment.
-            </p>
-          </div>
-          <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
-            <SelectTrigger className="mt-4">
-              <SelectValue placeholder="Select window" />
-            </SelectTrigger>
-            <SelectContent>
-              {windows?.map((window) => (
-                <SelectItem key={window.window_id} value={window.window_id}>
-                  {window.window_tag ?? window.concept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Card>
-
-        <Card className="border-border bg-card/80 p-6">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest opacity-50">
-              Experiment
-            </p>
-            <p className="mt-1 text-xs opacity-60">
-              Configure rubric + scoring stages and bind to an evidence window.
-            </p>
-          </div>
-
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleCreateExperiment)}
-              className="mt-6 grid gap-5"
-            >
-              <FormField
-                control={form.control}
-                name="task_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Task Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select task" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="rubric_model_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rubric Model</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="scale_size"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Scale Size</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value ? String(field.value) : ""}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select scale" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {[3, 4, 5].map((value) => (
-                            <SelectItem key={value} value={String(value)}>
-                              {value}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="scoring_model_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Scoring Model</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Scoring Method</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select method" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="sample_count"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sample Count</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={1} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="evidence_cap"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Evidence Cap</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={1} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="evidence_view"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Evidence View</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select view" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.entries(VIEW_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="abstain_enabled"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
-                      <FormControl>
-                        <Checkbox
-                          checked={Boolean(field.value)}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormLabel className="text-sm">Abstain Enabled</FormLabel>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="randomizations"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Randomizations</FormLabel>
-                    <div className="flex flex-wrap gap-2">
-                      {randomizationOptions.map(([value, label]) => {
-                        const active = field.value.includes(value as FormValues["randomizations"][number]);
-                        return (
-                          <Button
-                            key={value}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-[10px] uppercase tracking-wider"
-                            style={{
-                              backgroundColor: active ? "#ff6b3530" : "#151a24",
-                              color: active ? "#ff6b35" : "#7a8599",
-                              borderColor: active ? "#ff6b3550" : "#1e2433",
-                            }}
-                            onClick={() => {
-                              const next = active
-                                ? field.value.filter((item) => item !== value)
-                                : [...field.value, value as FormValues["randomizations"][number]];
-                              field.onChange(next);
-                            }}
-                          >
-                            {label}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Button type="submit" className="text-[10px] uppercase tracking-wider">
-                  Save Experiment
-                </Button>
-                {experimentStatus && (
-                  <span className="text-[10px] uppercase tracking-wider opacity-60">
-                    {experimentStatus}
-                  </span>
-                )}
-              </div>
-            </form>
-          </Form>
-        </Card>
       </div>
     </div>
   );

@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A4_001",
+  "microHypothesisID": "h_A4_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Assess whether dual-source fallback is feasible without ambiguity.",
+      "falsificationQueries": [
+        "rg \"sample_count\" packages/lab/app",
+        "rg \"spec_signature\" packages/engine/convex/utils/spec_signature.ts"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/lab/app/editor/experiment/page.tsx",
+        "packages/engine/convex/utils/spec_signature.ts"
+      ],
+      "falsificationAnalysis": "UI and spec signatures treat counts as experiment-level; dual-source fallback risks ambiguity and contract breakage.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

@@ -53,6 +53,7 @@ The UI does not ship mock data; empty tables will render until Convex has data.
 Experiment listings surface the configured sample count and evidence cap from each experiment config.
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
+Navigation is intentionally minimal: every Lab page includes the same `judge-gym` home link in the top nav.
 
 Routes:
 - `/` - Experiments + evidence windows

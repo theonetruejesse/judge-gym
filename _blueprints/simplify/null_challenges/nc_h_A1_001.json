@@ -1,0 +1,16 @@
+{
+  "microHypothesisID": "h_A1_001",
+  "outcome": "Passed",
+  "falsificationAttempts": [
+    {
+      "description": "Searched for run-level overrides and inspected the scoring/evidence-binding workflows.",
+      "result": "`experiments_scoring_seed_requests` reads `experiment.config.scoring_stage.sample_count`, and `bindExperimentEvidence` reads `experiment.config.scoring_stage.evidence_cap`, with no alternative providers.",
+      "files": [
+        "packages/engine/convex/domain/experiments/stages/scoring/workflows/experiments_scoring_seed_requests.ts",
+        "packages/engine/convex/domain/experiments/experiments_entrypoints.ts"
+      ]
+    }
+  ],
+  "counterEvidence": [],
+  "notes": "All observed consumers pull counts exclusively from `experiment.config.scoring_stage`; no hidden overrides or run-level sources were discovered, so the hypothesis stands as stated."
+}

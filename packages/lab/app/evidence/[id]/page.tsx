@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@judge-gym/engine";
@@ -21,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -132,35 +132,43 @@ export default function EvidenceWindowPage({
 
   if (!resolvedParams) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Loading evidence window...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Loading evidence window...</p>
+        </div>
       </div>
     );
   }
 
   if (!selectedWindow && !windowsLoading) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Evidence window not found.</p>
-        <Link href="/" className="mt-4 inline-block text-xs">
-          Back to judge-gym
-        </Link>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Evidence window not found.</p>
+        </div>
       </div>
     );
   }
 
   if (windowsLoading) {
     return (
-      <div className="min-h-screen px-6 py-12">
-        <p className="text-sm">Loading evidence window...</p>
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Loading evidence window...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border bg-card/80 px-6 py-4">
-        <div>
+      <LabNavbar />
+
+      <div className="px-6 py-6">
+        <div className="mb-6">
           <p className="text-[10px] uppercase tracking-widest opacity-50">
             Evidence Window
           </p>
@@ -177,14 +185,8 @@ export default function EvidenceWindowPage({
             {selectedWindow?.end_date ?? "—"} · {selectedWindow?.model_id ?? "—"}
           </p>
         </div>
-        <div className="flex items-center gap-3 text-[11px] opacity-60">
-          <Link href="/" className="hover:text-[#ff6b35]">
-            judge-gym
-          </Link>
-        </div>
-      </header>
 
-      <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <section className="space-y-4">
           <Card className="border-border bg-card/80 p-4">
             <div className="flex items-center justify-between">
@@ -317,6 +319,7 @@ export default function EvidenceWindowPage({
             </>
           )}
         </section>
+        </div>
       </div>
     </div>
   );

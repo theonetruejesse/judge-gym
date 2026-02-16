@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A4_001",
+  "areaOfAnalysisID": "A4_Migration_Surface",
+  "statement": "A minimal migration can add run-level counts to run_configs, update run start + scoring/binding to read those counts, and keep experiment-level counts as fallback during transition.",
+  "confidence": 0.64,
+  "rationale": "Run creation already writes run_config snapshots and entrypoints can be extended; consumers can be updated incrementally.",
+  "keyAssumptions": [
+    "Backwards compatibility via fallback is acceptable for existing templates/tests/UI."
+  ],
+  "validationCriteria": [
+    "Tests and lab UI can be updated to supply run-level counts; no hard dependency on experiment counts remains."
+  ],
+  "critiquePoints": [
+    "Dual-source counts may create ambiguity in logs and analytics."
+  ],
+  "questions": [
+    "Should we fully remove counts from experiment config after migration?"
+  ]
+}
