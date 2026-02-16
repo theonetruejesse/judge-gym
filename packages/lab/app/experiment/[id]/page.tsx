@@ -91,8 +91,6 @@ type ExperimentSummary = {
     scoring_stage: {
       model_id: string;
       method: string;
-      sample_count: number;
-      evidence_cap: number;
       randomizations: string[];
       evidence_view: string;
       abstain_enabled: boolean;
@@ -137,6 +135,7 @@ type RunSummary = {
   desired_state: string;
   current_stage?: string;
   stop_at_stage?: string;
+  run_counts?: { sample_count: number; evidence_cap: number } | null;
   stages: Array<{
     stage: string;
     status: string;
@@ -168,6 +167,8 @@ export default function RouteOneExperimentPage({
 }) {
   const [tab, setTab] = useState<"config" | "runs" | "evidence">("config");
   const [evidenceLimit, setEvidenceLimit] = useState<string>("");
+  const [runSampleCount, setRunSampleCount] = useState<string>("1");
+  const [runEvidenceCap, setRunEvidenceCap] = useState<string>("10");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [evidenceMessage, setEvidenceMessage] = useState<string | null>(null);
@@ -263,6 +264,12 @@ export default function RouteOneExperimentPage({
     }
   }, [evidenceBatchesData, selectedBatchId]);
 
+  useEffect(() => {
+    if (!runSummaryData?.run_counts) return;
+    setRunSampleCount(String(runSummaryData.run_counts.sample_count));
+    setRunEvidenceCap(String(runSummaryData.run_counts.evidence_cap));
+  }, [runSummaryData?.run_counts]);
+
   const runProgress = useMemo(() => {
     if (!runSummaryData?.stages) return 0;
     const totals = runSummaryData.stages.reduce(
@@ -284,9 +291,20 @@ export default function RouteOneExperimentPage({
       return;
     }
     setActionMessage(null);
+    const sampleCount = Number(runSampleCount);
+    const evidenceCap = Number(runEvidenceCap);
+    if (!Number.isFinite(sampleCount) || sampleCount < 1) {
+      setActionMessage("Provide a valid sample count.");
+      return;
+    }
+    if (!Number.isFinite(evidenceCap) || evidenceCap < 1) {
+      setActionMessage("Provide a valid evidence cap.");
+      return;
+    }
     try {
       const result = await startExperiment({
         experiment_id: selected.experiment_id,
+        run_counts: { sample_count: sampleCount, evidence_cap: evidenceCap },
       });
       if (!result.ok) {
         setActionMessage(result.error ?? "Failed to start experiment.");
@@ -346,9 +364,16 @@ export default function RouteOneExperimentPage({
       setActionMessage("Convex not configured.");
       return;
     }
+    if (!state?.latest_run?.run_id) {
+      setActionMessage("Start a run before queueing rubric generation.");
+      return;
+    }
     setActionMessage(null);
     try {
-      await queueRubric({ experiment_id: selected.experiment_id });
+      await queueRubric({
+        experiment_id: selected.experiment_id,
+        run_id: state.latest_run.run_id,
+      });
       setActionMessage("Queued rubric generation.");
     } catch (error) {
       setActionMessage(
@@ -363,9 +388,16 @@ export default function RouteOneExperimentPage({
       setActionMessage("Convex not configured.");
       return;
     }
+    if (!state?.latest_run?.run_id) {
+      setActionMessage("Start a run before queueing scoring.");
+      return;
+    }
     setActionMessage(null);
     try {
-      await queueScore({ experiment_id: selected.experiment_id });
+      await queueScore({
+        experiment_id: selected.experiment_id,
+        run_id: state.latest_run.run_id,
+      });
       setActionMessage("Queued scoring.");
     } catch (error) {
       setActionMessage(
@@ -405,11 +437,16 @@ export default function RouteOneExperimentPage({
       setEvidenceMessage("Convex not configured.");
       return;
     }
+    if (!state?.latest_run?.run_id) {
+      setEvidenceMessage("Start a run before binding evidence.");
+      return;
+    }
     setEvidenceMessage(null);
     try {
       const result = await bindExperimentEvidence({
         experiment_id: selected.experiment_id,
         evidence_batch_id: selectedBatchId,
+        run_id: state.latest_run.run_id,
       });
       setEvidenceMessage(
         `Bound ${result.bound_count}/${result.evidence_count} evidence.`,
@@ -465,6 +502,24 @@ export default function RouteOneExperimentPage({
               >
                 {selected.status}
               </Badge>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  className="h-8 w-20 text-[10px]"
+                  value={runSampleCount}
+                  onChange={(event) => setRunSampleCount(event.target.value)}
+                  placeholder="Samples"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  className="h-8 w-24 text-[10px]"
+                  value={runEvidenceCap}
+                  onChange={(event) => setRunEvidenceCap(event.target.value)}
+                  placeholder="Evidence"
+                />
+              </div>
               <Button
                 size="sm"
                 className="h-8 text-[10px] uppercase tracking-wider"
@@ -582,8 +637,6 @@ function ConfigPanel({
           scoring_stage: {
             model_id: string;
             method: string;
-            sample_count: number;
-            evidence_cap: number;
             randomizations: string[];
             evidence_view: string;
             abstain_enabled: boolean;
@@ -642,8 +695,6 @@ function ConfigPanel({
       SCORING_METHOD_LABELS[summary.config.scoring_stage.method] ??
         summary.config.scoring_stage.method,
     ],
-    ["Sample Count", `${summary.config.scoring_stage.sample_count}`],
-    ["Evidence Cap", `${summary.config.scoring_stage.evidence_cap}`],
     ["Abstain Enabled", summary.config.scoring_stage.abstain_enabled ? "Yes" : "No"],
     ["Randomizations", randomizations],
   ];
@@ -714,6 +765,7 @@ function RunsPanel({
         desired_state: string;
         current_stage?: string;
         stop_at_stage?: string;
+        run_counts?: { sample_count: number; evidence_cap: number } | null;
         stages: Array<{
           stage: string;
           status: string;
@@ -752,6 +804,11 @@ function RunsPanel({
               <span className="text-[10px] opacity-40">
                 {runSummary.current_stage ?? "no stage"} · desired {runSummary.desired_state}
               </span>
+              {runSummary.run_counts && (
+                <span className="text-[10px] uppercase tracking-wider opacity-40">
+                  samples {runSummary.run_counts.sample_count} · cap {runSummary.run_counts.evidence_cap}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <div className="w-32">

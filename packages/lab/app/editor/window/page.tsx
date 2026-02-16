@@ -6,8 +6,13 @@ import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
+import { CalendarIcon } from "lucide-react";
+import { format, parse } from "date-fns";
+import { MODEL_OPTIONS } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Form,
   FormControl,
@@ -17,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -43,7 +49,13 @@ const formSchema = z.object({
   country: z.string().min(1, "Country is required."),
   start_date: z.string().min(1, "Start date is required."),
   end_date: z.string().min(1, "End date is required."),
-  model_id: z.string().min(1, "Model ID is required."),
+  model_id: z
+    .string()
+    .min(1, "Evidence model is required.")
+    .refine(
+      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      "Invalid evidence model.",
+    ),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -72,18 +84,13 @@ export default function EvidenceWindowEditorPage() {
   ) as EvidenceWindowItem[] | undefined;
   const initEvidenceWindow = useMutation(api.lab.initEvidenceWindow);
 
-  const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
+  const [startDateOpen, setStartDateOpen] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
 
   const form = useForm<FormValues>({
     defaultValues: {},
   });
-
-  useEffect(() => {
-    if (!selectedWindowId && windows && windows.length > 0) {
-      setSelectedWindowId(windows[0].window_id);
-    }
-  }, [windows, selectedWindowId]);
 
   useEffect(() => {
     if (!cloneId || !windows) return;
@@ -96,7 +103,6 @@ export default function EvidenceWindowEditorPage() {
       end_date: match.end_date,
       model_id: match.model_id,
     });
-    setSelectedWindowId(match.window_id);
   }, [cloneId, windows, form]);
 
   const handleCreateWindow = async (values: FormValues) => {
@@ -120,7 +126,6 @@ export default function EvidenceWindowEditorPage() {
           ...parsed.data,
         },
       });
-      setSelectedWindowId(result.window_id);
       setWindowStatus(
         result.reused_window ? "Reused existing window." : "Created new window.",
       );
@@ -130,6 +135,15 @@ export default function EvidenceWindowEditorPage() {
       );
     }
   };
+
+  const parseDateValue = (value?: string) => {
+    if (!value) return undefined;
+    const parsed = parse(value, "yyyy-MM-dd", new Date());
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  const startDateValue = form.watch("start_date");
+  const endDateValue = form.watch("end_date");
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -197,9 +211,41 @@ export default function EvidenceWindowEditorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Start Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                              >
+                                {field.value || "Pick a date"}
+                                <CalendarIcon className="h-4 w-4 opacity-60" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto border-border bg-card p-0 text-foreground shadow-md"
+                            align="start"
+                          >
+                            <Calendar
+                              mode="single"
+                              selected={parseDateValue(field.value)}
+                              onSelect={(date) => {
+                                field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                                setStartDateOpen(false);
+                                const currentEnd = parseDateValue(endDateValue);
+                                if (date && currentEnd && currentEnd < date) {
+                                  form.setValue("end_date", "");
+                                }
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -210,9 +256,41 @@ export default function EvidenceWindowEditorPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>End Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
+                        <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                              >
+                                {field.value || "Pick a date"}
+                                <CalendarIcon className="h-4 w-4 opacity-60" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto border-border bg-card p-0 text-foreground shadow-md"
+                            align="start"
+                          >
+                            <Calendar
+                              mode="single"
+                              selected={parseDateValue(field.value)}
+                              onSelect={(date) => {
+                                field.onChange(date ? format(date, "yyyy-MM-dd") : "");
+                                setEndDateOpen(false);
+                              }}
+                              disabled={(date) => {
+                                const start = parseDateValue(startDateValue);
+                                return Boolean(start && date < start);
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -224,9 +302,20 @@ export default function EvidenceWindowEditorPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Evidence Model</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {MODEL_OPTIONS.map((modelId) => (
+                            <SelectItem key={modelId} value={modelId}>
+                              {modelId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -245,23 +334,6 @@ export default function EvidenceWindowEditorPage() {
               </form>
             </Form>
 
-            <div className="mt-6 grid gap-2 text-[11px] opacity-60">
-              <span className="uppercase tracking-widest opacity-40">
-                Existing Windows
-              </span>
-              <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select window" />
-                </SelectTrigger>
-                <SelectContent>
-                  {windows?.map((window) => (
-                    <SelectItem key={window.window_id} value={window.window_id}>
-                      {window.window_tag ?? window.concept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </Card>
         </div>
       </div>

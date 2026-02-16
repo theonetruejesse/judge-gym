@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
 import {
+  MODEL_OPTIONS,
   RANDOMIZATION_LABELS,
   SCORING_METHOD_LABELS,
   TASK_TYPE_LABELS,
@@ -47,12 +48,22 @@ type EvidenceWindowItem = {
 
 const formSchema = z.object({
   task_type: z.enum(["ecc", "control", "benchmark"]),
-  rubric_model_id: z.string().min(1, "Rubric model is required."),
-  scoring_model_id: z.string().min(1, "Scoring model is required."),
+  rubric_model_id: z
+    .string()
+    .min(1, "Rubric model is required.")
+    .refine(
+      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      "Invalid rubric model.",
+    ),
+  scoring_model_id: z
+    .string()
+    .min(1, "Scoring model is required.")
+    .refine(
+      (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
+      "Invalid scoring model.",
+    ),
   scale_size: z.coerce.number().int().min(3).max(5),
   method: z.enum(["single", "subset"]),
-  sample_count: z.coerce.number().int().min(1, "Sample count must be at least 1."),
-  evidence_cap: z.coerce.number().int().min(1, "Evidence cap must be at least 1."),
   evidence_view: z.enum(["l0_raw", "l1_cleaned", "l2_neutralized", "l3_abstracted"]),
   abstain_enabled: z.boolean(),
   randomizations: z.array(z.enum(["anonymize_labels", "shuffle_rubric_order", "hide_label_text"])),
@@ -113,8 +124,6 @@ export default function ExperimentEditorPage() {
       scoring_model_id: config.scoring_stage.model_id,
       scale_size: config.rubric_stage.scale_size,
       method: config.scoring_stage.method,
-      sample_count: config.scoring_stage.sample_count,
-      evidence_cap: config.scoring_stage.evidence_cap,
       evidence_view: config.scoring_stage.evidence_view,
       abstain_enabled: config.scoring_stage.abstain_enabled,
       randomizations: config.scoring_stage.randomizations,
@@ -159,8 +168,6 @@ export default function ExperimentEditorPage() {
             scoring_stage: {
               model_id: parsed.data.scoring_model_id,
               method: parsed.data.method,
-              sample_count: parsed.data.sample_count,
-              evidence_cap: parsed.data.evidence_cap,
               randomizations: parsed.data.randomizations,
               evidence_view: parsed.data.evidence_view,
               abstain_enabled: parsed.data.abstain_enabled,
@@ -258,19 +265,30 @@ export default function ExperimentEditorPage() {
                 />
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="rubric_model_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rubric Model</FormLabel>
+                <FormField
+                  control={form.control}
+                  name="rubric_model_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rubric Model</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
-                          <Input {...field} />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        <SelectContent>
+                          {MODEL_OPTIONS.map((modelId) => (
+                            <SelectItem key={modelId} value={modelId}>
+                              {modelId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                   <FormField
                     control={form.control}
                     name="scale_size"
@@ -301,19 +319,30 @@ export default function ExperimentEditorPage() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="scoring_model_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Scoring Model</FormLabel>
+                <FormField
+                  control={form.control}
+                  name="scoring_model_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Scoring Model</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
-                          <Input {...field} />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                        <SelectContent>
+                          {MODEL_OPTIONS.map((modelId) => (
+                            <SelectItem key={modelId} value={modelId}>
+                              {modelId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                   <FormField
                     control={form.control}
                     name="method"
@@ -334,35 +363,6 @@ export default function ExperimentEditorPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="sample_count"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sample Count</FormLabel>
-                        <FormControl>
-                          <Input type="number" min={1} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="evidence_cap"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Evidence Cap</FormLabel>
-                        <FormControl>
-                          <Input type="number" min={1} {...field} />
-                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
