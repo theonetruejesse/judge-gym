@@ -28,12 +28,12 @@ export const ExperimentSpecNormalizedSchema = ExperimentSpecSchema.omit({
 
 export const ExperimentsTableSchema = ExperimentSpecSchema.extend({
   window_id: zid("windows"),
-  spec_signature: z.string(),
   status: ExperimentStatusSchema,
   config_template_id: z.string(),
   config_template_version: z.number(),
   active_run_id: zid("runs").optional(),
   evidence_batch_id: zid("evidence_batches").optional(),
+  evidence_count: z.number().int().min(0).optional(),
 });
 
 export const WindowsTableSchema = z.object({

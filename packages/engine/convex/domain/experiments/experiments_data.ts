@@ -156,6 +156,7 @@ export const getRunSummary = zQuery({
       current_stage: run.current_stage,
       stop_at_stage: run.stop_at_stage,
       config: runConfig?.config_body.experiment.config ?? experiment.config,
+      run_counts: runConfig?.run_counts ?? null,
       counts: {
         samples: samples.length,
         scores: scores.length,

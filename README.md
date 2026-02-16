@@ -55,6 +55,8 @@ Evidence content can be retrieved via `lab.getEvidenceContent` for evidence wind
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 Navigation is intentionally minimal: every Lab page includes the same `judge-gym` home link in the top nav.
 Evidence window dates use the shadcn calendar picker, and model fields are validated via schema-backed dropdowns.
+The experiment editor evidence window dropdown always includes a “Create new window” action that routes to `/editor/window`.
+Experiment editor fields are grouped into Rubric Stage and Scoring Stage sections with minimal inline labels.
 
 Routes:
 - `/` - Experiments + evidence windows

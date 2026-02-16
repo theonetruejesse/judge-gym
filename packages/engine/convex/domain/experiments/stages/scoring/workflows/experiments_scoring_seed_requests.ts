@@ -14,16 +14,26 @@ import type { Id } from "../../../../../_generated/dataModel";
 export const seedScoreRequests = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
+    run_id: zid("runs"),
   }),
   returns: z.object({
     samples_created: z.number(),
     evidence_count: z.number(),
   }),
-  handler: async (ctx, { experiment_id }) => {
+  handler: async (ctx, { experiment_id, run_id }) => {
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
-    const sample_count = experiment.config.scoring_stage.sample_count;
+    const run = await ctx.db.get(run_id);
+    if (!run || run.experiment_id !== experiment._id) {
+      throw new Error("Run not found for experiment");
+    }
+    if (!run.run_config_id) {
+      throw new Error("Run config missing");
+    }
+    const runConfig = await ctx.db.get(run.run_config_id);
+    if (!runConfig) throw new Error("Run config not found");
+    const { sample_count } = runConfig.run_counts;
     const rubrics = await ctx.db
       .query("rubrics")
       .withIndex("by_experiment_model", (q) =>

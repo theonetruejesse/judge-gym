@@ -6,7 +6,6 @@ import {
   ConfigTemplatesTableSchema,
 } from "../../models/configs";
 import { normalizeConfigTemplateBody } from "../../utils/config_normalizer";
-import { buildExperimentSpecSignature } from "../../utils/spec_signature";
 import type { MutationCtx } from "../../_generated/server";
 
 export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
@@ -22,14 +21,9 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
     template_id: z.string(),
     version: z.number(),
     created: z.boolean(),
-    spec_signature: z.string(),
   }),
   handler: async (ctx: MutationCtx, args) => {
     const normalized = normalizeConfigTemplateBody(args.config_body);
-    const spec_signature = buildExperimentSpecSignature({
-      evidence_window: normalized.evidence_window,
-      experiment: normalized.experiment,
-    });
 
     const existing: z.infer<typeof ConfigTemplatesTableSchema> | null =
       await ctx.runQuery(
@@ -41,16 +35,10 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
     );
 
     if (existing) {
-      if (existing.spec_signature !== spec_signature) {
-        throw new Error(
-          `Config template mismatch for ${args.template_id} v${args.version}`,
-        );
-      }
       return {
         template_id: existing.template_id,
         version: existing.version,
         created: false,
-        spec_signature: existing.spec_signature,
       };
     }
 
@@ -62,14 +50,12 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
       created_at: Date.now(),
       created_by: args.created_by,
       notes: args.notes,
-      spec_signature,
     });
 
     return {
       template_id: args.template_id,
       version: args.version,
       created: true,
-      spec_signature,
     };
   },
 });

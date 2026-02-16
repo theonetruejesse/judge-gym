@@ -11,7 +11,6 @@
       "model_id": "gpt-4.1"
     },
     "experiment": {
-      "experiment_tag": "pilot_fascism_ecc_2026_01_01",
       "task_type": "ecc",
       "config": {
         "rubric_stage": {
@@ -21,8 +20,6 @@
         "scoring_stage": {
           "model_id": "gpt-4.1",
           "method": "subset",
-          "sample_count": 10,
-          "evidence_cap": 10,
           "randomizations": [
             "anonymize_labels",
             "shuffle_rubric_order",

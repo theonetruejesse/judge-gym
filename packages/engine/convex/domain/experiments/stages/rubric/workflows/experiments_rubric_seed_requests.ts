@@ -9,7 +9,7 @@ import type { Id } from "../../../../../_generated/dataModel";
 export const seedRubricRequests = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
-    sample_count: z.number().min(1).optional(),
+    sample_count: z.number().min(1),
   }),
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
   handler: async (ctx, { experiment_id, sample_count }) => {
@@ -28,7 +28,7 @@ export const seedRubricRequests = zInternalMutation({
       )
       .collect();
 
-    const targetCount = sample_count ?? 1;
+    const targetCount = sample_count;
     const rubrics: Array<{ _id: Id<"rubrics"> }> = existingRubrics
       .slice()
       .sort((a, b) => a._creationTime - b._creationTime)
