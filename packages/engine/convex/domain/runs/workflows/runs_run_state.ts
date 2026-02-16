@@ -2,6 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../../platform/utils";
 import { LlmStageSchema } from "../../../models/core";
+import { internal } from "../../../_generated/api";
 
 const REQUEST_STATUSES = [
   "queued",
@@ -24,23 +25,21 @@ export function computeStageStatus(args: {
   return "running";
 }
 
-export const refreshRunStageCountsForExperiment = zInternalMutation({
+export const refreshRunStageCountsForRun = zInternalMutation({
   args: z.object({
-    experiment_id: zid("experiments"),
+    run_id: zid("runs"),
     stage: LlmStageSchema,
   }),
-  handler: async (ctx, { experiment_id, stage }) => {
-    const experiment = await ctx.db.get(experiment_id);
-    if (!experiment?.active_run_id) return;
-    const activeRun = await ctx.db.get(experiment.active_run_id);
-    if (!activeRun) return;
-    if (activeRun.status === "complete" || activeRun.status === "canceled") {
+  handler: async (ctx, { run_id, stage }) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) return;
+    if (run.status === "complete" || run.status === "canceled") {
       return;
     }
 
     const stageRow = await ctx.db
       .query("run_stages")
-      .withIndex("by_run", (q) => q.eq("run_id", activeRun._id))
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .filter((q) => q.eq(q.field("stage"), stage))
       .first();
 
@@ -53,14 +52,13 @@ export const refreshRunStageCountsForExperiment = zInternalMutation({
     for (const status of REQUEST_STATUSES) {
       const rows = await ctx.db
         .query("llm_requests")
-        .withIndex("by_stage_status", (q) =>
-          q.eq("stage", stage).eq("status", status),
+        .withIndex("by_run_stage_status", (q) =>
+          q.eq("run_id", run._id).eq("stage", stage).eq("status", status),
         )
         .collect();
-      const filtered = rows.filter((r) => r.experiment_id === experiment_id);
-      total += filtered.length;
-      if (status === "completed") completed += filtered.length;
-      if (status === "error") failed += filtered.length;
+      total += rows.length;
+      if (status === "completed") completed += rows.length;
+      if (status === "error") failed += rows.length;
     }
 
     const stageStatus = computeStageStatus({ total, completed, failed });
@@ -73,20 +71,46 @@ export const refreshRunStageCountsForExperiment = zInternalMutation({
       updated_at: Date.now(),
     });
 
+    if (
+      stage === "rubric_critic" &&
+      stageStatus === "complete" &&
+      !run.scoring_seeded_at &&
+      run.desired_state === "running"
+    ) {
+      await ctx.runMutation(
+        internal.domain.experiments.stages.scoring.workflows.experiments_scoring_seed_requests
+          .seedScoreRequests,
+        { experiment_id: run.experiment_id, run_id: run._id },
+      );
+      await ctx.db.patch(run._id, {
+        scoring_seeded_at: Date.now(),
+        current_stage: "score_gen",
+        updated_at: Date.now(),
+      });
+    }
+
+    if (
+      run.desired_state === "paused" &&
+      run.stop_at_stage === stage &&
+      stageStatus === "complete"
+    ) {
+      await ctx.db.patch(run._id, {
+        status: "paused",
+        updated_at: Date.now(),
+      });
+    }
+
     const stages = await ctx.db
       .query("run_stages")
-      .withIndex("by_run", (q) => q.eq("run_id", activeRun._id))
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .collect();
 
     const allComplete = stages.every((s) => s.status === "complete");
     if (allComplete) {
-      await ctx.db.patch(activeRun._id, {
+      await ctx.db.patch(run._id, {
         status: "complete",
+        last_stage_completed_at: Date.now(),
         updated_at: Date.now(),
-      });
-      await ctx.db.patch(experiment._id, {
-        active_run_id: undefined,
-        status: "complete",
       });
     }
   },

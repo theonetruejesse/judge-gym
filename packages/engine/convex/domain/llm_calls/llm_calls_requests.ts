@@ -16,6 +16,7 @@ const GetOrCreateArgsSchema = z.object({
   model: modelTypeSchema,
   system_prompt: z.string().optional(),
   user_prompt: z.string().optional(),
+  run_id: zid("runs").nullable(),
   experiment_id: zid("experiments").nullable(),
   rubric_id: zid("rubrics").nullable(),
   sample_id: zid("samples").nullable(),
@@ -77,6 +78,7 @@ export async function getOrCreateLlmRequestImpl(
         .eq("stage", args.stage)
         .eq("provider", args.provider)
         .eq("model", args.model)
+        .eq("run_id", args.run_id)
         .eq("experiment_id", args.experiment_id)
         .eq("rubric_id", args.rubric_id)
         .eq("sample_id", args.sample_id)
@@ -100,6 +102,7 @@ export async function getOrCreateLlmRequestImpl(
     model: args.model,
     system_prompt: args.system_prompt,
     user_prompt: args.user_prompt,
+    run_id: args.run_id,
     experiment_id: args.experiment_id,
     rubric_id: args.rubric_id,
     sample_id: args.sample_id,

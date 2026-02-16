@@ -4,6 +4,7 @@ import { zInternalMutation, zInternalQuery } from "../../platform/utils";
 import {
   LlmStageSchema,
   RunDesiredStateSchema,
+  RunCountsSchema,
   RunStageStatusSchema,
   RunStatusSchema,
 } from "../../models/core";
@@ -30,6 +31,9 @@ export const patchRun = zInternalMutation({
     desired_state: RunDesiredStateSchema.optional(),
     stop_at_stage: LlmStageSchema.optional(),
     current_stage: LlmStageSchema.optional(),
+    run_counts: RunCountsSchema.optional(),
+    rubric_seeded_at: z.number().optional(),
+    scoring_seeded_at: z.number().optional(),
     last_stage_completed_at: z.number().optional(),
     updated_at: z.number().optional(),
   }),

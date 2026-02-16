@@ -28,7 +28,6 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
     queued_clean: z.number(),
     queued_neutralize: z.number(),
     queued_abstract: z.number(),
-    evidence_batch_id: zid("evidence_batches"),
     evidence_count: z.number(),
   }),
   handler: async (ctx, { window_id, limit }) => {
@@ -99,15 +98,6 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
       throw new Error("No evidence found for window");
     }
 
-    const batchResult = await ctx.runMutation(
-      internal.domain.evidence.workflows.evidence_collect.createEvidenceBatch,
-      {
-        window_id,
-        evidence_limit: lim,
-        evidence_ids: selected.map((row) => row._id),
-      },
-    );
-
     const queueResult = await ctx.runMutation(
       internal.domain.evidence.workflows.evidence_collect.queueEvidenceProcessing,
       { window_id },
@@ -119,47 +109,10 @@ export const collectEvidence: ReturnType<typeof zInternalAction> = zInternalActi
       queued_clean: queueResult.queued_clean,
       queued_neutralize: queueResult.queued_neutralize,
       queued_abstract: queueResult.queued_abstract,
-      evidence_batch_id: batchResult.evidence_batch_id,
-      evidence_count: batchResult.evidence_count,
+      evidence_count: evidence.length,
     };
   },
 });
-
-export const createEvidenceBatch: ReturnType<typeof zInternalMutation> =
-  zInternalMutation({
-    args: z.object({
-      window_id: zid("windows"),
-      evidence_limit: z.number().min(1),
-      evidence_ids: z.array(zid("evidences")).min(1),
-    }),
-    returns: z.object({
-      evidence_batch_id: zid("evidence_batches"),
-      evidence_count: z.number(),
-    }),
-    handler: async (ctx, { window_id, evidence_limit, evidence_ids }) => {
-      const evidence_batch_id = await ctx.db.insert("evidence_batches", {
-        window_id,
-        evidence_limit,
-        evidence_count: evidence_ids.length,
-        created_at: Date.now(),
-      });
-
-      let position = 1;
-      for (const evidence_id of evidence_ids) {
-        await ctx.db.insert("evidence_batch_items", {
-          batch_id: evidence_batch_id,
-          evidence_id,
-          position,
-        });
-        position += 1;
-      }
-
-      return {
-        evidence_batch_id,
-        evidence_count: evidence_ids.length,
-      };
-    },
-  });
 
 export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
   zInternalMutation({
@@ -196,6 +149,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             model: evidenceModel,
             system_prompt: EVIDENCE_CLEANING_INSTRUCTIONS,
             user_prompt: cleanPrompt(row.raw_content),
+            run_id: null,
             experiment_id: null,
             rubric_id: null,
             sample_id: null,
@@ -218,6 +172,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             model: evidenceModel,
             system_prompt: NEUTRALIZE_INSTRUCTIONS,
             user_prompt: neutralizePrompt(source),
+            run_id: null,
             experiment_id: null,
             rubric_id: null,
             sample_id: null,
@@ -240,6 +195,7 @@ export const queueEvidenceProcessing: ReturnType<typeof zInternalMutation> =
             model: evidenceModel,
             system_prompt: STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
             user_prompt: abstractPrompt(source),
+            run_id: null,
             experiment_id: null,
             rubric_id: null,
             sample_id: null,

@@ -28,18 +28,11 @@ export const seedScoreRequests = zInternalMutation({
     if (!run || run.experiment_id !== experiment._id) {
       throw new Error("Run not found for experiment");
     }
-    if (!run.run_config_id) {
-      throw new Error("Run config missing");
-    }
-    const runConfig = await ctx.db.get(run.run_config_id);
-    if (!runConfig) throw new Error("Run config not found");
-    const { sample_count } = runConfig.run_counts;
+    const { sample_count } = run.run_counts;
     const rubrics = await ctx.db
       .query("rubrics")
-      .withIndex("by_experiment_model", (q) =>
-        q
-          .eq("experiment_id", experiment._id)
-          .eq("model_id", experiment.config.rubric_stage.model_id),
+      .withIndex("by_run_model", (q) =>
+        q.eq("run_id", run_id).eq("model_id", experiment.config.rubric_stage.model_id),
       )
       .collect();
     if (rubrics.length === 0) throw new Error("Rubric not found");
@@ -86,6 +79,7 @@ export const seedScoreRequests = zInternalMutation({
         : undefined;
 
       const sampleId = await ctx.db.insert("samples", {
+        run_id,
         experiment_id: experiment._id,
         model_id: experiment.config.scoring_stage.model_id,
         rubric_id: rubric._id,
@@ -101,6 +95,7 @@ export const seedScoreRequests = zInternalMutation({
 
       for (const ev of evidence) {
         const score_id = await ctx.db.insert("scores", {
+          run_id,
           sample_id: sampleDoc._id,
           experiment_id: experiment._id,
           model_id: experiment.config.scoring_stage.model_id,
@@ -141,6 +136,7 @@ export const seedScoreRequests = zInternalMutation({
             model: experiment.config.scoring_stage.model_id,
             system_prompt: prompts.system_prompt,
             user_prompt: prompts.user_prompt,
+            run_id,
             experiment_id: experiment._id,
             rubric_id: sampleDoc.rubric_id,
             sample_id: sampleDoc._id,
@@ -153,8 +149,8 @@ export const seedScoreRequests = zInternalMutation({
     }
 
     await ctx.runMutation(
-      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-      { experiment_id: experiment._id, stage: "score_gen" },
+      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+      { run_id, stage: "score_gen" },
     );
 
     return { samples_created: samples.length, evidence_count: evidence.length };

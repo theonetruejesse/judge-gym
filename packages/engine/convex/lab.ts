@@ -11,12 +11,12 @@ import {
   providerSchema,
   ExperimentStatusSchema,
   TaskTypeSchema,
+  ExperimentConfigSchema,
 } from "./models/core";
 import {
   ExperimentSpecInputSchema,
   WindowsInputSchema,
 } from "./models/experiments";
-import { ConfigTemplateBodyInputSchema } from "./models/configs";
 
 export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
@@ -71,8 +71,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     window_id: zid("windows"),
     experiment: ExperimentSpecInputSchema,
     evidence_ids: z.array(zid("evidences")).min(1),
-    template_id: z.string().optional(),
-    template_version: z.number().optional(),
   }),
   returns: z.object({
     window_id: zid("windows"),
@@ -86,27 +84,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     );
   },
 });
-
-export const initExperimentFromTemplate: ReturnType<typeof zMutation> =
-  zMutation({
-    args: z.object({
-      template_id: z.string(),
-      version: z.number().int().min(1),
-      evidence_ids: z.array(zid("evidences")).min(1),
-    }),
-    returns: z.object({
-      window_id: zid("windows"),
-      experiment_id: zid("experiments"),
-      reused_window: z.boolean(),
-      reused_experiment: z.boolean(),
-    }),
-    handler: async (ctx, args) => {
-      return ctx.runMutation(
-        api.domain.experiments.experiments_entrypoints.initExperimentFromTemplate,
-        args,
-      );
-    },
-  });
 
 export const collectEvidence: ReturnType<typeof zAction> = zAction({
   args: z.object({
@@ -155,28 +132,6 @@ export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
-export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    template_id: z.string(),
-    version: z.number().int().min(1),
-    schema_version: z.number().int().min(1),
-    config_body: ConfigTemplateBodyInputSchema,
-    created_by: z.string().optional(),
-    notes: z.string().optional(),
-  }),
-  returns: z.object({
-    template_id: z.string(),
-    version: z.number(),
-    created: z.boolean(),
-  }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      api.domain.configs.configs_entrypoints.seedConfigTemplate,
-      args,
-    );
-  },
-});
-
 export const startExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -186,7 +141,9 @@ export const startExperiment: ReturnType<typeof zMutation> = zMutation({
   }),
   returns: z.object({
     ok: z.boolean(),
-    run_id: zid("runs").optional(),
+    run_ids: z.array(zid("runs")).optional(),
+    created_run_id: zid("runs").optional(),
+    started: z.number().optional(),
     error: z.string().optional(),
   }),
   handler: async (ctx, args) => {
@@ -205,37 +162,6 @@ export const updateRunState: ReturnType<typeof zMutation> = zMutation({
   returns: z.object({ ok: z.boolean() }),
   handler: async (ctx, args) => {
     return ctx.runMutation(api.domain.runs.runs_entrypoints.updateRunState, args);
-  },
-});
-
-export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      api.domain.experiments.experiments_entrypoints.queueRubricGeneration,
-      args,
-    );
-  },
-});
-
-export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({
-    samples_created: z.number(),
-    evidence_count: z.number(),
-  }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      api.domain.experiments.experiments_entrypoints.queueScoreGeneration,
-      args,
-    );
   },
 });
 
@@ -357,7 +283,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       experiments: z.number(),
       runs: z.number(),
       run_stages: z.number(),
-      run_configs: z.number(),
       rubrics: z.number(),
       samples: z.number(),
       scores: z.number(),
@@ -560,11 +485,11 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       experiment_tag: z.string(),
       task_type: TaskTypeSchema,
       status: ExperimentStatusSchema,
-      active_run_id: zid("runs").optional(),
       run_counts: RunCountsSchema.optional(),
       evidence_selected_count: z.number().optional(),
       window_id: zid("windows"),
       window_tag: z.string(),
+      config: ExperimentConfigSchema,
       evidence_window: z
         .object({
           start_date: z.string(),
@@ -622,22 +547,27 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       if (!window) {
         throw new Error("Window not found");
       }
-      const activeRun = experiment.active_run_id
-        ? await ctx.db.get(experiment.active_run_id)
-        : null;
-      const runConfig =
-        activeRun?.run_config_id ? await ctx.db.get(activeRun.run_config_id) : null;
+      const runs = await ctx.db
+        .query("runs")
+        .withIndex("by_experiment", (q) =>
+          q.eq("experiment_id", experiment._id),
+        )
+        .collect();
+      const latestRun = runs
+        .slice()
+        .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
+      const status = deriveExperimentStatus(runs);
 
       results.push({
         experiment_id: experiment._id,
         experiment_tag: experiment.experiment_tag,
         task_type: experiment.task_type,
-        status: experiment.status,
-        active_run_id: experiment.active_run_id,
-        run_counts: runConfig?.run_counts,
+        status,
+        run_counts: latestRun?.run_counts,
         evidence_selected_count: experiment.evidence_count,
         window_id: experiment.window_id,
         window_tag: window.window_tag,
+        config: experiment.config,
         evidence_window: window,
       });
     }
@@ -645,6 +575,18 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
     return results;
   },
 });
+
+function deriveExperimentStatus(
+  runs: Array<{ status: string }>,
+): z.infer<typeof ExperimentStatusSchema> {
+  if (runs.length === 0) return "pending";
+  const statuses = runs.map((run) => run.status);
+  if (statuses.some((status) => status === "running")) return "running";
+  if (statuses.some((status) => status === "paused")) return "paused";
+  if (statuses.every((status) => status === "complete")) return "complete";
+  if (statuses.some((status) => status === "canceled")) return "canceled";
+  return "pending";
+}
 
 export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
   args: z.object({
@@ -675,6 +617,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
           parse_status: ParseStatusSchema.optional(),
         })
         .optional(),
+      status: ExperimentStatusSchema.optional(),
       run_count: z.number().optional(),
       running_count: z.number().optional(),
       latest_run: z
@@ -734,6 +677,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
       const latest = runs
         .slice()
         .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
+      const status = deriveExperimentStatus(runs);
 
       results.push({
         experiment_id,
@@ -759,6 +703,7 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
               parse_status: rubric.parse_status,
             }
           : undefined,
+        status,
         run_count,
         running_count,
         latest_run: latest
@@ -787,6 +732,7 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
       desired_state: z.string(),
       current_stage: LlmStageSchema.optional(),
       stop_at_stage: LlmStageSchema.optional(),
+      run_counts: RunCountsSchema.optional(),
       updated_at: z.number().optional(),
     }),
   ),
@@ -825,6 +771,7 @@ export const listRuns: ReturnType<typeof zQuery> = zQuery({
       desired_state: run.desired_state,
       current_stage: run.current_stage ?? undefined,
       stop_at_stage: run.stop_at_stage ?? undefined,
+      run_counts: run.run_counts,
       updated_at: run.updated_at,
     }));
   },

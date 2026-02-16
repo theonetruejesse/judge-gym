@@ -16,6 +16,16 @@ const DEFAULT_RUN_STAGES = [
   "score_critic",
 ] as const;
 
+const STAGE_ORDER = [
+  "evidence_clean",
+  "evidence_neutralize",
+  "evidence_abstract",
+  "rubric_gen",
+  "rubric_critic",
+  "score_gen",
+  "score_critic",
+] as const;
+
 export const createRun = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -31,10 +41,10 @@ export const createRun = zMutation({
       stop_at_stage,
       stages,
     });
-    if (!result.ok || !result.run_id) {
+    if (!result.ok || !result.created_run_id) {
       throw new Error(result.error ?? "run_start_failed");
     }
-    return { run_id: result.run_id };
+    return { run_id: result.created_run_id };
   },
 });
 
@@ -47,7 +57,9 @@ export const startExperiment = zMutation({
   }),
   returns: z.object({
     ok: z.boolean(),
-    run_id: zid("runs").optional(),
+    run_ids: z.array(zid("runs")).optional(),
+    created_run_id: zid("runs").optional(),
+    started: z.number().optional(),
     error: z.string().optional(),
   }),
   handler: async (ctx, args) => startExperimentInternal(ctx, args),
@@ -60,15 +72,22 @@ export const startExperiments = zMutation({
   }),
   returns: z.object({
     started: z.array(
-      z.object({ experiment_id: zid("experiments"), run_id: zid("runs") }),
+      z.object({
+        experiment_id: zid("experiments"),
+        run_ids: z.array(zid("runs")),
+        created_run_id: zid("runs").optional(),
+      }),
     ),
     failed: z.array(
       z.object({ experiment_id: zid("experiments"), error: z.string() }),
     ),
   }),
   handler: async (ctx, { experiment_ids, run_counts }) => {
-    const started: Array<{ experiment_id: Id<"experiments">; run_id: Id<"runs"> }> =
-      [];
+    const started: Array<{
+      experiment_id: Id<"experiments">;
+      run_ids: Id<"runs">[];
+      created_run_id?: Id<"runs">;
+    }> = [];
     const failed: Array<{ experiment_id: Id<"experiments">; error: string }> =
       [];
 
@@ -79,8 +98,12 @@ export const startExperiments = zMutation({
         stop_at_stage: undefined,
         stages: undefined,
       });
-      if (result.ok && result.run_id) {
-        started.push({ experiment_id, run_id: result.run_id });
+      if (result.ok && result.run_ids && result.run_ids.length > 0) {
+        started.push({
+          experiment_id,
+          run_ids: result.run_ids,
+          created_run_id: result.created_run_id,
+        });
       } else {
         failed.push({
           experiment_id,
@@ -103,15 +126,23 @@ export const updateRunState = zMutation({
     const run = await ctx.db.get(run_id);
     if (!run) throw new Error("Run not found");
 
+    const now = Date.now();
     const updates: Record<string, unknown> = {
       desired_state,
-      updated_at: Date.now(),
+      updated_at: now,
     };
 
-    if (desired_state === "paused" && run.status === "running") {
-      updates.status = "paused";
+    if (desired_state === "paused") {
+      const current = await resolveCurrentStage(ctx, run);
+      if (current) {
+        updates.stop_at_stage = current;
+      }
+      if (run.status !== "canceled") {
+        updates.status = "running";
+      }
     }
-    if (desired_state === "running" && run.status === "paused") {
+    if (desired_state === "running") {
+      updates.stop_at_stage = undefined;
       updates.status = "running";
     }
     if (desired_state === "canceled") {
@@ -119,15 +150,11 @@ export const updateRunState = zMutation({
     }
 
     await ctx.db.patch(run_id, updates);
-
-    if (desired_state === "canceled") {
-      const experiment = await ctx.db.get(run.experiment_id);
-      if (experiment?.active_run_id === run_id) {
-        await ctx.db.patch(experiment._id, {
-          active_run_id: undefined,
-          status: "canceled",
-        });
-      }
+    if (desired_state === "running") {
+      await ctx.runMutation(
+        internal.domain.runs.workflows.runs_scheduler.ensureScheduler,
+        { reason: "run_resume" },
+      );
     }
     return { ok: true };
   },
@@ -175,7 +202,13 @@ async function startExperimentInternal(
     stop_at_stage?: z.infer<typeof LlmStageSchema>;
     stages?: z.infer<typeof LlmStageSchema>[];
   },
-): Promise<{ ok: boolean; run_id?: Id<"runs">; error?: string }> {
+): Promise<{
+  ok: boolean;
+  run_ids?: Id<"runs">[];
+  created_run_id?: Id<"runs">;
+  started?: number;
+  error?: string;
+}> {
   try {
     const { experiment_id, run_counts, stop_at_stage, stages } = args;
     const experiment = await ctx.db.get(experiment_id);
@@ -183,96 +216,138 @@ async function startExperimentInternal(
       return { ok: false, error: "experiment_not_found" };
     }
 
-    if (experiment.active_run_id) {
-      const active = await ctx.db.get(experiment.active_run_id);
-      if (
-        active &&
-        active.status !== "complete" &&
-        active.status !== "canceled"
-      ) {
-        return { ok: false, error: "active_run_exists" };
-      }
-      await ctx.db.patch(experiment._id, { active_run_id: undefined });
-    }
-
-    const template = await ctx.runQuery(
-      internal.domain.configs.configs_repo.getConfigTemplate,
-      {
-        template_id: experiment.config_template_id,
-        version: experiment.config_template_version,
-      },
-    );
-    if (!template) {
-      return { ok: false, error: "config_template_not_found" };
-    }
-
     try {
-      preflightCheck(requiredEnvsForExperiment(template.config_body.experiment));
+      preflightCheck(requiredEnvsForExperiment(experiment));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: message };
     }
 
-    const git_sha =
-      process.env.GIT_SHA ??
-      process.env.VERCEL_GIT_COMMIT_SHA ??
-      "unknown";
-
     const policySnapshot = structuredClone(ENGINE_SETTINGS.run_policy);
 
-    const run_config_id = await ctx.runMutation(
-      internal.domain.configs.configs_repo.createRunConfigFromTemplate,
-      {
-        template_id: template.template_id,
-        version: template.version,
-        git_sha,
-        run_counts,
-        validation_status: "valid",
-      },
-    );
-
     const now = Date.now();
-    const run_id = await ctx.db.insert("runs", {
-      experiment_id: experiment._id,
-      run_config_id,
-      policy_snapshot: policySnapshot,
-      status: "running",
-      desired_state: "running",
-      stop_at_stage,
-      current_stage: undefined,
-      last_stage_completed_at: undefined,
-      created_at: now,
-      updated_at: now,
-    });
+    const pendingRuns = await ctx.db
+      .query("runs")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .collect();
 
-    const runStages = (stages ?? DEFAULT_RUN_STAGES).map((stage) => ({
-      run_id,
-      stage,
-      status: "pending" as const,
-      total_requests: 0,
-      completed_requests: 0,
-      failed_requests: 0,
-      last_batch_id: undefined,
-      updated_at: now,
-    }));
+    let createdRunId: Id<"runs"> | undefined;
+    if (pendingRuns.length === 0) {
+      const run_id = await ctx.db.insert("runs", {
+        experiment_id: experiment._id,
+        run_counts,
+        policy_snapshot: policySnapshot,
+        status: "running",
+        desired_state: "running",
+        stop_at_stage,
+        current_stage: undefined,
+        rubric_seeded_at: undefined,
+        scoring_seeded_at: undefined,
+        last_stage_completed_at: undefined,
+        created_at: now,
+        updated_at: now,
+      });
+      createdRunId = run_id;
 
-    for (const row of runStages) {
-      await ctx.db.insert("run_stages", row);
+      const runStages = (stages ?? DEFAULT_RUN_STAGES).map((stage) => ({
+        run_id,
+        stage,
+        status: "pending" as const,
+        total_requests: 0,
+        completed_requests: 0,
+        failed_requests: 0,
+        last_batch_id: undefined,
+        updated_at: now,
+      }));
+      for (const row of runStages) {
+        await ctx.db.insert("run_stages", row);
+      }
+      pendingRuns.push({
+        ...(await ctx.db.get(run_id))!,
+      });
     }
 
-    await ctx.db.patch(experiment._id, {
-      active_run_id: run_id,
-      status: "running",
-    });
+    const startedIds: Id<"runs">[] = [];
+    for (const run of pendingRuns) {
+      await ctx.db.patch(run._id, {
+        status: "running",
+        desired_state: "running",
+        updated_at: now,
+      });
+
+      const existingStages = await ctx.db
+        .query("run_stages")
+        .withIndex("by_run", (q) => q.eq("run_id", run._id))
+        .collect();
+      if (existingStages.length === 0) {
+        const runStages = (stages ?? DEFAULT_RUN_STAGES).map((stage) => ({
+          run_id: run._id,
+          stage,
+          status: "pending" as const,
+          total_requests: 0,
+          completed_requests: 0,
+          failed_requests: 0,
+          last_batch_id: undefined,
+          updated_at: now,
+        }));
+        for (const row of runStages) {
+          await ctx.db.insert("run_stages", row);
+        }
+      }
+
+      if (!run.rubric_seeded_at) {
+        await ctx.runMutation(
+          internal.domain.experiments.stages.rubric.workflows.experiments_rubric_seed_requests
+            .seedRubricRequests,
+          {
+            experiment_id: experiment._id,
+            run_id: run._id,
+          },
+        );
+        await ctx.db.patch(run._id, {
+          rubric_seeded_at: now,
+          current_stage: "rubric_gen",
+          updated_at: now,
+        });
+      }
+      startedIds.push(run._id);
+    }
 
     await ctx.runMutation(
       internal.domain.runs.workflows.runs_scheduler.ensureScheduler,
       { reason: "run_start" },
     );
 
-    return { ok: true, run_id };
+    return {
+      ok: true,
+      run_ids: startedIds,
+      created_run_id: createdRunId,
+      started: startedIds.length,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
   }
+}
+
+async function resolveCurrentStage(
+  ctx: MutationCtx,
+  run: { _id: Id<"runs">; current_stage?: z.infer<typeof LlmStageSchema> },
+) {
+  if (run.current_stage) return run.current_stage;
+  const stages = await ctx.db
+    .query("run_stages")
+    .withIndex("by_run", (q) => q.eq("run_id", run._id))
+    .collect();
+  const ordered = STAGE_ORDER.filter((stage) =>
+    stages.some((row) => row.stage === stage),
+  );
+  for (const stage of ordered) {
+    const row = stages.find((item) => item.stage === stage);
+    if (!row || row.status !== "complete") {
+      return stage;
+    }
+  }
+  return ordered[ordered.length - 1];
 }

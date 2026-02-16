@@ -5,13 +5,9 @@ import {
   ExperimentSpecInputSchema,
   ExperimentSpecNormalizedSchema,
   WindowsInputSchema,
-  WindowsTableSchema,
 } from "../../models/experiments";
-import { internal } from "../../_generated/api";
 import { normalizeExperimentSpec } from "../../utils/config_normalizer";
-import { ConfigTemplatesTableSchema } from "../../models/configs";
 import { buildExperimentTag, buildWindowTag } from "../../utils/tags";
-import { generateId } from "../../platform/utils/randomize";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 
@@ -61,46 +57,21 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     window_id: zid("windows"),
     experiment: ExperimentSpecInputSchema,
     evidence_ids: z.array(zid("evidences")).min(1),
-    template_id: z.string().optional(),
-    template_version: z.number().optional(),
   }),
   returns: z.object({
     window_id: zid("windows"),
     experiment_id: zid("experiments"),
     reused_experiment: z.boolean(),
   }),
-  handler: async (
-    ctx,
-    { window_id, experiment, evidence_ids, template_id, template_version },
-  ) => {
+  handler: async (ctx, { window_id, experiment, evidence_ids }) => {
     const windowDoc = await ctx.db.get(window_id);
     if (!windowDoc) throw new Error("Window not found");
 
-    const evidenceWindow: z.infer<typeof WindowsTableSchema> = {
-      start_date: windowDoc.start_date,
-      end_date: windowDoc.end_date,
-      country: windowDoc.country,
-      concept: windowDoc.concept,
-      model_id: windowDoc.model_id,
-      window_tag: windowDoc.window_tag,
-    };
-
     const normalizedExperiment = normalizeExperimentSpec(experiment);
-    const configTemplateId = template_id ?? `template_${generateId()}`;
-    const configTemplateVersion = template_version ?? 1;
-
-    await ensureConfigTemplate(ctx, {
-      template_id: configTemplateId,
-      version: configTemplateVersion,
-      evidence_window: evidenceWindow,
-      experiment: normalizedExperiment,
-    });
 
     const result = await createExperiment(ctx, {
       window_id,
       experiment: normalizedExperiment,
-      config_template_id: configTemplateId,
-      config_template_version: configTemplateVersion,
     });
 
     await insertExperimentEvidence(ctx, {
@@ -116,110 +87,12 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     };
   },
 });
-
-export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    template_id: z.string(),
-    version: z.number().int().min(1),
-    evidence_ids: z.array(zid("evidences")).min(1),
-  }),
-  returns: z.object({
-    window_id: zid("windows"),
-    experiment_id: zid("experiments"),
-    reused_window: z.boolean(),
-    reused_experiment: z.boolean(),
-  }),
-  handler: async (ctx, { template_id, version, evidence_ids }) => {
-    const template = (await ctx.runQuery(
-      internal.domain.configs.configs_repo.getConfigTemplate,
-      { template_id, version },
-    )) as z.infer<typeof ConfigTemplatesTableSchema> | null;
-    if (!template) {
-      throw new Error(`Config template not found: ${template_id} v${version}`);
-    }
-    const { evidence_window, experiment } = template.config_body;
-    const window = await ctx.db
-      .query("windows")
-      .withIndex("by_window_key", (q) =>
-        q
-          .eq("start_date", evidence_window.start_date)
-          .eq("end_date", evidence_window.end_date)
-          .eq("country", evidence_window.country)
-          .eq("concept", evidence_window.concept)
-          .eq("model_id", evidence_window.model_id),
-      )
-      .first();
-    const window_id =
-      window?._id ??
-      (await ctx.db.insert("windows", {
-        ...evidence_window,
-        window_tag: buildWindowTag(evidence_window),
-      }));
-    const reused_window = Boolean(window);
-    if (window) {
-      const expectedTag = buildWindowTag(window);
-      if (window.window_tag !== expectedTag) {
-        await ctx.db.patch(window._id, { window_tag: expectedTag });
-      }
-    }
-    const result = await createExperiment(ctx, {
-      window_id,
-      experiment,
-      config_template_id: template_id,
-      config_template_version: version,
-    });
-    await insertExperimentEvidence(ctx, {
-      experiment_id: result.experiment_id,
-      window_id,
-      evidence_ids,
-    });
-    return {
-      window_id: result.window_id,
-      experiment_id: result.experiment_id,
-      reused_window,
-      reused_experiment: false,
-    };
-  },
-});
-
-async function ensureConfigTemplate(
-  ctx: MutationCtx,
-  args: {
-    template_id: string;
-    version: number;
-    evidence_window: z.infer<typeof WindowsTableSchema>;
-    experiment: z.infer<typeof ExperimentSpecNormalizedSchema>;
-  },
-) {
-  const existing = await ctx.runQuery(
-    internal.domain.configs.configs_repo.getConfigTemplate,
-    { template_id: args.template_id, version: args.version },
-  );
-  if (existing) {
-    return;
-  }
-
-  await ctx.runMutation(internal.domain.configs.configs_repo.createConfigTemplate, {
-    template_id: args.template_id,
-    version: args.version,
-    schema_version: 1,
-    config_body: {
-      evidence_window: args.evidence_window,
-      experiment: args.experiment,
-    },
-    created_at: Date.now(),
-    created_by: "initExperiment",
-    notes: "auto-generated by initExperiment",
-  });
-}
 
 async function createExperiment(
   ctx: MutationCtx,
   args: {
     window_id: Id<"windows">;
     experiment: z.infer<typeof ExperimentSpecNormalizedSchema>;
-    config_template_id: string;
-    config_template_version: number;
   },
 ): Promise<{
   window_id: Id<"windows">;
@@ -231,8 +104,6 @@ async function createExperiment(
     experiment_tag: buildExperimentTag(),
     window_id,
     status: "pending",
-    config_template_id: args.config_template_id,
-    config_template_version: args.config_template_version,
   });
 
   return {
@@ -277,28 +148,6 @@ async function insertExperimentEvidence(
   });
 }
 
-async function resolveRunConfigForExperiment(
-  ctx: MutationCtx,
-  experiment: { _id: Id<"experiments">; active_run_id?: Id<"runs"> },
-  run_id?: Id<"runs">,
-) {
-  const targetRunId = run_id ?? experiment.active_run_id;
-  if (!targetRunId) {
-    throw new Error("Run not found for experiment");
-  }
-  const run = await ctx.db.get(targetRunId);
-  if (!run) throw new Error("Run not found for experiment");
-  if (run.experiment_id !== experiment._id) {
-    throw new Error("Run does not belong to experiment");
-  }
-  if (!run.run_config_id) {
-    throw new Error("Run config missing");
-  }
-  const runConfig = await ctx.db.get(run.run_config_id);
-  if (!runConfig) throw new Error("Run config not found");
-  return { run, runConfig };
-}
-
 // --- Manual queueing helpers (human-in-loop) ---
 
 export const insertEvidenceBatch = zMutation({
@@ -337,52 +186,6 @@ export const insertEvidenceBatch = zMutation({
   },
 });
 
-export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
-  handler: async (ctx, { experiment_id, run_id }) => {
-    const experiment = await ctx.db.get(experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-    const { runConfig } = await resolveRunConfigForExperiment(
-      ctx,
-      experiment,
-      run_id,
-    );
-    return ctx.runMutation(
-      internal.domain.experiments.stages.rubric.workflows.experiments_rubric_seed_requests
-        .seedRubricRequests,
-      {
-        experiment_id: experiment._id,
-        sample_count: runConfig.run_counts.sample_count,
-      },
-    );
-  },
-});
-
-export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({
-    samples_created: z.number(),
-    evidence_count: z.number(),
-  }),
-  handler: async (ctx, { experiment_id, run_id }) => {
-    const experiment = await ctx.db.get(experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-    const { run } = await resolveRunConfigForExperiment(ctx, experiment, run_id);
-    return ctx.runMutation(
-      internal.domain.experiments.stages.scoring.workflows.experiments_scoring_seed_requests
-        .seedScoreRequests,
-      { experiment_id: experiment._id, run_id: run._id },
-    );
-  },
-});
-
 export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -393,7 +196,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       experiments: z.number(),
       runs: z.number(),
       run_stages: z.number(),
-      run_configs: z.number(),
       rubrics: z.number(),
       samples: z.number(),
       scores: z.number(),
@@ -417,10 +219,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
     const runIds = new Set(runs.map((run) => run._id));
-    const runConfigIds = new Set(
-      runs.map((run) => run.run_config_id).filter(Boolean),
-    );
-
     const runStages: Array<{ _id: Id<"run_stages"> }> = [];
     for (const run of runs) {
       const stages = await ctx.db
@@ -520,9 +318,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
     for (const row of experimentEvidence) await ctx.db.delete(row._id);
     for (const stage of runStages) await ctx.db.delete(stage._id);
     for (const run of runs) await ctx.db.delete(run._id);
-    for (const runConfigId of runConfigIds) {
-      await ctx.db.delete(runConfigId);
-    }
     for (const evidence of evidences) await ctx.db.delete(evidence._id);
     if (cleanup_window && shouldDeleteWindow) {
       await ctx.db.delete(window_id);
@@ -535,7 +330,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
         experiments: 1,
         runs: runs.length,
         run_stages: runStages.length,
-        run_configs: runConfigIds.size,
         rubrics: rubrics.length,
         samples: samples.length,
         scores: scores.length,

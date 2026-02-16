@@ -16,6 +16,7 @@ export const LlmRequestsTableSchema = z.object({
   model: modelTypeSchema,
   system_prompt: z.string().optional(),
   user_prompt: z.string().optional(),
+  run_id: zid("runs").nullable(),
   experiment_id: zid("experiments").nullable(),
   rubric_id: zid("rubrics").nullable(),
   sample_id: zid("samples").nullable(),

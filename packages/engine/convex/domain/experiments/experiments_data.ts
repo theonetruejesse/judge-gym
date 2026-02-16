@@ -21,6 +21,12 @@ export const getExperimentSummary = zQuery({
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
+    const runs = await ctx.db
+      .query("runs")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .collect();
+    const status = deriveExperimentStatus(runs);
+
     const samples = await ctx.db
       .query("samples")
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
@@ -43,7 +49,7 @@ export const getExperimentSummary = zQuery({
       scoring_model_id: experiment.config.scoring_stage.model_id,
       concept: window.concept,
       task_type: experiment.task_type,
-      status: experiment.status,
+      status,
       config: experiment.config,
       counts: {
         samples: samples.length,
@@ -54,6 +60,18 @@ export const getExperimentSummary = zQuery({
     };
   },
 });
+
+function deriveExperimentStatus(
+  runs: Array<{ status: string }>,
+): "pending" | "running" | "paused" | "complete" | "canceled" {
+  if (runs.length === 0) return "pending";
+  const statuses = runs.map((run) => run.status);
+  if (statuses.some((status) => status === "running")) return "running";
+  if (statuses.some((status) => status === "paused")) return "paused";
+  if (statuses.every((status) => status === "complete")) return "complete";
+  if (statuses.some((status) => status === "canceled")) return "canceled";
+  return "pending";
+}
 
 export const listEvidenceWindows = zQuery({
   args: z.object({}),
@@ -154,10 +172,6 @@ export const getRunSummary = zQuery({
     const experiment = await ctx.db.get(run.experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
-    const runConfig = run.run_config_id
-      ? await ctx.db.get(run.run_config_id)
-      : null;
-
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
@@ -168,12 +182,12 @@ export const getRunSummary = zQuery({
 
     const samples = await ctx.db
       .query("samples")
-      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .collect();
 
     const scores = await ctx.db
       .query("scores")
-      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .collect();
 
     const critics = scores.filter((s) => s.score_critic_output !== undefined);
@@ -182,20 +196,16 @@ export const getRunSummary = zQuery({
       run_id: run._id,
       experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
-      rubric_model_id:
-        runConfig?.config_body.experiment.config.rubric_stage.model_id ??
-        experiment.config.rubric_stage.model_id,
-      scoring_model_id:
-        runConfig?.config_body.experiment.config.scoring_stage.model_id ??
-        experiment.config.scoring_stage.model_id,
+      rubric_model_id: experiment.config.rubric_stage.model_id,
+      scoring_model_id: experiment.config.scoring_stage.model_id,
       concept: window.concept,
       task_type: experiment.task_type,
       status: run.status,
       desired_state: run.desired_state,
       current_stage: run.current_stage,
       stop_at_stage: run.stop_at_stage,
-      config: runConfig?.config_body.experiment.config ?? experiment.config,
-      run_counts: runConfig?.run_counts ?? null,
+      config: experiment.config,
+      run_counts: run.run_counts,
       counts: {
         samples: samples.length,
         scores: scores.length,

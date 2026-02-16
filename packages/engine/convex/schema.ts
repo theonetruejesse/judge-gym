@@ -9,7 +9,6 @@ import {
   Scores,
 } from "./models/experiments";
 import { Runs, RunStages } from "./models/runs";
-import { ConfigTemplates, RunConfigs } from "./models/configs";
 import { SchedulerState } from "./models/scheduler";
 import {
   LlmRequests,
@@ -31,25 +30,17 @@ export default defineSchema({
   experiment_evidence: ExperimentEvidence.index("by_experiment", [
     "experiment_id",
   ]).index("by_evidence", ["evidence_id"]),
-  rubrics: Rubrics.index("by_experiment_model", ["experiment_id", "model_id"]),
-  samples: Samples.index("by_experiment", ["experiment_id"]).index(
-    "by_rubric",
-    ["rubric_id"],
-  ),
-  scores: Scores.index("by_experiment", ["experiment_id"]).index(
-    "by_sample",
-    ["sample_id"],
-  )
+  rubrics: Rubrics.index("by_experiment_model", ["experiment_id", "model_id"])
+    .index("by_run", ["run_id"])
+    .index("by_run_model", ["run_id", "model_id"]),
+  samples: Samples.index("by_experiment", ["experiment_id"])
+    .index("by_run", ["run_id"])
+    .index("by_rubric", ["rubric_id"]),
+  scores: Scores.index("by_experiment", ["experiment_id"])
+    .index("by_run", ["run_id"])
+    .index("by_sample", ["sample_id"])
     .index("by_rubric", ["rubric_id"])
     .index("by_evidence", ["evidence_id"]),
-  config_templates: ConfigTemplates.index("by_template_version", [
-    "template_id",
-    "version",
-  ]),
-  run_configs: RunConfigs.index("by_template_version", [
-    "template_id",
-    "version",
-  ]),
   scheduler_state: SchedulerState.index("by_key", ["key"]),
   runs: Runs.index("by_experiment", ["experiment_id"]).index("by_status", [
     "status",
@@ -59,10 +50,12 @@ export default defineSchema({
   ]),
   llm_requests: LlmRequests.index("by_status", ["status"])
     .index("by_stage_status", ["stage", "status"])
+    .index("by_run_stage_status", ["run_id", "stage", "status"])
     .index("by_identity", [
       "stage",
       "provider",
       "model",
+      "run_id",
       "experiment_id",
       "rubric_id",
       "sample_id",

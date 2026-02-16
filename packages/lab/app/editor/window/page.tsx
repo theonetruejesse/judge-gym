@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useEffect, useRef, useState } from "react";
+import { useAction } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -34,16 +34,6 @@ import LabNavbar from "@/components/lab_navbar";
 
 const hasConvex = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
-type EvidenceWindowItem = {
-  window_id: string;
-  start_date: string;
-  end_date: string;
-  country: string;
-  concept: string;
-  model_id: string;
-  window_tag?: string;
-};
-
 const formSchema = z.object({
   concept: z.string().min(1, "Concept is required."),
   country: z.string().min(1, "Country is required."),
@@ -65,6 +55,12 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+function parseNumberParam(value: string | null) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export default function EvidenceWindowEditorPage() {
   if (!hasConvex) {
     return (
@@ -81,13 +77,7 @@ export default function EvidenceWindowEditorPage() {
   }
 
   const searchParams = useSearchParams();
-  const cloneId = searchParams.get("clone_id");
   const router = useRouter();
-
-  const windows = useQuery(
-    api.lab.listEvidenceWindows,
-    {},
-  ) as EvidenceWindowItem[] | undefined;
   const initEvidenceWindowAndCollect = useAction(
     api.lab.initEvidenceWindowAndCollect,
   );
@@ -95,6 +85,7 @@ export default function EvidenceWindowEditorPage() {
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  const initializedRef = useRef(false);
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -103,17 +94,50 @@ export default function EvidenceWindowEditorPage() {
   });
 
   useEffect(() => {
-    if (!cloneId || !windows) return;
-    const match = windows.find((window) => window.window_id === cloneId);
-    if (!match) return;
+    if (initializedRef.current) return;
+    const values = form.getValues();
+    const concept = searchParams.get("concept");
+    const country = searchParams.get("country");
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
+    const modelId = searchParams.get("model_id");
+    const evidenceLimit = parseNumberParam(searchParams.get("evidence_limit"));
+
     form.reset({
-      concept: match.concept,
-      country: match.country,
-      start_date: match.start_date,
-      end_date: match.end_date,
-      model_id: match.model_id,
+      ...values,
+      concept: concept ?? values.concept,
+      country: country ?? values.country,
+      start_date: startDate ?? values.start_date,
+      end_date: endDate ?? values.end_date,
+      model_id: modelId ?? values.model_id,
+      evidence_limit: evidenceLimit ?? values.evidence_limit,
     });
-  }, [cloneId, windows, form]);
+
+    initializedRef.current = true;
+  }, [form, searchParams]);
+
+  const watchedValues = form.watch();
+
+  useEffect(() => {
+    if (!initializedRef.current) return;
+    const params = new URLSearchParams();
+    if (watchedValues.concept) params.set("concept", watchedValues.concept);
+    if (watchedValues.country) params.set("country", watchedValues.country);
+    if (watchedValues.start_date) params.set("start_date", watchedValues.start_date);
+    if (watchedValues.end_date) params.set("end_date", watchedValues.end_date);
+    if (watchedValues.model_id) params.set("model_id", watchedValues.model_id);
+    if (Number.isFinite(watchedValues.evidence_limit)) {
+      params.set("evidence_limit", String(watchedValues.evidence_limit));
+    }
+
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `/editor/window?${next}` : "/editor/window", {
+        scroll: false,
+      });
+    }
+  }, [watchedValues, router, searchParams]);
 
   const handleCreateWindow = async (values: FormValues) => {
     setWindowStatus(null);

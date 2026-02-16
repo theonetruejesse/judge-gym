@@ -26,7 +26,7 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       .withIndex("by_status", (q) => q.eq("status", "queued"))
       .collect();
 
-    const needRuns = queued.some((req) => req.experiment_id);
+    const needRuns = queued.some((req) => req.run_id);
     const running = needRuns
       ? await ctx.db
           .query("runs")
@@ -72,7 +72,6 @@ export const createBatchFromQueued: ReturnType<typeof zInternalMutation> =
       queued,
       runs: candidates.map((run) => ({
         _id: run._id,
-        experiment_id: run.experiment_id,
         desired_state: run.desired_state,
         stop_at_stage: run.stop_at_stage,
         updated_at: run.updated_at,

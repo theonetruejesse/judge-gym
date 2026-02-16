@@ -3,6 +3,7 @@ import { defineTable } from "convex/server";
 import z from "zod";
 import {
   LlmStageSchema,
+  RunCountsSchema,
   RunDesiredStateSchema,
   RunStageStatusSchema,
   RunStatusSchema,
@@ -11,12 +12,14 @@ import {
 
 export const RunsTableSchema = z.object({
   experiment_id: zid("experiments"),
-  run_config_id: zid("run_configs"),
+  run_counts: RunCountsSchema,
   policy_snapshot: RunPolicySchema,
   status: RunStatusSchema,
   desired_state: RunDesiredStateSchema,
   stop_at_stage: LlmStageSchema.optional(),
   current_stage: LlmStageSchema.optional(),
+  rubric_seeded_at: z.number().optional(),
+  scoring_seeded_at: z.number().optional(),
   last_stage_completed_at: z.number().optional(),
   created_at: z.number(),
   updated_at: z.number(),

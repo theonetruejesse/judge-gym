@@ -8,16 +8,9 @@ import {
   ExperimentSpecInputSchema,
   ExperimentSpecNormalizedSchema,
 } from "../models/experiments";
-import {
-  ConfigTemplateBodyInputSchema,
-  ConfigTemplateBodySchema,
-} from "../models/configs";
-import { buildWindowTag } from "./tags";
 
 export type ExperimentSpecInput = z.infer<typeof ExperimentSpecInputSchema>;
 export type ExperimentSpec = z.infer<typeof ExperimentSpecNormalizedSchema>;
-export type ConfigTemplateBodyInput = z.infer<typeof ConfigTemplateBodyInputSchema>;
-export type ConfigTemplateBody = z.infer<typeof ConfigTemplateBodySchema>;
 
 export function normalizeExperimentConfig(
   config: ExperimentConfigInput,
@@ -37,18 +30,5 @@ export function normalizeExperimentSpec(
   return {
     ...spec,
     config: normalizeExperimentConfig(spec.config),
-  };
-}
-
-export function normalizeConfigTemplateBody(
-  body: ConfigTemplateBodyInput,
-): ConfigTemplateBody {
-  return {
-    ...body,
-    evidence_window: {
-      ...body.evidence_window,
-      window_tag: buildWindowTag(body.evidence_window),
-    },
-    experiment: normalizeExperimentSpec(body.experiment),
   };
 }
