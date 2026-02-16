@@ -16,7 +16,7 @@ judge-gym/
 │   ├── engine/                        # Convex backend — the design space engine
 │   │   ├── convex/
 │   │   │   ├── domain/
-│   │   │   │   ├── admin/             # Admin-only utilities (includes nukeTables to wipe all tables)
+│   │   │   │   ├── admin/             # Admin-only utilities (includes nukeTables; supports excludeEvidence)
 │   │   │   │   ├── evidence/          # Evidence collection + windows
 │   │   │   │   ├── experiments/       # Experiment entrypoints + stage-local workflows
 │   │   │   │   ├── runs/              # Run lifecycle + stage accounting
