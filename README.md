@@ -54,6 +54,7 @@ Experiment listings surface the configured sample count and evidence cap from ea
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 Navigation is intentionally minimal: every Lab page includes the same `judge-gym` home link in the top nav.
+Evidence window dates use the shadcn calendar picker, and model fields are validated via schema-backed dropdowns.
 
 Routes:
 - `/` - Experiments + evidence windows
@@ -134,12 +135,17 @@ Rubric and scoring models are selected separately via the experiment config:
 | Concept         | `evidence_window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
 | Task Type       | `task_type`                      | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
 | Scoring Method  | `config.scoring_stage.method`    | `single`, `subset`                                                                                                               | `subset`                                |
-| Sample Count    | `config.scoring_stage.sample_count` | integer >= 1                                                                                                                | —                                       |
-| Evidence Cap    | `config.scoring_stage.evidence_cap` | integer >= 1                                                                                                               | —                                       |
 | Scale Size      | `config.rubric_stage.scale_size` | `3`, `4`, `5`                                                                                                                    | `4`                                     |
 | Evidence View   | `config.scoring_stage.evidence_view` | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                 | `l2_neutralized`                        |
 | Randomizations  | `config.scoring_stage.randomizations` | array of `anonymize_labels`, `shuffle_rubric_order`, `hide_label_text`                                                       | `["anonymize_labels","shuffle_rubric_order"]` |
 | Abstain Gate    | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                             | `true`                                  |
+
+Run-level knobs are supplied when you start a run (not in the experiment config):
+
+| Run Parameter   | Field                      | Values         | Default |
+| :-------------- | :------------------------- | :------------- | :------ |
+| Sample Count    | `run_counts.sample_count`  | integer >= 1   | —       |
+| Evidence Cap    | `run_counts.evidence_cap`  | integer >= 1   | —       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
 Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key. Evidence collection produces frozen evidence batches; experiments bind to a single batch to lock the evidence set.
@@ -196,8 +202,6 @@ npx convex run domain/configs/configs_entrypoints:seedConfigTemplate '{
         "scoring_stage": {
           "model_id": "gpt-4.1",
           "method": "subset",
-          "sample_count": 10,
-          "evidence_cap": 10,
           "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
           "evidence_view": "l2_neutralized",
           "abstain_enabled": true
@@ -228,7 +232,7 @@ Tag conventions:
 ```bash
 # Start a run (snapshots run policy and enforces single-run invariant)
 npx convex run domain/runs/runs_entrypoints:startExperiment \
-  '{"experiment_id":"<experiment_id>"}'
+  '{"experiment_id":"<experiment_id>","run_counts":{"sample_count":10,"evidence_cap":10}}'
 
 # Collect evidence into a frozen batch
 npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
@@ -240,9 +244,9 @@ npx convex run domain/experiments/experiments_entrypoints:bindExperimentEvidence
 
 # Queue rubric generation
 npx convex run domain/experiments/experiments_entrypoints:queueRubricGeneration \
-  '{"experiment_id":"<experiment_id>","sample_count":10}'
+  '{"experiment_id":"<experiment_id>"}'
 
-# Queue scoring (sample_count × evidence_cap)
+# Queue scoring (sample_count × bound evidence count)
 npx convex run domain/experiments/experiments_entrypoints:queueScoreGeneration \
   '{"experiment_id":"<experiment_id>"}'
 ```

@@ -1,3 +1,9 @@
+import { modelTypeSchema, type ModelType } from "@judge-gym/engine";
+
+export const MODEL_OPTIONS = modelTypeSchema.options.map(
+  (option) => option.value,
+) as ModelType[];
+
 export const STATUS_COLORS: Record<string, string> = {
   running: "#22c55e",
   complete: "#3b82f6",

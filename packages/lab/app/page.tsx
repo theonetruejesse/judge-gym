@@ -30,8 +30,11 @@ type ExperimentListItem = {
   evidence_batch_id?: string;
   window_id: string;
   window_tag?: string;
-  sample_count?: number;
-  evidence_limit?: number;
+  run_counts?: {
+    sample_count: number;
+    evidence_cap: number;
+  };
+  evidence_bound_count?: number;
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -94,9 +97,29 @@ export default function RouteOneExperimentsPage() {
     );
   };
 
+  const promptForRunCounts = () => {
+    const sampleInput = window.prompt("Sample count", "10");
+    if (sampleInput === null) return null;
+    const sample_count = Number(sampleInput);
+    if (!Number.isFinite(sample_count) || sample_count < 1) {
+      window.alert("Sample count must be a positive number.");
+      return null;
+    }
+    const evidenceInput = window.prompt("Evidence cap", "10");
+    if (evidenceInput === null) return null;
+    const evidence_cap = Number(evidenceInput);
+    if (!Number.isFinite(evidence_cap) || evidence_cap < 1) {
+      window.alert("Evidence cap must be a positive number.");
+      return null;
+    }
+    return { sample_count, evidence_cap };
+  };
+
   const handleStart = async (experimentId: string) => {
     try {
-      await startExperiment({ experiment_id: experimentId });
+      const run_counts = promptForRunCounts();
+      if (!run_counts) return;
+      await startExperiment({ experiment_id: experimentId, run_counts });
     } catch (error) {
       console.error("Failed to start experiment", error);
     }
@@ -170,7 +193,7 @@ export default function RouteOneExperimentsPage() {
                   <TableHead>Task</TableHead>
                   <TableHead>Range</TableHead>
                   <TableHead className="text-right">Samples</TableHead>
-                  <TableHead className="text-right">Evidence</TableHead>
+                  <TableHead className="text-right">Evidence Cap</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -218,10 +241,10 @@ export default function RouteOneExperimentsPage() {
                       {exp.window_tag ?? "—"}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
-                      {exp.sample_count ?? "—"}
+                      {exp.run_counts?.sample_count ?? "—"}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
-                      {exp.evidence_limit ?? "—"}
+                      {exp.run_counts?.evidence_cap ?? "—"}
                     </TableCell>
                     <TableCell
                       className="text-right"
