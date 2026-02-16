@@ -21,10 +21,7 @@ import {
 } from "./models/llm_calls";
 
 export default defineSchema({
-  experiments: Experiments.index("by_task_type", ["task_type"]).index(
-    "by_window_spec",
-    ["window_id", "spec_signature"],
-  ),
+  experiments: Experiments.index("by_task_type", ["task_type"]),
   windows: Windows.index("by_window_key", [
     "start_date",
     "end_date",
@@ -56,11 +53,11 @@ export default defineSchema({
   config_templates: ConfigTemplates.index("by_template_version", [
     "template_id",
     "version",
-  ]).index("by_spec_signature", ["spec_signature"]),
+  ]),
   run_configs: RunConfigs.index("by_template_version", [
     "template_id",
     "version",
-  ]).index("by_spec_signature", ["spec_signature"]),
+  ]),
   scheduler_state: SchedulerState.index("by_key", ["key"]),
   runs: Runs.index("by_experiment", ["experiment_id"]).index("by_status", [
     "status",

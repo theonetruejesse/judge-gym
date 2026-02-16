@@ -50,9 +50,13 @@ export const createRunConfigFromTemplate = zInternalMutation({
     template_id: z.string(),
     version: z.number(),
     git_sha: z.string(),
+    run_counts: RunConfigsTableSchema.shape.run_counts,
     validation_status: RunConfigValidationStatusSchema.optional(),
   }),
-  handler: async (ctx, { template_id, version, git_sha, validation_status }) => {
+  handler: async (
+    ctx,
+    { template_id, version, git_sha, run_counts, validation_status },
+  ) => {
     const template = await ctx.db
       .query("config_templates")
       .withIndex("by_template_version", (q) =>
@@ -67,9 +71,9 @@ export const createRunConfigFromTemplate = zInternalMutation({
       template_id,
       version,
       config_body: template.config_body,
+      run_counts,
       created_at: now,
       git_sha,
-      spec_signature: template.spec_signature,
       validation_status: validation_status ?? "valid",
     });
     await ctx.db.patch(run_config_id, { run_config_id });

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
@@ -21,7 +21,6 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -62,7 +62,7 @@ const formSchema = z.object({
       (value) => MODEL_OPTIONS.includes(value as (typeof MODEL_OPTIONS)[number]),
       "Invalid scoring model.",
     ),
-  scale_size: z.coerce.number().int().min(3).max(5),
+  scale_size: z.coerce.number().int().min(1),
   method: z.enum(["single", "subset"]),
   evidence_view: z.enum(["l0_raw", "l1_cleaned", "l2_neutralized", "l3_abstracted"]),
   abstain_enabled: z.boolean(),
@@ -86,6 +86,7 @@ export default function ExperimentEditorPage() {
     );
   }
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const cloneId = searchParams.get("clone_id");
 
@@ -101,6 +102,7 @@ export default function ExperimentEditorPage() {
 
   const [selectedWindowId, setSelectedWindowId] = useState<string>("");
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
+  const createWindowValue = "__create_window__";
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -114,6 +116,14 @@ export default function ExperimentEditorPage() {
       setSelectedWindowId(windows[0].window_id);
     }
   }, [windows, selectedWindowId]);
+
+  const handleWindowChange = (value: string) => {
+    if (value === createWindowValue) {
+      router.push("/editor/window");
+      return;
+    }
+    setSelectedWindowId(value);
+  };
 
   useEffect(() => {
     if (!cloneExperiment) return;
@@ -210,7 +220,7 @@ export default function ExperimentEditorPage() {
                 Select the evidence window to bind with this experiment.
               </p>
             </div>
-            <Select value={selectedWindowId} onValueChange={setSelectedWindowId}>
+            <Select value={selectedWindowId} onValueChange={handleWindowChange}>
               <SelectTrigger className="mt-4">
                 <SelectValue placeholder="Select window" />
               </SelectTrigger>
@@ -220,35 +230,27 @@ export default function ExperimentEditorPage() {
                     {window.window_tag ?? window.concept}
                   </SelectItem>
                 ))}
+                {windows && windows.length > 0 ? <SelectSeparator /> : null}
+                <SelectItem value={createWindowValue}>Create new window</SelectItem>
               </SelectContent>
             </Select>
           </Card>
 
           <Card className="border-border bg-card/80 p-6">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest opacity-50">
-                Experiment
-              </p>
-              <p className="mt-1 text-xs opacity-60">
-                Configure rubric + scoring stages and bind to an evidence window.
-              </p>
-            </div>
-
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(handleCreateExperiment)}
-                className="mt-6 grid gap-5"
+                className="grid gap-5"
               >
                 <FormField
                   control={form.control}
                   name="task_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Task Type</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select task" />
+                            <SelectValue placeholder="Task type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -264,50 +266,26 @@ export default function ExperimentEditorPage() {
                   )}
                 />
 
+                <h3 className="text-xs uppercase tracking-widest opacity-50">
+                  Rubric Stage
+                </h3>
+
                 <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="rubric_model_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rubric Model</FormLabel>
+                  <FormField
+                    control={form.control}
+                    name="rubric_model_id"
+                    render={({ field }) => (
+                      <FormItem>
                       <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select model" />
+                            <SelectValue placeholder="Rubric model" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {MODEL_OPTIONS.map((modelId) => (
-                            <SelectItem key={modelId} value={modelId}>
-                              {modelId}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                  <FormField
-                    control={form.control}
-                    name="scale_size"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Scale Size</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value ? String(field.value) : ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select scale" />
-                            </SelectTrigger>
-                          </FormControl>
                           <SelectContent>
-                            {[3, 4, 5].map((value) => (
-                              <SelectItem key={value} value={String(value)}>
-                                {value}
+                            {MODEL_OPTIONS.map((modelId) => (
+                              <SelectItem key={modelId} value={modelId}>
+                                {modelId}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -316,45 +294,65 @@ export default function ExperimentEditorPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="scale_size"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="Scale size"
+                            value={field.value ?? ""}
+                            onChange={(event) => field.onChange(event.target.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
+                <h3 className="pt-2 text-xs uppercase tracking-widest opacity-50">
+                  Scoring Stage
+                </h3>
+
                 <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="scoring_model_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Scoring Model</FormLabel>
+                  <FormField
+                    control={form.control}
+                    name="scoring_model_id"
+                    render={({ field }) => (
+                      <FormItem>
                       <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select model" />
+                            <SelectValue placeholder="Scoring model" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {MODEL_OPTIONS.map((modelId) => (
-                            <SelectItem key={modelId} value={modelId}>
-                              {modelId}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          <SelectContent>
+                            {MODEL_OPTIONS.map((modelId) => (
+                              <SelectItem key={modelId} value={modelId}>
+                                {modelId}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="method"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Scoring Method</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select method" />
-                            </SelectTrigger>
-                          </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Scoring method" />
+                          </SelectTrigger>
+                        </FormControl>
                           <SelectContent>
                             {Object.entries(SCORING_METHOD_LABELS).map(([value, label]) => (
                               <SelectItem key={value} value={value}>
@@ -375,13 +373,12 @@ export default function ExperimentEditorPage() {
                     name="evidence_view"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Evidence View</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select view" />
-                            </SelectTrigger>
-                          </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Evidence view" />
+                          </SelectTrigger>
+                        </FormControl>
                           <SelectContent>
                             {Object.entries(VIEW_LABELS).map(([value, label]) => (
                               <SelectItem key={value} value={value}>
@@ -398,14 +395,14 @@ export default function ExperimentEditorPage() {
                     control={form.control}
                     name="abstain_enabled"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
+                      <FormItem className="flex h-10 flex-row items-center gap-3 space-y-0 rounded-md border border-border px-3">
                         <FormControl>
                           <Checkbox
                             checked={Boolean(field.value)}
                             onCheckedChange={field.onChange}
                           />
                         </FormControl>
-                        <FormLabel className="text-sm">Abstain Enabled</FormLabel>
+                        <span className="text-sm">Abstain Enabled</span>
                       </FormItem>
                     )}
                   />
@@ -415,8 +412,8 @@ export default function ExperimentEditorPage() {
                   control={form.control}
                   name="randomizations"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Randomizations</FormLabel>
+                    <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border border-border p-3">
+                      <span className="text-sm">Randomizations</span>
                       <div className="flex flex-wrap gap-2">
                         {randomizationOptions.map(([value, label]) => {
                           const active = field.value.includes(value as FormValues["randomizations"][number]);

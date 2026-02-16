@@ -13,7 +13,6 @@ export const getExperimentStatus = zQuery({
     experiment_id: zid("experiments"),
     experiment_tag: z.string().optional(),
     exists: z.boolean(),
-    spec_signature: z.string().optional(),
     window: z
       .object({
         start_date: z.string(),
@@ -87,7 +86,6 @@ export const getExperimentStatus = zQuery({
       experiment_id,
       experiment_tag: experiment.experiment_tag,
       exists: true,
-      spec_signature: experiment.spec_signature,
       window: window
         ? {
             start_date: window.start_date,

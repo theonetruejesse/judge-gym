@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zMutation } from "../../platform/utils";
-import { LlmStageSchema } from "../../models/core";
+import { LlmStageSchema, RunCountsSchema } from "../../models/core";
 import { internal } from "../../_generated/api";
 import { preflightCheck } from "../../env";
 import { requiredEnvsForExperiment } from "../../utils/env_requirements";
@@ -19,13 +19,15 @@ const DEFAULT_RUN_STAGES = [
 export const createRun = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
+    run_counts: RunCountsSchema,
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
   returns: z.object({ run_id: zid("runs") }),
-  handler: async (ctx, { experiment_id, stop_at_stage, stages }) => {
+  handler: async (ctx, { experiment_id, run_counts, stop_at_stage, stages }) => {
     const result = await startExperimentInternal(ctx, {
       experiment_id,
+      run_counts,
       stop_at_stage,
       stages,
     });
@@ -39,6 +41,7 @@ export const createRun = zMutation({
 export const startExperiment = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
+    run_counts: RunCountsSchema,
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
@@ -53,6 +56,7 @@ export const startExperiment = zMutation({
 export const startExperiments = zMutation({
   args: z.object({
     experiment_ids: z.array(zid("experiments")),
+    run_counts: RunCountsSchema,
   }),
   returns: z.object({
     started: z.array(
@@ -62,7 +66,7 @@ export const startExperiments = zMutation({
       z.object({ experiment_id: zid("experiments"), error: z.string() }),
     ),
   }),
-  handler: async (ctx, { experiment_ids }) => {
+  handler: async (ctx, { experiment_ids, run_counts }) => {
     const started: Array<{ experiment_id: Id<"experiments">; run_id: Id<"runs"> }> =
       [];
     const failed: Array<{ experiment_id: Id<"experiments">; error: string }> =
@@ -71,6 +75,7 @@ export const startExperiments = zMutation({
     for (const experiment_id of experiment_ids) {
       const result = await startExperimentInternal(ctx, {
         experiment_id,
+        run_counts,
         stop_at_stage: undefined,
         stages: undefined,
       });
@@ -166,12 +171,13 @@ async function startExperimentInternal(
   ctx: MutationCtx,
   args: {
     experiment_id: Id<"experiments">;
+    run_counts: z.infer<typeof RunCountsSchema>;
     stop_at_stage?: z.infer<typeof LlmStageSchema>;
     stages?: z.infer<typeof LlmStageSchema>[];
   },
 ): Promise<{ ok: boolean; run_id?: Id<"runs">; error?: string }> {
   try {
-    const { experiment_id, stop_at_stage, stages } = args;
+    const { experiment_id, run_counts, stop_at_stage, stages } = args;
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) {
       return { ok: false, error: "experiment_not_found" };
@@ -220,6 +226,7 @@ async function startExperimentInternal(
         template_id: template.template_id,
         version: template.version,
         git_sha,
+        run_counts,
         validation_status: "valid",
       },
     );

@@ -21,8 +21,6 @@ function buildExperimentSpec(tag: string, concept: string) {
       scoring_stage: {
         model_id: "gpt-4.1" as const,
         method: "single" as const,
-        sample_count: 1,
-        evidence_cap: 2,
         randomizations: [],
         evidence_view: "l0_raw" as const,
         abstain_enabled: true,
@@ -75,6 +73,7 @@ describe("lab facade integration", () => {
 
       const start = await client.mutation(api.lab.startExperiment, {
         experiment_id,
+        run_counts: { sample_count: 1, evidence_cap: 2 },
       });
 
       if (hasRunEnvs) {
@@ -150,9 +149,16 @@ describe("lab facade integration", () => {
       });
       expect(items.length).toBe(2);
 
+      const start = await client.mutation(api.lab.startExperiment, {
+        experiment_id,
+        run_counts: { sample_count: 1, evidence_cap: 2 },
+      });
+      if (!start.ok || !start.run_id) return;
+
       const bound = await client.mutation(api.lab.bindExperimentEvidence, {
         experiment_id,
         evidence_batch_id: collected.evidence_batch_id,
+        run_id: start.run_id,
       });
       expect(bound.bound_count).toBe(2);
 

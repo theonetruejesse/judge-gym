@@ -6,6 +6,7 @@ import {
   LlmStageSchema,
   LlmRequestStatusSchema,
   ParseStatusSchema,
+  RunCountsSchema,
   modelTypeSchema,
   providerSchema,
   ExperimentStatusSchema,
@@ -99,6 +100,7 @@ export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
     evidence_batch_id: zid("evidence_batches"),
+    run_id: zid("runs").optional(),
   }),
   returns: z.object({
     evidence_batch_id: zid("evidence_batches"),
@@ -153,7 +155,6 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
     template_id: z.string(),
     version: z.number(),
     created: z.boolean(),
-    spec_signature: z.string(),
   }),
   handler: async (ctx, args) => {
     return ctx.runMutation(
@@ -166,6 +167,7 @@ export const seedConfigTemplate: ReturnType<typeof zMutation> = zMutation({
 export const startExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
+    run_counts: RunCountsSchema,
     stop_at_stage: LlmStageSchema.optional(),
     stages: z.array(LlmStageSchema).optional(),
   }),
@@ -196,7 +198,7 @@ export const updateRunState: ReturnType<typeof zMutation> = zMutation({
 export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
-    sample_count: z.number().min(1).optional(),
+    run_id: zid("runs").optional(),
   }),
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
   handler: async (ctx, args) => {
@@ -210,6 +212,7 @@ export const queueRubricGeneration: ReturnType<typeof zMutation> = zMutation({
 export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
+    run_id: zid("runs").optional(),
   }),
   returns: z.object({
     samples_created: z.number(),
@@ -569,8 +572,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       status: ExperimentStatusSchema,
       active_run_id: zid("runs").optional(),
       evidence_batch_id: zid("evidence_batches").optional(),
-      sample_count: z.number(),
-      evidence_limit: z.number(),
+      run_counts: RunCountsSchema.optional(),
+      evidence_bound_count: z.number().optional(),
       window_id: zid("windows"),
       window_tag: z.string(),
       evidence_window: z
@@ -630,6 +633,11 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       if (!window) {
         throw new Error("Window not found");
       }
+      const activeRun = experiment.active_run_id
+        ? await ctx.db.get(experiment.active_run_id)
+        : null;
+      const runConfig =
+        activeRun?.run_config_id ? await ctx.db.get(activeRun.run_config_id) : null;
 
       results.push({
         experiment_id: experiment._id,
@@ -638,8 +646,8 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
         status: experiment.status,
         active_run_id: experiment.active_run_id,
         evidence_batch_id: experiment.evidence_batch_id,
-        sample_count: experiment.config.scoring_stage.sample_count,
-        evidence_limit: experiment.config.scoring_stage.evidence_cap,
+        run_counts: runConfig?.run_counts,
+        evidence_bound_count: experiment.evidence_count,
         window_id: experiment.window_id,
         window_tag: window.window_tag,
         evidence_window: window,
@@ -659,7 +667,6 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
       experiment_id: zid("experiments"),
       experiment_tag: z.string().optional(),
       exists: z.boolean(),
-      spec_signature: z.string().optional(),
       window_id: zid("windows").optional(),
       evidence_window: z
         .object({
@@ -758,7 +765,6 @@ export const getExperimentStates: ReturnType<typeof zQuery> = zQuery({
         experiment_id,
         experiment_tag: experiment.experiment_tag,
         exists: true,
-        spec_signature: experiment.spec_signature,
         window_id: experiment.window_id,
         evidence_window: window
           ? {

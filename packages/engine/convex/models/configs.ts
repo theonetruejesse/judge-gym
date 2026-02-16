@@ -7,6 +7,7 @@ import {
   WindowsInputSchema,
   WindowsTableSchema,
 } from "./experiments";
+import { RunCountsSchema } from "./core";
 
 export const ConfigTemplateBodySchema = z.object({
   evidence_window: WindowsTableSchema,
@@ -26,7 +27,6 @@ export const ConfigTemplatesTableSchema = z.object({
   created_at: z.number(),
   created_by: z.string().optional(),
   notes: z.string().optional(),
-  spec_signature: z.string(),
 });
 
 export const RunConfigValidationStatusSchema = z.enum([
@@ -40,9 +40,9 @@ export const RunConfigsTableSchema = z.object({
   template_id: z.string(),
   version: z.number().int().min(1),
   config_body: ConfigTemplateBodySchema,
+  run_counts: RunCountsSchema,
   created_at: z.number(),
   git_sha: z.string(),
-  spec_signature: z.string(),
   validation_status: RunConfigValidationStatusSchema,
 });
 
