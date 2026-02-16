@@ -23,7 +23,6 @@ export const LlmRequestsTableSchema = z.object({
   temperature: z.number().optional(),
   top_p: z.number().optional(),
   seed: z.number().optional(),
-  max_tokens: z.number().optional(),
   stop: z.array(z.string()).optional(),
   status: LlmRequestStatusSchema,
   attempt: z.number(),
@@ -50,7 +49,6 @@ export const LlmMessagesTableSchema = z.object({
   temperature: z.number().optional(),
   top_p: z.number().optional(),
   seed: z.number().optional(),
-  max_tokens: z.number().optional(),
   stop: z.array(z.string()).optional(),
 });
 

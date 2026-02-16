@@ -16,7 +16,7 @@ judge-gym/
 │   ├── engine/                        # Convex backend — the design space engine
 │   │   ├── convex/
 │   │   │   ├── domain/
-│   │   │   │   ├── admin/             # Admin-only utilities
+│   │   │   │   ├── admin/             # Admin-only utilities (includes nukeTables to wipe all tables)
 │   │   │   │   ├── configs/           # Config templates + run configs
 │   │   │   │   ├── evidence/          # Evidence collection + windows
 │   │   │   │   ├── experiments/       # Experiment entrypoints + stage-local workflows
@@ -55,9 +55,13 @@ Evidence content can be retrieved via `lab.getEvidenceContent` for evidence wind
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 Navigation is intentionally minimal: every Lab page includes the same `judge-gym` home link in the top nav.
 Evidence window dates use the shadcn calendar picker, and model fields are validated via schema-backed dropdowns.
+Creating an evidence window from `/editor/window` immediately kicks off evidence collection using the provided starting count.
+Evidence window rows show a coarse pipeline status (scraping, cleaning, neutralizing, abstracting, ready) computed from stored evidence content.
 Calendar navigation buttons are rendered as `type="button"` to prevent unintended form submissions in editors.
 The experiment editor evidence window dropdown always includes a “Create new window” action that routes to `/editor/window`.
 Experiment editor fields are grouped into Rubric Stage and Scoring Stage sections with minimal inline labels.
+Config templates store a snapshot of the evidence window fields (excluding Convex metadata) when experiments are created.
+Experiment and evidence window tags use the `adjective-noun-id` format for concise display.
 
 Routes:
 - `/` - Experiments + evidence windows

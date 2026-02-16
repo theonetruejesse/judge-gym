@@ -39,7 +39,7 @@ export const anthropicBatchAdapter: BatchAdapter = {
         custom_id: req.custom_id,
         params: {
           model: req.model,
-          max_tokens: req.max_tokens ?? 1024,
+          max_tokens: req.max_tokens ?? 5000,
           temperature: req.temperature,
           top_p: req.top_p,
           system: req.system_prompt,

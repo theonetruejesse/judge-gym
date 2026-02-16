@@ -54,6 +54,7 @@ export const finalizeBatch = zInternalMutation({
       .collect();
 
     const itemByCustomId = new Map(items.map((i) => [i.custom_id, i]));
+    const evidenceQueueWindows = new Set<Id<"windows">>();
     const rubricCriticExperiments = new Set<Id<"experiments">>();
     const scoreCriticExperiments = new Set<Id<"experiments">>();
     const stageRefresh: Record<
@@ -116,7 +117,6 @@ export const finalizeBatch = zInternalMutation({
           temperature: request.temperature ?? undefined,
           top_p: request.top_p ?? undefined,
           seed: request.seed ?? undefined,
-          max_tokens: request.max_tokens ?? undefined,
           stop: request.stop ?? undefined,
         },
       );
@@ -141,18 +141,24 @@ export const finalizeBatch = zInternalMutation({
       switch (request.stage) {
         case "evidence_clean": {
           if (!request.evidence_id) break;
+          const evidence = await ctx.db.get(request.evidence_id);
+          if (!evidence) break;
           await ctx.runMutation(internal.domain.experiments.experiments_repo.patchEvidence, {
             evidence_id: request.evidence_id,
             cleaned_content: assistantOutput,
           });
+          evidenceQueueWindows.add(evidence.window_id);
           break;
         }
         case "evidence_neutralize": {
           if (!request.evidence_id) break;
+          const evidence = await ctx.db.get(request.evidence_id);
+          if (!evidence) break;
           await ctx.runMutation(internal.domain.experiments.experiments_repo.patchEvidence, {
             evidence_id: request.evidence_id,
             neutralized_content: assistantOutput,
           });
+          evidenceQueueWindows.add(evidence.window_id);
           break;
         }
         case "evidence_abstract": {
@@ -327,6 +333,13 @@ export const finalizeBatch = zInternalMutation({
           throws: false,
         });
       }
+    }
+
+    for (const window_id of evidenceQueueWindows) {
+      await ctx.runMutation(
+        internal.domain.evidence.workflows.evidence_collect.queueEvidenceProcessing,
+        { window_id },
+      );
     }
 
     for (const experiment_id of rubricCriticExperiments) {

@@ -23,7 +23,6 @@ const GetOrCreateArgsSchema = z.object({
   temperature: z.number().optional(),
   top_p: z.number().optional(),
   seed: z.number().optional(),
-  max_tokens: z.number().optional(),
   stop: z.array(z.string()).optional(),
   request_version: z.number().optional(),
 });
@@ -108,7 +107,6 @@ export async function getOrCreateLlmRequestImpl(
     temperature: args.temperature,
     top_p: args.top_p,
     seed: args.seed,
-    max_tokens: args.max_tokens,
     stop: args.stop,
     status: "queued",
     attempt: 0,

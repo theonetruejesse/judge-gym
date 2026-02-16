@@ -147,7 +147,6 @@ export const seedScoreRequests = zInternalMutation({
             evidence_id: ev._id,
             request_version: 1,
             temperature: 0.2,
-            max_tokens: 1200,
           },
         );
       }

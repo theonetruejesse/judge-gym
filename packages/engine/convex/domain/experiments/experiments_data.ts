@@ -4,6 +4,15 @@ import { zQuery } from "../../platform/utils";
 
 // --- Read queries for analysis consumption ---
 
+const EVIDENCE_STATUSES = [
+  "scraping",
+  "cleaning",
+  "neutralizing",
+  "abstracting",
+  "ready",
+] as const;
+type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
+
 export const getExperimentSummary = zQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, { experiment_id }) => {
@@ -51,11 +60,40 @@ export const listEvidenceWindows = zQuery({
   handler: async (ctx) => {
     const windows = await ctx.db.query("windows").collect();
     const evidences = await ctx.db.query("evidences").collect();
-    const counts = new Map<string, number>();
+    const counts = new Map<
+      string,
+      { total: number; cleaned: number; neutralized: number; abstracted: number }
+    >();
     for (const evidence of evidences) {
       const key = String(evidence.window_id);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      const entry = counts.get(key) ?? {
+        total: 0,
+        cleaned: 0,
+        neutralized: 0,
+        abstracted: 0,
+      };
+      entry.total += 1;
+      if ((evidence.cleaned_content ?? "").trim().length > 0) {
+        entry.cleaned += 1;
+      }
+      if ((evidence.neutralized_content ?? "").trim().length > 0) {
+        entry.neutralized += 1;
+      }
+      if ((evidence.abstracted_content ?? "").trim().length > 0) {
+        entry.abstracted += 1;
+      }
+      counts.set(key, entry);
     }
+    const evidenceStatusFor = (
+      entry?: { total: number; cleaned: number; neutralized: number; abstracted: number },
+    ): EvidenceStatus => {
+      if (!entry || entry.total === 0) return "scraping";
+      if (entry.cleaned < entry.total) return "cleaning";
+      if (entry.neutralized < entry.total) return "neutralizing";
+      if (entry.abstracted < entry.total) return "abstracting";
+      return "ready";
+    };
+
     return windows.map((window) => ({
       window_id: window._id,
       start_date: window.start_date,
@@ -64,7 +102,8 @@ export const listEvidenceWindows = zQuery({
       concept: window.concept,
       model_id: window.model_id,
       window_tag: window.window_tag,
-      evidence_count: counts.get(String(window._id)) ?? 0,
+      evidence_count: counts.get(String(window._id))?.total ?? 0,
+      evidence_status: evidenceStatusFor(counts.get(String(window._id))),
     }));
   },
 });

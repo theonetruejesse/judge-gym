@@ -21,7 +21,6 @@ describe("openai batch integration", () => {
         stage: "rubric_gen",
         model,
         user_prompt: "Reply with the single word: ok",
-        max_tokens: 16,
         temperature: 0,
       },
       {
@@ -29,7 +28,6 @@ describe("openai batch integration", () => {
         stage: "rubric_gen",
         model,
         user_prompt: "Reply with the single word: ping",
-        max_tokens: 16,
         temperature: 0,
       },
     ];
