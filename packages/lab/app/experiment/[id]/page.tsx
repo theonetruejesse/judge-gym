@@ -166,17 +166,6 @@ export default function RouteOneExperimentPage({
   ) as ExperimentListItem[] | undefined;
   const experimentsLoading = hasConvex && experiments === undefined;
 
-  if (experimentsLoading) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <LabNavbar />
-        <div className="px-6 py-12">
-          <p className="text-sm">Loading experiments...</p>
-        </div>
-      </div>
-    );
-  }
-
   const experimentRows = experiments ?? [];
 
   const selected =
@@ -384,6 +373,17 @@ export default function RouteOneExperimentPage({
       );
     }
   };
+
+  if (experimentsLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <LabNavbar />
+        <div className="px-6 py-12">
+          <p className="text-sm">Loading experiments...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!selected) {
     return (
