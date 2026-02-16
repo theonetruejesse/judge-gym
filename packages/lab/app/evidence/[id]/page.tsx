@@ -34,18 +34,11 @@ type EvidenceWindowItem = {
   evidence_count: number;
 };
 
-type EvidenceBatch = {
-  evidence_batch_id: string;
-  evidence_limit: number;
-  evidence_count: number;
-  created_at: number;
-};
-
 type EvidenceItem = {
   evidence_id: string;
-  position: number;
   title: string;
   url: string;
+  created_at: number;
 };
 
 type EvidenceContent = {
@@ -67,7 +60,6 @@ export default function EvidenceWindowPage({
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(
     null,
   );
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("");
   const [selectedLevel, setSelectedLevel] = useState<string>("l0_raw");
 
@@ -87,14 +79,9 @@ export default function EvidenceWindowPage({
     hasConvex ? {} : "skip",
   ) as EvidenceWindowItem[] | undefined;
 
-  const batches = useQuery(
-    api.lab.listEvidenceBatches,
+  const evidenceItems = useQuery(
+    api.lab.listEvidenceByWindow,
     resolvedParams && hasConvex ? { window_id: resolvedParams.id } : "skip",
-  ) as EvidenceBatch[] | undefined;
-
-  const batchItems = useQuery(
-    api.lab.listEvidenceBatchItems,
-    selectedBatchId && hasConvex ? { evidence_batch_id: selectedBatchId } : "skip",
   ) as EvidenceItem[] | undefined;
 
   const evidenceContent = useQuery(
@@ -105,22 +92,14 @@ export default function EvidenceWindowPage({
   ) as EvidenceContent | null | undefined;
 
   const windowsLoading = hasConvex && windows === undefined;
-  const batchesLoading = hasConvex && !!resolvedParams && batches === undefined;
+  const evidenceLoading = hasConvex && !!resolvedParams && evidenceItems === undefined;
   const windowRows = windows ?? [];
   const matchedWindow = windowRows.find(
     (window) => window.window_id === resolvedParams?.id,
   );
   const selectedWindow = matchedWindow;
 
-  const batchRows = batches ?? [];
-
-  useEffect(() => {
-    if (!selectedBatchId && batchRows.length > 0) {
-      setSelectedBatchId(batchRows[0].evidence_batch_id);
-    }
-  }, [batchRows, selectedBatchId]);
-
-  const evidenceRows = batchItems ?? [];
+  const evidenceRows = evidenceItems ?? [];
 
   useEffect(() => {
     if (!selectedEvidenceId && evidenceRows.length > 0) {
@@ -198,28 +177,21 @@ export default function EvidenceWindowPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batchesLoading && evidenceRows.length === 0 && (
+                {evidenceLoading && evidenceRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={2} className="text-xs opacity-50">
                       Loading evidence items...
                     </TableCell>
                   </TableRow>
                 )}
-                {!batchesLoading && batchRows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={2} className="text-xs opacity-50">
-                      No batches yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-                {batchRows.length > 0 && evidenceRows.length === 0 && (
+                {!evidenceLoading && evidenceRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={2} className="text-xs opacity-50">
                       No evidence items found.
                     </TableCell>
                   </TableRow>
                 )}
-                {evidenceRows.map((item) => {
+                {evidenceRows.map((item, index) => {
                   const selected = item.evidence_id === selectedEvidenceId;
                   return (
                     <TableRow
@@ -227,7 +199,7 @@ export default function EvidenceWindowPage({
                       className={selected ? "bg-muted/60" : undefined}
                       onClick={() => setSelectedEvidenceId(item.evidence_id)}
                     >
-                      <TableCell className="opacity-50">{item.position}</TableCell>
+                      <TableCell className="opacity-50">{index + 1}</TableCell>
                       <TableCell>
                         <div
                           className="break-words font-medium"

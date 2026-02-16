@@ -18,13 +18,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -43,7 +36,6 @@ type ExperimentListItem = {
   task_type: string;
   status: string;
   active_run_id?: string;
-  evidence_batch_id?: string;
   window_id: string;
   window_tag?: string;
   evidence_window?: {
@@ -61,12 +53,7 @@ type ExperimentState = {
   exists: boolean;
   evidence_total?: number;
   evidence_neutralized?: number;
-  evidence_batch?: {
-    evidence_batch_id: string;
-    evidence_limit: number;
-    evidence_count: number;
-  };
-  evidence_bound_count?: number;
+  evidence_selected_count?: number;
   run_count?: number;
   latest_run?: {
     run_id: string;
@@ -104,13 +91,6 @@ type ExperimentSummary = {
   };
 };
 
-type EvidenceBatchListItem = {
-  evidence_batch_id: string;
-  evidence_limit: number;
-  evidence_count: number;
-  created_at: number;
-};
-
 type EvidenceItem = {
   evidence_id: string;
   position: number;
@@ -135,7 +115,7 @@ type RunSummary = {
   desired_state: string;
   current_stage?: string;
   stop_at_stage?: string;
-  run_counts?: { sample_count: number; evidence_cap: number } | null;
+  run_counts?: { sample_count: number } | null;
   stages: Array<{
     stage: string;
     status: string;
@@ -155,11 +135,6 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function formatDate(value?: number) {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString();
-}
-
 export default function RouteOneExperimentPage({
   params,
 }: {
@@ -168,8 +143,6 @@ export default function RouteOneExperimentPage({
   const [tab, setTab] = useState<"config" | "runs" | "evidence">("config");
   const [evidenceLimit, setEvidenceLimit] = useState<string>("");
   const [runSampleCount, setRunSampleCount] = useState<string>("1");
-  const [runEvidenceCap, setRunEvidenceCap] = useState<string>("10");
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [evidenceMessage, setEvidenceMessage] = useState<string | null>(null);
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(
@@ -222,12 +195,6 @@ export default function RouteOneExperimentPage({
   ) as ExperimentState[] | undefined;
   const state = states?.[0];
 
-  const evidenceBatches = useQuery(
-    api.lab.listEvidenceBatches,
-    selected && hasConvex ? { window_id: selected.window_id } : "skip",
-  ) as EvidenceBatchListItem[] | undefined;
-  const evidenceBatchesData = evidenceBatches ?? [];
-
   const evidenceItems = useQuery(
     api.lab.listExperimentEvidence,
     selected && hasConvex ? { experiment_id: selected.experiment_id } : "skip",
@@ -255,19 +222,11 @@ export default function RouteOneExperimentPage({
   const updateRunState = useMutation(api.lab.updateRunState);
   const queueRubric = useMutation(api.lab.queueRubricGeneration);
   const queueScore = useMutation(api.lab.queueScoreGeneration);
-  const collectEvidenceBatch = useAction(api.lab.collectEvidenceBatch);
-  const bindExperimentEvidence = useMutation(api.lab.bindExperimentEvidence);
-
-  useEffect(() => {
-    if (!selectedBatchId && evidenceBatchesData.length > 0) {
-      setSelectedBatchId(evidenceBatchesData[0].evidence_batch_id);
-    }
-  }, [evidenceBatchesData, selectedBatchId]);
+  const collectEvidence = useAction(api.lab.collectEvidence);
 
   useEffect(() => {
     if (!runSummaryData?.run_counts) return;
     setRunSampleCount(String(runSummaryData.run_counts.sample_count));
-    setRunEvidenceCap(String(runSummaryData.run_counts.evidence_cap));
   }, [runSummaryData?.run_counts]);
 
   const runProgress = useMemo(() => {
@@ -292,19 +251,14 @@ export default function RouteOneExperimentPage({
     }
     setActionMessage(null);
     const sampleCount = Number(runSampleCount);
-    const evidenceCap = Number(runEvidenceCap);
     if (!Number.isFinite(sampleCount) || sampleCount < 1) {
       setActionMessage("Provide a valid sample count.");
-      return;
-    }
-    if (!Number.isFinite(evidenceCap) || evidenceCap < 1) {
-      setActionMessage("Provide a valid evidence cap.");
       return;
     }
     try {
       const result = await startExperiment({
         experiment_id: selected.experiment_id,
-        run_counts: { sample_count: sampleCount, evidence_cap: evidenceCap },
+        run_counts: { sample_count: sampleCount },
       });
       if (!result.ok) {
         setActionMessage(result.error ?? "Failed to start experiment.");
@@ -417,43 +371,16 @@ export default function RouteOneExperimentPage({
     const evidence_limit =
       Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
     try {
-      const result = await collectEvidenceBatch({
+      const result = await collectEvidence({
         window_id: selected.window_id,
         evidence_limit,
       });
       setEvidenceMessage(
-        `Collected ${result.collected} evidence (batch ${result.evidence_batch_id}).`,
+        `Collected ${result.collected} evidence.`,
       );
     } catch (error) {
       setEvidenceMessage(
         error instanceof Error ? error.message : "Failed to collect evidence.",
-      );
-    }
-  };
-
-  const handleBindEvidence = async () => {
-    if (!selected || !selectedBatchId) return;
-    if (!hasConvex) {
-      setEvidenceMessage("Convex not configured.");
-      return;
-    }
-    if (!state?.latest_run?.run_id) {
-      setEvidenceMessage("Start a run before binding evidence.");
-      return;
-    }
-    setEvidenceMessage(null);
-    try {
-      const result = await bindExperimentEvidence({
-        experiment_id: selected.experiment_id,
-        evidence_batch_id: selectedBatchId,
-        run_id: state.latest_run.run_id,
-      });
-      setEvidenceMessage(
-        `Bound ${result.bound_count}/${result.evidence_count} evidence.`,
-      );
-    } catch (error) {
-      setEvidenceMessage(
-        error instanceof Error ? error.message : "Failed to bind evidence.",
       );
     }
   };
@@ -510,14 +437,6 @@ export default function RouteOneExperimentPage({
                   value={runSampleCount}
                   onChange={(event) => setRunSampleCount(event.target.value)}
                   placeholder="Samples"
-                />
-                <Input
-                  type="number"
-                  min={1}
-                  className="h-8 w-24 text-[10px]"
-                  value={runEvidenceCap}
-                  onChange={(event) => setRunEvidenceCap(event.target.value)}
-                  placeholder="Evidence"
                 />
               </div>
               <Button
@@ -592,14 +511,10 @@ export default function RouteOneExperimentPage({
                 selected={selected}
                 summary={summaryData}
                 state={state}
-                evidenceBatches={evidenceBatchesData}
                 evidenceItems={evidenceItemsData}
                 evidenceLimit={evidenceLimit}
                 onEvidenceLimitChange={setEvidenceLimit}
-                selectedBatchId={selectedBatchId}
-                onBatchChange={setSelectedBatchId}
                 onCollect={handleCollectEvidence}
-                onBind={handleBindEvidence}
                 evidenceMessage={evidenceMessage}
               />
             </TabsContent>
@@ -664,8 +579,7 @@ function ConfigPanel({
     | {
         evidence_total?: number;
         evidence_neutralized?: number;
-        evidence_batch?: { evidence_limit: number; evidence_count: number };
-        evidence_bound_count?: number;
+        evidence_selected_count?: number;
       }
     | undefined;
 }) {
@@ -739,14 +653,12 @@ function ConfigPanel({
 
       <Card className="border-border bg-card/80 p-4 text-xs">
         <span className="uppercase tracking-widest opacity-50">
-          Evidence Batch Snapshot
+          Evidence Selection
         </span>
         <div className="mt-2 flex flex-wrap gap-3">
           <span>Total Evidence: {state?.evidence_total ?? 0}</span>
           <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
-          <span>Batch Limit: {state?.evidence_batch?.evidence_limit ?? 0}</span>
-          <span>Batch Count: {state?.evidence_batch?.evidence_count ?? 0}</span>
-          <span>Bound: {state?.evidence_bound_count ?? 0}</span>
+          <span>Selected: {state?.evidence_selected_count ?? 0}</span>
         </div>
       </Card>
     </div>
@@ -765,7 +677,7 @@ function RunsPanel({
         desired_state: string;
         current_stage?: string;
         stop_at_stage?: string;
-        run_counts?: { sample_count: number; evidence_cap: number } | null;
+        run_counts?: { sample_count: number } | null;
         stages: Array<{
           stage: string;
           status: string;
@@ -806,7 +718,7 @@ function RunsPanel({
               </span>
               {runSummary.run_counts && (
                 <span className="text-[10px] uppercase tracking-wider opacity-40">
-                  samples {runSummary.run_counts.sample_count} · cap {runSummary.run_counts.evidence_cap}
+                  samples {runSummary.run_counts.sample_count}
                 </span>
               )}
             </div>
@@ -875,14 +787,10 @@ function EvidencePanel({
   selected,
   summary,
   state,
-  evidenceBatches,
   evidenceItems,
   evidenceLimit,
   onEvidenceLimitChange,
-  selectedBatchId,
-  onBatchChange,
   onCollect,
-  onBind,
   evidenceMessage,
 }: {
   selected: {
@@ -906,17 +814,8 @@ function EvidencePanel({
     | {
         evidence_total?: number;
         evidence_neutralized?: number;
-        evidence_batch?: { evidence_limit: number; evidence_count: number };
-        evidence_bound_count?: number;
+        evidence_selected_count?: number;
       }
-    | undefined;
-  evidenceBatches:
-    | Array<{
-        evidence_batch_id: string;
-        evidence_limit: number;
-        evidence_count: number;
-        created_at: number;
-      }>
     | undefined;
   evidenceItems:
     | Array<{
@@ -928,10 +827,7 @@ function EvidencePanel({
     | undefined;
   evidenceLimit: string;
   onEvidenceLimitChange: (value: string) => void;
-  selectedBatchId: string;
-  onBatchChange: (value: string) => void;
   onCollect: () => void;
-  onBind: () => void;
   evidenceMessage: string | null;
 }) {
   return (
@@ -957,7 +853,7 @@ function EvidencePanel({
         <div className="mt-2 flex flex-wrap gap-3 opacity-60">
           <span>Total Evidence: {state?.evidence_total ?? 0}</span>
           <span>Neutralized: {state?.evidence_neutralized ?? 0}</span>
-          <span>Bound: {state?.evidence_bound_count ?? 0}</span>
+          <span>Selected: {state?.evidence_selected_count ?? 0}</span>
         </div>
       </Card>
 
@@ -965,10 +861,10 @@ function EvidencePanel({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-widest opacity-50">
-              Evidence Batches
+              Evidence Collection
             </p>
             <p className="mt-1 text-xs opacity-60">
-              Collect or bind a frozen batch for this experiment.
+              Collect more evidence for this window (does not change selections).
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -986,44 +882,22 @@ function EvidencePanel({
               className="h-9 text-[10px] uppercase tracking-wider"
               onClick={onCollect}
             >
-              Collect Batch
+              Collect Evidence
             </Button>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 text-xs">
-          <Select value={selectedBatchId} onValueChange={onBatchChange}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Select batch" />
-            </SelectTrigger>
-            <SelectContent>
-              {(evidenceBatches ?? []).map((batch) => (
-                <SelectItem key={batch.evidence_batch_id} value={batch.evidence_batch_id}>
-                  {batch.evidence_batch_id} · {batch.evidence_count}/{batch.evidence_limit} · {formatDate(batch.created_at)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-fit text-[10px] uppercase tracking-wider"
-            onClick={onBind}
-          >
-            Bind Batch to Experiment
-          </Button>
-          {evidenceMessage && (
-            <span className="text-[10px] uppercase tracking-wider opacity-60">
-              {evidenceMessage}
-            </span>
-          )}
-        </div>
+        {evidenceMessage && (
+          <div className="mt-3 text-[10px] uppercase tracking-wider opacity-60">
+            {evidenceMessage}
+          </div>
+        )}
       </Card>
 
       <div className="space-y-3">
         {(evidenceItems ?? []).length === 0 && (
           <Card className="border-border px-6 py-10 text-center text-xs opacity-40">
-            No evidence bound to this experiment yet.
+            No evidence selected for this experiment yet.
           </Card>
         )}
         {(evidenceItems ?? []).map((ev) => (

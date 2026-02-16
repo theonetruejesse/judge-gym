@@ -60,6 +60,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     window_id: zid("windows"),
     experiment: ExperimentSpecInputSchema,
+    evidence_ids: z.array(zid("evidences")).min(1),
     template_id: z.string().optional(),
     template_version: z.number().optional(),
   }),
@@ -70,7 +71,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (
     ctx,
-    { window_id, experiment, template_id, template_version },
+    { window_id, experiment, evidence_ids, template_id, template_version },
   ) => {
     const windowDoc = await ctx.db.get(window_id);
     if (!windowDoc) throw new Error("Window not found");
@@ -102,6 +103,12 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       config_template_version: configTemplateVersion,
     });
 
+    await insertExperimentEvidence(ctx, {
+      experiment_id: result.experiment_id,
+      window_id,
+      evidence_ids,
+    });
+
     return {
       window_id: result.window_id,
       experiment_id: result.experiment_id,
@@ -114,6 +121,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
   args: z.object({
     template_id: z.string(),
     version: z.number().int().min(1),
+    evidence_ids: z.array(zid("evidences")).min(1),
   }),
   returns: z.object({
     window_id: zid("windows"),
@@ -121,7 +129,7 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
     reused_window: z.boolean(),
     reused_experiment: z.boolean(),
   }),
-  handler: async (ctx, { template_id, version }) => {
+  handler: async (ctx, { template_id, version, evidence_ids }) => {
     const template = (await ctx.runQuery(
       internal.domain.configs.configs_repo.getConfigTemplate,
       { template_id, version },
@@ -159,6 +167,11 @@ export const initExperimentFromTemplate: ReturnType<typeof zMutation> = zMutatio
       experiment,
       config_template_id: template_id,
       config_template_version: version,
+    });
+    await insertExperimentEvidence(ctx, {
+      experiment_id: result.experiment_id,
+      window_id,
+      evidence_ids,
     });
     return {
       window_id: result.window_id,
@@ -226,6 +239,42 @@ async function createExperiment(
     window_id,
     experiment_id,
   };
+}
+
+async function insertExperimentEvidence(
+  ctx: MutationCtx,
+  args: {
+    experiment_id: Id<"experiments">;
+    window_id: Id<"windows">;
+    evidence_ids: Id<"evidences">[];
+  },
+) {
+  const { experiment_id, window_id, evidence_ids } = args;
+  if (evidence_ids.length === 0) {
+    throw new Error("Evidence list cannot be empty");
+  }
+  const seen = new Set<string>();
+  let position = 1;
+  for (const evidence_id of evidence_ids) {
+    if (seen.has(String(evidence_id))) {
+      throw new Error("Duplicate evidence id in selection");
+    }
+    seen.add(String(evidence_id));
+    const evidence = await ctx.db.get(evidence_id);
+    if (!evidence) throw new Error("Evidence not found");
+    if (evidence.window_id !== window_id) {
+      throw new Error("Evidence window mismatch");
+    }
+    await ctx.db.insert("experiment_evidence", {
+      experiment_id,
+      evidence_id,
+      position,
+    });
+    position += 1;
+  }
+  await ctx.db.patch(experiment_id, {
+    evidence_count: evidence_ids.length,
+  });
 }
 
 async function resolveRunConfigForExperiment(
@@ -334,73 +383,6 @@ export const queueScoreGeneration: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
-export const bindExperimentEvidence: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    experiment_id: zid("experiments"),
-    evidence_batch_id: zid("evidence_batches"),
-    run_id: zid("runs").optional(),
-  }),
-  returns: z.object({
-    evidence_batch_id: zid("evidence_batches"),
-    evidence_count: z.number(),
-    bound_count: z.number(),
-    evidence_cap: z.number(),
-  }),
-  handler: async (ctx, { experiment_id, evidence_batch_id, run_id }) => {
-    const experiment = await ctx.db.get(experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-    if (experiment.evidence_batch_id) {
-      throw new Error("Experiment already bound to an evidence batch");
-    }
-
-    const batch = await ctx.db.get(evidence_batch_id);
-    if (!batch) throw new Error("Evidence batch not found");
-    if (batch.window_id !== experiment.window_id) {
-      throw new Error("Evidence batch window mismatch");
-    }
-
-    const batchItems = await ctx.db
-      .query("evidence_batch_items")
-      .withIndex("by_batch", (q) => q.eq("batch_id", evidence_batch_id))
-      .collect();
-    if (batchItems.length === 0) {
-      throw new Error("Evidence batch is empty");
-    }
-    const { runConfig } = await resolveRunConfigForExperiment(
-      ctx,
-      experiment,
-      run_id,
-    );
-    const evidence_cap = runConfig.run_counts.evidence_cap;
-
-    const ordered = batchItems
-      .slice()
-      .sort((a, b) => a.position - b.position)
-      .slice(0, evidence_cap);
-
-    for (const item of ordered) {
-      await ctx.db.insert("experiment_evidence", {
-        experiment_id: experiment._id,
-        evidence_batch_id,
-        evidence_id: item.evidence_id,
-        position: item.position,
-      });
-    }
-
-    await ctx.db.patch(experiment._id, {
-      evidence_batch_id,
-      evidence_count: ordered.length,
-    });
-
-    return {
-      evidence_batch_id,
-      evidence_count: batchItems.length,
-      bound_count: ordered.length,
-      evidence_cap,
-    };
-  },
-});
-
 export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -416,8 +398,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       samples: z.number(),
       scores: z.number(),
       experiment_evidence: z.number(),
-      evidence_batches: z.number(),
-      evidence_batch_items: z.number(),
       evidences: z.number(),
       windows: z.number(),
       llm_requests: z.number(),
@@ -469,8 +449,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
 
-    let evidenceBatchItems: Array<{ _id: Id<"evidence_batch_items"> }> = [];
-    let evidenceBatches: Array<{ _id: Id<"evidence_batches"> }> = [];
     let evidences: Array<{ _id: Id<"evidences"> }> = [];
     let windowsDeleted = 0;
     let shouldDeleteWindow = false;
@@ -482,19 +460,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
       );
       if (otherExperiments.length === 0) {
         shouldDeleteWindow = true;
-        evidenceBatches = await ctx.db
-          .query("evidence_batches")
-          .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
-          .collect();
-
-        for (const batch of evidenceBatches) {
-          const items = await ctx.db
-            .query("evidence_batch_items")
-            .withIndex("by_batch", (q) => q.eq("batch_id", batch._id))
-            .collect();
-          evidenceBatchItems.push(...items);
-        }
-
         evidences = await ctx.db
           .query("evidences")
           .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
@@ -558,8 +523,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
     for (const runConfigId of runConfigIds) {
       await ctx.db.delete(runConfigId);
     }
-    for (const item of evidenceBatchItems) await ctx.db.delete(item._id);
-    for (const batch of evidenceBatches) await ctx.db.delete(batch._id);
     for (const evidence of evidences) await ctx.db.delete(evidence._id);
     if (cleanup_window && shouldDeleteWindow) {
       await ctx.db.delete(window_id);
@@ -577,8 +540,6 @@ export const resetExperiment: ReturnType<typeof zMutation> = zMutation({
         samples: samples.length,
         scores: scores.length,
         experiment_evidence: experimentEvidence.length,
-        evidence_batches: evidenceBatches.length,
-        evidence_batch_items: evidenceBatchItems.length,
         evidences: evidences.length,
         windows: windowsDeleted,
         llm_requests: requests.length,
