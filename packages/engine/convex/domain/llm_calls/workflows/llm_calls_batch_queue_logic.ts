@@ -9,6 +9,7 @@ import type {
 
 export type QueuedRequest = {
   _id: string;
+  run_id?: string | null;
   experiment_id: string | null;
   provider: Provider;
   model: ModelType;
@@ -20,7 +21,6 @@ export type QueuedRequest = {
 
 export type RunCandidate = {
   _id: string;
-  experiment_id: string;
   desired_state: RunDesiredState;
   stop_at_stage?: LlmStage;
   updated_at?: number;
@@ -75,21 +75,13 @@ export function selectBatchCandidates(args: {
       (!req.next_retry_at || req.next_retry_at <= now),
   );
 
-  const activeRuns = new Map<string, RunCandidate>();
-  if (filtered.some((req) => req.experiment_id)) {
-    for (const run of runs) {
-      const existing = activeRuns.get(run.experiment_id);
-      if (!existing || (run.updated_at ?? 0) > (existing.updated_at ?? 0)) {
-        activeRuns.set(run.experiment_id, run);
-      }
-    }
-  }
+  const runById = new Map(runs.map((run) => [run._id, run]));
 
   const runnable = filtered.filter((req) => {
-    if (!req.experiment_id) return true;
-    const run = activeRuns.get(req.experiment_id);
+    if (!req.run_id) return true;
+    const run = runById.get(req.run_id);
     if (!run) return true;
-    if (run.desired_state !== "running") return false;
+    if (run.desired_state !== "running" && !run.stop_at_stage) return false;
     if (!policyAllows(run.policy, req.provider, req.model)) return false;
     if (
       run.policy.max_concurrent_batches !== undefined &&
@@ -113,7 +105,7 @@ export function selectBatchCandidates(args: {
   >();
 
   for (const req of runnable) {
-    const run = req.experiment_id ? activeRuns.get(req.experiment_id) : undefined;
+    const run = req.run_id ? runById.get(req.run_id) : undefined;
     const key = run?._id ?? "none";
     const entry = grouped.get(key) ?? {
       run_id: run?._id,

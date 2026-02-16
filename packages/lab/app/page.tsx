@@ -26,13 +26,22 @@ type ExperimentListItem = {
   experiment_tag?: string;
   task_type: string;
   status: string;
-  active_run_id?: string;
   window_id: string;
   window_tag?: string;
   run_counts?: {
     sample_count: number;
   };
   evidence_selected_count?: number;
+  config: {
+    rubric_stage: { scale_size: number; model_id: string };
+    scoring_stage: {
+      model_id: string;
+      method: string;
+      randomizations: string[];
+      evidence_view: string;
+      abstain_enabled: boolean;
+    };
+  };
   evidence_window?: {
     start_date: string;
     end_date: string;
@@ -54,6 +63,17 @@ type EvidenceWindowItem = {
   evidence_status: "scraping" | "cleaning" | "neutralizing" | "abstracting" | "ready";
 };
 
+type RunListItem = {
+  run_id: string;
+  experiment_id: string;
+  status: string;
+  desired_state: string;
+  current_stage?: string;
+  stop_at_stage?: string;
+  run_counts?: { sample_count: number };
+  updated_at?: number;
+};
+
 export default function RouteOneExperimentsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -65,6 +85,11 @@ export default function RouteOneExperimentsPage() {
     hasConvex ? {} : "skip",
   ) as ExperimentListItem[] | undefined;
 
+  const runs = useQuery(
+    api.lab.listRuns,
+    hasConvex ? {} : "skip",
+  ) as RunListItem[] | undefined;
+
   const windows = useQuery(
     api.lab.listEvidenceWindows,
     hasConvex ? {} : "skip",
@@ -74,6 +99,7 @@ export default function RouteOneExperimentsPage() {
   const windowsLoading = hasConvex && windows === undefined;
 
   const experimentRows = experiments ?? [];
+  const runRows = runs ?? [];
   const windowRows = windows ?? [];
 
   const filteredBase =
@@ -118,14 +144,42 @@ export default function RouteOneExperimentsPage() {
   };
 
   const handleRunState = async (
-    runId: string,
+    runIds: string[],
     desired_state: "running" | "paused",
   ) => {
     try {
-      await updateRunState({ run_id: runId, desired_state });
+      await Promise.all(
+        runIds.map((run_id) => updateRunState({ run_id, desired_state })),
+      );
     } catch (error) {
       console.error("Failed to update run state", error);
     }
+  };
+
+  const buildExperimentCloneHref = (exp: ExperimentListItem) => {
+    const params = new URLSearchParams({
+      task_type: exp.task_type,
+      rubric_model_id: exp.config.rubric_stage.model_id,
+      scoring_model_id: exp.config.scoring_stage.model_id,
+      scale_size: String(exp.config.rubric_stage.scale_size),
+      method: exp.config.scoring_stage.method,
+      evidence_view: exp.config.scoring_stage.evidence_view,
+      abstain_enabled: exp.config.scoring_stage.abstain_enabled ? "true" : "false",
+      randomizations: exp.config.scoring_stage.randomizations.join(","),
+      window_id: exp.window_id,
+    });
+    return `/editor/experiment?${params.toString()}`;
+  };
+
+  const buildWindowCloneHref = (window: EvidenceWindowItem) => {
+    const params = new URLSearchParams({
+      concept: window.concept,
+      country: window.country,
+      start_date: window.start_date,
+      end_date: window.end_date,
+      model_id: window.model_id,
+    });
+    return `/editor/window?${params.toString()}`;
   };
 
   return (
@@ -243,7 +297,7 @@ export default function RouteOneExperimentsPage() {
                       onClick={(event) => event.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-2">
-                        {exp.status === "pending" && (
+                        {exp.status !== "running" && exp.status !== "paused" && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -253,41 +307,53 @@ export default function RouteOneExperimentsPage() {
                             Start
                           </Button>
                         )}
-                        {exp.status === "running" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[10px] uppercase tracking-wider"
-                            onClick={() =>
-                              exp.active_run_id &&
-                              handleRunState(exp.active_run_id, "paused")
-                            }
-                            disabled={!exp.active_run_id}
-                          >
-                            Pause
-                          </Button>
-                        )}
-                        {exp.status === "paused" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[10px] uppercase tracking-wider"
-                            onClick={() =>
-                              exp.active_run_id &&
-                              handleRunState(exp.active_run_id, "running")
-                            }
-                            disabled={!exp.active_run_id}
-                          >
-                            Resume
-                          </Button>
-                        )}
+                        {exp.status === "running" && (() => {
+                          const runningRunIds = runRows
+                            .filter(
+                              (run) =>
+                                run.experiment_id === exp.experiment_id &&
+                                run.status === "running",
+                            )
+                            .map((run) => run.run_id);
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                              onClick={() => handleRunState(runningRunIds, "paused")}
+                              disabled={runningRunIds.length === 0}
+                            >
+                              Pause
+                            </Button>
+                          );
+                        })()}
+                        {exp.status === "paused" && (() => {
+                          const pausedRunIds = runRows
+                            .filter(
+                              (run) =>
+                                run.experiment_id === exp.experiment_id &&
+                                run.status === "paused",
+                            )
+                            .map((run) => run.run_id);
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px] uppercase tracking-wider"
+                              onClick={() => handleRunState(pausedRunIds, "running")}
+                              disabled={pausedRunIds.length === 0}
+                            >
+                              Resume
+                            </Button>
+                          );
+                        })()}
                         <Button
                           asChild
                           variant="outline"
                           size="sm"
                           className="h-7 px-2 text-[10px] uppercase tracking-wider"
                         >
-                          <Link href={`/editor/experiment?clone_id=${exp.experiment_id}`}>
+                          <Link href={buildExperimentCloneHref(exp)}>
                             Clone
                           </Link>
                         </Button>
@@ -371,7 +437,7 @@ export default function RouteOneExperimentsPage() {
                         size="sm"
                         className="h-7 px-2 text-[10px] uppercase tracking-wider"
                       >
-                        <Link href={`/editor/window?clone_id=${window.window_id}`}>
+                        <Link href={buildWindowCloneHref(window)}>
                           Clone
                         </Link>
                       </Button>

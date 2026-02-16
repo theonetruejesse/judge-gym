@@ -35,7 +35,6 @@ type ExperimentListItem = {
   experiment_tag?: string;
   task_type: string;
   status: string;
-  active_run_id?: string;
   window_id: string;
   window_tag?: string;
   evidence_window?: {
@@ -51,6 +50,7 @@ type ExperimentState = {
   experiment_id: string;
   experiment_tag?: string;
   exists: boolean;
+  status?: string;
   evidence_total?: number;
   evidence_neutralized?: number;
   evidence_selected_count?: number;
@@ -106,6 +106,7 @@ type RunListItem = {
   desired_state: string;
   current_stage?: string;
   stop_at_stage?: string;
+  run_counts?: { sample_count: number };
   updated_at?: number;
 };
 
@@ -209,8 +210,6 @@ export default function RouteOneExperimentPage({
 
   const startExperiment = useMutation(api.lab.startExperiment);
   const updateRunState = useMutation(api.lab.updateRunState);
-  const queueRubric = useMutation(api.lab.queueRubricGeneration);
-  const queueScore = useMutation(api.lab.queueScoreGeneration);
   const collectEvidence = useAction(api.lab.collectEvidence);
 
   useEffect(() => {
@@ -253,7 +252,12 @@ export default function RouteOneExperimentPage({
         setActionMessage(result.error ?? "Failed to start experiment.");
         return;
       }
-      setActionMessage(`Run started: ${result.run_id ?? "pending"}`);
+      const started = result.started ?? result.run_ids?.length ?? 0;
+      setActionMessage(
+        started > 0
+          ? `Started ${started} run${started === 1 ? "" : "s"}.`
+          : "Run start queued.",
+      );
     } catch (error) {
       setActionMessage(
         error instanceof Error ? error.message : "Failed to start experiment.",
@@ -262,18 +266,28 @@ export default function RouteOneExperimentPage({
   };
 
   const handlePause = async () => {
-    if (!state?.latest_run?.run_id) return;
+    if (!selected) return;
     if (!hasConvex) {
       setActionMessage("Convex not configured.");
       return;
     }
+    const runningRuns = activeRunsForExperiment.filter(
+      (run) => run.status === "running",
+    );
+    if (runningRuns.length === 0) {
+      setActionMessage("No running runs to pause.");
+      return;
+    }
     setActionMessage(null);
     try {
-      await updateRunState({
-        run_id: state.latest_run.run_id,
-        desired_state: "paused",
-      });
-      setActionMessage("Run paused.");
+      await Promise.all(
+        runningRuns.map((run) =>
+          updateRunState({ run_id: run.run_id, desired_state: "paused" }),
+        ),
+      );
+      setActionMessage(
+        `Pausing ${runningRuns.length} run${runningRuns.length === 1 ? "" : "s"}.`,
+      );
     } catch (error) {
       setActionMessage(
         error instanceof Error ? error.message : "Failed to pause run.",
@@ -281,70 +295,62 @@ export default function RouteOneExperimentPage({
     }
   };
 
-  const handleCancel = async () => {
-    if (!state?.latest_run?.run_id) return;
+  const handleResume = async () => {
+    if (!selected) return;
     if (!hasConvex) {
       setActionMessage("Convex not configured.");
       return;
     }
+    const pausedRuns = activeRunsForExperiment.filter(
+      (run) => run.status === "paused",
+    );
+    if (pausedRuns.length === 0) {
+      setActionMessage("No paused runs to resume.");
+      return;
+    }
     setActionMessage(null);
     try {
-      await updateRunState({
-        run_id: state.latest_run.run_id,
-        desired_state: "canceled",
-      });
-      setActionMessage("Run canceled.");
+      await Promise.all(
+        pausedRuns.map((run) =>
+          updateRunState({ run_id: run.run_id, desired_state: "running" }),
+        ),
+      );
+      setActionMessage(
+        `Resumed ${pausedRuns.length} run${pausedRuns.length === 1 ? "" : "s"}.`,
+      );
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Failed to resume run.",
+      );
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!selected) return;
+    if (!hasConvex) {
+      setActionMessage("Convex not configured.");
+      return;
+    }
+    const cancellable = activeRunsForExperiment.filter(
+      (run) => run.status !== "canceled" && run.status !== "complete",
+    );
+    if (cancellable.length === 0) {
+      setActionMessage("No active runs to cancel.");
+      return;
+    }
+    setActionMessage(null);
+    try {
+      await Promise.all(
+        cancellable.map((run) =>
+          updateRunState({ run_id: run.run_id, desired_state: "canceled" }),
+        ),
+      );
+      setActionMessage(
+        `Canceled ${cancellable.length} run${cancellable.length === 1 ? "" : "s"}.`,
+      );
     } catch (error) {
       setActionMessage(
         error instanceof Error ? error.message : "Failed to cancel run.",
-      );
-    }
-  };
-
-  const handleQueueRubric = async () => {
-    if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
-    if (!state?.latest_run?.run_id) {
-      setActionMessage("Start a run before queueing rubric generation.");
-      return;
-    }
-    setActionMessage(null);
-    try {
-      await queueRubric({
-        experiment_id: selected.experiment_id,
-        run_id: state.latest_run.run_id,
-      });
-      setActionMessage("Queued rubric generation.");
-    } catch (error) {
-      setActionMessage(
-        error instanceof Error ? error.message : "Failed to queue rubric.",
-      );
-    }
-  };
-
-  const handleQueueScore = async () => {
-    if (!selected) return;
-    if (!hasConvex) {
-      setActionMessage("Convex not configured.");
-      return;
-    }
-    if (!state?.latest_run?.run_id) {
-      setActionMessage("Start a run before queueing scoring.");
-      return;
-    }
-    setActionMessage(null);
-    try {
-      await queueScore({
-        experiment_id: selected.experiment_id,
-        run_id: state.latest_run.run_id,
-      });
-      setActionMessage("Queued scoring.");
-    } catch (error) {
-      setActionMessage(
-        error instanceof Error ? error.message : "Failed to queue scoring.",
       );
     }
   };
@@ -440,55 +446,50 @@ export default function RouteOneExperimentPage({
                   placeholder="Samples"
                 />
               </div>
-              <Button
-                size="sm"
-                className="h-8 text-[10px] uppercase tracking-wider"
-                onClick={handleStart}
-              >
-                Start
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
-                onClick={handlePause}
-              >
-                Pause
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
-                onClick={handleCancel}
-              >
-                Cancel
-              </Button>
+              {state?.status === "running" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
+                  onClick={handlePause}
+                >
+                  Pause
+                </Button>
+              ) : state?.status === "paused" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
+                  onClick={handleResume}
+                >
+                  Resume
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="h-8 text-[10px] uppercase tracking-wider"
+                  onClick={handleStart}
+                >
+                  Start
+                </Button>
+              )}
+              {activeRunsForExperiment.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-[10px] uppercase tracking-wider text-muted-foreground"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+              )}
             </div>
           </div>
-
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider opacity-60">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-[10px] uppercase tracking-wider"
-              onClick={handleQueueRubric}
-            >
-              Queue Rubric
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-[10px] uppercase tracking-wider"
-              onClick={handleQueueScore}
-            >
-              Queue Scores
-            </Button>
-            {actionMessage && (
-              <span className="text-[10px] uppercase tracking-wider opacity-60">
-                {actionMessage}
-              </span>
-            )}
-          </div>
+          {actionMessage && (
+            <div className="mb-2 text-[10px] uppercase tracking-wider opacity-60">
+              {actionMessage}
+            </div>
+          )}
 
           <Tabs
             value={tab}

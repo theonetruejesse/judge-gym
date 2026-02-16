@@ -90,7 +90,7 @@ describe("lab facade integration", () => {
 
       if (hasRunEnvs) {
         expect(start.ok).toBe(true);
-        expect(start.run_id).toBeDefined();
+        expect(start.run_ids?.length).toBeGreaterThan(0);
       } else {
         expect(start.ok).toBe(false);
         expect(start.error).toBeDefined();
@@ -156,7 +156,7 @@ describe("lab facade integration", () => {
         experiment_id,
         run_counts: { sample_count: 1 },
       });
-      if (!start.ok || !start.run_id) return;
+      if (!start.ok || !start.run_ids || start.run_ids.length === 0) return;
 
       const experimentEvidence = await client.query(
         api.lab.listExperimentEvidence,

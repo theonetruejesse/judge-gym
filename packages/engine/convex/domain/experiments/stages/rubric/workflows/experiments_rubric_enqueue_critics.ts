@@ -6,14 +6,14 @@ import { buildRubricCriticPrompt } from "../experiments_rubric_prompts";
 import { providerFor } from "../../../../../platform/utils";
 
 export const enqueueRubricCritics = zInternalMutation({
-  args: z.object({ experiment_id: zid("experiments") }),
+  args: z.object({ run_id: zid("runs") }),
   returns: z.object({ enqueued: z.number() }),
-  handler: async (ctx, { experiment_id }) => {
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) throw new Error("Run not found");
     const rubrics = await ctx.db
       .query("rubrics")
-      .withIndex("by_experiment_model", (q) =>
-        q.eq("experiment_id", experiment_id),
-      )
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
 
     let enqueued = 0;
@@ -31,6 +31,7 @@ export const enqueueRubricCritics = zInternalMutation({
           model: rubric.model_id,
           system_prompt: prompts.system_prompt,
           user_prompt: prompts.user_prompt,
+          run_id,
           experiment_id: rubric.experiment_id,
           rubric_id: rubric._id,
           sample_id: null,
@@ -39,6 +40,12 @@ export const enqueueRubricCritics = zInternalMutation({
         },
       );
       enqueued += 1;
+    }
+    if (enqueued > 0) {
+      await ctx.db.patch(run_id, {
+        current_stage: "rubric_critic",
+        updated_at: Date.now(),
+      });
     }
     return { enqueued };
   },

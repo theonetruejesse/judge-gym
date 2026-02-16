@@ -10,8 +10,6 @@ const TABLES = [
   "rubrics",
   "samples",
   "scores",
-  "config_templates",
-  "run_configs",
   "scheduler_state",
   "runs",
   "run_stages",

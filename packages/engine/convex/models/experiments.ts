@@ -29,9 +29,6 @@ export const ExperimentSpecNormalizedSchema = ExperimentSpecSchema.omit({
 export const ExperimentsTableSchema = ExperimentSpecSchema.extend({
   window_id: zid("windows"),
   status: ExperimentStatusSchema,
-  config_template_id: z.string(),
-  config_template_version: z.number(),
-  active_run_id: zid("runs").optional(),
   evidence_count: z.number().int().min(0).optional(),
 });
 
@@ -70,6 +67,7 @@ const StageSchema = z.object({
 });
 
 export const RubricsTableSchema = z.object({
+  run_id: zid("runs"),
   experiment_id: zid("experiments"),
   model_id: modelTypeSchema,
   concept: z.string(),
@@ -92,6 +90,7 @@ export const RubricsTableSchema = z.object({
 });
 
 export const SamplesTableSchema = z.object({
+  run_id: zid("runs"),
   experiment_id: zid("experiments"),
   model_id: modelTypeSchema,
   rubric_id: zid("rubrics"),
@@ -100,6 +99,7 @@ export const SamplesTableSchema = z.object({
 });
 
 export const ScoresTableSchema = z.object({
+  run_id: zid("runs"),
   sample_id: zid("samples"),
   experiment_id: zid("experiments"),
   model_id: modelTypeSchema,

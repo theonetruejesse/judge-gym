@@ -2,6 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zQuery } from "../../platform/utils";
 import {
+  ExperimentStatusSchema,
   LlmStageSchema,
   ParseStatusSchema,
   modelTypeSchema,
@@ -31,6 +32,7 @@ export const getExperimentStatus = zQuery({
         parse_status: ParseStatusSchema.optional(),
       })
       .optional(),
+    status: ExperimentStatusSchema.optional(),
     run_count: z.number().optional(),
     running_count: z.number().optional(),
     latest_run: z
@@ -81,6 +83,7 @@ export const getExperimentStatus = zQuery({
     const latest = runs
       .slice()
       .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
+    const status = deriveExperimentStatus(runs);
 
     return {
       experiment_id,
@@ -106,6 +109,7 @@ export const getExperimentStatus = zQuery({
         : undefined,
       run_count,
       running_count,
+      status,
       latest_run: latest
         ? {
             run_id: latest._id,
@@ -118,3 +122,15 @@ export const getExperimentStatus = zQuery({
     };
   },
 });
+
+function deriveExperimentStatus(
+  runs: Array<{ status: string }>,
+): "pending" | "running" | "paused" | "complete" | "canceled" {
+  if (runs.length === 0) return "pending";
+  const statuses = runs.map((run) => run.status);
+  if (statuses.some((status) => status === "running")) return "running";
+  if (statuses.some((status) => status === "paused")) return "paused";
+  if (statuses.every((status) => status === "complete")) return "complete";
+  if (statuses.some((status) => status === "canceled")) return "canceled";
+  return "pending";
+}

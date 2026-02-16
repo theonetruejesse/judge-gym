@@ -7,19 +7,19 @@ import { resolveEvidenceStrategy } from "../../../strategies/experiments_evidenc
 import { providerFor } from "../../../../../platform/utils";
 
 export const enqueueScoreCritics = zInternalMutation({
-  args: z.object({ experiment_id: zid("experiments") }),
+  args: z.object({ run_id: zid("runs") }),
   returns: z.object({ enqueued: z.number() }),
-  handler: async (ctx, { experiment_id }) => {
-    const experiment = await ctx.db.get(experiment_id);
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) throw new Error("Run not found");
+    const experiment = await ctx.db.get(run.experiment_id);
     if (!experiment) throw new Error("Experiment not found");
 
     const evidenceStrategy = resolveEvidenceStrategy(experiment.config);
 
     const scores = await ctx.db
       .query("scores")
-      .withIndex("by_experiment", (q) =>
-        q.eq("experiment_id", experiment_id),
-      )
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
 
     let enqueued = 0;
@@ -46,6 +46,7 @@ export const enqueueScoreCritics = zInternalMutation({
           model: score.model_id,
           system_prompt: prompts.system_prompt,
           user_prompt: prompts.user_prompt,
+          run_id,
           experiment_id: score.experiment_id,
           rubric_id: score.rubric_id,
           sample_id: score.sample_id,
@@ -54,6 +55,12 @@ export const enqueueScoreCritics = zInternalMutation({
         },
       );
       enqueued += 1;
+    }
+    if (enqueued > 0) {
+      await ctx.db.patch(run_id, {
+        current_stage: "score_critic",
+        updated_at: Date.now(),
+      });
     }
     return { enqueued };
   },

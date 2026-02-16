@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
@@ -87,6 +87,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+function parseBooleanParam(value: string | null) {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+function parseNumberParam(value: string | null) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export default function ExperimentEditorPage() {
   if (!hasConvex) {
     return (
@@ -108,7 +120,6 @@ export default function ExperimentEditorPage() {
 function ExperimentEditorWithConvex() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const cloneId = searchParams.get("clone_id");
 
   const windows = useQuery(api.lab.listEvidenceWindows, {}) as
     | EvidenceWindowItem[]
@@ -117,19 +128,12 @@ function ExperimentEditorWithConvex() {
   const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
   const createWindowValue = "__create_window__";
+  const initializedRef = useRef(false);
   const evidenceItems = useQuery(
     api.lab.listEvidenceByWindow,
     selectedWindowId ? { window_id: selectedWindowId } : "skip",
   ) as EvidenceItem[] | undefined;
   const initExperiment = useMutation(api.lab.initExperiment);
-  const cloneExperiment = useQuery(
-    api.lab.getExperimentSummary,
-    cloneId ? { experiment_id: cloneId } : "skip",
-  );
-  const cloneEvidence = useQuery(
-    api.lab.listExperimentEvidence,
-    cloneId ? { experiment_id: cloneId } : "skip",
-  ) as Array<{ evidence_id: string }> | undefined;
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -137,6 +141,60 @@ function ExperimentEditorWithConvex() {
       randomizations: [],
     },
   });
+
+  useEffect(() => {
+    if (initializedRef.current) return;
+    const values = form.getValues();
+    const taskTypeParam = searchParams.get("task_type");
+    const rubricModel = searchParams.get("rubric_model_id");
+    const scoringModel = searchParams.get("scoring_model_id");
+    const scaleSize = parseNumberParam(searchParams.get("scale_size"));
+    const methodParam = searchParams.get("method");
+    const evidenceViewParam = searchParams.get("evidence_view");
+    const abstainEnabled = parseBooleanParam(searchParams.get("abstain_enabled"));
+    const randomizationsRaw = searchParams.get("randomizations");
+    const taskType = ["ecc", "control", "benchmark"].includes(taskTypeParam ?? "")
+      ? (taskTypeParam as FormValues["task_type"])
+      : undefined;
+    const method = ["single", "subset"].includes(methodParam ?? "")
+      ? (methodParam as FormValues["method"])
+      : undefined;
+    const evidenceView = [
+      "l0_raw",
+      "l1_cleaned",
+      "l2_neutralized",
+      "l3_abstracted",
+    ].includes(evidenceViewParam ?? "")
+      ? (evidenceViewParam as FormValues["evidence_view"])
+      : undefined;
+    const randomizations = randomizationsRaw
+      ? randomizationsRaw
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) =>
+            ["anonymize_labels", "shuffle_rubric_order", "hide_label_text"].includes(item),
+          ) as FormValues["randomizations"]
+      : undefined;
+    const windowId = searchParams.get("window_id");
+
+    form.reset({
+      ...values,
+      task_type: taskType ?? values.task_type,
+      rubric_model_id: rubricModel ?? values.rubric_model_id,
+      scoring_model_id: scoringModel ?? values.scoring_model_id,
+      scale_size: scaleSize ?? values.scale_size,
+      method: method ?? values.method,
+      evidence_view: evidenceView ?? values.evidence_view,
+      abstain_enabled: abstainEnabled ?? values.abstain_enabled,
+      randomizations: randomizations ?? values.randomizations,
+    });
+
+    if (windowId) {
+      setSelectedWindowId(windowId);
+    }
+
+    initializedRef.current = true;
+  }, [form, searchParams]);
 
   useEffect(() => {
     if (!selectedWindowId && windows && windows.length > 0) {
@@ -157,26 +215,46 @@ function ExperimentEditorWithConvex() {
     setSelectedWindowId(value);
   };
 
-  useEffect(() => {
-    if (!cloneExperiment) return;
-    const config = cloneExperiment.config;
-    form.reset({
-      task_type: cloneExperiment.task_type,
-      rubric_model_id: config.rubric_stage.model_id,
-      scoring_model_id: config.scoring_stage.model_id,
-      scale_size: config.rubric_stage.scale_size,
-      method: config.scoring_stage.method,
-      evidence_view: config.scoring_stage.evidence_view,
-      abstain_enabled: config.scoring_stage.abstain_enabled,
-      randomizations: config.scoring_stage.randomizations,
-    });
-    setSelectedWindowId(cloneExperiment.window_id);
-  }, [cloneExperiment, form]);
+  const watchedValues = form.watch();
 
   useEffect(() => {
-    if (!cloneId || !cloneEvidence) return;
-    setSelectedEvidenceIds(cloneEvidence.map((row) => row.evidence_id));
-  }, [cloneId, cloneEvidence]);
+    if (!initializedRef.current) return;
+    const params = new URLSearchParams();
+    if (watchedValues.task_type) params.set("task_type", watchedValues.task_type);
+    if (watchedValues.rubric_model_id) {
+      params.set("rubric_model_id", watchedValues.rubric_model_id);
+    }
+    if (watchedValues.scoring_model_id) {
+      params.set("scoring_model_id", watchedValues.scoring_model_id);
+    }
+    if (Number.isFinite(watchedValues.scale_size)) {
+      params.set("scale_size", String(watchedValues.scale_size));
+    }
+    if (watchedValues.method) params.set("method", watchedValues.method);
+    if (watchedValues.evidence_view) {
+      params.set("evidence_view", watchedValues.evidence_view);
+    }
+    if (typeof watchedValues.abstain_enabled === "boolean") {
+      params.set("abstain_enabled", watchedValues.abstain_enabled ? "true" : "false");
+    }
+    if (watchedValues.randomizations && watchedValues.randomizations.length > 0) {
+      params.set(
+        "randomizations",
+        watchedValues.randomizations.slice().sort().join(","),
+      );
+    }
+    if (selectedWindowId) {
+      params.set("window_id", selectedWindowId);
+    }
+
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `/editor/experiment?${next}` : "/editor/experiment", {
+        scroll: false,
+      });
+    }
+  }, [watchedValues, selectedWindowId, router, searchParams]);
 
   const randomizationOptions = useMemo(
     () => Object.entries(RANDOMIZATION_LABELS),

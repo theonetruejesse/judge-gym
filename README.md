@@ -17,7 +17,6 @@ judge-gym/
 │   │   ├── convex/
 │   │   │   ├── domain/
 │   │   │   │   ├── admin/             # Admin-only utilities (includes nukeTables to wipe all tables)
-│   │   │   │   ├── configs/           # Config templates + run configs
 │   │   │   │   ├── evidence/          # Evidence collection + windows
 │   │   │   │   ├── experiments/       # Experiment entrypoints + stage-local workflows
 │   │   │   │   ├── runs/              # Run lifecycle + stage accounting
@@ -50,7 +49,7 @@ judge-gym/
 The Mission Control UI ships a multi-page layout focused on experiments and evidence windows.
 It reads live data from Convex; set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app to connect.
 The UI does not ship mock data; empty tables will render until Convex has data.
-Experiment listings surface the configured sample count and evidence cap from each experiment config.
+Experiment listings surface the latest run sample count and the frozen evidence selection size.
 Evidence content can be retrieved via `lab.getEvidenceContent` for evidence window previews.
 The Lab UI is built on shadcn/ui components (see `packages/lab/components/ui`) with theme tokens in `packages/lab/app/globals.css`.
 Navigation is intentionally minimal: every Lab page includes the same `judge-gym` home link in the top nav.
@@ -60,10 +59,11 @@ Evidence window rows show a coarse pipeline status (scraping, cleaning, neutrali
 Calendar navigation buttons are rendered as `type="button"` to prevent unintended form submissions in editors.
 The experiment editor evidence window dropdown always includes a “Create new window” action that routes to `/editor/window`.
 Experiment editor fields are grouped into Rubric Stage and Scoring Stage sections with minimal inline labels.
-Config templates store a snapshot of the evidence window fields (excluding Convex metadata) when experiments are created.
+Experiment cloning is client-side only; editor query params prefill the form and stay in sync as you edit.
 Experiment and evidence window tags use the `adjective-noun-id` format for concise display.
 
 Routes:
+
 - `/` - Experiments + evidence windows
 - `/experiment/[id]` - Experiment detail
 - `/evidence/[id]` - Evidence window preview
@@ -135,33 +135,32 @@ CONVEX_URL=https://<your-deployment>.convex.cloud
 An **experiment** is a single point in the design space. Each axis is independently configurable.
 Rubric and scoring models are selected separately via the experiment config:
 
-| Axis            | Config Field                     | Values                                                                                                                           | Default                                 |
-| :-------------- | :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Rubric Model    | `config.rubric_stage.model_id`   | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Scoring Model   | `config.scoring_stage.model_id`  | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept         | `evidence_window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
-| Task Type       | `task_type`                      | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoring_stage.method`    | `single`, `subset`                                                                                                               | `subset`                                |
-| Scale Size      | `config.rubric_stage.scale_size` | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View   | `config.scoring_stage.evidence_view` | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                 | `l2_neutralized`                        |
-| Randomizations  | `config.scoring_stage.randomizations` | array of `anonymize_labels`, `shuffle_rubric_order`, `hide_label_text`                                                       | `["anonymize_labels","shuffle_rubric_order"]` |
-| Abstain Gate    | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                             | `true`                                  |
+| Axis           | Config Field                           | Values                                                                                                                           | Default                                       |
+| :------------- | :------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------- |
+| Rubric Model   | `config.rubric_stage.model_id`         | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                             |
+| Scoring Model  | `config.scoring_stage.model_id`        | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                             |
+| Concept        | `evidence_window.concept`              | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                             |
+| Task Type      | `task_type`                            | `ecc`, `control`, `benchmark`                                                                                                    | —                                             |
+| Scoring Method | `config.scoring_stage.method`          | `single`, `subset`                                                                                                               | `subset`                                      |
+| Scale Size     | `config.rubric_stage.scale_size`       | `3`, `4`, `5`                                                                                                                    | `4`                                           |
+| Evidence View  | `config.scoring_stage.evidence_view`   | `l0_raw` / `l1_cleaned` / `l2_neutralized` / `l3_abstracted`                                                                     | `l2_neutralized`                              |
+| Randomizations | `config.scoring_stage.randomizations`  | array of `anonymize_labels`, `shuffle_rubric_order`, `hide_label_text`                                                           | `["anonymize_labels","shuffle_rubric_order"]` |
+| Abstain Gate   | `config.scoring_stage.abstain_enabled` | `true` / `false`                                                                                                                 | `true`                                        |
 
 Run-level knobs are supplied when you start a run (not in the experiment config):
 
-| Run Parameter   | Field                      | Values         | Default |
-| :-------------- | :------------------------- | :------------- | :------ |
-| Sample Count    | `run_counts.sample_count`  | integer >= 1   | —       |
-| Evidence Cap    | `run_counts.evidence_cap`  | integer >= 1   | —       |
+| Run Parameter | Field                     | Values       | Default |
+| :------------ | :------------------------ | :----------- | :------ |
+| Sample Count  | `run_counts.sample_count` | integer >= 1 | —       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key. Evidence collection produces frozen evidence batches; experiments bind to a single batch to lock the evidence set.
+Evidence windows are defined by `evidence_window.start_date`, `evidence_window.end_date`, `evidence_window.country`, `evidence_window.concept`, and `evidence_window.model_id`, and are reused across experiments with the same window key. Evidence selection is frozen at experiment creation by storing the chosen evidence IDs.
 
 ---
 
 ## Running Experiments
 
-All experiment operations are exposed via Convex public mutations and queries. The public façade lives in `packages/engine/convex/lab.ts` and mirrors the setup, evidence batch, binding, and run lifecycle entrypoints. Operate via the Mission Control web UI, Convex CLI, or MCP.
+All experiment operations are exposed via Convex public mutations and queries. The public façade lives in `packages/engine/convex/lab.ts` and mirrors setup, evidence collection, experiment init, and run lifecycle entrypoints. Operate via the Mission Control web UI, Convex CLI, or MCP.
 
 ### Option A — Mission Control Web App (recommended)
 
@@ -182,80 +181,57 @@ bun run dev
 
 ### Option B — CLI + Manual Workflow
 
-#### 1. Seed a config template and init the experiment
-
-The durable source of truth is a config template. The simplest flow is to seed one and then init from it:
+#### 1. Create an evidence window + collect evidence
 
 ```bash
-npx convex run domain/configs/configs_entrypoints:seedConfigTemplate '{
-  "template_id": "pilot_fascism_gpt4.1",
-  "version": 1,
-  "schema_version": 1,
-  "config_body": {
-    "evidence_window": {
-      "start_date": "2026-01-01",
-      "end_date": "2026-01-31",
-      "country": "USA",
-      "concept": "fascism",
-      "model_id": "gpt-4.1"
-    },
-    "experiment": {
-      "task_type": "ecc",
-      "config": {
-        "rubric_stage": {
-          "scale_size": 4,
-          "model_id": "gpt-4.1"
-        },
-        "scoring_stage": {
-          "model_id": "gpt-4.1",
-          "method": "subset",
-          "randomizations": ["anonymize_labels", "shuffle_rubric_order"],
-          "evidence_view": "l2_neutralized",
-          "abstain_enabled": true
-        }
-      }
-    }
-  },
-  "created_by": "cli",
-  "notes": "manual seed"
+# Create the evidence window
+npx convex run domain/experiments/experiments_entrypoints:initEvidenceWindow '{
+  "evidence_window": {
+    "start_date": "2026-01-01",
+    "end_date": "2026-01-31",
+    "country": "USA",
+    "concept": "fascism",
+    "model_id": "gpt-4.1"
+  }
 }'
 
-npx convex run domain/experiments/experiments_entrypoints:initExperimentFromTemplate '{
-  "template_id": "pilot_fascism_gpt4.1",
-  "version": 1
+# Collect evidence into the window
+npx convex run domain/evidence/evidence_entrypoints:collectEvidence '{
+  "window_id": "<window_id>",
+  "evidence_limit": 10
+}'
+
+# Inspect evidence IDs for selection
+npx convex run lab:listEvidenceByWindow '{"window_id":"<window_id>"}'
+```
+
+#### 2. Init the experiment (freezes evidence selection)
+
+```bash
+npx convex run domain/experiments/experiments_entrypoints:initExperiment '{
+  "window_id": "<window_id>",
+  "evidence_ids": ["<evidence_id_1>", "<evidence_id_2>"],
+  "experiment": {
+    "task_type": "ecc",
+    "config": {
+      "rubric_stage": { "scale_size": 4, "model_id": "gpt-4.1" },
+      "scoring_stage": {
+        "model_id": "gpt-4.1",
+        "method": "subset",
+        "randomizations": ["anonymize_labels","shuffle_rubric_order"],
+        "evidence_view": "l2_neutralized",
+        "abstain_enabled": true
+      }
+    }
+  }
 }'
 ```
 
-Quick path: `initEvidenceWindow` + `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
-
-Both init flows return an `experiment_id`. Use that ID for all subsequent operations. `experiment_tag` and `window_tag` are system-generated fields (not user-supplied).
-
-Tag conventions:
-- Experiment tag: `<adjective>-<noun>-<nanoid>`
-- Window tag: `<country>-<concept>-<start_with_underscores>-<end_with_underscores>-<model>`
-
-#### 2. Start a run + queue work
+#### 3. Start a run (auto-queues rubric + scoring)
 
 ```bash
-# Start a run (snapshots run policy and enforces single-run invariant)
 npx convex run domain/runs/runs_entrypoints:startExperiment \
-  '{"experiment_id":"<experiment_id>","run_counts":{"sample_count":10,"evidence_cap":10}}'
-
-# Collect evidence into a frozen batch
-npx convex run domain/evidence/evidence_entrypoints:collectEvidenceBatch \
-  '{"window_id":"<window_id>","evidence_limit":10}'
-
-# Bind experiment to the evidence batch (freezes evidence selection)
-npx convex run domain/experiments/experiments_entrypoints:bindExperimentEvidence \
-  '{"experiment_id":"<experiment_id>","evidence_batch_id":"<batch_id>"}'
-
-# Queue rubric generation
-npx convex run domain/experiments/experiments_entrypoints:queueRubricGeneration \
-  '{"experiment_id":"<experiment_id>"}'
-
-# Queue scoring (sample_count × bound evidence count)
-npx convex run domain/experiments/experiments_entrypoints:queueScoreGeneration \
-  '{"experiment_id":"<experiment_id>"}'
+  '{"experiment_id":"<experiment_id>","run_counts":{"sample_count":10}}'
 ```
 
 #### 3. Query results
@@ -286,7 +262,7 @@ flowchart LR
   subgraph Engine
     API[packages/engine/src/index.ts]
   subgraph Convex
-    Domain["domain<br/>admin, configs, evidence, experiments, runs, llm_calls"]
+    Domain["domain<br/>admin, evidence, experiments, runs, llm_calls"]
       Platform["platform<br/>providers, rate_limiter, utils"]
       Models["models + schema"]
     end
@@ -305,15 +281,15 @@ flowchart LR
 
 Stages are stage-local workflows under `packages/engine/convex/domain/experiments/stages/*`.
 
-| Stage | Name                | What It Does                                                                 | Key Module |
-| :---- | :------------------ | :--------------------------------------------------------------------------- | :--------- |
-| S1    | evidence_clean      | Normalize raw evidence and clean text                                       | `stages/evidence` |
-| S2    | evidence_neutralize | Mask/neutralize labels or tone for ECC/Control experiments                  | `stages/evidence` |
-| S3    | evidence_abstract   | Optionally abstract evidence text                                           | `stages/evidence` |
-| S4    | rubric_gen          | Generate rubric stages for the concept                                      | `stages/rubric` |
-| S5    | rubric_critic       | Critique rubric quality + enforce parsing rules                             | `stages/rubric` |
-| S6    | score_gen           | Score evidence against rubric with strategy-driven prompts                  | `stages/scoring` |
-| S7    | score_critic        | Critique score outputs and confirm parse validity                           | `stages/scoring` |
+| Stage | Name                | What It Does                                               | Key Module        |
+| :---- | :------------------ | :--------------------------------------------------------- | :---------------- |
+| S1    | evidence_clean      | Normalize raw evidence and clean text                      | `stages/evidence` |
+| S2    | evidence_neutralize | Mask/neutralize labels or tone for ECC/Control experiments | `stages/evidence` |
+| S3    | evidence_abstract   | Optionally abstract evidence text                          | `stages/evidence` |
+| S4    | rubric_gen          | Generate rubric stages for the concept                     | `stages/rubric`   |
+| S5    | rubric_critic       | Critique rubric quality + enforce parsing rules            | `stages/rubric`   |
+| S6    | score_gen           | Score evidence against rubric with strategy-driven prompts | `stages/scoring`  |
+| S7    | score_critic        | Critique score outputs and confirm parse validity          | `stages/scoring`  |
 
 ---
 
@@ -331,7 +307,7 @@ flowchart LR
 ```
 
 Idempotency identity tuple:
-`stage`, `provider`, `model`, `experiment_id`, `rubric_id`, `sample_id`, `evidence_id`, `request_version`.
+`stage`, `provider`, `model`, `run_id`, `experiment_id`, `rubric_id`, `sample_id`, `evidence_id`, `request_version`.
 
 To force a new LLM call for the same identity, you must explicitly bump `request_version`. Otherwise retries resolve to the same ledger row.
 
@@ -364,7 +340,7 @@ sequenceDiagram
   participant Convex as Engine Scheduler
   participant Providers as Provider Adapters
 
-  Client->>Convex: startExperiment (run_config snapshot)
+  Client->>Convex: startExperiment (run snapshot)
   Convex->>Convex: createBatchFromQueued (policy enforced)
   Convex->>Providers: submitBatch (rate limits + policy)
   Convex->>Providers: pollBatch (policy cadence + retry/backoff)

@@ -25,6 +25,7 @@ describe("batch_queue selectBatchCandidates", () => {
     const queued: QueuedRequest[] = [
       {
         _id: "req_a1",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -34,6 +35,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_a2",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -43,6 +45,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_a3",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -52,6 +55,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_b1",
+        run_id: "run_b",
         experiment_id: "exp_b",
         provider: "openai",
         model: "gpt-4.1",
@@ -61,6 +65,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_none",
+        run_id: null,
         experiment_id: null,
         provider: "openai",
         model: "gpt-4.1",
@@ -70,6 +75,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_future",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -83,14 +89,12 @@ describe("batch_queue selectBatchCandidates", () => {
     const runs: RunCandidate[] = [
       {
         _id: "run_a",
-        experiment_id: "exp_a",
         desired_state: "running" as const,
         policy: basePolicy,
         updated_at: now,
       },
       {
         _id: "run_b",
-        experiment_id: "exp_b",
         desired_state: "paused" as const,
         policy: basePolicy,
         updated_at: now,
@@ -108,7 +112,7 @@ describe("batch_queue selectBatchCandidates", () => {
 
     expect(result.run_id).toBe("run_a");
     expect(result.items).toHaveLength(2);
-    expect(result.items.every((req) => req.experiment_id === "exp_a"))
+    expect(result.items.every((req) => req.run_id === "run_a"))
       .toBe(true);
   });
 
@@ -117,6 +121,7 @@ describe("batch_queue selectBatchCandidates", () => {
     const queued: QueuedRequest[] = [
       {
         _id: "req_ok",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -126,6 +131,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_blocked_stage",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -138,7 +144,6 @@ describe("batch_queue selectBatchCandidates", () => {
     const runs: RunCandidate[] = [
       {
         _id: "run_a",
-        experiment_id: "exp_a",
         desired_state: "running" as const,
         stop_at_stage: "rubric_gen" as const,
         policy: basePolicy,
@@ -163,6 +168,7 @@ describe("batch_queue selectBatchCandidates", () => {
     const queued: QueuedRequest[] = [
       {
         _id: "req_blocked",
+        run_id: "run_a",
         experiment_id: "exp_a",
         provider: "openai",
         model: "gpt-4.1",
@@ -172,6 +178,7 @@ describe("batch_queue selectBatchCandidates", () => {
       },
       {
         _id: "req_unscoped",
+        run_id: null,
         experiment_id: null,
         provider: "openai",
         model: "gpt-4.1",
@@ -191,7 +198,6 @@ describe("batch_queue selectBatchCandidates", () => {
     const runs: RunCandidate[] = [
       {
         _id: "run_a",
-        experiment_id: "exp_a",
         desired_state: "running" as const,
         policy: disallowPolicy,
         updated_at: now,

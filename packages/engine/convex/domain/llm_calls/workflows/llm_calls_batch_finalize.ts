@@ -55,16 +55,16 @@ export const finalizeBatch = zInternalMutation({
 
     const itemByCustomId = new Map(items.map((i) => [i.custom_id, i]));
     const evidenceQueueWindows = new Set<Id<"windows">>();
-    const rubricCriticExperiments = new Set<Id<"experiments">>();
-    const scoreCriticExperiments = new Set<Id<"experiments">>();
+    const rubricCriticRuns = new Set<Id<"runs">>();
+    const scoreCriticRuns = new Set<Id<"runs">>();
     const stageRefresh: Record<
       "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic",
-      Set<Id<"experiments">>
+      Set<Id<"runs">>
     > = {
-      rubric_gen: new Set<Id<"experiments">>(),
-      rubric_critic: new Set<Id<"experiments">>(),
-      score_gen: new Set<Id<"experiments">>(),
-      score_critic: new Set<Id<"experiments">>(),
+      rubric_gen: new Set<Id<"runs">>(),
+      rubric_critic: new Set<Id<"runs">>(),
+      score_gen: new Set<Id<"runs">>(),
+      score_critic: new Set<Id<"runs">>(),
     };
     const usageByModel = new Map<string, { input: number; output: number }>();
 
@@ -91,10 +91,10 @@ export const finalizeBatch = zInternalMutation({
           last_error: result.error ?? "provider_error",
           next_retry_at,
         });
-        if (request.experiment_id) {
+        if (request.run_id) {
           const refreshSet =
             stageRefresh[request.stage as keyof typeof stageRefresh];
-          refreshSet?.add(request.experiment_id);
+          refreshSet?.add(request.run_id);
         }
         continue;
       }
@@ -196,8 +196,8 @@ export const finalizeBatch = zInternalMutation({
               next_retry_at,
             });
           }
-          if (parseResult.ok && request.experiment_id) {
-            rubricCriticExperiments.add(request.experiment_id);
+          if (parseResult.ok && request.run_id) {
+            rubricCriticRuns.add(request.run_id);
           }
           break;
         }
@@ -268,8 +268,8 @@ export const finalizeBatch = zInternalMutation({
               next_retry_at,
             });
           }
-          if (parseResult.ok && request.experiment_id) {
-            scoreCriticExperiments.add(request.experiment_id);
+          if (parseResult.ok && request.run_id) {
+            scoreCriticRuns.add(request.run_id);
           }
           break;
         }
@@ -311,10 +311,10 @@ export const finalizeBatch = zInternalMutation({
           break;
       }
 
-      if (request.experiment_id) {
+      if (request.run_id) {
         const refreshSet =
           stageRefresh[request.stage as keyof typeof stageRefresh];
-        refreshSet?.add(request.experiment_id);
+        refreshSet?.add(request.run_id);
       }
     }
 
@@ -342,43 +342,43 @@ export const finalizeBatch = zInternalMutation({
       );
     }
 
-    for (const experiment_id of rubricCriticExperiments) {
+    for (const run_id of rubricCriticRuns) {
       await ctx.runMutation(
         internal.domain.experiments.stages.rubric.workflows.experiments_rubric_enqueue_critics
           .enqueueRubricCritics,
-        { experiment_id },
+        { run_id },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-        { experiment_id, stage: "rubric_gen" },
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+        { run_id, stage: "rubric_gen" },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-        { experiment_id, stage: "rubric_critic" },
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+        { run_id, stage: "rubric_critic" },
       );
     }
 
-    for (const experiment_id of scoreCriticExperiments) {
+    for (const run_id of scoreCriticRuns) {
       await ctx.runMutation(
         internal.domain.experiments.stages.scoring.workflows.experiments_scoring_enqueue_critics
           .enqueueScoreCritics,
-        { experiment_id },
+        { run_id },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-        { experiment_id, stage: "score_gen" },
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+        { run_id, stage: "score_gen" },
       );
       await ctx.runMutation(
-        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-        { experiment_id, stage: "score_critic" },
+        internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+        { run_id, stage: "score_critic" },
       );
     }
 
-    for (const [stage, experiments] of Object.entries(stageRefresh)) {
-      for (const experiment_id of experiments) {
+    for (const [stage, runs] of Object.entries(stageRefresh)) {
+      for (const run_id of runs) {
         await ctx.runMutation(
-          internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-          { experiment_id, stage: stage as never },
+          internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+          { run_id, stage: stage as never },
         );
       }
     }

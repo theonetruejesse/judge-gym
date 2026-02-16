@@ -9,22 +9,25 @@ import type { Id } from "../../../../../_generated/dataModel";
 export const seedRubricRequests = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
-    sample_count: z.number().min(1),
+    run_id: zid("runs"),
   }),
   returns: z.object({ rubric_ids: z.array(zid("rubrics")) }),
-  handler: async (ctx, { experiment_id, sample_count }) => {
+  handler: async (ctx, { experiment_id, run_id }) => {
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
+    const run = await ctx.db.get(run_id);
+    if (!run || run.experiment_id !== experiment._id) {
+      throw new Error("Run not found for experiment");
+    }
+    const { sample_count } = run.run_counts;
 
     const window = await ctx.db.get(experiment.window_id);
     if (!window) throw new Error("Window not found");
 
     const existingRubrics = await ctx.db
       .query("rubrics")
-      .withIndex("by_experiment_model", (q) =>
-        q
-          .eq("experiment_id", experiment_id)
-          .eq("model_id", experiment.config.rubric_stage.model_id),
+      .withIndex("by_run_model", (q) =>
+        q.eq("run_id", run_id).eq("model_id", experiment.config.rubric_stage.model_id),
       )
       .collect();
 
@@ -36,6 +39,7 @@ export const seedRubricRequests = zInternalMutation({
 
     while (rubrics.length < targetCount) {
       const rubric_id = await ctx.db.insert("rubrics", {
+        run_id,
         experiment_id: experiment._id,
         model_id: experiment.config.rubric_stage.model_id,
         concept: window.concept,
@@ -62,6 +66,7 @@ export const seedRubricRequests = zInternalMutation({
           model: experiment.config.rubric_stage.model_id,
           system_prompt: prompts.system_prompt,
           user_prompt: prompts.user_prompt,
+          run_id,
           experiment_id: experiment._id,
           rubric_id: rubric._id,
           sample_id: null,
@@ -73,8 +78,8 @@ export const seedRubricRequests = zInternalMutation({
     }
 
     await ctx.runMutation(
-      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForExperiment,
-      { experiment_id: experiment._id, stage: "rubric_gen" },
+      internal.domain.runs.workflows.runs_run_state.refreshRunStageCountsForRun,
+      { run_id, stage: "rubric_gen" },
     );
 
     return { rubric_ids: rubrics.map((rubric) => rubric._id) };
