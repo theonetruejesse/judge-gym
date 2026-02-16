@@ -185,7 +185,6 @@ npx convex run domain/configs/configs_entrypoints:seedConfigTemplate '{
       "model_id": "gpt-4.1"
     },
     "experiment": {
-      "experiment_tag": "pilot_fascism_gpt4.1",
       "task_type": "ecc",
       "config": {
         "rubric_stage": {
@@ -216,7 +215,11 @@ npx convex run domain/experiments/experiments_entrypoints:initExperimentFromTemp
 
 Quick path: `initEvidenceWindow` + `initExperiment` also works and will auto-seed a template using engine defaults from `packages/engine/convex/settings.ts`.
 
-Both init flows return an `experiment_id`. Use that ID for all subsequent operations. `experiment_tag` and `window_tag` are optional display-only fields.
+Both init flows return an `experiment_id`. Use that ID for all subsequent operations. `experiment_tag` and `window_tag` are system-generated fields (not user-supplied).
+
+Tag conventions:
+- Experiment tag: `<adjective>-<noun>-<nanoid>`
+- Window tag: `<country>-<concept>-<start>-<end>-<model>`
 
 #### 2. Start a run + queue work
 

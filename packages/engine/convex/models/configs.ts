@@ -2,17 +2,19 @@ import { zodOutputToConvex } from "convex-helpers/server/zod4";
 import { defineTable } from "convex/server";
 import z from "zod";
 import {
-  ExperimentSpecSchema,
   ExperimentSpecInputSchema,
+  ExperimentSpecNormalizedSchema,
+  WindowsInputSchema,
   WindowsTableSchema,
 } from "./experiments";
 
 export const ConfigTemplateBodySchema = z.object({
   evidence_window: WindowsTableSchema,
-  experiment: ExperimentSpecSchema,
+  experiment: ExperimentSpecNormalizedSchema,
 });
 
-export const ConfigTemplateBodyInputSchema = ConfigTemplateBodySchema.extend({
+export const ConfigTemplateBodyInputSchema = z.object({
+  evidence_window: WindowsInputSchema,
   experiment: ExperimentSpecInputSchema,
 });
 
