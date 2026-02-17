@@ -9,6 +9,7 @@ packages/engine/convex/_generated/
 packages/analysis/.venv/
 packages/analysis/__pycache__/
 packages/analysis/src/**/__pycache__/
+packages/analysis/scripts/output/
 *.pyc
 *.egg-info/
 
@@ -28,6 +29,7 @@ Thumbs.db
 
 # Build output
 dist/
+.next/
 
 # Bun
 bun.lockb
