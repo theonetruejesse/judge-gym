@@ -17,5 +17,6 @@
     "@types/bun": "latest",
     "turbo": "^2.8.7",
     "typescript": "^5.9.3"
-  }
+  },
+  "module": "index.ts"
 }
