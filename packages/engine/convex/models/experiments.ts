@@ -1,13 +1,12 @@
 import z from "zod";
-import { modelTypeSchema, StateStatusSchema } from "./_shared";
+import { RubricStageConfigSchema, ScoringStageConfigSchema, StateStatusSchema } from "./_shared";
 import { zid } from "convex-helpers/server/zod4";
 
 
 export const ExperimentsTableSchema = z.object({
     experiment_tag: z.string(),
-    model: modelTypeSchema,
-    // todo, specify this later with _shared
-    config: z.any(),
+    rubric_config: RubricStageConfigSchema,
+    scoring_config: ScoringStageConfigSchema,
 });
 
 export const ExperimentEvidencesTableSchema = z.object({
