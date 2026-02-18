@@ -1,20 +1,13 @@
 import z from "zod";
-import { modelTypeSchema, StateStatusSchema } from "./_shared";
+import { modelTypeSchema, SemanticLevelSchema, StateStatusSchema } from "./_shared";
 import { zid } from "convex-helpers/server/zod4";
-
-export const WindowStageSchema = z.enum([
-    "l0_raw",
-    "l1_cleaned",
-    "l2_neutralized",
-    "l3_abstracted",
-]);
 
 export const WindowsTableSchema = z.object({
     status: StateStatusSchema,
-    current_stage: WindowStageSchema,
+    current_stage: SemanticLevelSchema,
+    model: modelTypeSchema,
     start_date: z.string(),
     end_date: z.string(),
-    model: modelTypeSchema,
     country: z.string(),
     query: z.string(),
     window_tag: z.string(),
