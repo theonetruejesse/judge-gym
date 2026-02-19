@@ -4,7 +4,6 @@ import { zInternalAction, zInternalMutation, zInternalQuery } from "../../utils/
 import { buildRandomTag } from "../../utils/tags";
 import { zid } from "convex-helpers/server/zod4";
 import { internal } from "../../_generated/api";
-import { envPreflight } from "../../utils/env_preflight";
 
 const CreateWindowArgsSchema = WindowsTableSchema.pick({
     country: true,
