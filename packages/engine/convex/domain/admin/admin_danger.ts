@@ -48,21 +48,12 @@ export const deletePage: ReturnType<typeof zInternalMutation> =
     },
   });
 
-// scrappy approach for now;
 export const nukeTables: ReturnType<typeof zInternalAction> = zInternalAction({
-  args: z.object({
-    excludeEvidence: z.boolean()
-  }),
+  args: z.object({}),
   returns: z.object({ deleted: z.record(z.string(), z.number()) }),
-  handler: async (ctx, { excludeEvidence }) => {
+  handler: async (ctx) => {
     const deleted: Record<string, number> = {};
-    const tables =
-      excludeEvidence === true
-        ? TABLES.filter(
-          (table) => table !== "evidences" && table !== "experiment_evidence",
-        )
-        : TABLES;
-    for (const table of tables) {
+    for (const table of TABLES) {
       let cursor: string | undefined = undefined;
       let total = 0;
       while (true) {
