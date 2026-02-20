@@ -13,18 +13,22 @@ export const LlmBatchesTableSchema = z.object({
   provider: providerTypeSchema,
   model: modelTypeSchema,
   status: ProcessStatusSchema,
-  batch_ref: z.string(),
+  batch_ref: z.string().optional(),
+  attempts: z.number().int().min(0).optional(),
+  next_poll_at: z.number().optional(),
+  last_error: z.string().optional(),
   // for decoding windows/runs
-  custom_id: z.string(),
+  custom_key: z.string(),
 });
 
-export const LlmWorkflowsTableSchema = z.object({
+export const LlmJobsTableSchema = z.object({
   provider: providerTypeSchema,
   model: modelTypeSchema,
   status: ProcessStatusSchema,
-  workflow_ref: z.string(),
   // for decoding windows/runs
-  custom_id: z.string(),
+  custom_key: z.string(),
+  next_run_at: z.number().optional(),
+  last_error: z.string().optional(),
 });
 
 export const RequestStatusSchema = z.enum([
@@ -35,16 +39,18 @@ export const RequestStatusSchema = z.enum([
 
 export const LlmRequestsTableSchema = z.object({
   status: RequestStatusSchema,
-  workflow_id: zid("llm_workflows").optional(),
+  job_id: zid("llm_jobs").optional(),
   batch_id: zid("llm_batches").optional(),
   model: modelTypeSchema,
-  temperature: z.number(),
-  user_prompt: z.string().optional(),
+  user_prompt: z.string(),
   system_prompt: z.string().optional(),
   assistant_reasoning: z.string().optional(),
   assistant_output: z.string().optional(),
   input_tokens: z.number().optional(),
   output_tokens: z.number().optional(),
   // for decoding runs/experiments
-  custom_id: z.string(),
+  custom_key: z.string(),
+  attempts: z.number().int().min(0).optional(),
+  next_attempt_at: z.number().optional(),
+  last_error: z.string().optional(),
 });

@@ -1,0 +1,141 @@
+
+import type { Doc, Id } from "../../_generated/dataModel";
+import type { MutationCtx } from "../../_generated/server";
+import { type ModelType, type SemanticLevel } from "../../models/_shared";
+import { BaseOrchestrator } from "../orchestrator/base";
+import { internal } from "../../_generated/api";
+import {
+    CLEANING_INSTRUCTIONS,
+    NEUTRALIZE_INSTRUCTIONS,
+    STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
+    abstractPrompt,
+    cleanPrompt,
+    neutralizePrompt,
+} from "./evidence_prompts";
+
+type Evidence = Doc<"evidences">;
+
+type StageConfig = {
+    inputField: "l0_raw_content" | "l1_cleaned_content" | "l2_neutralized_content";
+    outputField: "l1_cleaned_content" | "l2_neutralized_content" | "l3_abstracted_content";
+    requestIdField: "l1_request_id" | "l2_request_id" | "l3_request_id";
+    systemPrompt: string;
+    buildPrompt: (input: string) => string;
+};
+
+const STAGE_CONFIGS: Record<Exclude<SemanticLevel, "l0_raw">, StageConfig> = {
+    l1_cleaned: {
+        inputField: "l0_raw_content",
+        outputField: "l1_cleaned_content",
+        requestIdField: "l1_request_id",
+        systemPrompt: CLEANING_INSTRUCTIONS,
+        buildPrompt: cleanPrompt,
+    },
+    l2_neutralized: {
+        inputField: "l1_cleaned_content",
+        outputField: "l2_neutralized_content",
+        requestIdField: "l2_request_id",
+        systemPrompt: NEUTRALIZE_INSTRUCTIONS,
+        buildPrompt: neutralizePrompt,
+    },
+    l3_abstracted: {
+        inputField: "l2_neutralized_content",
+        outputField: "l3_abstracted_content",
+        requestIdField: "l3_request_id",
+        systemPrompt: STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
+        buildPrompt: abstractPrompt,
+    },
+};
+
+export function getStageConfig(stage: SemanticLevel): StageConfig {
+    if (stage === "l0_raw") {
+        throw new Error("l0_raw is not a processing stage");
+    }
+    return STAGE_CONFIGS[stage];
+}
+
+export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, SemanticLevel> {
+    constructor(ctx: MutationCtx) {
+        super(ctx);
+    }
+
+    protected async listPendingTargets(
+        windowId: Id<"windows">,
+        stage: SemanticLevel,
+    ) {
+        const config = getStageConfig(stage);
+        const evidences = await this.ctx.db
+            .query("evidences")
+            .withIndex("by_window_id", (q) => q.eq("window_id", windowId))
+            .collect();
+
+        return evidences
+            .filter((e) => e[config.outputField] === null)
+            .map((e) => ({
+                targetId: e._id,
+                input: e[config.inputField],
+            }))
+            .filter((e): e is { targetId: Id<"evidences">; input: string } => e.input !== null);
+    }
+
+    protected async getModelForStage(
+        windowId: Id<"windows">,
+        _stage: SemanticLevel,
+    ): Promise<ModelType> {
+        const window = await this.ctx.db.get(windowId);
+        if (!window) throw new Error("Window not found");
+        return window.model;
+    }
+
+    protected buildPrompts(stage: SemanticLevel, input: string) {
+        const config = getStageConfig(stage);
+        return {
+            system: config.systemPrompt,
+            user: config.buildPrompt(input),
+        };
+    }
+
+    public makeRequestKey(targetId: string, stage: SemanticLevel): string {
+        return `evidence:${targetId}:${stage}`;
+    }
+
+    public makeProcessKey(processId: Id<"windows">, stage: SemanticLevel): string {
+        return `window:${processId}:${stage}`;
+    }
+
+    public parseRequestKey(key: string): { targetId: Id<"evidences">; stage: SemanticLevel } {
+        const [targetType, targetId, stage] = key.split(":");
+        if (targetType !== "evidence") {
+            throw new Error(`Unexpected target type in key: ${key}`);
+        }
+        return { targetId: targetId as Id<"evidences">, stage: stage as SemanticLevel };
+    }
+
+    public parseProcessKey(key: string): { processId: Id<"windows">; stage: SemanticLevel } {
+        const [processType, processId, stage] = key.split(":");
+        if (processType !== "window") {
+            throw new Error(`Unexpected process type in key: ${key}`);
+        }
+        return { processId: processId as Id<"windows">, stage: stage as SemanticLevel };
+    }
+
+    async recordSuccess(customKey: string, requestId: Id<"llm_requests">, output: string) {
+        const internalAny = internal as any;
+        const { targetId, stage } = this.parseRequestKey(customKey);
+        const config = getStageConfig(stage);
+        await this.ctx.db.patch(targetId, {
+            [config.outputField]: output,
+            [config.requestIdField]: requestId,
+        } as Partial<Evidence>);
+        await this.ctx.runMutation(
+            internalAny.domain.llm_calls.llm_request_repo.patchRequest,
+            {
+                request_id: requestId,
+                patch: {
+                    status: "success",
+                    assistant_output: output,
+                },
+            },
+        );
+    }
+}

@@ -1,6 +1,6 @@
 import z from "zod";
 
-// todo, update once batching/workflow is stable
+// todo, update once batching/job routing is stable
 export const modelTypeSchema = z.union([
     z.literal("gpt-4.1"),
     z.literal("gpt-4.1-mini"),
@@ -18,6 +18,7 @@ export type ProviderType = z.infer<typeof providerTypeSchema>;
 
 export const StateStatusSchema = z.enum([
     "start",
+    "queued",
     "running",
     "paused",
     "completed",
@@ -32,6 +33,8 @@ export const SemanticLevelSchema = z.enum([
     "l2_neutralized",
     "l3_abstracted",
 ]);
+
+export type SemanticLevel = z.infer<typeof SemanticLevelSchema>;
 
 export const RubricStageConfigSchema = z.object({
     model: modelTypeSchema,
