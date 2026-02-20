@@ -19,12 +19,18 @@ judge-gym/
 ├── packages/
 │   ├── engine/                    # Convex backend — the design space engine
 │   │   ├── convex/
-│   │   │   ├── schema.ts          # Tables: experiments, windows, evidences, rubrics, samples, scores, usages
-│   │   │   ├── main.ts            # Public API — workflow triggers
+│   │   │   ├── schema.ts          # Tables + indexes (including llm_* status/batch/job)
+│   │   │   ├── main.ts            # Public API — orchestration triggers
 │   │   │   ├── data.ts            # Public API — read queries for analysis
 │   │   │   ├── repo.ts            # Internal CRUD
 │   │   │   ├── agent_config.ts    # Shared usage handler + rate limit feedback
-│   │   │   ├── workflow_manager.ts# Workflow pool + retry settings
+│   │   │   ├── domain/            # Domain logic (window, llm_calls, orchestrator)
+│   │   │   │   ├── llm_calls/      # LLM request/job/batch repos
+│   │   │   │   │   ├── llm_batch_repo.ts
+│   │   │   │   │   ├── llm_job_repo.ts
+│   │   │   │   │   └── llm_request_repo.ts
+│   │   │   ├── orchestrator/      # Minimal scheduler + retry routing + workflows
+│   │   │   ├── domain/llm_calls/  # LLM request/batch/job repos
 │   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
 │   │   │   ├── agents/            # AbstractJudgeAgent base class
 │   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
@@ -149,7 +155,7 @@ AUTO_ADVANCE=0 bun run start  # only track, do not auto-advance stages
 ONCE=1 bun run start          # render once and exit
 ```
 
-### Option B — Manual workflow (CLI)
+### Option B — Manual job (CLI)
 
 #### 1. Initialize window + experiment
 
@@ -235,7 +241,7 @@ npx convex run data:exportExperimentCSV \
 - **Strategy resolvers.** Pure functions map config to concrete agent behavior. Agents never read raw config — they consume resolved strategies.
 - **Deterministic computation is separated from LLM generation.** Verdict parsing, label randomization, and DST mass assignment are pure functions in `utils/`. Models generate text; functions extract structure.
 - **Abstract agent base class.** All agents share: thread lifecycle, rate limiting, usage tracking, model resolution.
-- **Stage-based modules.** Each pipeline stage is self-contained: workflow, steps, agent, and prompts colocated in one directory.
+- **Stage-based modules.** Each pipeline stage is self-contained: job, steps, agent, and prompts colocated in one directory.
 - **Single-store agent threads.** `@convex-dev/agent` is the source of truth for all LLM interactions. Tables store lean derived records with `threadId` backlinks.
 
 ---
@@ -279,7 +285,7 @@ To add a new design space dimension (e.g., `promptLanguage: "english" | "formal-
 3. **Resolve** — Add to `convex/strategies/resolve.ts`
 4. **Consume** — Read from `this.strategies.language` in the agent that cares
 
-**Files touched: 3.** No workflow changes, no prompt surgery, no agent logic changes.
+**Files touched: 3.** No job changes, no prompt surgery, no agent logic changes.
 
 ---
 
@@ -291,7 +297,7 @@ The engine is designed to be operated from within Cursor via the Convex MCP serv
 
 - Setup checklist
 - Public mutation/query reference
-- Workflow recipes
+- Job recipes
 - Debug procedures
 
 ---

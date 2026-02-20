@@ -14,18 +14,19 @@ const SearchArgsSchema = WindowsTableSchema.pick({
     limit: z.number(),
 });
 
+const SearchResultSchema = z.object({
+    title: z.string(),
+    url: z.string(),
+    raw_content: z.string(),
+});
+
+export type SearchNewsResults = Array<z.infer<typeof SearchResultSchema>>;
+
 export const searchNews = zInternalAction({
     args: SearchArgsSchema,
-    returns: z.array(
-        z.object({
-            title: z.string(),
-            url: z.string(),
-            raw_content: z.string(),
-        }),
-    ),
+    returns: z.array(SearchResultSchema),
     handler: async (_ctx, args) => {
         const news = await searchHeadlines(args);
-
         return news
             .filter(
                 (n: any) =>

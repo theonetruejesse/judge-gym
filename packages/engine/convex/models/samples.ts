@@ -2,7 +2,6 @@ import z from "zod";
 import { modelTypeSchema } from "./_shared";
 import { zid } from "convex-helpers/server/zod4";
 
-// todo, custom_key implementation
 export const SamplesTableSchema = z.object({
     run_id: zid("runs"),
     experiment_id: zid("experiments"),

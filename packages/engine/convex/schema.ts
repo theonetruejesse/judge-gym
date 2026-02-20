@@ -1,16 +1,21 @@
 import { zodOutputToConvex } from "convex-helpers/server/zod4";
 import { defineSchema, defineTable } from "convex/server";
-import { LlmBatchesTableSchema, LlmRequestsTableSchema, LlmWorkflowsTableSchema } from "./models/llm_calls";
+import { LlmBatchesTableSchema, LlmJobsTableSchema, LlmRequestsTableSchema } from "./models/llm_calls";
 import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
 import { ExperimentEvidencesTableSchema, ExperimentsTableSchema, RunsTableSchema } from "./models/experiments";
 import { SamplesTableSchema, RubricsTableSchema, RubricCriticsTableSchema, ScoresTableSchema, ScoreCriticsTableSchema } from "./models/samples";
 
-// --- Schema definition ---
 export default defineSchema({
-  llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema)),
-  llm_workflows: defineTable(zodOutputToConvex(LlmWorkflowsTableSchema)),
-  llm_requests: defineTable(zodOutputToConvex(LlmRequestsTableSchema)),
-  windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
+  llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema))
+    .index("by_status", ["status"]),
+  llm_jobs: defineTable(zodOutputToConvex(LlmJobsTableSchema))
+    .index("by_status", ["status"]),
+  llm_requests: defineTable(zodOutputToConvex(LlmRequestsTableSchema))
+    .index("by_status", ["status"])
+    .index("by_batch_id", ["batch_id"])
+    .index("by_job_id", ["job_id"])
+    .index("by_orphaned", ["status", "batch_id", "job_id"]),
+  windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
     .index("by_window_id", ["window_id"])
     .index("by_l1_id", ["l1_request_id"])

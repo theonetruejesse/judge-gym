@@ -12,4 +12,4 @@ args = [
 ]
 
 [mcp_servers.convex.env]
-CONVEX_DEPLOYMENT = "dev:patient-wolverine-343"
+CONVEX_DEPLOYMENT = "dev:rightful-grouse-57"
