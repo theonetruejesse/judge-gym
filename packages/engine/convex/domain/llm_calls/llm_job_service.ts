@@ -14,7 +14,7 @@ interface MarkJobRunningArgs {
   job_id: Id<"llm_jobs">;
 }
 
-async function markJobRunning(args: MarkJobRunningArgs) {
+export async function markJobRunning(args: MarkJobRunningArgs) {
   const { ctx, job_id } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
@@ -49,7 +49,7 @@ interface FinalizeJobArgs {
   job_id: Id<"llm_jobs">;
   anyErrors: boolean;
 }
-async function finalizeJob(args: FinalizeJobArgs) {
+export async function finalizeJob(args: FinalizeJobArgs) {
   const { ctx, job_id, anyErrors } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
@@ -68,7 +68,7 @@ interface DeferRequestForRateLimitArgs {
   request_id: Id<"llm_requests">;
   retryAfter: number;
 }
-async function deferRequestForRateLimit(args: DeferRequestForRateLimitArgs) {
+export async function deferRequestForRateLimit(args: DeferRequestForRateLimitArgs) {
   const { ctx, request_id, retryAfter } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
@@ -91,7 +91,7 @@ interface ApplyRequestSuccessArgs {
   req: Doc<"llm_requests">;
   output: RequestOutput;
 }
-async function applyRequestSuccess(args: ApplyRequestSuccessArgs) {
+export async function applyRequestSuccess(args: ApplyRequestSuccessArgs) {
   const { ctx, req, output } = args;
   await ctx.runMutation(
     internal.domain.window.window_service.applyRequestResult,
@@ -112,7 +112,7 @@ interface ApplyRequestErrorArgs {
   attempts: number;
   now: number;
 }
-async function applyRequestError(args: ApplyRequestErrorArgs) {
+export async function applyRequestError(args: ApplyRequestErrorArgs) {
   const { ctx, request_id, error, attempts, now } = args;
   if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
     await ctx.runMutation(
@@ -148,7 +148,7 @@ interface RunJobRequestsArgs {
   requests: Doc<"llm_requests">[];
   now: number;
 }
-async function runJobRequests(args: RunJobRequestsArgs) {
+export async function runJobRequests(args: RunJobRequestsArgs) {
   const { ctx, requests, now } = args;
   let anyPending = false;
   let anyErrors = false;
@@ -203,7 +203,6 @@ async function runJobRequests(args: RunJobRequestsArgs) {
 
   return { anyPending, anyErrors };
 }
-
 
 export const processQueuedJob = zInternalAction({
   args: z.object({ job_id: zid("llm_jobs") }),
