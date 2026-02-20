@@ -1,11 +1,7 @@
-import z from "zod";
-import { zid } from "convex-helpers/server/zod4";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
-import { zInternalAction } from "../../utils/custom_fns";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limiter";
-import { openAiChat } from "../../platform/providers/openai_chat";
 import type { ActionCtx } from "../../_generated/server";
 import { getNextAttemptAt, getNextRunAt, shouldRunAt } from "../../utils/scheduling";
 
@@ -30,7 +26,7 @@ interface ScheduleJobRunArgs {
   job_id: Id<"llm_jobs">;
   now: number;
 }
-async function scheduleJobRun(args: ScheduleJobRunArgs) {
+export async function scheduleJobRun(args: ScheduleJobRunArgs) {
   const { ctx, job_id, now } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
@@ -176,12 +172,15 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
     }
 
     try {
-      const output = await openAiChat({
-        model: req.model,
-        system_prompt: req.system_prompt ?? undefined,
-        user_prompt: req.user_prompt,
-        max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
-      });
+      const output = await ctx.runAction(
+        internal.platform.providers.provider_services.openAiChatAction,
+        {
+          model: req.model,
+          system_prompt: req.system_prompt ?? undefined,
+          user_prompt: req.user_prompt,
+          max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
+        },
+      );
 
       await applyRequestSuccess({ ctx, req, output });
     } catch (error: any) {
@@ -203,56 +202,3 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
 
   return { anyPending, anyErrors };
 }
-
-export const processQueuedJob = zInternalAction({
-  args: z.object({ job_id: zid("llm_jobs") }),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const { job, requests } = await ctx.runQuery(
-      internal.domain.llm_calls.llm_job_repo.getJobWithRequests,
-      { job_id: args.job_id },
-    );
-    if (!job || job.status !== "queued") return;
-
-    await markJobRunning({ ctx, job_id: job._id });
-
-    const { anyPending, anyErrors } = await runJobRequests({
-      ctx,
-      requests,
-      now,
-    });
-
-    if (anyPending) {
-      await scheduleJobRun({ ctx, job_id: job._id, now });
-      return;
-    }
-
-    await finalizeJob({ ctx, job_id: job._id, anyErrors });
-  },
-});
-
-export const processRunningJob = zInternalAction({
-  args: z.object({ job_id: zid("llm_jobs") }),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const { job, requests } = await ctx.runQuery(
-      internal.domain.llm_calls.llm_job_repo.getJobWithRequests,
-      { job_id: args.job_id },
-    );
-    if (!job || job.status !== "running") return;
-    if (!shouldRunAt(job.next_run_at, now)) return;
-
-    const { anyPending, anyErrors } = await runJobRequests({
-      ctx,
-      requests,
-      now,
-    });
-
-    if (anyPending) {
-      await scheduleJobRun({ ctx, job_id: job._id, now });
-      return;
-    }
-
-    await finalizeJob({ ctx, job_id: job._id, anyErrors });
-  },
-});

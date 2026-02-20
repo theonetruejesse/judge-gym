@@ -34,6 +34,9 @@ judge-gym/
 │   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
 │   │   │   ├── agents/            # AbstractJudgeAgent base class
 │   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
+│   │   │   ├── platform/           # Provider integrations + rate limiting
+│   │   │   │   ├── providers/      # OpenAI adapters + Convex action wrappers
+│   │   │   │   │   └── provider_services.ts # Internal actions for chat + batch
 │   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
 │   │   │   └── stages/            # Pipeline stages
 │   │   │       ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
