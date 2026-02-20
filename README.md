@@ -30,6 +30,7 @@ judge-gym/
 │   │   │   │   │   ├── llm_job_repo.ts
 │   │   │   │   │   └── llm_request_repo.ts
 │   │   │   ├── orchestrator/      # Minimal scheduler + retry routing + workflows
+│   │   │   │   └── process_workflows.ts # Workflow definitions (jobs + batches)
 │   │   │   ├── domain/llm_calls/  # LLM request/batch/job repos
 │   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
 │   │   │   ├── agents/            # AbstractJudgeAgent base class

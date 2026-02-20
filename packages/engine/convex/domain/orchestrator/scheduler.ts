@@ -4,7 +4,7 @@ import type { Doc } from "../../_generated/dataModel";
 import { zInternalMutation } from "../../utils/custom_fns";
 import { ENGINE_SETTINGS } from "../../settings";
 import { shouldRunAt } from "../../utils/scheduling";
-import { workflow } from "./process_workflows";
+import { processWorkflow } from "./process_workflows";
 import { ActiveBatchesResult } from "../llm_calls/llm_batch_repo";
 import { ActiveJobsResult } from "../llm_calls/llm_job_repo";
 import { zid } from "convex-helpers/server/zod4";
@@ -43,7 +43,6 @@ export const runScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
     const now = Date.now();
-    const internalAny = internal as any;
 
     const { queued_batches, running_batches } = (await ctx.runQuery(
       internal.domain.llm_calls.llm_batch_repo.listActiveBatches,
@@ -70,9 +69,9 @@ export const runScheduler = zInternalMutation({
 
     for (const batch of queued_batches) {
       if (!shouldRunAt(batch.next_poll_at, now)) continue;
-      await workflow.start(
+      await processWorkflow.start(
         ctx,
-        internalAny.domain.orchestrator.process_workflows.processQueuedBatchWorkflow,
+        internal.domain.orchestrator.process_workflows.processQueuedBatchWorkflow,
         { batch_id: batch._id },
         { startAsync: true },
       );
@@ -80,9 +79,9 @@ export const runScheduler = zInternalMutation({
 
     for (const batch of running_batches) {
       if (!shouldRunAt(batch.next_poll_at, now)) continue;
-      await workflow.start(
+      await processWorkflow.start(
         ctx,
-        internalAny.domain.orchestrator.process_workflows.processRunningBatchWorkflow,
+        internal.domain.orchestrator.process_workflows.processRunningBatchWorkflow,
         { batch_id: batch._id },
         { startAsync: true },
       );
@@ -90,9 +89,9 @@ export const runScheduler = zInternalMutation({
 
     for (const job of queued_jobs) {
       if (!shouldRunAt(job.next_run_at, now)) continue;
-      await workflow.start(
+      await processWorkflow.start(
         ctx,
-        internalAny.domain.orchestrator.process_workflows.processQueuedJobWorkflow,
+        internal.domain.orchestrator.process_workflows.processQueuedJobWorkflow,
         { job_id: job._id },
         { startAsync: true },
       );
@@ -100,9 +99,9 @@ export const runScheduler = zInternalMutation({
 
     for (const job of running_jobs) {
       if (!shouldRunAt(job.next_run_at, now)) continue;
-      await workflow.start(
+      await processWorkflow.start(
         ctx,
-        internalAny.domain.orchestrator.process_workflows.processRunningJobWorkflow,
+        internal.domain.orchestrator.process_workflows.processRunningJobWorkflow,
         { job_id: job._id },
         { startAsync: true },
       );

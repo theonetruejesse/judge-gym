@@ -5,8 +5,11 @@ import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limit
 import type { ActionCtx } from "../../_generated/server";
 import { getNextAttemptAt, getNextRunAt, shouldRunAt } from "../../utils/scheduling";
 
+type MutationRunner = Pick<ActionCtx, "runMutation">;
+type JobRunner = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
+
 interface MarkJobRunningArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   job_id: Id<"llm_jobs">;
 }
 
@@ -22,7 +25,7 @@ export async function markJobRunning(args: MarkJobRunningArgs) {
 }
 
 interface ScheduleJobRunArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   job_id: Id<"llm_jobs">;
   now: number;
 }
@@ -41,7 +44,7 @@ export async function scheduleJobRun(args: ScheduleJobRunArgs) {
 }
 
 interface FinalizeJobArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   job_id: Id<"llm_jobs">;
   anyErrors: boolean;
 }
@@ -60,7 +63,7 @@ export async function finalizeJob(args: FinalizeJobArgs) {
 }
 
 interface DeferRequestForRateLimitArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   request_id: Id<"llm_requests">;
   retryAfter: number;
 }
@@ -83,7 +86,7 @@ type RequestOutput = {
   output_tokens?: number;
 };
 interface ApplyRequestSuccessArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   req: Doc<"llm_requests">;
   output: RequestOutput;
 }
@@ -102,7 +105,7 @@ export async function applyRequestSuccess(args: ApplyRequestSuccessArgs) {
 }
 
 interface ApplyRequestErrorArgs {
-  ctx: ActionCtx;
+  ctx: MutationRunner;
   request_id: Id<"llm_requests">;
   error: string;
   attempts: number;
@@ -140,7 +143,7 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
 }
 
 interface RunJobRequestsArgs {
-  ctx: ActionCtx;
+  ctx: JobRunner;
   requests: Doc<"llm_requests">[];
   now: number;
 }

@@ -6,8 +6,12 @@ import type { ActionCtx, MutationCtx } from "../../_generated/server";
 import type { ModelType } from "../../models/_shared";
 import { getNextAttemptAt, getNextRunAt } from "../../utils/scheduling";
 
+type MutationRunner = Pick<MutationCtx, "runMutation">;
+type ActionRunner = Pick<ActionCtx, "runAction">;
+type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
+
 interface MarkBatchEmptyArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   batch_id: Id<"llm_batches">;
 }
 export async function markBatchEmpty(args: MarkBatchEmptyArgs) {
@@ -19,7 +23,7 @@ export async function markBatchEmpty(args: MarkBatchEmptyArgs) {
 }
 
 interface MarkBatchRunningArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   batch: Doc<"llm_batches">;
   batch_ref: string;
 }
@@ -41,7 +45,7 @@ export async function markBatchRunning(args: MarkBatchRunningArgs) {
 }
 
 interface MarkBatchSuccessArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   batch_id: Id<"llm_batches">;
 }
 export async function markBatchSuccess(args: MarkBatchSuccessArgs) {
@@ -60,7 +64,7 @@ export async function markBatchSuccess(args: MarkBatchSuccessArgs) {
 
 
 interface ScheduleBatchPollArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   batch_id: Id<"llm_batches">;
   next_poll_at: number;
 }
@@ -73,7 +77,7 @@ export async function scheduleBatchPoll(args: ScheduleBatchPollArgs) {
 }
 
 interface HandleBatchErrorArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   batch: Doc<"llm_batches">;
   requests: Doc<"llm_requests">[];
   error: string;
@@ -124,7 +128,7 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
 
 
 interface SubmitBatchArgs {
-  ctx: ActionCtx;
+  ctx: ActionRunner;
   requests: Doc<"llm_requests">[];
 }
 export async function submitBatch(args: SubmitBatchArgs) {
@@ -145,7 +149,7 @@ export async function submitBatch(args: SubmitBatchArgs) {
 
 
 interface CheckBatchRateLimitArgs {
-  ctx: ActionCtx;
+  ctx: RateLimitRunner;
   model: ModelType;
   requests: Doc<"llm_requests">[];
 }
@@ -172,7 +176,7 @@ type BatchResult = {
   error?: string;
 };
 interface ApplyBatchResultsArgs {
-  ctx: MutationCtx;
+  ctx: MutationRunner;
   requests: Doc<"llm_requests">[];
   results: Array<BatchResult>;
   now: number;
@@ -243,7 +247,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
 }
 
 interface ApplyBatchRateLimitUsageArgs {
-  ctx: ActionCtx;
+  ctx: RateLimitRunner;
   model: ModelType;
   totalInput: number;
   totalOutput: number;
