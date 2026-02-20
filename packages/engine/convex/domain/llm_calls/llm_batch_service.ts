@@ -1,41 +1,30 @@
-import z from "zod";
-import { zid } from "convex-helpers/server/zod4";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
-import { zInternalAction } from "../../utils/custom_fns";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limiter";
-import { pollOpenAiBatch, submitOpenAiBatch } from "../../platform/providers/openai_batch";
-import type { ActionCtx } from "../../_generated/server";
-import type { BatchWithRequestsResult } from "./llm_batch_repo";
+import type { ActionCtx, MutationCtx } from "../../_generated/server";
 import type { ModelType } from "../../models/_shared";
-import { getNextAttemptAt, getNextRunAt, shouldRunAt } from "../../utils/scheduling";
+import { getNextAttemptAt, getNextRunAt } from "../../utils/scheduling";
 
-export async function patchEmptyBatch(ctx: ActionCtx, batch_id: Id<"llm_batches">) {
+interface MarkBatchEmptyArgs {
+  ctx: MutationCtx;
+  batch_id: Id<"llm_batches">;
+}
+export async function markBatchEmpty(args: MarkBatchEmptyArgs) {
+  const { ctx, batch_id } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
     { batch_id, patch: { status: "error", last_error: "empty_batch" } },
   );
 }
 
-export function buildBatchPayload(requests: Doc<"llm_requests">[]) {
-  return requests.map((req) => ({
-    custom_key: req.custom_key,
-    model: req.model,
-    system_prompt: req.system_prompt ?? undefined,
-    user_prompt: req.user_prompt,
-    max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
-  }));
+interface MarkBatchRunningArgs {
+  ctx: MutationCtx;
+  batch: Doc<"llm_batches">;
+  batch_ref: string;
 }
-
-export async function submitBatchAndMarkRunning(
-  ctx: ActionCtx,
-  batch: Doc<"llm_batches">,
-  requests: Doc<"llm_requests">[],
-) {
-  const now = Date.now();
-  const payload = buildBatchPayload(requests);
-  const result = await submitOpenAiBatch(payload);
+export async function markBatchRunning(args: MarkBatchRunningArgs) {
+  const { ctx, batch, batch_ref } = args;
   const attempts = (batch.attempts ?? 0) + 1;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
@@ -43,44 +32,48 @@ export async function submitBatchAndMarkRunning(
       batch_id: batch._id,
       patch: {
         status: "running",
-        batch_ref: result.batch_ref,
-        next_poll_at: getNextRunAt(now),
+        batch_ref,
+        next_poll_at: getNextRunAt(Date.now()),
         attempts,
       },
     },
   );
 }
 
-export async function handleBatchRateLimitDeferral(
-  ctx: ActionCtx,
-  batch_id: Id<"llm_batches">,
-  model: ModelType,
-  requests: Doc<"llm_requests">[],
-) {
-  const keys = getRateLimitKeysForModel(model, "batch");
-  if (!keys) return false;
-
-  const limit = await rateLimiter.limit(ctx, keys.requestsKey, {
-    count: requests.length,
-  });
-  if (limit.ok) return false;
-
+interface MarkBatchSuccessArgs {
+  ctx: MutationCtx;
+  batch_id: Id<"llm_batches">;
+}
+export async function markBatchSuccess(args: MarkBatchSuccessArgs) {
+  const { ctx, batch_id } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
-    { batch_id, patch: { next_poll_at: limit.retryAfter } },
+    {
+      batch_id,
+      patch: {
+        status: "success",
+        next_poll_at: undefined,
+      },
+    },
   );
-  return true;
 }
 
-export async function scheduleBatchPoll(ctx: ActionCtx, batch_id: Id<"llm_batches">) {
+
+interface ScheduleBatchPollArgs {
+  ctx: MutationCtx;
+  batch_id: Id<"llm_batches">;
+  next_poll_at: number;
+}
+export async function scheduleBatchPoll(args: ScheduleBatchPollArgs) {
+  const { ctx, batch_id, next_poll_at } = args;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
-    { batch_id, patch: { next_poll_at: getNextRunAt(Date.now()) } },
+    { batch_id, patch: { next_poll_at } },
   );
 }
 
 interface HandleBatchErrorArgs {
-  ctx: ActionCtx;
+  ctx: MutationCtx;
   batch: Doc<"llm_batches">;
   requests: Doc<"llm_requests">[];
   error: string;
@@ -129,6 +122,45 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
   }
 }
 
+
+interface SubmitBatchArgs {
+  ctx: ActionCtx;
+  requests: Doc<"llm_requests">[];
+}
+export async function submitBatch(args: SubmitBatchArgs) {
+  const { ctx, requests } = args;
+  const payload = requests.map((req) => ({
+    custom_key: req.custom_key,
+    model: req.model,
+    system_prompt: req.system_prompt ?? undefined,
+    user_prompt: req.user_prompt,
+    max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
+  }))
+  const result = await ctx.runAction(
+    internal.platform.providers.provider_services.submitOpenAiBatchAction,
+    { requests: payload },
+  );
+  return result;
+}
+
+
+interface CheckBatchRateLimitArgs {
+  ctx: ActionCtx;
+  model: ModelType;
+  requests: Doc<"llm_requests">[];
+}
+export async function checkBatchRateLimit(args: CheckBatchRateLimitArgs) {
+  const { ctx, model, requests } = args;
+  const keys = getRateLimitKeysForModel(model, "batch");
+  if (!keys) return null;
+
+  const limit = await rateLimiter.limit(ctx, keys.requestsKey, {
+    count: requests.length,
+  });
+  return limit.ok ? null : limit.retryAfter;
+}
+
+
 type BatchResult = {
   custom_key: string;
   status: "completed" | "error";
@@ -140,7 +172,7 @@ type BatchResult = {
   error?: string;
 };
 interface ApplyBatchResultsArgs {
-  ctx: ActionCtx;
+  ctx: MutationCtx;
   requests: Doc<"llm_requests">[];
   results: Array<BatchResult>;
   now: number;
@@ -223,90 +255,3 @@ export async function applyBatchRateLimitUsage(args: ApplyBatchRateLimitUsageArg
   if (totalInput > 0) await rateLimiter.limit(ctx, keys.inputKey, { count: totalInput });
   if (totalOutput > 0) await rateLimiter.limit(ctx, keys.outputKey, { count: totalOutput });
 }
-
-export async function markBatchSuccess(ctx: ActionCtx, batch_id: Id<"llm_batches">) {
-  await ctx.runMutation(
-    internal.domain.llm_calls.llm_batch_repo.patchBatch,
-    {
-      batch_id,
-      patch: {
-        status: "success",
-        next_poll_at: undefined,
-      },
-    },
-  );
-}
-
-
-export const processQueuedBatch = zInternalAction({
-  args: z.object({ batch_id: zid("llm_batches") }),
-  handler: async (ctx, args) => {
-    const { batch, requests } = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_batch_repo.getBatchWithRequests,
-      { batch_id: args.batch_id },
-    )) as BatchWithRequestsResult;
-
-    if (batch.status !== "queued") return;
-
-    if (requests.length === 0) {
-      await patchEmptyBatch(ctx, batch._id);
-      return;
-    }
-
-    const shouldDefer = await handleBatchRateLimitDeferral(
-      ctx,
-      batch._id,
-      batch.model,
-      requests,
-    );
-    if (shouldDefer) return;
-
-    await submitBatchAndMarkRunning(ctx, batch, requests);
-  },
-});
-
-
-export const processRunningBatch = zInternalAction({
-  args: z.object({ batch_id: zid("llm_batches") }),
-  handler: async (ctx, args) => {
-    const { batch, requests } = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_batch_repo.getBatchWithRequests,
-      { batch_id: args.batch_id },
-    )) as BatchWithRequestsResult;
-
-    if (batch.status !== "running") return;
-    if (!shouldRunAt(batch.next_poll_at, Date.now())) return;
-    if (!batch.batch_ref) return;
-
-    const result = await pollOpenAiBatch(batch.batch_ref);
-
-    if (result.status === "running") {
-      await scheduleBatchPoll(ctx, batch._id);
-      return;
-    }
-    if (result.status === "error") {
-      await handleBatchError({
-        ctx,
-        batch,
-        requests,
-        error: result.error,
-      });
-      return;
-    }
-
-    const counters = await applyBatchResults({
-      ctx,
-      requests,
-      results: result.results,
-      now: Date.now(),
-    });
-    await applyBatchRateLimitUsage({
-      ctx,
-      model: batch.model,
-      totalInput: counters.totalInput,
-      totalOutput: counters.totalOutput,
-    });
-
-    await markBatchSuccess(ctx, batch._id);
-  },
-});
