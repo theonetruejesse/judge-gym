@@ -4,6 +4,7 @@ import { ENGINE_SETTINGS } from "../../settings";
 import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limiter";
 import type { ActionCtx } from "../../_generated/server";
 import { getNextAttemptAt, getNextRunAt, shouldRunAt } from "../../utils/scheduling";
+import { resolveApplyHandler } from "../orchestrator/target_registry";
 
 type MutationRunner = Pick<ActionCtx, "runMutation">;
 type JobRunner = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
@@ -92,16 +93,15 @@ interface ApplyRequestSuccessArgs {
 }
 export async function applyRequestSuccess(args: ApplyRequestSuccessArgs) {
   const { ctx, req, output } = args;
-  await ctx.runMutation(
-    internal.domain.window.window_service.applyRequestResult,
-    {
-      request_id: req._id,
-      custom_key: req.custom_key,
-      output: output.assistant_output,
-      input_tokens: output.input_tokens,
-      output_tokens: output.output_tokens,
-    },
-  );
+  const handler = resolveApplyHandler(req.custom_key);
+  if (!handler) throw new Error(`Unsupported target type for result: ${req.custom_key}`);
+  await ctx.runMutation(handler, {
+    request_id: req._id,
+    custom_key: req.custom_key,
+    output: output.assistant_output,
+    input_tokens: output.input_tokens,
+    output_tokens: output.output_tokens,
+  });
 }
 
 interface ApplyRequestErrorArgs {

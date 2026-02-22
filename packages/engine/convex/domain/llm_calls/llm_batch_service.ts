@@ -5,6 +5,7 @@ import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limit
 import type { ActionCtx, MutationCtx } from "../../_generated/server";
 import type { ModelType } from "../../platform/providers/provider_types";
 import { getNextAttemptAt, getNextRunAt } from "../../utils/scheduling";
+import { resolveApplyHandler } from "../orchestrator/target_registry";
 
 type MutationRunner = Pick<MutationCtx, "runMutation">;
 type ActionRunner = Pick<ActionCtx, "runAction">;
@@ -197,16 +198,18 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
     if (row.status === "completed" && row.output) {
       totalInput += row.output.input_tokens ?? 0;
       totalOutput += row.output.output_tokens ?? 0;
-      await ctx.runMutation(
-        internal.domain.window.window_service.applyRequestResult,
-        {
-          request_id: req._id,
-          custom_key: req.custom_key,
-          output: row.output.assistant_output,
-          input_tokens: row.output.input_tokens,
-          output_tokens: row.output.output_tokens,
-        },
-      );
+
+      const handler = resolveApplyHandler(req.custom_key);
+      if (!handler) throw new Error(`Unsupported target type for result: ${req.custom_key}`);
+
+      await ctx.runMutation(handler, {
+        request_id: req._id,
+        custom_key: req.custom_key,
+        output: row.output.assistant_output,
+        input_tokens: row.output.input_tokens,
+        output_tokens: row.output.output_tokens,
+      });
+
       continue;
     }
 

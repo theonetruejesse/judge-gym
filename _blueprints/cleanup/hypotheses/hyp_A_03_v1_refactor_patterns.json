@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "The refactor-everything branch shows a viable pattern: stage-local workflows enqueue LLM requests based on sequential gating, while a centralized scheduler handles batch lifecycle. Reusing that separation (stage workflow vs scheduler) can simplify orchestrator cleanup without losing pipeline discipline.",
+  "confidence": 0.57,
+  "rationale": "Refactor-everything uses evidence workflows to enqueue requests per stage and a runs scheduler to poll/submit batches; this matches the desired separation of concerns and avoids window-specific coupling in llm_calls services.",
+  "keyAssumptions": [
+    "Stage-local workflows can coexist with BaseOrchestrator",
+    "Current project intends to support multiple domain stages similar to refactor-everything"
+  ],
+  "validationCriteria": [
+    "Define clear boundaries: stage workflows enqueue requests; scheduler processes batches/jobs",
+    "Registry handles routing of apply-result/requeue across domains",
+    "Evidence flow uses sequential gating similar to refactor branch"
+  ],
+  "critiquePoints": [
+    "Architecture in refactor-everything may be outdated or incompatible with refactor-v2",
+    "Consolidating with BaseOrchestrator might reintroduce duplication"
+  ],
+  "questions": [
+    "Should BaseOrchestrator be retained or replaced with stage-specific workflows?",
+    "Which parts of refactor-everything are intentionally different from the current design?"
+  ]
+}

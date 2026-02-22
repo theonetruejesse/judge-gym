@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_02_001",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Claim that evidence flow is incomplete (no stage progression or wiring)",
+      "falsificationQueries": [
+        "Check window_service/startWindowOrchestration and BaseOrchestrator.enqueueStage",
+        "Check window_orchestrator listPendingTargets and applyRequestResult"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/convex/domain/window/window_service.ts",
+        "packages/engine/convex/domain/window/window_orchestrator.ts",
+        "packages/engine/convex/domain/orchestrator/base.ts"
+      ],
+      "falsificationAnalysis": "Stage processing is wired once evidences exist: startWindowOrchestration enqueues l1, BaseOrchestrator creates requests, and applyRequestResult updates evidence fields. However, no ingestion step inserts evidence rows, and no automatic stage chaining beyond l1 is present.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

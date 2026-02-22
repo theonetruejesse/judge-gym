@@ -20,15 +20,18 @@ type StageConfig = {
     inputField: "l0_raw_content" | "l1_cleaned_content" | "l2_neutralized_content";
     outputField: "l1_cleaned_content" | "l2_neutralized_content" | "l3_abstracted_content";
     requestIdField: "l1_request_id" | "l2_request_id" | "l3_request_id";
+    pendingIndex: "by_window_l1_pending" | "by_window_l2_pending" | "by_window_l3_pending";
     systemPrompt: string;
     buildPrompt: (input: string) => string;
 };
 
-const STAGE_CONFIGS: Record<Exclude<SemanticLevel, "l0_raw">, StageConfig> = {
+type StageConfigRecordType = Record<Exclude<SemanticLevel, "l0_raw">, StageConfig>;
+const STAGE_CONFIGS: StageConfigRecordType = {
     l1_cleaned: {
         inputField: "l0_raw_content",
         outputField: "l1_cleaned_content",
         requestIdField: "l1_request_id",
+        pendingIndex: "by_window_l1_pending",
         systemPrompt: CLEANING_INSTRUCTIONS,
         buildPrompt: cleanPrompt,
     },
@@ -36,6 +39,7 @@ const STAGE_CONFIGS: Record<Exclude<SemanticLevel, "l0_raw">, StageConfig> = {
         inputField: "l1_cleaned_content",
         outputField: "l2_neutralized_content",
         requestIdField: "l2_request_id",
+        pendingIndex: "by_window_l2_pending",
         systemPrompt: NEUTRALIZE_INSTRUCTIONS,
         buildPrompt: neutralizePrompt,
     },
@@ -43,35 +47,39 @@ const STAGE_CONFIGS: Record<Exclude<SemanticLevel, "l0_raw">, StageConfig> = {
         inputField: "l2_neutralized_content",
         outputField: "l3_abstracted_content",
         requestIdField: "l3_request_id",
+        pendingIndex: "by_window_l3_pending",
         systemPrompt: STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
         buildPrompt: abstractPrompt,
     },
 };
 
-export function getStageConfig(stage: SemanticLevel): StageConfig {
-    if (stage === "l0_raw") {
-        throw new Error("l0_raw is not a processing stage");
-    }
-    return STAGE_CONFIGS[stage];
-}
-
 export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, SemanticLevel> {
+    private readonly stageConfigs: StageConfigRecordType = STAGE_CONFIGS;
+
     constructor(ctx: MutationCtx) {
         super(ctx);
+    }
+
+    public getStageConfig(stage: SemanticLevel): StageConfig {
+        if (stage === "l0_raw") throw new Error("l0_raw is not a processing stage");
+        return this.stageConfigs[stage];
     }
 
     protected async listPendingTargets(
         windowId: Id<"windows">,
         stage: SemanticLevel,
     ) {
-        const config = getStageConfig(stage);
+        const config = this.getStageConfig(stage);
         const evidences = await this.ctx.db
             .query("evidences")
-            .withIndex("by_window_id", (q) => q.eq("window_id", windowId))
+            .withIndex(config.pendingIndex, (q) =>
+                q.eq("window_id", windowId)
+                    .eq(config.outputField, null)
+                    .eq(config.requestIdField, null),
+            )
             .collect();
 
         return evidences
-            .filter((e) => e[config.outputField] === null)
             .map((e) => ({
                 targetId: e._id,
                 input: e[config.inputField],
@@ -89,11 +97,26 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
     }
 
     protected buildPrompts(stage: SemanticLevel, input: string) {
-        const config = getStageConfig(stage);
+        const config = this.getStageConfig(stage);
         return {
             system: config.systemPrompt,
             user: config.buildPrompt(input),
         };
+    }
+
+    protected async onRequestCreated(
+        targetId: string,
+        stage: SemanticLevel,
+        requestId: Id<"llm_requests">,
+    ): Promise<void> {
+        const config = this.getStageConfig(stage);
+        const evidenceId = targetId as Id<"evidences">;
+        const evidence = await this.ctx.db.get(evidenceId);
+        if (!evidence) throw new Error("Evidence not found");
+        if (evidence[config.requestIdField] !== null) return;
+        await this.ctx.db.patch(evidenceId, {
+            [config.requestIdField]: requestId,
+        } as Partial<Evidence>);
     }
 
     public makeRequestKey(targetId: string, stage: SemanticLevel): string {
@@ -116,7 +139,7 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
 
     async recordSuccess(customKey: string, requestId: Id<"llm_requests">, output: string) {
         const { targetId, stage } = this.parseRequestKey(customKey);
-        const config = getStageConfig(stage);
+        const config = this.getStageConfig(stage);
         await this.ctx.db.patch(targetId, {
             [config.outputField]: output,
             [config.requestIdField]: requestId,

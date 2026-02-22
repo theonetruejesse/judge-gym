@@ -1,0 +1,93 @@
+{
+  "title": "cleanup",
+  "researchQuestion": "Refactor orchestrator/registry/scheduler/window flow; define boundaries and what’s left to wire and test evidence flow",
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      {
+        "areaId": "A_01",
+        "agentId": "019c8762-b2a7-77e3-a6d5-2a4c3c217907",
+        "role": "researcher"
+      },
+      {
+        "areaId": "A_02",
+        "agentId": "019c8762-b908-74f0-ac5d-b2733ca36576",
+        "role": "researcher"
+      },
+      {
+        "areaId": "A_03",
+        "agentId": "019c8762-bf9e-7fa2-880b-85fceafee67a",
+        "role": "researcher"
+      }
+    ],
+    "falsifier": {
+      "agentId": "019c8764-9b22-78b0-b9e7-b0ffae625ffd",
+      "role": "falsifier"
+    },
+    "certaintyScorer": {
+      "agentId": "019c8766-69af-70a3-ad3b-f6b0f9cbad14",
+      "role": "certainty_scorer"
+    },
+    "synthesizer": "codex"
+  },
+  "assignments": [
+    {
+      "areaId": "A_01",
+      "scope": "Current orchestrator/registry/scheduler boundaries and request lifecycle in refactor-v2",
+      "assignedAgentId": "019c8762-b2a7-77e3-a6d5-2a4c3c217907"
+    },
+    {
+      "areaId": "A_02",
+      "scope": "Window evidence flow wiring, stage transitions, and missing wiring for end-to-end processing",
+      "assignedAgentId": "019c8762-b908-74f0-ac5d-b2733ca36576"
+    },
+    {
+      "areaId": "A_03",
+      "scope": "Refactor-everything branch architecture (evidence/experiments/runs), patterns to reuse",
+      "assignedAgentId": "019c8762-bf9e-7fa2-880b-85fceafee67a"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_evidence.md",
+      "knowledge/k_002_evidence.md",
+      "knowledge/k_003_evidence.md",
+      "knowledge/k_004_evidence.md",
+      "knowledge/k_005_evidence.md"
+    ]
+  },
+  "microHypotheses": [
+    "hypotheses/hyp_A_01_v1_registry_contract.json",
+    "hypotheses/hyp_A_02_v1_evidence_wiring.json",
+    "hypotheses/hyp_A_03_v1_refactor_patterns.json"
+  ],
+  "hypothesisConflicts": [],
+  "nullChallenges": [
+    "null_challenges/nc_h_A_01_001_challenge.json",
+    "null_challenges/nc_h_A_02_001_challenge.json"
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": {
+      "evidence": {
+        "k_001": 0.75,
+        "k_002": 0.68,
+        "k_003": 0.66,
+        "k_004": 0.62,
+        "k_005": 0.58
+      },
+      "hypotheses": {
+        "h_A_01_001": 0.63,
+        "h_A_02_001": 0.64,
+        "h_A_03_001": 0.55
+      },
+      "steps": {
+        "S1": 0.60,
+        "S2": 0.57,
+        "S3": 0.59,
+        "S4": 0.52,
+        "S5": 0.50
+      }
+    }
+  }
+}
