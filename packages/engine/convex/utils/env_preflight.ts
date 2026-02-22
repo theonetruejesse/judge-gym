@@ -1,4 +1,4 @@
-import type { ModelType } from "../models/_shared";
+import type { ModelType } from "../platform/providers/provider_types";
 import {
   getProviderEnv,
   getProviderForModel,

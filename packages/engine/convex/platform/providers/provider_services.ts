@@ -1,6 +1,6 @@
 import z from "zod";
 import { zInternalAction } from "../../utils/custom_fns";
-import { modelTypeSchema } from "../../models/_shared";
+import { modelTypeSchema } from "./provider_types";
 import { pollOpenAiBatch, submitOpenAiBatch } from "./openai_batch";
 import { openAiChat } from "./openai_chat";
 

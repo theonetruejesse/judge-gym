@@ -1,7 +1,7 @@
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import type { ModelType, ProviderType } from "../../models/_shared";
+import { getProviderForModel, type ModelType } from "../../platform/providers/provider_types";
 import type { RunPolicy } from "../../platform/run_policy";
 import { ENGINE_SETTINGS } from "../../settings";
 import { decideRoute } from "./router";
@@ -63,10 +63,6 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     stage: TStage;
   };
 
-  /** Provider selection hook, given a chosen model. */
-  protected getProviderForModel(_model: ModelType): ProviderType {
-    return "openai";
-  }
 
   /** Create a batch and assign all requests to it. */
   protected async createBatch(
@@ -75,7 +71,7 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     model: ModelType,
     requestIds: Id<"llm_requests">[],
   ): Promise<void> {
-    const provider = this.getProviderForModel(model);
+    const provider = getProviderForModel(model);
     const batchId = (await this.ctx.runMutation(
       internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
       {
@@ -100,7 +96,7 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     model: ModelType,
     requestIds: Id<"llm_requests">[],
   ): Promise<void> {
-    const provider = this.getProviderForModel(model);
+    const provider = getProviderForModel(model);
     const jobId = (await this.ctx.runMutation(
       internal.domain.llm_calls.llm_job_repo.createLlmJob,
       {
@@ -119,10 +115,10 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
   }
 
   /**
- * Enqueue all pending targets for a stage:
- * - Build prompts and create llm_requests
- * - Route to batch or job based on policy
- */
+   * Enqueue all pending targets for a stage:
+   * - Build prompts and create llm_requests
+   * - Route to batch or job based on policy
+   */
   async enqueueStage(processId: TProcessId, stage: TStage): Promise<void> {
     const targets = await this.listPendingTargets(processId, stage);
     if (targets.length === 0) return;

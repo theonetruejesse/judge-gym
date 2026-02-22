@@ -1,5 +1,6 @@
 import z from "zod";
-import { modelTypeSchema, SemanticLevelSchema, StateStatusSchema } from "./_shared";
+import { SemanticLevelSchema, StateStatusSchema } from "./_shared";
+import { modelTypeSchema } from "../platform/providers/provider_types";
 import { zid } from "convex-helpers/server/zod4";
 
 export const WindowsTableSchema = z.object({
