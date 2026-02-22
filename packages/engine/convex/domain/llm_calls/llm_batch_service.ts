@@ -3,7 +3,7 @@ import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limiter";
 import type { ActionCtx, MutationCtx } from "../../_generated/server";
-import type { ModelType } from "../../models/_shared";
+import type { ModelType } from "../../platform/providers/provider_types";
 import { getNextAttemptAt, getNextRunAt } from "../../utils/scheduling";
 
 type MutationRunner = Pick<MutationCtx, "runMutation">;

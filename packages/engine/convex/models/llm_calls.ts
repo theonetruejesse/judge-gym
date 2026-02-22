@@ -1,6 +1,6 @@
 import { zid } from "convex-helpers/server/zod4";
 import z from "zod";
-import { modelTypeSchema, providerTypeSchema } from "./_shared";
+import { modelTypeSchema, providerTypeSchema } from "../platform/providers/provider_types";
 
 export const ProcessStatusSchema = z.enum([
   "queued",

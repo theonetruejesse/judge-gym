@@ -1,7 +1,8 @@
 
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
-import { type ModelType, type SemanticLevel } from "../../models/_shared";
+import { type SemanticLevel } from "../../models/_shared";
+import { type ModelType } from "../../platform/providers/provider_types";
 import { BaseOrchestrator } from "../orchestrator/base";
 import { internal } from "../../_generated/api";
 import {

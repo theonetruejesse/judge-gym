@@ -1,13 +1,6 @@
 import z from "zod";
 import {
   modelTypeSchema,
-  providerTypeSchema,
-} from "../platform/providers/provider_types";
-
-export { modelTypeSchema, providerTypeSchema };
-export type {
-  ModelType,
-  ProviderType,
 } from "../platform/providers/provider_types";
 
 export const StateStatusSchema = z.enum([
