@@ -46,6 +46,15 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     input: string,
   ): { system: string; user: string };
 
+  /** Optional hook after a request is created for a target. */
+  protected async onRequestCreated(
+    _targetId: string,
+    _stage: TStage,
+    _requestId: Id<"llm_requests">,
+  ): Promise<void> {
+    return;
+  }
+
   /** Encode a request-scoped custom key for later routing/decoding. */
   public abstract makeRequestKey(targetId: string, stage: TStage): string;
   /** Decode a request-scoped custom key into a target id and stage. */
@@ -143,6 +152,7 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
           custom_key,
         },
       )) as Id<"llm_requests">;
+      await this.onRequestCreated(target.targetId, stage, requestId);
       requestIds.push(requestId);
     }
 

@@ -58,3 +58,55 @@ export const runWindowSearch = zInternalAction({
         return news;
     },
 });
+
+const EvidenceInsertSchema = z.object({
+    title: z.string(),
+    url: z.string(),
+    raw_content: z.string(),
+});
+
+export const insertEvidenceBatch = zInternalMutation({
+    args: z.object({
+        window_id: zid("windows"),
+        evidences: z.array(EvidenceInsertSchema),
+    }),
+    returns: z.object({
+        inserted: z.number(),
+        total: z.number(),
+    }),
+    handler: async (ctx, args) => {
+        for (const evidence of args.evidences) {
+            await ctx.db.insert("evidences", {
+                window_id: args.window_id,
+                title: evidence.title,
+                url: evidence.url,
+                l0_raw_content: evidence.raw_content,
+                l1_cleaned_content: null,
+                l1_request_id: null,
+                l2_neutralized_content: null,
+                l2_request_id: null,
+                l3_abstracted_content: null,
+                l3_request_id: null,
+            });
+        }
+
+        const total = await ctx.db
+            .query("evidences")
+            .withIndex("by_window_id", (q) => q.eq("window_id", args.window_id))
+            .collect();
+
+        return { inserted: args.evidences.length, total: total.length };
+    },
+});
+
+export const listEvidenceByWindow = zInternalQuery({
+    args: z.object({
+        window_id: zid("windows"),
+    }),
+    handler: async (ctx, args) => {
+        return ctx.db
+            .query("evidences")
+            .withIndex("by_window_id", (q) => q.eq("window_id", args.window_id))
+            .collect();
+    },
+});

@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "Introduce a domain-registered target handler contract for both apply-result and requeue; llm_calls services should dispatch via the registry instead of calling window_service directly, and target_registry should not instantiate WindowOrchestrator.",
+  "confidence": 0.64,
+  "rationale": "Current target_registry is window-specific and llm_calls services hardwire window applyRequestResult. A registry that maps key prefixes to handlers would reduce coupling and make new orchestrators (runs/experiments) pluggable.",
+  "keyAssumptions": [
+    "custom_key prefixes remain a stable routing mechanism",
+    "new orchestrators will need both success and retry handling"
+  ],
+  "validationCriteria": [
+    "llm_job_service and llm_batch_service no longer import window_service",
+    "target_registry becomes a simple key switch or handler map",
+    "new domain handlers can be added without touching scheduler or llm_calls"
+  ],
+  "critiquePoints": [
+    "adds another indirection layer if only one orchestrator exists",
+    "requires new handler interfaces and tests to avoid silent routing failures"
+  ],
+  "questions": [
+    "Should apply-result routing live beside requeue routing in the same registry?",
+    "Do we also want a process-level registry for batch/job completion?"
+  ]
+}

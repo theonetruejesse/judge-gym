@@ -1,0 +1,22 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Claim that apply-result should be routed via registry rather than window_service directly",
+      "falsificationQueries": [
+        "Search for existing apply-result registry or generic handler",
+        "Check if window_orchestrator.recordSuccess is already used by llm_calls services"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/convex/domain/orchestrator/target_registry.ts",
+        "packages/engine/convex/domain/window/window_orchestrator.ts",
+        "packages/engine/convex/domain/llm_calls/llm_job_service.ts",
+        "packages/engine/convex/domain/llm_calls/llm_batch_service.ts"
+      ],
+      "falsificationAnalysis": "Registry exists only for requeue. Apply-result still calls window_service directly from llm_calls services. recordSuccess exists but is not used by llm_calls. Thus the coupling remains.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

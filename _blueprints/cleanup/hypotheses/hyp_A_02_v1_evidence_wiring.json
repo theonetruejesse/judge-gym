@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Evidence flow is not fully wired end-to-end because search results are not persisted to the evidences table and stage completion does not advance/enqueue subsequent stages.",
+  "confidence": 0.68,
+  "rationale": "Window orchestration only operates over existing evidences and applyRequestResult updates per-evidence columns but does not advance the window or enqueue the next stage; runWindowSearch returns results without insertion.",
+  "keyAssumptions": [
+    "No other hidden ingestion/stage-advancement mutations exist",
+    "Window processing should be stage-sequential without manual intervention"
+  ],
+  "validationCriteria": [
+    "Add an ingestion mutation that inserts evidences with l0_raw_content",
+    "Add stage completion logic that moves windows to next stage and enqueues",
+    "Evidence flow can be tested by creating a window, ingesting, and observing l1->l3 completion"
+  ],
+  "critiquePoints": [
+    "Ingestion/stage transitions might be implemented in other branch code or planned elsewhere",
+    "The system may intentionally rely on external orchestration rather than automatic stage chaining"
+  ],
+  "questions": [
+    "Where should stage progression live: window_service, orchestrator, or scheduler?",
+    "Should stage progression be per-evidence or per-window completion?"
+  ]
+}

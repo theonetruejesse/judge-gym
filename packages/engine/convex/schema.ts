@@ -18,6 +18,9 @@ export default defineSchema({
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
     .index("by_window_id", ["window_id"])
+    .index("by_window_l1_pending", ["window_id", "l1_cleaned_content", "l1_request_id"])
+    .index("by_window_l2_pending", ["window_id", "l2_neutralized_content", "l2_request_id"])
+    .index("by_window_l3_pending", ["window_id", "l3_abstracted_content", "l3_request_id"])
     .index("by_l1_id", ["l1_request_id"])
     .index("by_l2_id", ["l2_request_id"])
     .index("by_l3_id", ["l3_request_id"]),

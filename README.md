@@ -142,6 +142,13 @@ Evidence windows are defined by `window.startDate`, `window.endDate`, `window.co
 
 All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP from within Cursor.
 
+### Window Evidence Flow
+
+- `internal.domain.window.window_service.startWindowFlow` collects evidence (if none exist), then calls `startWindowOrchestration` to set `windows.current_stage` to `l1_cleaned` and enqueue stage processing.
+- `internal.domain.window.window_service.applyRequestResult` writes evidence outputs, updates request status, and auto-advances `l1` → `l2` → `l3` when a stage completes.
+- Request retries and results are routed by `custom_key` via the orchestrator target registry.
+- Pending evidence selection uses per-stage `evidences` indexes (`by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending`) to avoid scanning entire windows.
+
 ### Option A — Automated runner (recommended)
 
 1. Edit `packages/engine/src/experiments.ts` with your experiment settings.

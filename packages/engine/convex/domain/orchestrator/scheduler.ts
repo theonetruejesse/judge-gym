@@ -23,7 +23,7 @@ export const requeueRequest = zInternalMutation({
     const handler = resolveRequeueHandler(request.custom_key);
     if (!handler) throw new Error(`Unsupported target type for retry: ${request.custom_key}`);
 
-    await handler(ctx, request);
+    await ctx.runMutation(handler, { request_id: request._id });
   },
 });
 
