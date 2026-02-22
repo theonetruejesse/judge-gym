@@ -36,7 +36,8 @@ judge-gym/
 │   │   │   ├── agents/            # AbstractJudgeAgent base class
 │   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
 │   │   │   ├── platform/           # Provider integrations + rate limiting
-│   │   │   │   ├── providers/      # OpenAI adapters + Convex action wrappers
+│   │   │   │   ├── providers/      # OpenAI adapters + provider/model registry
+│   │   │   │   │   ├── provider_types.ts # Provider/model registry (batchable + rate-limit key helpers)
 │   │   │   │   │   └── provider_services.ts # Internal actions for chat + batch
 │   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
 │   │   │   └── stages/            # Pipeline stages
