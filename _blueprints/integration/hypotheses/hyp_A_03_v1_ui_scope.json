@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "For the initial integration, only evidence-related lab UI endpoints should be implemented; experiment/runs endpoints from refactor-everything can be deferred to keep the surface minimal.",
+  "confidence": 0.55,
+  "rationale": "The request explicitly prioritizes window/evidence flow and a minimal UI surface derived from the original lab UI evidence pages.",
+  "keyAssumptions": [
+    "Current integration focus is evidence flow, not full experiment lifecycle",
+    "UI work will reintroduce experiment features later"
+  ],
+  "validationCriteria": [
+    "UI can create/list windows and view evidence content without experiment endpoints",
+    "No unused lab endpoints are required by the UI routes"
+  ],
+  "critiquePoints": [
+    "Some UI components might assume experiment endpoints exist",
+    "Future work could require refactoring the lab facade again"
+  ],
+  "questions": [
+    "Do we need placeholder experiment endpoints to keep the UI stable?",
+    "Should window list include experiment association columns?"
+  ]
+}

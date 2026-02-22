@@ -1,0 +1,94 @@
+{
+  "title": "integration",
+  "researchQuestion": "Define minimal lab.ts public endpoints and smoke tests for window evidence flow, based on refactor-everything lab UI wiring, to enable end-to-end manual testing.",
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      {
+        "areaId": "A_01",
+        "agentId": "019c878a-babf-7ca0-ad0e-dc562abeaa32",
+        "role": "researcher"
+      },
+      {
+        "areaId": "A_02",
+        "agentId": "019c878a-c618-7022-848c-4610fd6e2dab",
+        "role": "researcher"
+      },
+      {
+        "areaId": "A_03",
+        "agentId": "019c878a-d151-7420-9b9b-72da8af0dbf6",
+        "role": "researcher"
+      }
+    ],
+    "falsifier": {
+      "agentId": "019c878d-ef1a-7073-ae09-d8cd46638d54",
+      "role": "falsifier"
+    },
+    "certaintyScorer": {
+      "agentId": "019c878f-6b15-7531-91b5-fcd438f8d37e",
+      "role": "certainty_scorer"
+    },
+    "synthesizer": "codex"
+  },
+  "assignments": [
+    {
+      "areaId": "A_01",
+      "scope": "Refactor-everything lab UI evidence window flow and endpoint usage",
+      "assignedAgentId": "019c878a-babf-7ca0-ad0e-dc562abeaa32"
+    },
+    {
+      "areaId": "A_02",
+      "scope": "Refactor-everything lab.ts and integration tests for evidence flow",
+      "assignedAgentId": "019c878a-c618-7022-848c-4610fd6e2dab"
+    },
+    {
+      "areaId": "A_03",
+      "scope": "Current branch window flow primitives and intended lab.ts surface",
+      "assignedAgentId": "019c878a-d151-7420-9b9b-72da8af0dbf6"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_evidence.md",
+      "knowledge/k_002_evidence.md",
+      "knowledge/k_003_evidence.md",
+      "knowledge/k_004_evidence.md",
+      "knowledge/k_005_evidence.md",
+      "knowledge/k_006_evidence.md"
+    ]
+  },
+  "microHypotheses": [
+    "hypotheses/hyp_A_01_v1_lab_surface.json",
+    "hypotheses/hyp_A_02_v1_smoke_tests.json",
+    "hypotheses/hyp_A_03_v1_ui_scope.json"
+  ],
+  "hypothesisConflicts": [],
+  "nullChallenges": [
+    "null_challenges/nc_h_A_03_001_challenge.json"
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": {
+      "evidence": {
+        "k_001": 0.73,
+        "k_002": 0.70,
+        "k_003": 0.72,
+        "k_004": 0.68,
+        "k_005": 0.66,
+        "k_006": 0.70
+      },
+      "hypotheses": {
+        "h_A_01_001": 0.62,
+        "h_A_02_001": 0.58,
+        "h_A_03_001": 0.40
+      },
+      "steps": {
+        "S1": 0.60,
+        "S2": 0.55,
+        "S3": 0.50,
+        "S4": 0.45,
+        "S5": 0.50
+      }
+    }
+  }
+}

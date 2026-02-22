@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "A window-focused smoke test should create a window, insert/collect evidence, start orchestration, then assert stage outputs l1→l3 and window completion via lab facade endpoints.",
+  "confidence": 0.6,
+  "rationale": "Current window_service auto-advances stages on completion, and refactor-everything tests show a lab facade pattern for end-to-end validation.",
+  "keyAssumptions": [
+    "Provider keys are available in the test environment",
+    "Scheduler is running or can be triggered"
+  ],
+  "validationCriteria": [
+    "Test can observe l1/l2/l3 output fields becoming non-null",
+    "Window status transitions to completed"
+  ],
+  "critiquePoints": [
+    "Tests may be flaky without deterministic provider behavior",
+    "Batch/job routing may add latency requiring polling"
+  ],
+  "questions": [
+    "Should smoke tests stub provider calls?",
+    "Is there a fast path for local-only tests?"
+  ]
+}

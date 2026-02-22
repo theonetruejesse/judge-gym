@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "A minimal lab facade for evidence flow should expose startWindowFlow (or init+collect), listEvidenceWindows, listEvidenceByWindow, and getEvidenceContent, matching the endpoints used by the refactor-everything lab UI.",
+  "confidence": 0.64,
+  "rationale": "The refactor-everything UI calls initEvidenceWindowAndCollect and lists windows/evidence using lab endpoints; current branch has equivalent primitives but no facade yet.",
+  "keyAssumptions": [
+    "We only need evidence-related UI features for now",
+    "startWindowFlow can substitute for initEvidenceWindowAndCollect semantics"
+  ],
+  "validationCriteria": [
+    "Lab UI can create a window, display window list, and show evidence content",
+    "Convex API surface uses lab.ts only, not domain internals"
+  ],
+  "critiquePoints": [
+    "UI may need additional metadata not present in current models",
+    "startWindowFlow may differ from initEvidenceWindowAndCollect in outputs"
+  ],
+  "questions": [
+    "Do we need a separate initWindow endpoint for reuse logic?",
+    "Should listEvidenceWindows include evidence status counters?"
+  ]
+}
