@@ -1,10 +1,9 @@
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import { getProviderForModel, type ModelType } from "../../platform/providers/provider_types";
+import { getProviderForModel, isBatchableModel, type ModelType } from "../../platform/providers/provider_types";
 import type { RunPolicy } from "../../platform/run_policy";
 import { ENGINE_SETTINGS } from "../../settings";
-import { decideRoute } from "./router";
 
 /**
  * Pending input item to be transformed into a single LLM request.
@@ -63,6 +62,13 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     stage: TStage;
   };
 
+  /** Determine whether to batch or job */
+  protected decideRoute(model: ModelType, count: number): "batch" | "job" {
+    if (!isBatchableModel(model)) return "job";
+    if (count < this.policy.min_batch_size) return "job";
+    if (count <= this.policy.job_fallback_count) return "job";
+    return "batch";
+  }
 
   /** Create a batch and assign all requests to it. */
   protected async createBatch(
@@ -140,11 +146,7 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
       requestIds.push(requestId);
     }
 
-    const decision = decideRoute({
-      model,
-      count: requestIds.length,
-      policy: this.policy,
-    });
+    const decision = this.decideRoute(model, requestIds.length);
 
     if (decision === "batch") {
       await this.createBatch(processId, stage, model, requestIds);

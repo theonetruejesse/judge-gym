@@ -99,29 +99,22 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
     public makeRequestKey(targetId: string, stage: SemanticLevel): string {
         return `evidence:${targetId}:${stage}`;
     }
+    public parseRequestKey(key: string): { targetId: Id<"evidences">; stage: SemanticLevel } {
+        const [targetType, targetId, stage] = key.split(":");
+        if (targetType !== "evidence") throw new Error(`Unexpected target type in key: ${key}`);
+        return { targetId: targetId as Id<"evidences">, stage: stage as SemanticLevel };
+    }
 
     public makeProcessKey(processId: Id<"windows">, stage: SemanticLevel): string {
         return `window:${processId}:${stage}`;
     }
-
-    public parseRequestKey(key: string): { targetId: Id<"evidences">; stage: SemanticLevel } {
-        const [targetType, targetId, stage] = key.split(":");
-        if (targetType !== "evidence") {
-            throw new Error(`Unexpected target type in key: ${key}`);
-        }
-        return { targetId: targetId as Id<"evidences">, stage: stage as SemanticLevel };
-    }
-
     public parseProcessKey(key: string): { processId: Id<"windows">; stage: SemanticLevel } {
         const [processType, processId, stage] = key.split(":");
-        if (processType !== "window") {
-            throw new Error(`Unexpected process type in key: ${key}`);
-        }
+        if (processType !== "window") throw new Error(`Unexpected process type in key: ${key}`);
         return { processId: processId as Id<"windows">, stage: stage as SemanticLevel };
     }
 
     async recordSuccess(customKey: string, requestId: Id<"llm_requests">, output: string) {
-        const internalAny = internal as any;
         const { targetId, stage } = this.parseRequestKey(customKey);
         const config = getStageConfig(stage);
         await this.ctx.db.patch(targetId, {
@@ -129,7 +122,7 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
             [config.requestIdField]: requestId,
         } as Partial<Evidence>);
         await this.ctx.runMutation(
-            internalAny.domain.llm_calls.llm_request_repo.patchRequest,
+            internal.domain.llm_calls.llm_request_repo.patchRequest,
             {
                 request_id: requestId,
                 patch: {
