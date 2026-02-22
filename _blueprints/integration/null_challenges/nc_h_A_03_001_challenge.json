@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Claim that evidence-only endpoints are sufficient for initial integration",
+      "falsificationQueries": [
+        "Check refactor-everything lab UI home page usage",
+        "Check integration_lab_facade tests for experiment/run endpoints"
+      ],
+      "falsificationEvidenceFound": [
+        "refactor-everything:packages/lab/app/page.tsx",
+        "refactor-everything:packages/engine/tests/integration_lab_facade.test.ts"
+      ],
+      "falsificationAnalysis": "The lab home page depends on experiment/run endpoints in addition to evidence windows, and integration tests invoke experiment initialization and run start. An evidence-only facade would not satisfy these callers unless those tests/routes are deferred or trimmed.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}
