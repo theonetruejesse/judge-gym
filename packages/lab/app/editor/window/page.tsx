@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { api } from "@judge-gym/engine";
-import { CalendarIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { format, parse } from "date-fns";
 import { MODEL_OPTIONS } from "@/lib/ui-maps";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ import {
 import LabNavbar from "@/components/lab_navbar";
 
 const formSchema = z.object({
-  concept: z.string().min(1, "Concept is required."),
+  concept: z.string().min(1, "Query is required."),
   country: z.string().min(1, "Country is required."),
   start_date: z.string().min(1, "Start date is required."),
   end_date: z.string().min(1, "End date is required."),
@@ -63,7 +63,7 @@ const DEFAULT_FORM_VALUES: FormValues = {
   start_date: "",
   end_date: "",
   model_id: "",
-  evidence_limit: 15,
+  evidence_limit: 0,
 };
 
 function parseNumberParam(value: string | null) {
@@ -82,14 +82,14 @@ export default function EvidenceWindowEditorPage() {
   const [windowStatus, setWindowStatus] = useState<string | null>(null);
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
-  const initializedRef = useRef(false);
+  const syncedFromParamsRef = useRef(false);
+  const skipUrlSyncRef = useRef(false);
 
   const form = useForm<FormValues>({
     defaultValues: DEFAULT_FORM_VALUES,
   });
 
   useEffect(() => {
-    if (initializedRef.current) return;
     const values = form.getValues();
     const concept = searchParams.get("concept");
     const country = searchParams.get("country");
@@ -98,7 +98,7 @@ export default function EvidenceWindowEditorPage() {
     const modelId = searchParams.get("model_id");
     const evidenceLimit = parseNumberParam(searchParams.get("evidence_limit"));
 
-    form.reset({
+    const nextValues: FormValues = {
       ...DEFAULT_FORM_VALUES,
       ...values,
       concept: concept ?? values.concept ?? DEFAULT_FORM_VALUES.concept,
@@ -111,15 +111,40 @@ export default function EvidenceWindowEditorPage() {
         evidenceLimit ??
         values.evidence_limit ??
         DEFAULT_FORM_VALUES.evidence_limit,
+    };
+
+    const shouldReset = (
+      Object.keys(nextValues) as Array<keyof FormValues>
+    ).some((key) => {
+      if (key === "evidence_limit") {
+        const nextLimit = nextValues.evidence_limit;
+        const currentLimit = values.evidence_limit;
+        if (
+          Number.isFinite(nextLimit) &&
+          Number.isFinite(Number(currentLimit))
+        ) {
+          return Number(currentLimit) !== nextLimit;
+        }
+      }
+      return nextValues[key] !== values[key];
     });
 
-    initializedRef.current = true;
+    if (shouldReset) {
+      skipUrlSyncRef.current = true;
+      form.reset(nextValues);
+    }
+
+    syncedFromParamsRef.current = true;
   }, [form, searchParams]);
 
   const watchedValues = form.watch();
 
   useEffect(() => {
-    if (!initializedRef.current) return;
+    if (!syncedFromParamsRef.current) return;
+    if (skipUrlSyncRef.current) {
+      skipUrlSyncRef.current = false;
+      return;
+    }
     const params = new URLSearchParams();
     if (watchedValues.concept) params.set("concept", watchedValues.concept);
     if (watchedValues.country) params.set("country", watchedValues.country);
@@ -182,6 +207,8 @@ export default function EvidenceWindowEditorPage() {
 
   const startDateValue = form.watch("start_date");
   const endDateValue = form.watch("end_date");
+  const selectedStartDate = parseDateValue(startDateValue);
+  const selectedEndDate = parseDateValue(endDateValue);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -259,23 +286,24 @@ export default function EvidenceWindowEditorPage() {
                               <Button
                                 type="button"
                                 variant="outline"
+                                data-empty={!field.value}
                                 className={cn(
-                                  "w-full justify-between font-normal",
-                                  !field.value && "text-muted-foreground",
+                                  "data-[empty=true]:text-muted-foreground w-full justify-between text-left font-normal",
                                 )}
                               >
-                                {field.value || "Pick a date"}
-                                <CalendarIcon className="h-4 w-4 opacity-60" />
+                                {selectedStartDate ? (
+                                  format(selectedStartDate, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <ChevronDownIcon className="h-4 w-4 opacity-60" />
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto border-border bg-card p-0 text-foreground shadow-md"
-                            align="start"
-                          >
+                          <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={parseDateValue(field.value)}
+                              selected={selectedStartDate}
                               onSelect={(date) => {
                                 field.onChange(
                                   date ? format(date, "yyyy-MM-dd") : "",
@@ -286,7 +314,8 @@ export default function EvidenceWindowEditorPage() {
                                   form.setValue("end_date", "");
                                 }
                               }}
-                              initialFocus
+                              defaultMonth={selectedStartDate}
+                              autoFocus
                             />
                           </PopoverContent>
                         </Popover>
@@ -309,23 +338,24 @@ export default function EvidenceWindowEditorPage() {
                               <Button
                                 type="button"
                                 variant="outline"
+                                data-empty={!field.value}
                                 className={cn(
-                                  "w-full justify-between font-normal",
-                                  !field.value && "text-muted-foreground",
+                                  "data-[empty=true]:text-muted-foreground w-full justify-between text-left font-normal",
                                 )}
                               >
-                                {field.value || "Pick a date"}
-                                <CalendarIcon className="h-4 w-4 opacity-60" />
+                                {selectedEndDate ? (
+                                  format(selectedEndDate, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <ChevronDownIcon className="h-4 w-4 opacity-60" />
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto border-border bg-card p-0 text-foreground shadow-md"
-                            align="start"
-                          >
+                          <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={parseDateValue(field.value)}
+                              selected={selectedEndDate}
                               onSelect={(date) => {
                                 field.onChange(
                                   date ? format(date, "yyyy-MM-dd") : "",
@@ -336,7 +366,8 @@ export default function EvidenceWindowEditorPage() {
                                 const start = parseDateValue(startDateValue);
                                 return Boolean(start && date < start);
                               }}
-                              initialFocus
+                              defaultMonth={selectedEndDate}
+                              autoFocus
                             />
                           </PopoverContent>
                         </Popover>
