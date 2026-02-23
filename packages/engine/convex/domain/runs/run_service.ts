@@ -357,19 +357,6 @@ export const requeueRunRequest = zInternalMutation({
   },
 });
 
-const STAGE_ORDER: RunStage[] = [
-  "rubric_gen",
-  "rubric_critic",
-  "score_gen",
-  "score_critic",
-];
-
-function nextStageFor(stage: RunStage): RunStage | null {
-  const idx = STAGE_ORDER.indexOf(stage);
-  if (idx === -1) return null;
-  return STAGE_ORDER[idx + 1] ?? null;
-}
-
 async function maybeAdvanceRunStage(
   ctx: MutationCtx,
   runId: Id<"runs">,
@@ -384,65 +371,13 @@ async function maybeAdvanceRunStage(
   )
     return;
 
-  const samples = await ctx.db
-    .query("samples")
-    .withIndex("by_run", (q) => q.eq("run_id", runId))
-    .collect();
-
-  if (samples.length === 0) return;
-
-  let completed = 0;
-  let failed = 0;
-  let hasPending = false;
   const orchestrator = new RunOrchestrator(ctx);
 
-  for (const sample of samples) {
-    const outputId = getStageOutputId(sample, stage);
-    if (outputId) {
-      completed += 1;
-      continue;
-    }
+  const progress = await orchestrator.getStageProgress(runId, stage);
+  if (!progress) return;
+  if (progress.hasPending) return;
 
-    if (isStageBlockedByMissingInput(sample, stage)) {
-      failed += 1;
-      continue;
-    }
-
-    const custom_key = orchestrator.makeRequestKey(sample._id, stage);
-    const pendingRequests = await ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key_status", (q) =>
-        q.eq("custom_key", custom_key).eq("status", "pending"),
-      )
-      .collect();
-    if (pendingRequests.length > 0) {
-      hasPending = true;
-      continue;
-    }
-
-    const requests = await ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
-      .collect();
-    if (requests.length === 0) {
-      hasPending = true;
-      continue;
-    }
-
-    const maxAttempts = requests.reduce(
-      (max, req) => Math.max(max, req.attempts ?? 0),
-      0,
-    );
-    if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
-      failed += 1;
-      continue;
-    }
-    hasPending = true;
-  }
-
-  if (hasPending) return;
-
-  if (completed === 0 && failed > 0) {
+  if (progress.completed === 0 && progress.failed > 0) {
     await ctx.db.patch(runId, {
       status: "error",
       current_stage: stage,
@@ -450,7 +385,7 @@ async function maybeAdvanceRunStage(
     return;
   }
 
-  const nextStage = nextStageFor(stage);
+  const nextStage = orchestrator.nextStageFor(stage);
   if (!nextStage) {
     await ctx.db.patch(runId, {
       status: "completed",
@@ -462,28 +397,6 @@ async function maybeAdvanceRunStage(
   if (run.current_stage !== stage) return;
   await ctx.db.patch(runId, { current_stage: nextStage });
   await orchestrator.enqueueStage(runId, nextStage);
-}
-
-function getStageOutputId(sample: Doc<"samples">, stage: RunStage) {
-  switch (stage) {
-    case "rubric_gen":
-      return sample.rubric_id;
-    case "rubric_critic":
-      return sample.rubric_critic_id;
-    case "score_gen":
-      return sample.score_id;
-    case "score_critic":
-      return sample.score_critic_id;
-    default:
-      return null;
-  }
-}
-
-function isStageBlockedByMissingInput(sample: Doc<"samples">, stage: RunStage) {
-  if (stage === "rubric_critic" && !sample.rubric_id) return true;
-  if (stage === "score_gen" && !sample.rubric_id) return true;
-  if (stage === "score_critic" && !sample.score_id) return true;
-  return false;
 }
 
 async function markRequestParseFailure(

@@ -13,14 +13,136 @@ import {
   resolveEvidenceStrategy,
 } from "./run_strategies";
 import { type RunStage } from "../../models/experiments";
+import { ENGINE_SETTINGS } from "../../settings";
 
 const SCORE_STAGES: RunStage[] = ["score_gen", "score_critic"];
 
 type EvidenceDoc = Doc<"evidences">;
+type SampleDoc = Doc<"samples">;
+
+type RunStageConfig = {
+  outputField: keyof SampleDoc;
+  requires: Array<keyof SampleDoc>;
+};
+
+const RUN_STAGE_CONFIGS: Record<RunStage, RunStageConfig> = {
+  rubric_gen: {
+    outputField: "rubric_id",
+    requires: [],
+  },
+  rubric_critic: {
+    outputField: "rubric_critic_id",
+    requires: ["rubric_id"],
+  },
+  score_gen: {
+    outputField: "score_id",
+    requires: ["rubric_id"],
+  },
+  score_critic: {
+    outputField: "score_critic_id",
+    requires: ["score_id"],
+  },
+};
+
+type RequestState = "pending" | "none" | "retryable" | "exhausted";
+
+const STAGE_ORDER: RunStage[] = [
+  "rubric_gen",
+  "rubric_critic",
+  "score_gen",
+  "score_critic",
+];
 
 export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   constructor(ctx: MutationCtx) {
     super(ctx);
+  }
+
+  public getStageConfig(stage: RunStage): RunStageConfig {
+    return RUN_STAGE_CONFIGS[stage];
+  }
+
+  public getSampleOutputId(sample: SampleDoc, stage: RunStage) {
+    const config = this.getStageConfig(stage);
+    return sample[config.outputField] as Id<"rubrics"> | Id<"rubric_critics"> | Id<"scores"> | Id<"score_critics"> | null;
+  }
+
+  public isStageBlocked(sample: SampleDoc, stage: RunStage): boolean {
+    const config = this.getStageConfig(stage);
+    return config.requires.some((field) => sample[field] == null);
+  }
+
+  public nextStageFor(stage: RunStage): RunStage | null {
+    const idx = STAGE_ORDER.indexOf(stage);
+    if (idx === -1) return null;
+    return STAGE_ORDER[idx + 1] ?? null;
+  }
+
+  private async classifyRequestState(customKey: string): Promise<RequestState> {
+    const pendingRequests = await this.ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "pending"),
+      )
+      .collect();
+    if (pendingRequests.length > 0) return "pending";
+
+    const requests = await this.ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
+      .collect();
+    if (requests.length === 0) return "none";
+
+    const maxAttempts = requests.reduce(
+      (max, req) => Math.max(max, req.attempts ?? 0),
+      0,
+    );
+    if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+      return "exhausted";
+    }
+
+    return "retryable";
+  }
+
+  public async getStageProgress(
+    runId: Id<"runs">,
+    stage: RunStage,
+  ): Promise<{ completed: number; failed: number; hasPending: boolean } | null> {
+    const samples = await this.ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect();
+
+    if (samples.length === 0) return null;
+
+    let completed = 0;
+    let failed = 0;
+    let hasPending = false;
+
+    for (const sample of samples) {
+      const outputId = this.getSampleOutputId(sample, stage);
+      if (outputId) {
+        completed += 1;
+        continue;
+      }
+
+      if (this.isStageBlocked(sample, stage)) {
+        failed += 1;
+        continue;
+      }
+
+      const customKey = this.makeRequestKey(sample._id, stage);
+      const state = await this.classifyRequestState(customKey);
+
+      if (state === "pending" || state === "none" || state === "retryable") {
+        hasPending = true;
+        continue;
+      }
+
+      failed += 1;
+    }
+
+    return { completed, failed, hasPending };
   }
 
   protected async listPendingTargets(
@@ -45,46 +167,23 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       },
     };
 
-    const samples = await this.ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect();
-
     const evidenceList = SCORE_STAGES.includes(stage)
       ? await this.listEvidenceForExperiment(experiment._id)
       : null;
 
     const pending: Array<{ targetId: Id<"samples">; input: string }> = [];
+    const samples = await this.ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect();
+
     for (const sample of samples) {
-      if (stage === "rubric_gen" && sample.rubric_id) continue;
-      if (stage === "rubric_critic") {
-        if (!sample.rubric_id || sample.rubric_critic_id) continue;
-      }
-      if (stage === "score_gen") {
-        if (!sample.rubric_id || sample.score_id) continue;
-      }
-      if (stage === "score_critic") {
-        if (!sample.score_id || sample.score_critic_id) continue;
-      }
+      if (this.getSampleOutputId(sample, stage)) continue;
+      if (this.isStageBlocked(sample, stage)) continue;
 
-      const custom_key = this.makeRequestKey(sample._id, stage);
-      const pendingRequests = await this.ctx.db
-        .query("llm_requests")
-        .withIndex("by_custom_key_status", (q) =>
-          q.eq("custom_key", custom_key).eq("status", "pending"),
-        )
-        .collect();
-      if (pendingRequests.length > 0) continue;
-
-      const requests = await this.ctx.db
-        .query("llm_requests")
-        .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
-        .collect();
-      const maxAttempts = requests.reduce(
-        (max, req) => Math.max(max, req.attempts ?? 0),
-        0,
-      );
-      if (maxAttempts >= this.policy.max_request_attempts) continue;
+      const customKey = this.makeRequestKey(sample._id, stage);
+      const state = await this.classifyRequestState(customKey);
+      if (state === "pending" || state === "exhausted") continue;
 
       const inputPayload = await this.buildInputPayload({
         stage,
