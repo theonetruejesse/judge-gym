@@ -93,6 +93,10 @@ export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction(
         limit: evidence_limit,
       },
     );
+    await ctx.runMutation(
+      internal.domain.orchestrator.scheduler.startScheduler,
+      {},
+    );
 
     return {
       window_id: initResult.window_id,
@@ -113,13 +117,18 @@ export const startWindowFlow: ReturnType<typeof zAction> = zAction({
     total: z.number(),
   }),
   handler: async (ctx, args) => {
-    return ctx.runAction(
+    const result = await ctx.runAction(
       internal.domain.window.window_service.startWindowFlow,
       {
         window_id: args.window_id,
         limit: args.evidence_limit,
       },
     );
+    await ctx.runMutation(
+      internal.domain.orchestrator.scheduler.startScheduler,
+      {},
+    );
+    return result;
   },
 });
 
