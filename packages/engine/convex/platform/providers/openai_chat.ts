@@ -1,5 +1,7 @@
+import { getProviderModel, type ModelType } from "./provider_types";
+
 type ChatInput = {
-  model: string;
+  model: ModelType;
   system_prompt?: string;
   user_prompt: string;
   max_tokens?: number;
@@ -39,7 +41,7 @@ export async function openAiChat(input: ChatInput): Promise<ChatOutput> {
   messages.push({ role: "user", content: input.user_prompt });
 
   const body: Record<string, unknown> = {
-    model: input.model,
+    model: getProviderModel(input.model),
     messages,
   };
   if (input.max_tokens !== undefined) body.max_tokens = input.max_tokens;

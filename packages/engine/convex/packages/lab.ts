@@ -1,18 +1,20 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zAction, zMutation, zQuery } from "../utils/custom_fns";
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
+import type { Doc } from "../_generated/dataModel";
+import { WindowsTableSchema } from "../models/window";
 
-const EvidenceWindowInputSchema = z.object({
-  concept: z.string().min(1),
-  country: z.string().min(1),
-  start_date: z.string().min(1),
-  end_date: z.string().min(1),
-  model_id: modelTypeSchema,
+// todo, clean up this file
+
+const EvidenceWindowInputSchema = WindowsTableSchema.pick({
+  query: true,
+  country: true,
+  start_date: true,
+  end_date: true,
+  model: true,
 });
-
-type EvidenceWindowInput = z.infer<typeof EvidenceWindowInputSchema>;
 
 type EvidenceStatus =
   | "scraping"
@@ -27,44 +29,22 @@ export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
   }),
   returns: z.object({
     window_id: zid("windows"),
-    reused_window: z.boolean(),
   }),
   handler: async (ctx, args) => {
     const { evidence_window } = args;
-    const existing = await ctx.db
-      .query("windows")
-      .filter((q) =>
-        q.and(
-          q.eq("country", evidence_window.country),
-          q.eq("start_date", evidence_window.start_date),
-          q.eq("end_date", evidence_window.end_date),
-          q.eq("query", evidence_window.concept),
-          q.eq("model", evidence_window.model_id as ModelType),
-        ),
-      )
-      .first();
-
-    if (existing) {
-      return {
-        window_id: existing._id,
-        reused_window: true,
-      };
-    }
-
     const window_id = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
       {
         country: evidence_window.country,
         start_date: evidence_window.start_date,
         end_date: evidence_window.end_date,
-        query: evidence_window.concept,
-        model: evidence_window.model_id,
+        query: evidence_window.query,
+        model: evidence_window.model,
       },
     );
 
     return {
       window_id,
-      reused_window: false,
     };
   },
 });
@@ -76,20 +56,19 @@ export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction(
   }),
   returns: z.object({
     window_id: zid("windows"),
-    reused_window: z.boolean(),
     collected: z.number(),
     total: z.number(),
   }),
   handler: async (ctx, { evidence_window, evidence_limit }) => {
-    const initResult = await ctx.runMutation(
-      api.packages.lab.initEvidenceWindow,
-      { evidence_window },
+    const window_id = await ctx.runMutation(
+      internal.domain.window.window_repo.createWindow,
+      evidence_window,
     );
 
     const flowResult = await ctx.runAction(
       internal.domain.window.window_service.startWindowFlow,
       {
-        window_id: initResult.window_id,
+        window_id,
         limit: evidence_limit,
       },
     );
@@ -99,8 +78,7 @@ export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction(
     );
 
     return {
-      window_id: initResult.window_id,
-      reused_window: initResult.reused_window,
+      window_id,
       collected: flowResult.inserted,
       total: flowResult.total,
     };
@@ -163,8 +141,8 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       start_date: z.string(),
       end_date: z.string(),
       country: z.string(),
-      concept: z.string(),
-      model_id: modelTypeSchema,
+      query: z.string(),
+      model: modelTypeSchema,
       window_tag: z.string(),
       evidence_count: z.number(),
       evidence_status: z.enum([
@@ -177,32 +155,35 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
     }),
   ),
   handler: async (ctx) => {
-    const windows = await ctx.db.query("windows").collect();
+    const windows = await ctx.runQuery(
+      internal.domain.window.window_repo.listWindows,
+      {},
+    );
     const results = [] as Array<{
       window_id: string;
       start_date: string;
       end_date: string;
       country: string;
-      concept: string;
-      model_id: ModelType;
+      query: string;
+      model: ModelType;
       window_tag: string;
       evidence_count: number;
       evidence_status: EvidenceStatus;
     }>;
 
     for (const window of windows) {
-      const evidences = await ctx.db
-        .query("evidences")
-        .withIndex("by_window_id", (q) => q.eq("window_id", window._id))
-        .collect();
+      const evidences = await ctx.runQuery(
+        internal.domain.window.window_repo.listEvidenceByWindow,
+        { window_id: window._id },
+      );
       const evidence_status = deriveEvidenceStatus(evidences);
       results.push({
         window_id: window._id,
         start_date: window.start_date,
         end_date: window.end_date,
         country: window.country,
-        concept: window.query,
-        model_id: window.model,
+        query: window.query,
+        model: window.model,
         window_tag: window.window_tag,
         evidence_count: evidences.length,
         evidence_status,
@@ -225,10 +206,10 @@ export const listEvidenceByWindow: ReturnType<typeof zQuery> = zQuery({
     }),
   ),
   handler: async (ctx, { window_id }) => {
-    const rows = await ctx.db
-      .query("evidences")
-      .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
-      .collect();
+    const rows = (await ctx.runQuery(
+      internal.domain.window.window_repo.listEvidenceByWindow,
+      { window_id },
+    )) as Array<Doc<"evidences">>;
 
     return rows
       .slice()
@@ -257,7 +238,10 @@ export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
     })
     .nullable(),
   handler: async (ctx, { evidence_id }) => {
-    const evidence = await ctx.db.get(evidence_id);
+    const evidence = await ctx.runQuery(
+      internal.domain.window.window_repo.getEvidence,
+      { evidence_id },
+    );
     if (!evidence) return null;
     return {
       evidence_id: evidence._id,
@@ -280,23 +264,41 @@ export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
       status: z.string(),
       current_stage: z.string(),
       window_tag: z.string(),
-      model_id: modelTypeSchema,
-      concept: z.string(),
+      model: modelTypeSchema,
+      query: z.string(),
       country: z.string(),
       start_date: z.string(),
       end_date: z.string(),
     })
     .nullable(),
   handler: async (ctx, { window_id }) => {
-    const window = await ctx.db.get(window_id);
+    let window: {
+      _id: string;
+      status: string;
+      current_stage: string;
+      window_tag: string;
+      model: ModelType;
+      query: string;
+      country: string;
+      start_date: string;
+      end_date: string;
+    } | null = null;
+    try {
+      window = await ctx.runQuery(
+        internal.domain.window.window_repo.getWindow,
+        { window_id },
+      );
+    } catch (error) {
+      return null;
+    }
     if (!window) return null;
     return {
       window_id: window._id,
       status: window.status,
       current_stage: window.current_stage,
       window_tag: window.window_tag,
-      model_id: window.model,
-      concept: window.query,
+      model: window.model,
+      query: window.query,
       country: window.country,
       start_date: window.start_date,
       end_date: window.end_date,
@@ -316,6 +318,7 @@ export const startScheduler: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
+// change this to handle the permanent failure cases
 function deriveEvidenceStatus(
   evidences: Array<{
     l1_cleaned_content: string | null;

@@ -39,8 +39,8 @@ export const RequestStatusSchema = z.enum([
 
 export const LlmRequestsTableSchema = z.object({
   status: RequestStatusSchema,
-  job_id: zid("llm_jobs").optional(),
-  batch_id: zid("llm_batches").optional(),
+  job_id: zid("llm_jobs").nullable().optional(),
+  batch_id: zid("llm_batches").nullable().optional(),
   model: modelTypeSchema,
   user_prompt: z.string(),
   system_prompt: z.string().optional(),

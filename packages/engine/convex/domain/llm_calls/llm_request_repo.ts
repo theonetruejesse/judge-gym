@@ -20,6 +20,8 @@ export const createLlmRequest = zInternalMutation({
   handler: async (ctx, args) => {
     return ctx.db.insert("llm_requests", {
       ...args,
+      job_id: null,
+      batch_id: null,
       status: "pending",
     });
   },
@@ -41,8 +43,8 @@ export const listOrphanedRequests = zInternalQuery({
       .query("llm_requests")
       .withIndex("by_orphaned", (q) =>
         q.eq("status", "pending")
-          .eq("batch_id", undefined)
-          .eq("job_id", undefined),
+          .eq("batch_id", null)
+          .eq("job_id", null),
       )
       .collect();
   },

@@ -20,8 +20,8 @@ type EvidenceWindowItem = {
   start_date: string;
   end_date: string;
   country: string;
-  concept: string;
-  model_id: string;
+  query: string;
+  model: string;
   window_tag?: string;
   evidence_count: number;
   evidence_status:
@@ -44,11 +44,11 @@ export default function EvidenceHomePage() {
 
   const buildWindowCloneHref = (window: EvidenceWindowItem) => {
     const params = new URLSearchParams({
-      concept: window.concept,
+      query: window.query,
       country: window.country,
       start_date: window.start_date,
       end_date: window.end_date,
-      model_id: window.model_id,
+      model: window.model,
     });
     return `/editor/window?${params.toString()}`;
   };
@@ -118,7 +118,7 @@ export default function EvidenceHomePage() {
                       {window.country}
                     </TableCell>
                     <TableCell className="opacity-70">
-                      {window.model_id}
+                      {window.model}
                     </TableCell>
                     <TableCell className="opacity-70">
                       {`${window.start_date} -> ${window.end_date}`}

@@ -37,11 +37,11 @@ import {
 import LabNavbar from "@/components/lab_navbar";
 
 const formSchema = z.object({
-  concept: z.string().min(1, "Query is required."),
+  query: z.string().min(1, "Query is required."),
   country: z.string().min(1, "Country is required."),
   start_date: z.string().min(1, "Start date is required."),
   end_date: z.string().min(1, "End date is required."),
-  model_id: z
+  model: z
     .string()
     .min(1, "Evidence model is required.")
     .refine(
@@ -58,11 +58,11 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const DEFAULT_FORM_VALUES: FormValues = {
-  concept: "",
+  query: "",
   country: "",
   start_date: "",
   end_date: "",
-  model_id: "",
+  model: "",
   evidence_limit: 0,
 };
 
@@ -91,22 +91,22 @@ export default function EvidenceWindowEditorPage() {
 
   useEffect(() => {
     const values = form.getValues();
-    const concept = searchParams.get("concept");
+    const query = searchParams.get("query");
     const country = searchParams.get("country");
     const startDate = searchParams.get("start_date");
     const endDate = searchParams.get("end_date");
-    const modelId = searchParams.get("model_id");
+    const model = searchParams.get("model");
     const evidenceLimit = parseNumberParam(searchParams.get("evidence_limit"));
 
     const nextValues: FormValues = {
       ...DEFAULT_FORM_VALUES,
       ...values,
-      concept: concept ?? values.concept ?? DEFAULT_FORM_VALUES.concept,
+      query: query ?? values.query ?? DEFAULT_FORM_VALUES.query,
       country: country ?? values.country ?? DEFAULT_FORM_VALUES.country,
       start_date:
         startDate ?? values.start_date ?? DEFAULT_FORM_VALUES.start_date,
       end_date: endDate ?? values.end_date ?? DEFAULT_FORM_VALUES.end_date,
-      model_id: modelId ?? values.model_id ?? DEFAULT_FORM_VALUES.model_id,
+      model: model ?? values.model ?? DEFAULT_FORM_VALUES.model,
       evidence_limit:
         evidenceLimit ??
         values.evidence_limit ??
@@ -146,12 +146,12 @@ export default function EvidenceWindowEditorPage() {
       return;
     }
     const params = new URLSearchParams();
-    if (watchedValues.concept) params.set("concept", watchedValues.concept);
+    if (watchedValues.query) params.set("query", watchedValues.query);
     if (watchedValues.country) params.set("country", watchedValues.country);
     if (watchedValues.start_date)
       params.set("start_date", watchedValues.start_date);
     if (watchedValues.end_date) params.set("end_date", watchedValues.end_date);
-    if (watchedValues.model_id) params.set("model_id", watchedValues.model_id);
+    if (watchedValues.model) params.set("model", watchedValues.model);
     if (Number.isFinite(watchedValues.evidence_limit)) {
       params.set("evidence_limit", String(watchedValues.evidence_limit));
     }
@@ -187,9 +187,7 @@ export default function EvidenceWindowEditorPage() {
         evidence_limit,
       });
       setWindowStatus(
-        result.reused_window
-          ? `Reused existing window. Collected ${result.collected}.`
-          : `Created new window. Collected ${result.collected}.`,
+        `Created window. Collected ${result.collected}.`,
       );
       router.push("/");
     } catch (error) {
@@ -246,10 +244,10 @@ export default function EvidenceWindowEditorPage() {
               >
                 <FormField
                   control={form.control}
-                  name="concept"
+                  name="query"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Concept</FormLabel>
+                      <FormLabel>Query</FormLabel>
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -378,7 +376,7 @@ export default function EvidenceWindowEditorPage() {
                 </div>
                 <FormField
                   control={form.control}
-                  name="model_id"
+                  name="model"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Evidence Model</FormLabel>

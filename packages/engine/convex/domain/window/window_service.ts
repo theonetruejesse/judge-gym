@@ -85,7 +85,12 @@ export const startWindowOrchestration = zInternalMutation({
     const window = await ctx.db.get(args.window_id);
 
     if (!window) throw new Error("Window not found");
-    if (window.status === "completed" || window.status === "canceled") return;
+    if (
+      window.status === "completed" ||
+      window.status === "canceled" ||
+      window.status === "error"
+    )
+      return;
 
     await ctx.db.patch(args.window_id, {
       status: "running",
@@ -147,6 +152,20 @@ export const applyRequestResult = zInternalMutation({
   },
 });
 
+export const handleRequestError = zInternalMutation({
+  args: z.object({
+    request_id: zid("llm_requests"),
+    custom_key: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const orchestrator = new WindowOrchestrator(ctx);
+    const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
+    const evidence = await ctx.db.get(targetId as Id<"evidences">);
+    if (!evidence) throw new Error("Evidence not found");
+    await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
+  },
+});
+
 export const requeueWindowRequest = zInternalMutation({
   args: z.object({
     request_id: zid("llm_requests"),
@@ -183,7 +202,7 @@ export const requeueWindowRequest = zInternalMutation({
         request_id: request._id,
         patch: {
           job_id: jobId,
-          batch_id: undefined,
+          batch_id: null,
         },
       },
     );
@@ -210,7 +229,12 @@ async function maybeAdvanceWindowStage(
   if (stage === "l0_raw") return;
   const window = await ctx.db.get(windowId);
   if (!window) return;
-  if (window.status === "completed" || window.status === "canceled") return;
+  if (
+    window.status === "completed" ||
+    window.status === "canceled" ||
+    window.status === "error"
+  )
+    return;
 
   const orchestrator = new WindowOrchestrator(ctx);
   const config = orchestrator.getStageConfig(stage);
@@ -221,8 +245,54 @@ async function maybeAdvanceWindowStage(
     .collect();
 
   if (evidences.length === 0) return;
-  const hasPending = evidences.some((e) => e[config.outputField] === null);
+  let completed = 0;
+  let failed = 0;
+  let hasPending = false;
+  const pendingRequestIds: Array<Id<"llm_requests">> = [];
+
+  for (const evidence of evidences) {
+    const output = evidence[config.outputField];
+    const requestId = evidence[config.requestIdField];
+    if (output !== null) {
+      completed += 1;
+      continue;
+    }
+    if (requestId === null) {
+      hasPending = true;
+      continue;
+    }
+    pendingRequestIds.push(requestId);
+  }
+
+  if (pendingRequestIds.length > 0) {
+    const requests = await Promise.all(
+      pendingRequestIds.map((requestId) => ctx.db.get(requestId)),
+    );
+    for (const request of requests) {
+      if (!request) {
+        hasPending = true;
+        continue;
+      }
+      if (request.status === "error") {
+        failed += 1;
+      } else if (request.status === "pending") {
+        hasPending = true;
+      } else if (request.status === "success") {
+        // Success without output means we can't proceed with this evidence.
+        failed += 1;
+      }
+    }
+  }
+
   if (hasPending) return;
+
+  if (completed === 0 && failed > 0) {
+    await ctx.db.patch(windowId, {
+      status: "error",
+      current_stage: stage,
+    });
+    return;
+  }
 
   const nextStage = nextStageFor(stage);
   if (!nextStage) {

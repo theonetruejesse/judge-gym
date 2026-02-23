@@ -5,7 +5,10 @@ import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limit
 import type { ActionCtx, MutationCtx } from "../../_generated/server";
 import type { ModelType } from "../../platform/providers/provider_types";
 import { getNextAttemptAt, getNextRunAt } from "../../utils/scheduling";
-import { resolveApplyHandler } from "../orchestrator/target_registry";
+import {
+  resolveApplyHandler,
+  resolveErrorHandler,
+} from "../orchestrator/target_registry";
 
 type MutationRunner = Pick<MutationCtx, "runMutation">;
 type ActionRunner = Pick<ActionCtx, "runAction">;
@@ -124,6 +127,13 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
         },
       },
     );
+    const handler = resolveErrorHandler(req.custom_key);
+    if (handler) {
+      await ctx.runMutation(handler, {
+        request_id: req._id,
+        custom_key: req.custom_key,
+      });
+    }
   }
 }
 
@@ -243,6 +253,13 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
           },
         },
       );
+      const handler = resolveErrorHandler(req.custom_key);
+      if (handler) {
+        await ctx.runMutation(handler, {
+          request_id: req._id,
+          custom_key: req.custom_key,
+        });
+      }
     }
   }
 

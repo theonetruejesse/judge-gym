@@ -36,8 +36,9 @@ judge-gym/
 │   │   │   ├── agents/            # AbstractJudgeAgent base class
 │   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
 │   │   │   ├── platform/           # Provider integrations + rate limiting
-│   │   │   │   ├── providers/      # OpenAI adapters + provider/model registry
-│   │   │   │   │   ├── provider_types.ts # Provider/model registry (batchable + rate-limit key helpers)
+│   │   │   │   ├── providers/      # Provider adapters + model registry
+│   │   │   │   │   ├── provider_types.ts # Model registry + provider model mapping
+│   │   │   │   │   ├── ai_chat.ts  # AI SDK chat runner for jobs
 │   │   │   │   │   └── provider_services.ts # Internal actions for chat + batch
 │   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
 │   │   │   └── stages/            # Pipeline stages
@@ -134,7 +135,7 @@ An **experiment** is a single point in the design space. Each axis is independen
 | Ground Truth    | `groundTruth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
 
 To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows are defined by `window.startDate`, `window.endDate`, `window.country`, and `window.concept`, and are reused across experiments with the same window key.
+Evidence windows in Convex are defined by `window.start_date`, `window.end_date`, `window.country`, and `window.query`.
 
 ---
 
@@ -153,6 +154,12 @@ All experiment operations are exposed via Convex public mutations and queries. O
 - The lab UI consumes public endpoints in `packages/engine/convex/packages/lab.ts` (evidence windows + evidence content).
 - Set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app.
 - Evidence-only screens: Home (window list), Window Editor, Evidence Detail.
+
+### Testing
+
+- Engine tests live in `packages/engine/convex/tests` and run with `convex-test` + `vitest`.
+- From repo root: `bun run test --filter=@judge-gym/engine`.
+- From the engine package: `bun run test`.
 
 ### Option A — Automated runner (recommended)
 

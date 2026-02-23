@@ -12,7 +12,8 @@
     "dev": "convex dev",
     "predev": "convex dev --until-success",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",
@@ -30,6 +31,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@edge-runtime/vm": "^5.0.0",
+    "convex-test": "^0.0.41",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

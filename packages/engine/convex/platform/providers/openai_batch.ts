@@ -1,6 +1,8 @@
+import { getProviderModel, type ModelType } from "./provider_types";
+
 type BatchRequestInput = {
   custom_key: string;
-  model: string;
+  model: ModelType;
   system_prompt?: string;
   user_prompt: string;
   max_tokens?: number;
@@ -47,7 +49,7 @@ function toJsonl(requests: BatchRequestInput[]): string {
       messages.push({ role: "user", content: req.user_prompt });
 
       const body: Record<string, unknown> = {
-        model: req.model,
+        model: getProviderModel(req.model),
         messages,
       };
       if (req.max_tokens !== undefined) body.max_tokens = req.max_tokens;

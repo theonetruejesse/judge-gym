@@ -9,6 +9,7 @@ export const StateStatusSchema = z.enum([
   "running",
   "paused",
   "completed",
+  "error",
   "canceled",
 ]);
 
