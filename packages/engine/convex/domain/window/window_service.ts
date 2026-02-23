@@ -7,6 +7,7 @@ import { Doc, Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
 import { getProviderForModel } from "../../platform/providers/provider_types";
 import type { MutationCtx } from "../../_generated/server";
+import { ENGINE_SETTINGS } from "../../settings";
 
 const DEFAULT_EVIDENCE_LIMIT = 15;
 
@@ -248,40 +249,45 @@ async function maybeAdvanceWindowStage(
   let completed = 0;
   let failed = 0;
   let hasPending = false;
-  const pendingRequestIds: Array<Id<"llm_requests">> = [];
 
   for (const evidence of evidences) {
     const output = evidence[config.outputField];
-    const requestId = evidence[config.requestIdField];
     if (output !== null) {
       completed += 1;
       continue;
     }
-    if (requestId === null) {
+
+    const custom_key = orchestrator.makeRequestKey(evidence._id, stage);
+    const pendingRequests = await ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", custom_key).eq("status", "pending"),
+      )
+      .collect();
+    if (pendingRequests.length > 0) {
       hasPending = true;
       continue;
     }
-    pendingRequestIds.push(requestId);
-  }
 
-  if (pendingRequestIds.length > 0) {
-    const requests = await Promise.all(
-      pendingRequestIds.map((requestId) => ctx.db.get(requestId)),
-    );
-    for (const request of requests) {
-      if (!request) {
-        hasPending = true;
-        continue;
-      }
-      if (request.status === "error") {
-        failed += 1;
-      } else if (request.status === "pending") {
-        hasPending = true;
-      } else if (request.status === "success") {
-        // Success without output means we can't proceed with this evidence.
-        failed += 1;
-      }
+    const requests = await ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
+      .collect();
+
+    if (requests.length === 0) {
+      hasPending = true;
+      continue;
     }
+
+    const maxAttempts = requests.reduce(
+      (max, req) => Math.max(max, req.attempts ?? 0),
+      0,
+    );
+    if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+      failed += 1;
+      continue;
+    }
+    hasPending = true;
   }
 
   if (hasPending) return;

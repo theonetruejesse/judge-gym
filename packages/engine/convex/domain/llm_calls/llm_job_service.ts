@@ -122,13 +122,40 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
       {
         request_id: req._id,
         patch: {
-          status: "pending",
+          status: "error",
           attempts,
           last_error: error,
-          next_attempt_at: getNextAttemptAt(now),
         },
       },
     );
+
+    const nextAttempt = attempts + 1;
+    const retryRequestId = await ctx.runMutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: req.model,
+        system_prompt: req.system_prompt ?? undefined,
+        user_prompt: req.user_prompt,
+        custom_key: req.custom_key,
+        attempts: nextAttempt,
+      },
+    );
+
+    if (req.job_id) {
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_job_repo.assignRequestsToJob,
+        { request_ids: [retryRequestId], job_id: req.job_id },
+      );
+    }
+
+    await ctx.runMutation(
+      internal.domain.llm_calls.llm_request_repo.patchRequest,
+      {
+        request_id: retryRequestId,
+        patch: { next_attempt_at: getNextAttemptAt(now) },
+      },
+    );
+
     return true;
   }
   await ctx.runMutation(

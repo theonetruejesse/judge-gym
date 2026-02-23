@@ -14,7 +14,9 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_batch_id", ["batch_id"])
     .index("by_job_id", ["job_id"])
-    .index("by_orphaned", ["status", "batch_id", "job_id"]),
+    .index("by_orphaned", ["status", "batch_id", "job_id"])
+    .index("by_custom_key", ["custom_key"])
+    .index("by_custom_key_status", ["custom_key", "status"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
     .index("by_window_id", ["window_id"])

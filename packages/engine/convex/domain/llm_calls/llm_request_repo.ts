@@ -12,6 +12,7 @@ const CreateLlmRequestArgsSchema = LlmRequestsTableSchema.pick({
   system_prompt: true,
   user_prompt: true,
   custom_key: true,
+  attempts: true,
 });
 
 export const createLlmRequest = zInternalMutation({
@@ -23,6 +24,7 @@ export const createLlmRequest = zInternalMutation({
       job_id: null,
       batch_id: null,
       status: "pending",
+      attempts: args.attempts ?? 0,
     });
   },
 });
@@ -45,6 +47,28 @@ export const listOrphanedRequests = zInternalQuery({
         q.eq("status", "pending")
           .eq("batch_id", null)
           .eq("job_id", null),
+      )
+      .collect();
+  },
+});
+
+export const listRequestsByCustomKey = zInternalQuery({
+  args: z.object({ custom_key: z.string() }),
+  handler: async (ctx, args): Promise<Doc<"llm_requests">[]> => {
+    return ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key", (q) => q.eq("custom_key", args.custom_key))
+      .collect();
+  },
+});
+
+export const listPendingRequestsByCustomKey = zInternalQuery({
+  args: z.object({ custom_key: z.string() }),
+  handler: async (ctx, args): Promise<Doc<"llm_requests">[]> => {
+    return ctx.db
+      .query("llm_requests")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", args.custom_key).eq("status", "pending"),
       )
       .collect();
   },
