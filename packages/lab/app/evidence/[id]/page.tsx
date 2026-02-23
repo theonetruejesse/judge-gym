@@ -21,8 +21,8 @@ type EvidenceWindowItem = {
   start_date: string;
   end_date: string;
   country: string;
-  concept: string;
-  model_id: string;
+  query: string;
+  model: string;
   window_tag?: string;
   evidence_count: number;
 };
@@ -146,14 +146,14 @@ export default function EvidenceWindowPage({
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
             {(selectedWindow?.window_tag ??
-              selectedWindow?.concept ??
+              selectedWindow?.query ??
               "Evidence Window") + ` (${selectedWindow?.evidence_count ?? 0})`}
           </h1>
           <p className="text-[11px] opacity-50">
             {selectedWindow?.country ?? "—"} ·{" "}
             {selectedWindow?.start_date ?? "—"} -{" "}
             {selectedWindow?.end_date ?? "—"} ·{" "}
-            {selectedWindow?.model_id ?? "—"}
+            {selectedWindow?.model ?? "—"}
           </p>
         </div>
 

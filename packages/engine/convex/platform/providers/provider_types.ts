@@ -22,21 +22,25 @@ export const MODELS = [
   {
     id: "gpt-4.1",
     provider: "openai",
+    provider_model: "gpt-4.1-2025-04-14",
     batchable: true,
   },
   {
     id: "gpt-4.1-mini",
     provider: "openai",
+    provider_model: "gpt-4.1-mini-2025-04-14",
     batchable: true,
   },
   {
     id: "gpt-5.2",
     provider: "openai",
+    provider_model: "gpt-5.2-2025-12-11",
     batchable: true,
   },
   {
     id: "gpt-5.2-chat",
     provider: "openai",
+    provider_model: "gpt-5.2-chat-latest",
     batchable: false,
   },
 ] as const;
@@ -62,6 +66,10 @@ export function isBatchableModel(model: ModelType): boolean {
 
 export function getProviderForModel(model: ModelType): ProviderType {
   return MODEL_BY_ID[model].provider;
+}
+
+export function getProviderModel(model: ModelType): string {
+  return MODEL_BY_ID[model].provider_model;
 }
 
 export function getProviderEnv(provider: ProviderType): string {

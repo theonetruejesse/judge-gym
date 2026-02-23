@@ -2,7 +2,7 @@ import z from "zod";
 import { zInternalAction } from "../../utils/custom_fns";
 import { modelTypeSchema } from "./provider_types";
 import { pollOpenAiBatch, submitOpenAiBatch } from "./openai_batch";
-import { openAiChat } from "./openai_chat";
+import { runAiChat } from "./ai_chat";
 
 const BatchRequestSchema = z.object({
   custom_key: z.string(),
@@ -76,6 +76,6 @@ export const openAiChatAction = zInternalAction({
   args: ChatInputSchema,
   returns: ChatOutputSchema,
   handler: async (_ctx, args) => {
-    return openAiChat(args);
+    return runAiChat(args);
   },
 });

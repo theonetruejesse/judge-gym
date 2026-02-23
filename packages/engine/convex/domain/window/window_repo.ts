@@ -39,6 +39,22 @@ export const getWindow = zInternalQuery({
     },
 });
 
+export const listWindows = zInternalQuery({
+    args: z.object({}),
+    handler: async (ctx) => {
+        return ctx.db.query("windows").collect();
+    },
+});
+
+export const getEvidence = zInternalQuery({
+    args: z.object({
+        evidence_id: zid("evidences"),
+    }),
+    handler: async (ctx, args) => {
+        return ctx.db.get(args.evidence_id);
+    },
+});
+
 export const runWindowSearch = zInternalAction({
     args: z.object({
         window_id: zid("windows"),

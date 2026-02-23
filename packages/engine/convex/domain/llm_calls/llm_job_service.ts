@@ -4,7 +4,10 @@ import { ENGINE_SETTINGS } from "../../settings";
 import { getRateLimitKeysForModel, rateLimiter } from "../../platform/rate_limiter";
 import type { ActionCtx } from "../../_generated/server";
 import { getNextAttemptAt, getNextRunAt, shouldRunAt } from "../../utils/scheduling";
-import { resolveApplyHandler } from "../orchestrator/target_registry";
+import {
+  resolveApplyHandler,
+  resolveErrorHandler,
+} from "../orchestrator/target_registry";
 
 type MutationRunner = Pick<ActionCtx, "runMutation">;
 type JobRunner = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
@@ -106,18 +109,18 @@ export async function applyRequestSuccess(args: ApplyRequestSuccessArgs) {
 
 interface ApplyRequestErrorArgs {
   ctx: MutationRunner;
-  request_id: Id<"llm_requests">;
+  req: Doc<"llm_requests">;
   error: string;
   attempts: number;
   now: number;
 }
 export async function applyRequestError(args: ApplyRequestErrorArgs) {
-  const { ctx, request_id, error, attempts, now } = args;
+  const { ctx, req, error, attempts, now } = args;
   if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
     await ctx.runMutation(
       internal.domain.llm_calls.llm_request_repo.patchRequest,
       {
-        request_id,
+        request_id: req._id,
         patch: {
           status: "pending",
           attempts,
@@ -131,7 +134,7 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
     {
-      request_id,
+      request_id: req._id,
       patch: {
         status: "error",
         attempts,
@@ -139,6 +142,13 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
       },
     },
   );
+  const handler = resolveErrorHandler(req.custom_key);
+  if (handler) {
+    await ctx.runMutation(handler, {
+      request_id: req._id,
+      custom_key: req.custom_key,
+    });
+  }
   return false;
 }
 
@@ -190,7 +200,7 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
       const attempts = (req.attempts ?? 0) + 1;
       const didRetry = await applyRequestError({
         ctx,
-        request_id: req._id,
+        req,
         error: error?.message ?? "provider_error",
         attempts,
         now,
