@@ -20,6 +20,7 @@ export const RunStageSchema = z.enum([
     "score_gen",
     "score_critic",
 ]);
+export type RunStage = z.infer<typeof RunStageSchema>;
 
 export const RunsTableSchema = z.object({
     status: StateStatusSchema,
