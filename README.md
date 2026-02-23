@@ -17,10 +17,10 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **What exists today**
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
-- Experiment/run scaffolding exists in the schema, but there is **no run-level orchestration pipeline** in this repo yet.
+- Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
+- Experiment initialization now freezes evidence selections via `experiment_evidence`.
 
 **What does not exist yet (in this repo)**
-- A run-level experiment pipeline (rubric/scoring orchestration).
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
 - A runtime override layer for `ENGINE_SETTINGS`.
 
@@ -41,6 +41,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- |
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
 | `domain/llm_calls/` | Batch/job/request repos + services |
+| `domain/experiments/` | Experiment creation + evidence binding |
+| `domain/runs/` | Run orchestration for rubric + scoring stages |
 | `domain/window/` | Evidence window orchestration + search |
 | `models/` | Zod schemas for tables and shared enums |
 | `platform/` | Providers, rate limiter, run policy |
@@ -57,6 +59,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/orchestrator/target_registry.ts` | Custom key routing to domain handlers |
 | `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
+| `domain/experiments/experiments_entrypoints.ts` | Experiment creation + evidence binding |
+| `domain/experiments/experiments_repo.ts` | Experiment storage + evidence queries |
+| `domain/runs/run_orchestrator.ts` | Stage configs + run prompt orchestration |
+| `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
+| `domain/runs/run_repo.ts` | Run/sample + rubric/score persistence |
 | `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
 | `domain/window/window_service.ts` | Window lifecycle, apply results, stage advancement |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
@@ -79,7 +86,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 
-**Experiment scaffolding tables (defined but not orchestrated)**
+**Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `experiments` | Experiment configs | `experiment_tag`, `rubric_config`, `scoring_config` |
@@ -108,6 +115,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 9. Workflows submit to the provider, poll for results, and apply outputs.
 10. `applyRequestResult` updates the evidence output field and calls `maybeAdvanceWindowStage`.
 11. `maybeAdvanceWindowStage` advances to the next stage or completes the window if all evidence items are done.
+
+**Run flow (experiment)**
+1. `initExperiment` creates an experiment and freezes selected evidence in `experiment_evidence`.
+2. `startRunFlow` creates a run, seeds `samples`, and sets `current_stage` to `rubric_gen`.
+3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
+4. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
+5. `maybeAdvanceRunStage` advances stages when every sample is either completed or terminally failed.
 
 **Architecture overview**
 ```mermaid
@@ -153,13 +167,15 @@ Custom keys are how LLM results route back into domain handlers.
 
 **Request keys**
 - `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats request keys as `sample:<sample_id>:<stage>`.
 
 **Process keys**
 - `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
+- `RunOrchestrator.makeProcessKey` formats batch/job keys as `run:<run_id>:<stage>`.
 
 **Routing**
 - `target_registry` maps custom key prefixes to handlers.
-- Currently only `evidence` routes are registered, which means results are window-specific.
+- `evidence` routes are window-specific, and `sample` routes map run-stage results back to samples.
 
 ---
 
