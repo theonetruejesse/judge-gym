@@ -13,7 +13,11 @@
     "predev": "convex dev --until-success",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:once": "vitest run",
+    "test:debug": "vitest --inspect-brk --no-file-parallelism",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text",
+    "test:live": "bash -c 'set -a; source .env.local; set +a; VITEST_LIVE_TESTS=1 vitest run'",
+    "test:live:coverage": "bash -c 'set -a; source .env.local; set +a; VITEST_LIVE_TESTS=1 vitest run --coverage --coverage.reporter=text'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
+    "@vitest/coverage-v8": "4.0.18",
     "convex-test": "^0.0.41",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
