@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 missing=()
-for cmd in bun uv convex; do
+for cmd in node bun uv convex; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     missing+=("$cmd")
   fi
@@ -14,6 +14,22 @@ done
 if [ ${#missing[@]} -ne 0 ]; then
   echo "Missing required tools: ${missing[*]}"
   echo "Install them and re-run this script."
+  exit 1
+fi
+
+required_node_major=22
+required_node_minor=12
+node_version_raw="$(node -v | sed 's/^v//')"
+node_major="${node_version_raw%%.*}"
+node_minor="$(echo "$node_version_raw" | cut -d. -f2)"
+if [ "$node_major" -lt "$required_node_major" ] || { [ "$node_major" -eq "$required_node_major" ] && [ "$node_minor" -lt "$required_node_minor" ]; }; then
+  cat <<EOF
+Node.js $required_node_major.$required_node_minor or newer is required.
+Detected: $node_version_raw
+If you use nvm, run:
+  nvm install 22.12.0
+  nvm use 22.12.0
+EOF
   exit 1
 fi
 

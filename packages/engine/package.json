@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
@@ -24,13 +27,13 @@
     "@ai-sdk/google": "^3.0.20",
     "@ai-sdk/openai": "^3.0.24",
     "@ai-sdk/xai": "^3.0.46",
-    "@convex-dev/rate-limiter": "^0.2.0",
+    "@convex-dev/rate-limiter": "^0.2.14",
     "@convex-dev/workflow": "^0.3.4",
     "@mendable/firecrawl-js": "^4.12.0",
     "@openrouter/ai-sdk-provider": "^2.1.1",
     "ai": "^6.0.66",
-    "convex": "^1.31.7",
-    "convex-helpers": "^0.1.111",
+    "convex": "^1.32.0",
+    "convex-helpers": "^0.1.113",
     "nanoid": "^5.1.6",
     "zod": "^4.3.6"
   },
