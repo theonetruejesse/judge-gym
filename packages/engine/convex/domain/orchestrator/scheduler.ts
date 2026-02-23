@@ -27,10 +27,23 @@ export const requeueRequest = zInternalMutation({
   },
 });
 
+function isSchedulerRun(name: string): boolean {
+  return (
+    name === "domain/orchestrator/scheduler:runScheduler" ||
+    name === "domain/orchestrator/scheduler.js:runScheduler"
+  );
+}
+
 export const startScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
-    // todo, check if scheduler is already running
+    const scheduled = await ctx.db.system
+      .query("_scheduled_functions")
+      .collect();
+    const hasScheduled = scheduled.some(
+      (row) => isSchedulerRun(row.name) && row.completedTime == null,
+    );
+    if (hasScheduled) return;
     await ctx.scheduler.runAfter(
       0,
       internal.domain.orchestrator.scheduler.runScheduler,
@@ -124,3 +137,4 @@ export const runScheduler = zInternalMutation({
     return result;
   },
 });
+
