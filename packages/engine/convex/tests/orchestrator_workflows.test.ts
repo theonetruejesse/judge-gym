@@ -119,6 +119,29 @@ async function getRequests(
   return requests as RequestDoc[];
 }
 
+async function getLatestRequestsForStage(
+  t: ReturnType<typeof convexTest>,
+  evidences: EvidenceDoc[],
+  stage: "l1_cleaned" | "l2_neutralized" | "l3_abstracted",
+) {
+  const requests = await Promise.all(
+    evidences.map(async (evidence) => {
+      const custom_key = `evidence:${evidence._id}:${stage}`;
+      const list = await t.query(
+        internal.domain.llm_calls.llm_request_repo.listRequestsByCustomKey,
+        { custom_key },
+      );
+      if (list.length === 0) return null;
+      return list.reduce((best, req) => {
+        const bestAttempts = best.attempts ?? 0;
+        const nextAttempts = req.attempts ?? 0;
+        return nextAttempts >= bestAttempts ? req : best;
+      });
+    }),
+  );
+  return requests.filter(Boolean) as RequestDoc[];
+}
+
 function jobCountForPolicy() {
   const policy = ENGINE_SETTINGS.run_policy;
   if (policy.job_fallback_count > 0) return policy.job_fallback_count;
@@ -353,9 +376,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const job_id = requests[0].job_id as Id<"llm_jobs">;
 
@@ -389,9 +413,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const job_id = requests[0].job_id as Id<"llm_jobs">;
 
@@ -431,9 +456,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const job_id = requests[0].job_id as Id<"llm_jobs">;
 
@@ -488,9 +514,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
 
@@ -521,9 +548,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
 
@@ -550,9 +578,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
 
@@ -596,9 +625,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
 
@@ -643,9 +673,10 @@ describe("workflow execution", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
 
@@ -711,9 +742,21 @@ describe("job execution edge cases", () => {
       internal.domain.llm_calls.llm_request_repo.getLlmRequest,
       { request_id },
     );
-    expect(updated.status).toBe("pending");
-    expect(updated.attempts).toBe(1);
-    expect(updated.next_attempt_at).toBeDefined();
+    expect(updated.status).toBe("error");
+
+    const retries = await t.query(
+      internal.domain.llm_calls.llm_request_repo.listRequestsByCustomKey,
+      { custom_key: request.custom_key },
+    );
+    expect(retries.length).toBe(2);
+    const latest = retries.reduce((best, req) => {
+      const bestAttempts = best.attempts ?? 0;
+      const nextAttempts = req.attempts ?? 0;
+      return nextAttempts >= bestAttempts ? req : best;
+    });
+    expect(latest.status).toBe("pending");
+    expect(latest.attempts).toBe(2);
+    expect(latest.next_attempt_at).toBeDefined();
   });
 
   test("runJobRequests marks terminal failures and errors the window", async () => {
@@ -729,9 +772,10 @@ describe("job execution edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     for (const req of requests) {
@@ -787,9 +831,10 @@ describe("batch execution edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     const [failed, ...rest] = requests;
@@ -822,10 +867,22 @@ describe("batch execution edge cases", () => {
       { request_id: failed._id },
     );
 
-    expect(updatedFailed.status).toBe("pending");
-    expect(updatedFailed.job_id).not.toBeNull();
-    expect(updatedFailed.batch_id).toBeNull();
-    expect(updatedFailed.next_attempt_at).toBeDefined();
+    expect(updatedFailed.status).toBe("error");
+
+    const retries = await t.query(
+      internal.domain.llm_calls.llm_request_repo.listRequestsByCustomKey,
+      { custom_key: failed.custom_key },
+    );
+    expect(retries.length).toBeGreaterThan(1);
+    const latest = retries.reduce((best, req) => {
+      const bestAttempts = best.attempts ?? 0;
+      const nextAttempts = req.attempts ?? 0;
+      return nextAttempts >= bestAttempts ? req : best;
+    });
+    expect(latest.status).toBe("pending");
+    expect(latest.job_id).not.toBeNull();
+    expect(latest.batch_id ?? null).toBeNull();
+    expect(latest.next_attempt_at).toBeDefined();
 
     const successRequest = rest[0];
     if (successRequest) {
@@ -855,9 +912,10 @@ describe("batch execution edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     const batch_id = requests[0].batch_id as Id<"llm_batches">;
@@ -901,9 +959,10 @@ describe("batch execution edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     const batch_id = requests[0].batch_id as Id<"llm_batches">;

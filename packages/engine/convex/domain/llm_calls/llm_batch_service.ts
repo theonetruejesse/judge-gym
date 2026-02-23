@@ -117,16 +117,17 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
   );
 
   for (const req of requests) {
-    await ctx.runMutation(
-      internal.domain.llm_calls.llm_request_repo.patchRequest,
-      {
-        request_id: req._id,
-        patch: {
-          status: "error",
-          last_error: error,
-        },
+  await ctx.runMutation(
+    internal.domain.llm_calls.llm_request_repo.patchRequest,
+    {
+      request_id: req._id,
+      patch: {
+        status: "error",
+        last_error: error,
+        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
       },
-    );
+    },
+  );
     const handler = resolveErrorHandler(req.custom_key);
     if (handler) {
       await ctx.runMutation(handler, {
@@ -230,16 +231,38 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
         {
           request_id: req._id,
           patch: {
-            status: "pending",
+            status: "error",
             attempts,
             last_error: row.error ?? "provider_error",
+          },
+        },
+      );
+
+      const nextAttempt = attempts + 1;
+      const retryRequestId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: req.model,
+          system_prompt: req.system_prompt ?? undefined,
+          user_prompt: req.user_prompt,
+          custom_key: req.custom_key,
+          attempts: nextAttempt,
+        },
+      );
+
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.patchRequest,
+        {
+          request_id: retryRequestId,
+          patch: {
             next_attempt_at: getNextAttemptAt(now),
           },
         },
       );
+
       await ctx.runMutation(
         internal.domain.orchestrator.scheduler.requeueRequest,
-        { request_id: req._id },
+        { request_id: retryRequestId },
       );
     } else {
       await ctx.runMutation(

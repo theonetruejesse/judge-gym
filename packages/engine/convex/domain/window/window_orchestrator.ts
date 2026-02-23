@@ -79,12 +79,34 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
             )
             .collect();
 
-        return evidences
-            .map((e) => ({
-                targetId: e._id,
-                input: e[config.inputField],
-            }))
-            .filter((e): e is { targetId: Id<"evidences">; input: string } => e.input !== null);
+        const pending: Array<{ targetId: Id<"evidences">; input: string }> = [];
+        for (const evidence of evidences) {
+            const input = evidence[config.inputField];
+            if (input === null) continue;
+
+            const custom_key = this.makeRequestKey(evidence._id, stage);
+            const pendingRequests = await this.ctx.db
+                .query("llm_requests")
+                .withIndex("by_custom_key_status", (q) =>
+                    q.eq("custom_key", custom_key).eq("status", "pending"),
+                )
+                .collect();
+            if (pendingRequests.length > 0) continue;
+
+            const requests = await this.ctx.db
+                .query("llm_requests")
+                .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
+                .collect();
+            const maxAttempts = requests.reduce(
+                (max, req) => Math.max(max, req.attempts ?? 0),
+                0,
+            );
+            if (maxAttempts >= this.policy.max_request_attempts) continue;
+
+            pending.push({ targetId: evidence._id, input });
+        }
+
+        return pending;
     }
 
     protected async getModelForStage(
@@ -104,19 +126,8 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
         };
     }
 
-    protected async onRequestCreated(
-        targetId: string,
-        stage: SemanticLevel,
-        requestId: Id<"llm_requests">,
-    ): Promise<void> {
-        const config = this.getStageConfig(stage);
-        const evidenceId = targetId as Id<"evidences">;
-        const evidence = await this.ctx.db.get(evidenceId);
-        if (!evidence) throw new Error("Evidence not found");
-        if (evidence[config.requestIdField] !== null) return;
-        await this.ctx.db.patch(evidenceId, {
-            [config.requestIdField]: requestId,
-        } as Partial<Evidence>);
+    protected async onRequestCreated(): Promise<void> {
+        return;
     }
 
     public makeRequestKey(targetId: string, stage: SemanticLevel): string {

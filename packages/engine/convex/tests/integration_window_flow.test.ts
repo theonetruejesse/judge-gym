@@ -39,11 +39,23 @@ async function listEvidence(
   )) as EvidenceDoc[];
 }
 
-const REQUEST_FIELD_BY_STAGE: Record<Stage, keyof EvidenceDoc> = {
-  l1_cleaned: "l1_request_id",
-  l2_neutralized: "l2_request_id",
-  l3_abstracted: "l3_request_id",
-};
+async function getLatestRequestForStage(
+  t: ReturnType<typeof convexTest>,
+  evidenceId: Id<"evidences">,
+  stage: Stage,
+) {
+  const custom_key = `evidence:${evidenceId}:${stage}`;
+  const requests = await t.query(
+    internal.domain.llm_calls.llm_request_repo.listRequestsByCustomKey,
+    { custom_key },
+  );
+  if (requests.length === 0) return null;
+  return requests.reduce((best, req) => {
+    const bestAttempts = best.attempts ?? 0;
+    const nextAttempts = req.attempts ?? 0;
+    return nextAttempts >= bestAttempts ? req : best;
+  });
+}
 
 async function applyStageOutputs(
   t: ReturnType<typeof convexTest>,
@@ -52,17 +64,12 @@ async function applyStageOutputs(
   label: string,
 ) {
   const evidences = await listEvidence(t, window_id);
-  const requestField = REQUEST_FIELD_BY_STAGE[stage];
 
   for (const evidence of evidences) {
-    const requestId = evidence[requestField] as Id<"llm_requests"> | null;
-    if (!requestId) {
+    const request = await getLatestRequestForStage(t, evidence._id, stage);
+    if (!request) {
       throw new Error(`Missing request id for ${stage} on ${evidence._id}`);
     }
-    const request = await t.query(
-      internal.domain.llm_calls.llm_request_repo.getLlmRequest,
-      { request_id: requestId },
-    );
     await t.mutation(internal.domain.window.window_service.applyRequestResult, {
       request_id: request._id,
       custom_key: request.custom_key,

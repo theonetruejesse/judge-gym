@@ -95,16 +95,43 @@ async function getRequests(
   return requests as RequestDoc[];
 }
 
+async function getLatestRequestsForStage(
+  t: ReturnType<typeof convexTest>,
+  evidences: EvidenceDoc[],
+  stage: Stage,
+) {
+  const requests = await Promise.all(
+    evidences.map(async (evidence) => {
+      const custom_key = `evidence:${evidence._id}:${stage}`;
+      const list = await t.query(
+        internal.domain.llm_calls.llm_request_repo.listRequestsByCustomKey,
+        { custom_key },
+      );
+      if (list.length === 0) return null;
+      return list.reduce((best, req) => {
+        const bestAttempts = best.attempts ?? 0;
+        const nextAttempts = req.attempts ?? 0;
+        return nextAttempts >= bestAttempts ? req : best;
+      });
+    }),
+  );
+  return requests.filter(Boolean) as RequestDoc[];
+}
+
 async function forceRequestError(
   t: ReturnType<typeof convexTest>,
   request: RequestDoc,
   error?: string,
+  options?: { terminal?: boolean },
 ) {
+  const attempts = options?.terminal
+    ? ENGINE_SETTINGS.run_policy.max_request_attempts
+    : (request.attempts ?? 0) + 1;
   await t.mutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
     request_id: request._id,
     patch: {
       status: "error",
-      attempts: (request.attempts ?? 0) + 1,
+      attempts,
       last_error: error ?? "forced_error",
     },
   });
@@ -163,9 +190,10 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     expect(requests.length).toBe(count);
@@ -176,11 +204,9 @@ describe("orchestrator edge cases", () => {
     expect(jobIds.has(null)).toBe(false);
     expect(jobIds.size).toBe(1);
 
-    const requestById = new Map(requests.map((req) => [req._id, req] as const));
+    const requestByKey = new Map(requests.map((req) => [req.custom_key, req] as const));
     evidences.forEach((evidence) => {
-      const requestId = evidence.l1_request_id;
-      expect(requestId).not.toBeNull();
-      const req = requestById.get(requestId as Id<"llm_requests">);
+      const req = requestByKey.get(`evidence:${evidence._id}:l1_cleaned`);
       expect(req).toBeDefined();
       expect(req?.custom_key).toBe(`evidence:${evidence._id}:l1_cleaned`);
       expect(req?.model).toBe(model);
@@ -202,9 +228,10 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     expect(requests.length).toBe(count);
@@ -231,9 +258,10 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     expect(requests.length).toBe(count);
@@ -255,9 +283,10 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     let evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
     const firstRequest = requests[0];
 
@@ -295,7 +324,6 @@ describe("orchestrator edge cases", () => {
     evidences = await listEvidence(t, window_id);
     evidences.forEach((row) => {
       expect(row.l1_cleaned_content).not.toBeNull();
-      expect(row.l2_request_id).not.toBeNull();
     });
 
     const updatedRequest = await t.query(
@@ -317,13 +345,14 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     const failedRequest = requests[0];
-    await forceRequestError(t, failedRequest);
+    await forceRequestError(t, failedRequest, undefined, { terminal: true });
 
     for (const request of requests.slice(1)) {
       await t.mutation(
@@ -344,16 +373,29 @@ describe("orchestrator edge cases", () => {
     expect(windowAfter.status).toBe("running");
 
     const evidenceAfter = await listEvidence(t, window_id);
+    const failedEvidenceId = failedRequest.custom_key.split(":")[1];
     const failedEvidence = evidenceAfter.find(
-      (row) => row.l1_request_id === failedRequest._id,
+      (row) => row._id === failedEvidenceId,
     );
     expect(failedEvidence?.l2_request_id ?? null).toBeNull();
 
     const succeeded = evidenceAfter.filter(
-      (row) => row.l1_request_id !== failedRequest._id,
+      (row) => row._id !== failedEvidenceId,
     );
     succeeded.forEach((row) => {
-      expect(row.l2_request_id).not.toBeNull();
+      expect(row.l1_cleaned_content).not.toBeNull();
+    });
+
+    const pendingL2 = await Promise.all(
+      succeeded.map((row) =>
+        t.query(
+          internal.domain.llm_calls.llm_request_repo.listPendingRequestsByCustomKey,
+          { custom_key: `evidence:${row._id}:l2_neutralized` },
+        ),
+      ),
+    );
+    pendingL2.forEach((rows) => {
+      expect(rows.length).toBeGreaterThan(0);
     });
   });
 
@@ -367,13 +409,14 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     for (const request of requests) {
-      await forceRequestError(t, request);
+      await forceRequestError(t, request, undefined, { terminal: true });
     }
 
     const windowAfter = await t.query(
@@ -393,7 +436,12 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidencesBefore = await listEvidence(t, window_id);
-    const requestIdsBefore = evidencesBefore.map((row) => row.l1_request_id);
+    const requestsBefore = await getLatestRequestsForStage(
+      t,
+      evidencesBefore,
+      "l1_cleaned",
+    );
+    const requestIdsBefore = requestsBefore.map((req) => req._id);
 
     await t.mutation(internal.domain.window.window_service.enqueueWindowStage, {
       window_id,
@@ -401,7 +449,12 @@ describe("orchestrator edge cases", () => {
     });
 
     const evidencesAfter = await listEvidence(t, window_id);
-    const requestIdsAfter = evidencesAfter.map((row) => row.l1_request_id);
+    const requestsAfter = await getLatestRequestsForStage(
+      t,
+      evidencesAfter,
+      "l1_cleaned",
+    );
+    const requestIdsAfter = requestsAfter.map((req) => req._id);
 
     expect(requestIdsAfter).toEqual(requestIdsBefore);
   });
@@ -421,9 +474,10 @@ describe("orchestrator edge cases", () => {
     await startWindowOrchestration(t, window_id);
 
     const evidences = await listEvidence(t, window_id);
-    const requests = await getRequests(
+    const requests = await getLatestRequestsForStage(
       t,
-      evidences.map((row) => row.l1_request_id),
+      evidences,
+      "l1_cleaned",
     );
 
     const request = requests[0];
