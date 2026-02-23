@@ -1,331 +1,299 @@
 # judge-gym
 
-_this is a generative artifact, need to update the implementation details_
+An open-source LLM-as-Judge design space engine. judge-gym focuses on how rubric design, scoring models, scoring methods, and evidence presentation affect LLM evaluation of contested political concepts.
 
-An open-source LLM-as-Judge design space engine. Systematically explore how model family, rubric design, scoring method, and evidence presentation affect LLM evaluation of contested political concepts.
+This README documents the **current implementation in `judge-gym/` only** and is intentionally self-contained. It does not assume features that exist only in `v0-old/` or `v1-target/`.
 
-Inspired by [GraphGym](https://github.com/snap-stanford/GraphGym) (You et al., NeurIPS 2020) — a platform that explored 315,000 GNN designs across 32 tasks. judge-gym applies the same philosophy to LLM-as-Judge evaluation: define a design space, create experiments as config, and sweep.
+**Prerequisites**
+- Node.js `>=22.12.0`
+- Bun `>=1.1.27`
 
-Read [`paper.md`](./paper.md) for the research motivation and theoretical framework.
+**Node version management (nvm)**
+This repo pins Node via `.nvmrc` to keep all packages on the same version.
+1. `nvm install 22.12.0`
+2. `nvm use 22.12.0`
+3. `nvm alias default 22.12.0`
 
-- [ ] todo: edit everything here lol
+**What exists today**
+- Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
+- The engine has a scheduler, batch/job orchestration, and rate limiting.
+- Experiment/run scaffolding exists in the schema, but there is **no run-level orchestration pipeline** in this repo yet.
 
----
-
-## Monorepo Structure
-
-```
-judge-gym/
-├── packages/
-│   ├── engine/                    # Convex backend — the design space engine
-│   │   ├── convex/
-│   │   │   ├── schema.ts          # Tables + indexes (including llm_* status/batch/job)
-│   │   │   ├── main.ts            # Public API — orchestration triggers
-│   │   │   ├── data.ts            # Public API — read queries for analysis
-│   │   │   ├── repo.ts            # Internal CRUD
-│   │   │   ├── agent_config.ts    # Shared usage handler + rate limit feedback
-│   │   │   ├── domain/            # Domain logic (window, llm_calls, orchestrator)
-│   │   │   │   ├── llm_calls/      # LLM request/job/batch repos
-│   │   │   │   │   ├── llm_batch_repo.ts
-│   │   │   │   │   ├── llm_job_repo.ts
-│   │   │   │   │   └── llm_request_repo.ts
-│   │   │   ├── orchestrator/      # Minimal scheduler + retry routing + workflows
-│   │   │   │   └── process_workflows.ts # Workflow definitions (jobs + batches)
-│   │   │   ├── domain/llm_calls/  # LLM request/batch/job repos
-│   │   │   ├── rate_limiter/      # Provider tiers + rate limiter wiring
-│   │   │   ├── agents/            # AbstractJudgeAgent base class
-│   │   │   ├── strategies/        # Config → behavior resolvers (scoring, scale, evidence, ordering)
-│   │   │   ├── platform/           # Provider integrations + rate limiting
-│   │   │   │   ├── providers/      # Provider adapters + model registry
-│   │   │   │   │   ├── provider_types.ts # Model registry + provider model mapping
-│   │   │   │   │   ├── ai_chat.ts  # AI SDK chat runner for jobs
-│   │   │   │   │   └── provider_services.ts # Internal actions for chat + batch
-│   │   │   ├── utils/             # Deterministic: verdict parser, label randomization, DST mass assignment
-│   │   │   └── stages/            # Pipeline stages
-│   │   │       ├── 1_evidence/    # W1: Scrape + neutralize (ECC/Control) or load (Benchmark)
-│   │   │       ├── 2_rubric/      # W2: Generate + validate (ECC/Control) or load (Benchmark)
-│   │   │       ├── 3_scoring/     # W3: Score evidence × rubric; W4: Rubric swap trials
-│   │   └── src/                   # Automated runner + live tracker
-│   │       ├── experiments.ts     # Experiment settings (window + config)
-│   │       └── helpers/           # Convex clients, runner, tracker, console UI
-│   │
-│   └── analysis/                  # Python — statistical analysis + visualization
-│       ├── pyproject.toml         # uv project config
-│       ├── data/                  # Local exports from Convex
-│       ├── notebooks/             # Jupyter: polarization, entrenchment, swap, regression
-│       └── src/judge_gym/         # JSD, DST aggregation, OLS, data collection from Convex
-│
-├── paper.md                       # Working paper (theory + methodology)
-└── turbo.json                     # Turborepo config
-```
+**What does not exist yet (in this repo)**
+- A run-level experiment pipeline (rubric/scoring orchestration).
+- An implementation of `data:exportExperimentBundle` used by the analysis client.
+- A runtime override layer for `ENGINE_SETTINGS`.
 
 ---
 
-## Prerequisites
+## Repo Organization
 
-- [Bun](https://bun.sh/) (v1.1+)
-- [uv](https://docs.astral.sh/uv/) (for Python analysis package)
-- A [Convex](https://convex.dev/) account (free tier works for development)
+**Top-level packages**
+| Path | Role |
+| --- | --- |
+| `packages/engine` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
+| `packages/lab` | Next.js app (UI client for evidence windows) |
+| `packages/analysis` | Python client for pulling experiment data from Convex |
+| `paper.md` | Research framing |
 
-### API Keys
+**Engine internals (`packages/engine/convex/`)**
+| Path | Role |
+| --- | --- |
+| `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
+| `domain/llm_calls/` | Batch/job/request repos + services |
+| `domain/window/` | Evidence window orchestration + search |
+| `models/` | Zod schemas for tables and shared enums |
+| `platform/` | Providers, rate limiter, run policy |
+| `packages/` | Public Convex API surfaces (e.g. `lab.ts`) |
+| `utils/` | Scheduling helpers, zod helpers, tags |
+| `schema.ts` | Convex table definitions + indexes |
 
-Set these in your Convex deployment environment:
-
-| Key                  | Required | Used By                              |
-| :------------------- | :------- | :----------------------------------- |
-| `OPENAI_API_KEY`     | Yes      | GPT-4.1, GPT-4.1 Mini, GPT-5.2       |
-| `ANTHROPIC_API_KEY`  | Yes      | Claude Sonnet 4.5, Claude Haiku 4.5  |
-| `FIRECRAWL_API_KEY`  | Yes      | Evidence collection (news scraping)  |
-| `XAI_API_KEY`        | Optional | Grok 4.1 Fast                        |
-| `GOOGLE_API_KEY`     | Optional | Gemini 3.0 Flash                     |
-| `OPENROUTER_API_KEY` | Optional | OpenRouter models (e.g., Qwen3 235B) |
-
----
-
-## Setup
-
-```bash
-# Clone
-git clone https://github.com/your-org/judge-gym.git
-cd judge-gym
-
-# Install dependencies (bun workspaces)
-bun install
-
-# Start Convex dev server (in a separate terminal)
-cd packages/engine
-bun run dev
-
-# Set environment variables via Convex dashboard or CLI
-npx convex env set OPENAI_API_KEY sk-...
-npx convex env set ANTHROPIC_API_KEY sk-ant-...
-npx convex env set FIRECRAWL_API_KEY fc-...
-
-# Set up Python analysis environment
-cd packages/analysis
-uv sync
-```
-
-### Runner Environment
-
-The automated runner in `packages/engine/src/` uses the Convex HTTP API.
-Create `packages/engine/.env.local` with:
-
-```bash
-CONVEX_URL=https://<your-deployment>.convex.cloud
-```
+**Key submodules**
+| Path | What it contains |
+| --- | --- |
+| `domain/orchestrator/base.ts` | Base orchestration logic + batch vs job decision |
+| `domain/orchestrator/scheduler.ts` | Scheduler loop + requeue handling |
+| `domain/orchestrator/process_workflows.ts` | Batch/job workflow state machine |
+| `domain/orchestrator/target_registry.ts` | Custom key routing to domain handlers |
+| `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
+| `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
+| `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
+| `domain/window/window_service.ts` | Window lifecycle, apply results, stage advancement |
+| `domain/window/window_repo.ts` | Evidence search + insert + queries |
+| `domain/window/evidence_search.ts` | Firecrawl-based news search |
+| `platform/providers/*` | OpenAI batch + chat integrations |
+| `platform/rate_limiter/*` | Token bucket configs + rate limiter wiring |
+| `models/*` | Table schemas and shared enums |
+| `utils/scheduling.ts` | `getNextRunAt`, `getNextAttemptAt` helpers |
 
 ---
 
-## Design Space
+## Data Model (Core Tables)
 
-An **experiment** is a single point in the design space. Each axis is independently configurable:
+**Orchestration tables**
+| Table | Purpose | Key fields |
+| --- | --- | --- |
+| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date`, `window_tag` |
+| `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
+| `llm_requests` | Individual LLM calls | `status`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
+| `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
+| `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 
-| Axis            | Config Field            | Values                                                                                                                           | Default                                 |
-| :-------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------- |
-| Model Family    | `modelId`               | `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `claude-sonnet-4.5`, `claude-haiku-4.5`, `gemini-3.0-flash`, `grok-4.1-fast`, `qwen3-235b` | —                                       |
-| Concept         | `window.concept`        | Free-form string (e.g., `"fascism"`, `"democratic backsliding"`)                                                                 | —                                       |
-| Task Type       | `taskType`              | `ecc`, `control`, `benchmark`                                                                                                    | —                                       |
-| Scoring Method  | `config.scoringMethod`  | `freeform-suffix-single`, `freeform-suffix-subset`                                                                               | `freeform-suffix-subset`                |
-| Scale Size      | `config.scaleSize`      | `3`, `4`, `5`                                                                                                                    | `4`                                     |
-| Evidence View   | `config.evidenceView`   | `raw` / `cleaned` / `neutralized` / `abstracted`                                                                                 | `neutralized`                           |
-| Randomizations  | `config.randomizations` | array of `anon-label`, `rubric-order-shuffle`, `hide-label-name`                                                                 | `["anon-label","rubric-order-shuffle"]` |
-| Prompt Ordering | `config.promptOrdering` | `rubric-first`, `evidence-first`                                                                                                 | `rubric-first`                          |
-| Abstain Gate    | `config.abstainEnabled` | `true` / `false`                                                                                                                 | `true`                                  |
-| Ground Truth    | `groundTruth`           | `{ source, value?, label? }` (only for `control` / `benchmark`)                                                                  | —                                       |
+**Experiment scaffolding tables (defined but not orchestrated)**
+| Table | Purpose | Key fields |
+| --- | --- | --- |
+| `experiments` | Experiment configs | `experiment_tag`, `rubric_config`, `scoring_config` |
+| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count` |
+| `samples` | Run samples | `run_id`, `rubric_id`, `score_id`, critic IDs |
+| `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
-To run a new ablation, create experiment records with different parameter values. No code changes needed.
-Evidence windows in Convex are defined by `window.start_date`, `window.end_date`, `window.country`, and `window.query`.
+**Indexes that drive orchestration**
+- `evidences.by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending` gate per-stage work.
+- `llm_requests.by_orphaned` identifies pending requests without a batch or job.
+- `llm_batches.by_status`, `llm_jobs.by_status` allow scheduler polling by status.
 
 ---
 
-## Running Experiments
+## Orchestration Flow (End-to-End)
 
-All experiment operations are exposed via Convex public mutations and queries. Operate via the Convex dashboard, CLI, or MCP from within Cursor.
+**High-level path**
+1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
+2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`.
+3. `startWindowOrchestration` sets the window to `running`, sets `current_stage` to `l1_cleaned`, and calls `WindowOrchestrator.enqueueStage`.
+4. `WindowOrchestrator.enqueueStage` lists pending evidence for the stage using the stage-specific index.
+5. The orchestrator builds prompts and creates one `llm_request` per evidence item.
+6. The orchestrator records the request ID on the evidence row.
+7. The orchestrator routes the request set to a **batch** or **job** based on the run policy.
+8. The scheduler polls queued/running batches and jobs, starting workflows when `next_*` timestamps are due.
+9. Workflows submit to the provider, poll for results, and apply outputs.
+10. `applyRequestResult` updates the evidence output field and calls `maybeAdvanceWindowStage`.
+11. `maybeAdvanceWindowStage` advances to the next stage or completes the window if all evidence items are done.
 
-### Window Evidence Flow
-
-- `internal.domain.window.window_service.startWindowFlow` collects evidence (if none exist), then calls `startWindowOrchestration` to set `windows.current_stage` to `l1_cleaned` and enqueue stage processing.
-- `internal.domain.window.window_service.applyRequestResult` writes evidence outputs, updates request status, and auto-advances `l1` → `l2` → `l3` when a stage completes.
-- Request retries and results are routed by `custom_key` via the orchestrator target registry.
-
-### Lab UI (Evidence Only)
-
-- The lab UI consumes public endpoints in `packages/engine/convex/packages/lab.ts` (evidence windows + evidence content).
-- Set `NEXT_PUBLIC_CONVEX_URL` (or `CONVEX_URL`) for the lab app.
-- Evidence-only screens: Home (window list), Window Editor, Evidence Detail.
-
-### Testing
-
-- Engine tests live in `packages/engine/convex/tests` and run with `convex-test` + `vitest`.
-- From repo root: `bun run test --filter=@judge-gym/engine`.
-- From the engine package: `bun run test`.
-
-### Option A — Automated runner (recommended)
-
-1. Edit `packages/engine/src/experiments.ts` with your experiment settings.
-2. Ensure `packages/engine/.env.local` has `CONVEX_URL=...` for your deployment.
-3. Run the runner from `packages/engine/`:
-
-```bash
-bun run start
-```
-
-Runner flags are environment variables:
-
-```bash
-NEW_RUN=1 bun run start       # suffix experiment tags with timestamp
-AUTO_ADVANCE=0 bun run start  # only track, do not auto-advance stages
-ONCE=1 bun run start          # render once and exit
-```
-
-### Option B — Manual job (CLI)
-
-#### 1. Initialize window + experiment
-
-```bash
-npx convex run main:initExperiment '{
-  "window": {
-    "startDate": "2026-01-01",
-    "endDate": "2026-01-31",
-    "country": "USA",
-    "concept": "fascism"
-  },
-  "experiment": {
-    "experimentTag": "pilot_fascism_gpt4.1",
-    "modelId": "gpt-4.1",
-    "taskType": "ecc",
-    "config": {
-      "scaleSize": 4,
-      "randomizations": ["anon-label", "rubric-order-shuffle"],
-      "evidenceView": "neutralized",
-      "scoringMethod": "freeform-suffix-subset",
-      "promptOrdering": "rubric-first",
-      "abstainEnabled": true
-    }
-  }
-}'
-# → returns windowId + experimentId (reused if they already exist)
-```
-
-#### 2. Run the pipeline
-
-```bash
-# W1: Collect + neutralize evidence
-npx convex run main:startEvidencePipeline \
-  '{"windowId":"<windowId>","experimentTag":"pilot_fascism_gpt4.1","limit":15}'
-
-# W2: Generate rubric
-npx convex run main:startRubricGeneration \
-  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
-
-# W3: Score (5 samples per evidence item)
-npx convex run main:startScoringTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1","samples":5}'
-
-# W4: Rubric swap (optional — for high-divergence pairs)
-npx convex run main:startSwapTrial \
-  '{"experimentTag":"pilot_fascism_gpt4.1","swapRubricFrom":"claude-sonnet-4.5"}'
-
-```
-
-#### 3. Query results
-
-```bash
-# Experiment summary
-npx convex run data:getExperimentSummary \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
-
-# Scores (raw + decoded)
-npx convex run data:listExperimentScores \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
-
-# Export for analysis
-npx convex run data:exportExperimentCSV \
-  '{"experimentTag":"pilot_fascism_gpt4.1"}'
+**Architecture overview**
+```mermaid
+flowchart TD
+  Lab[Convex lab API] --> WindowService[window_service]
+  WindowService --> Orchestrator[WindowOrchestrator]
+  Orchestrator --> Requests[llm_request_repo]
+  Orchestrator -->|batch| Batches[llm_batch_repo]
+  Orchestrator -->|job| Jobs[llm_job_repo]
+  Scheduler[orchestrator/scheduler] --> Workflows[process_workflows]
+  Workflows --> Batches
+  Workflows --> Jobs
+  Batches --> ProviderBatch[OpenAI batch API]
+  Jobs --> ProviderChat[OpenAI chat API]
+  ProviderBatch --> Results[applyBatchResults]
+  ProviderChat --> Results[applyRequestSuccess]
+  Results --> TargetRegistry[target_registry]
+  TargetRegistry --> WindowService
+  WindowService -->|advance stage| Orchestrator
 ```
 
 ---
 
-## Pipeline Stages
+## Decision Tree: Batch vs Job
 
-| Stage | Name        | What It Does                                                                                                                                              | Key Agent        |
-| :---- | :---------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------- |
-| W1    | Evidence    | Scrape news (ECC/Control) or load curated data (Benchmark). Optionally neutralize tone.                                                                   | Neutralizer      |
-| W2    | Rubric      | Generate $n$-stage evaluative rubric (ECC/Control) or load pre-defined rubric (Benchmark). Validate with critic.                                          | Rubricer, Critic |
-| W3    | Scoring     | Score each evidence item against rubric, multiple times with varying random seeds. Strategy-driven: suffix parsing, label randomization, prompt ordering. | Scorer           |
-| W4    | Rubric Swap | Re-score evidence using a rival model's rubric. Tests framework sensitivity.                                                                              | Scorer           |
-| W5    | Probe       | Epistemic probing runs inline during scoring and is stored on each score row.                                                                             | Prober           |
+**Where the decision is made**
+- `BaseOrchestrator.decideRoute` chooses between batch and job.
 
----
+**Decision logic**
+1. If the model is not batchable → **job**.
+2. If request count `< min_batch_size` → **job**.
+3. If request count `<= job_fallback_count` → **job**.
+4. Otherwise → **batch**.
 
-## Architecture Principles
-
-- **Experiments are data, not code.** Every ablation is a config record. No code changes to run new experiments.
-- **Strategy resolvers.** Pure functions map config to concrete agent behavior. Agents never read raw config — they consume resolved strategies.
-- **Deterministic computation is separated from LLM generation.** Verdict parsing, label randomization, and DST mass assignment are pure functions in `utils/`. Models generate text; functions extract structure.
-- **Abstract agent base class.** All agents share: thread lifecycle, rate limiting, usage tracking, model resolution.
-- **Stage-based modules.** Each pipeline stage is self-contained: job, steps, agent, and prompts colocated in one directory.
-- **Single-store agent threads.** `@convex-dev/agent` is the source of truth for all LLM interactions. Tables store lean derived records with `threadId` backlinks.
+**Policy sources**
+- `ENGINE_SETTINGS.run_policy` defines `min_batch_size`, `job_fallback_count`, and other limits.
 
 ---
 
-## Analysis Package
+## Custom Keys and Routing
 
-The Python analysis package lives in `packages/analysis/` and operates on data exported from the engine.
+Custom keys are how LLM results route back into domain handlers.
 
-```bash
-cd packages/analysis
-uv sync
-uv run jupyter lab
+**Request keys**
+- `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
+
+**Process keys**
+- `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
+
+**Routing**
+- `target_registry` maps custom key prefixes to handlers.
+- Currently only `evidence` routes are registered, which means results are window-specific.
+
+---
+
+## Scheduler and Workflow Mechanics
+
+**Scheduler**
+- `startScheduler` is idempotent; it only schedules a single `runScheduler` if one is not already pending.
+- `runScheduler` loads queued/running batches and jobs, starts workflows when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
+- If there are no queued/running batches or jobs (and no orphaned requests), `runScheduler` exits without rescheduling.
+
+**Workflow manager**
+- `process_workflows` defines `processQueuedBatchWorkflow`, `processRunningBatchWorkflow`, `processQueuedJobWorkflow`, and `processRunningJobWorkflow`.
+- Workflow retries use the default retry policy defined in `WorkflowManager`.
+
+**Important detail**
+- Orphaned requests are detected but not automatically requeued by the scheduler in the current code.
+
+---
+
+## Rate Limiting, Retries, and Backoff
+
+**Rate limiting**
+- Implemented with `@convex-dev/rate-limiter` using token buckets.
+- Rate-limit tiers are defined per model in `platform/rate_limiter/provider_tiers.ts`.
+- Batch and job rate-limit keys share the same config, with `batch_*` keys generated automatically.
+
+**Batch flow**
+1. `checkBatchRateLimit` checks the batch requests key for the model.
+2. If rate limited, `next_poll_at` is pushed to the `retryAfter` time.
+3. On completion, `applyBatchRateLimitUsage` charges input/output token buckets.
+4. `handleBatchError` retries a batch up to `max_batch_retries`, then marks requests as error and triggers error handlers.
+
+**Job flow**
+1. `runJobRequests` checks request-level rate limits.
+2. If rate limited, `next_attempt_at` is set to the limiter’s `retryAfter`.
+3. Errors are retried up to `max_request_attempts`; beyond that, the request is marked error and routed to the error handler.
+
+**Retry and backoff**
+- `max_request_attempts` and `retry_backoff_ms` are enforced in both batch and job paths.
+- `getNextAttemptAt` and `getNextRunAt` derive from `ENGINE_SETTINGS.run_policy`.
+
+---
+
+## Run Policy Defaults
+
+`ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine/convex/settings.ts`.
+
+| Policy field | Default | Meaning | Enforced in |
+| --- | --- | --- | --- |
+| `poll_interval_ms` | `5000` | Minimum time between scheduler polls | `scheduler.ts`, `utils/scheduling.ts` |
+| `max_batch_size` | `500` | Maximum batch size (defined, not enforced in current code) | `settings.ts` only |
+| `min_batch_size` | `10` | Minimum requests needed to batch | `BaseOrchestrator.decideRoute` |
+| `job_fallback_count` | `5` | Job fallback threshold | `BaseOrchestrator.decideRoute` |
+| `max_tokens` | `5000` | Hard cap per request | `llm_batch_service`, `llm_job_service` |
+| `max_batch_retries` | `2` | Batch re-poll/retry cap | `llm_batch_service` |
+| `max_request_attempts` | `2` | Request retry cap | `llm_batch_service`, `llm_job_service` |
+| `retry_backoff_ms` | `60000` | Backoff before retry | `utils/scheduling.ts` |
+
+---
+
+## State Machines
+
+**Window lifecycle**
+```mermaid
+stateDiagram-v2
+  [*] --> start
+  start --> running: startWindowOrchestration
+  running --> completed: all stages succeed
+  running --> error: all requests fail
 ```
 
-### Notebooks
+**LLM request lifecycle**
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> success: applyRequestResult
+  pending --> error: applyRequestError (max attempts reached)
+  pending --> pending: retry/backoff (next_attempt_at)
+```
 
-| Notebook                | Purpose                                                            |
-| :---------------------- | :----------------------------------------------------------------- |
-| `01_polarization.ipynb` | JSD across model families, score distribution heatmaps             |
-| `02_entrenchment.ipynb` | Entrenchment Index ($P \times \text{Prob}_{expert}$), DST conflict |
-| `03_swap.ipynb`         | Swap sensitivity analysis, confidence collapse detection           |
-| `04_regression.ipynb`   | OLS: Score ~ Model + RubricQuality + Concept                       |
+**Batch lifecycle**
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running: submitBatch
+  running --> success: applyBatchResults
+  running --> queued: handleBatchError (retry)
+  running --> error: handleBatchError (max retries)
+```
 
-### Key Modules
-
-| Module               | What It Does                                                                                |
-| :------------------- | :------------------------------------------------------------------------------------------ |
-| `collect.py`         | Pull data from Convex via HTTP API into pandas DataFrames                                   |
-| `metrics.py`         | JSD, Entrenchment Index, Swap Sensitivity                                                   |
-| `dempster_shafer.py` | DST mass assignment, Dempster's rule combination, belief/plausibility, cross-model conflict |
-| `regression.py`      | OLS regression models                                                                       |
-
----
-
-## Adding a New Ablation Axis
-
-To add a new design space dimension (e.g., `promptLanguage: "english" | "formal-academic" | "simplified"`):
-
-1. **Schema** — Add the field to `experiments.config` in `convex/schema.ts`
-2. **Strategy** — Create `convex/strategies/language.strategy.ts` (pure function: config → typed behavior)
-3. **Resolve** — Add to `convex/strategies/resolve.ts`
-4. **Consume** — Read from `this.strategies.language` in the agent that cares
-
-**Files touched: 3.** No job changes, no prompt surgery, no agent logic changes.
+**Job lifecycle**
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running: markJobRunning
+  running --> running: scheduleJobRun (pending requests)
+  running --> success: finalizeJob (no errors)
+  running --> error: finalizeJob (any errors)
+```
 
 ---
 
-## Agentic Integrations
+## Provider Layer
 
-- [ ] todo: edit this section
+**Provider actions**
+- `submitOpenAiBatchAction` uploads a JSONL file and creates an OpenAI batch.
+- `pollOpenAiBatchAction` polls the batch status and parses JSONL results.
+- `openAiChatAction` uses the `ai` SDK to call OpenAI chat for job-mode requests.
 
-The engine is designed to be operated from within Cursor via the Convex MCP server. See [`packages/engine/AGENTS.md`](./packages/engine/AGENTS.md) for the full agent instruction set including:
-
-- Setup checklist
-- Public mutation/query reference
-- Job recipes
-- Debug procedures
+**Provider configuration**
+- `provider_types.ts` defines providers and model IDs.
+- `OPENAI_API_KEY` is required for OpenAI calls.
+- `FIRECRAWL_API_KEY` is required for evidence search.
 
 ---
 
-## License
+## Known Gaps and Caveats
 
-OpenRAIL-S License
+- Run-level experiment orchestration is not implemented in this repo.
+- `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
+- `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
+- Orphaned `llm_requests` are counted but not automatically requeued.
+
+---
+
+## Key Files to Trace
+
+- Orchestration base: `packages/engine/convex/domain/orchestrator/base.ts`
+- Window orchestrator: `packages/engine/convex/domain/window/window_orchestrator.ts`
+- Window flow lifecycle: `packages/engine/convex/domain/window/window_service.ts`
+- Evidence search: `packages/engine/convex/domain/window/evidence_search.ts`
+- Scheduler: `packages/engine/convex/domain/orchestrator/scheduler.ts`
+- Workflows: `packages/engine/convex/domain/orchestrator/process_workflows.ts`
+- LLM services: `packages/engine/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`
+- Rate limiting: `packages/engine/convex/platform/rate_limiter/*`
+- Provider calls: `packages/engine/convex/platform/providers/*`
+- Schema and models: `packages/engine/convex/schema.ts`, `packages/engine/convex/models/*`
