@@ -61,7 +61,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
 | `domain/experiments/experiments_entrypoints.ts` | Experiment creation + evidence binding |
 | `domain/experiments/experiments_repo.ts` | Experiment storage + evidence queries |
-| `domain/runs/run_orchestrator.ts` | Stage configs + run prompt orchestration |
+| `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
 | `domain/runs/run_repo.ts` | Run/sample + rubric/score persistence |
 | `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
