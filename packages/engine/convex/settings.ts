@@ -13,7 +13,7 @@ export const ENGINE_SETTINGS: EngineSettings = {
     max_batch_size: 500,
     min_batch_size: 10,
     job_fallback_count: 5,
-    max_tokens: 5_000,
+    max_tokens: 8_000,
     max_batch_retries: 2,
     max_request_attempts: 2,
     retry_backoff_ms: 60_000,
