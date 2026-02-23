@@ -8,4 +8,13 @@ declare global {
   }
 }
 
-export const modules: ModuleMap = import.meta.glob("../**/!(*.*.*)*.*s");
+export function buildModules(options?: { live?: boolean }): ModuleMap {
+  const modules = import.meta.glob("../**/!(*.*.*)*.*s");
+  if (!options?.live) {
+    modules["../platform/providers/provider_services.ts"] = () =>
+      import("./provider_services_mock");
+  }
+  return modules;
+}
+
+export const modules: ModuleMap = buildModules();

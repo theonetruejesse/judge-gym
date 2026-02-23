@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
-import { modules } from "./test.setup";
+import { buildModules } from "./test.setup";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 
-const initTest = () => convexTest(schema, modules);
+const initTest = () => convexTest(schema, buildModules());
 
 type EvidenceDoc = Doc<"evidences">;
 
