@@ -1,10 +1,13 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zAction, zMutation, zQuery } from "../utils/custom_fns";
+import { zAction, zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
 import type { Doc } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
+import { ExperimentsTableSchema } from "../models/experiments";
+import { CreateWindowResult } from "../domain/window/window_repo";
+
 
 // todo, clean up this file
 
@@ -16,6 +19,11 @@ const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   model: true,
 });
 
+const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
+  rubric_config: true,
+  scoring_config: true,
+});
+
 type EvidenceStatus =
   | "scraping"
   | "cleaning"
@@ -23,92 +31,48 @@ type EvidenceStatus =
   | "abstracting"
   | "ready";
 
-export const initEvidenceWindow: ReturnType<typeof zMutation> = zMutation({
+
+export const initEvidenceWindowAndCollect = zAction({
   args: z.object({
     evidence_window: EvidenceWindowInputSchema,
+    evidence_limit: z.number(),
   }),
-  returns: z.object({
-    window_id: zid("windows"),
-  }),
-  handler: async (ctx, args) => {
-    const { evidence_window } = args;
-    const window_id = await ctx.runMutation(
-      internal.domain.window.window_repo.createWindow,
-      {
-        country: evidence_window.country,
-        start_date: evidence_window.start_date,
-        end_date: evidence_window.end_date,
-        query: evidence_window.query,
-        model: evidence_window.model,
-      },
-    );
+  handler: async (ctx, args): Promise<CreateWindowResult> => {
+    const { evidence_window, evidence_limit } = args;
 
-    return {
-      window_id,
-    };
-  },
-});
-
-export const initEvidenceWindowAndCollect: ReturnType<typeof zAction> = zAction({
-  args: z.object({
-    evidence_window: EvidenceWindowInputSchema,
-    evidence_limit: z.number().optional(),
-  }),
-  returns: z.object({
-    window_id: zid("windows"),
-    collected: z.number(),
-    total: z.number(),
-  }),
-  handler: async (ctx, { evidence_window, evidence_limit }) => {
-    const window_id = await ctx.runMutation(
+    const { window_id, window_tag } = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
       evidence_window,
     );
 
-    const flowResult = await ctx.runAction(
-      internal.domain.window.window_service.startWindowFlow,
-      {
-        window_id,
-        limit: evidence_limit,
-      },
-    );
-    await ctx.runMutation(
-      internal.domain.orchestrator.scheduler.startScheduler,
-      {},
+    await ctx.scheduler.runAfter(0, internal.domain.window.window_service.startWindowFlow,
+      { window_id, evidence_limit }
     );
 
-    return {
-      window_id,
-      collected: flowResult.inserted,
-      total: flowResult.total,
-    };
+    return { window_id, window_tag };
   },
 });
 
-export const startWindowFlow: ReturnType<typeof zAction> = zAction({
+export const startWindowFlow = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
-    evidence_limit: z.number().optional(),
-  }),
-  returns: z.object({
-    inserted: z.number(),
-    total: z.number(),
+    evidence_limit: z.number(),
   }),
   handler: async (ctx, args) => {
-    const result = await ctx.runAction(
+    const { window_id, evidence_limit } = args;
+    await ctx.runAction(
       internal.domain.window.window_service.startWindowFlow,
-      {
-        window_id: args.window_id,
-        limit: args.evidence_limit,
-      },
+      { window_id, limit: evidence_limit },
     );
     await ctx.runMutation(
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
     );
-    return result;
   },
 });
+
+
+///
 
 export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
@@ -223,6 +187,115 @@ export const listEvidenceByWindow: ReturnType<typeof zQuery> = zQuery({
   },
 });
 
+export const initExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_config: ExperimentConfigInputSchema,
+    evidence_ids: z.array(zid("evidences")).min(1),
+  }),
+  returns: z.object({
+    experiment_id: zid("experiments"),
+  }),
+  handler: async (ctx, args) => {
+    const experiment_id = await ctx.runMutation(
+      internal.domain.runs.experiments_services.initExperiment,
+      args,
+    );
+    return { experiment_id };
+  },
+});
+
+export const startExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_id: zid("experiments"),
+    target_count: z.number().int().min(1),
+  }),
+  returns: z.object({
+    run_id: zid("runs"),
+    samples_created: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(
+      internal.domain.runs.run_service.startRunFlow,
+      args,
+    );
+    await ctx.runMutation(
+      internal.domain.orchestrator.scheduler.startScheduler,
+      {},
+    );
+    return result;
+  },
+});
+
+export const listExperiments: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({}),
+  returns: z.array(
+    z.object({
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string(),
+      rubric_config: ExperimentsTableSchema.shape.rubric_config,
+      scoring_config: ExperimentsTableSchema.shape.scoring_config,
+      evidence_selected_count: z.number(),
+      window_count: z.number(),
+      status: z.string(),
+      latest_run: z
+        .object({
+          run_id: zid("runs"),
+          status: z.string(),
+          current_stage: z.string(),
+          target_count: z.number(),
+          created_at: z.number(),
+        })
+        .optional(),
+    }),
+  ),
+  handler: async (ctx) => {
+    return ctx.runQuery(
+      internal.domain.runs.experiments_data.listExperiments,
+      {},
+    );
+  },
+});
+
+export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ experiment_id: zid("experiments") }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      internal.domain.runs.experiments_data.getExperimentSummary,
+      args,
+    );
+  },
+});
+
+export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ experiment_id: zid("experiments") }),
+  returns: z.array(
+    z.object({
+      evidence_id: zid("evidences"),
+      window_id: zid("windows"),
+      title: z.string(),
+      url: z.string(),
+      created_at: z.number(),
+      window_tag: z.string().optional(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      internal.domain.runs.experiments_data.listExperimentEvidence,
+      args,
+    );
+  },
+});
+
+export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ run_id: zid("runs") }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(
+      internal.domain.runs.experiments_data.getRunSummary,
+      args,
+    );
+  },
+});
+
 export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ evidence_id: zid("evidences") }),
   returns: z
@@ -305,19 +378,6 @@ export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
     };
   },
 });
-
-export const startScheduler: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({}),
-  returns: z.object({ ok: z.boolean() }),
-  handler: async (ctx) => {
-    await ctx.runMutation(
-      internal.domain.orchestrator.scheduler.startScheduler,
-      {},
-    );
-    return { ok: true };
-  },
-});
-
 // change this to handle the permanent failure cases
 function deriveEvidenceStatus(
   evidences: Array<{

@@ -4,7 +4,7 @@ import { zInternalAction, zInternalMutation, zInternalQuery } from "../../utils/
 import { buildRandomTag } from "../../utils/tags";
 import { zid } from "convex-helpers/server/zod4";
 import { internal } from "../../_generated/api";
-import { Doc } from "../../_generated/dataModel";
+import { Doc, Id } from "../../_generated/dataModel";
 import { SearchNewsResults } from "./evidence_search";
 
 const CreateWindowArgsSchema = WindowsTableSchema.pick({
@@ -15,16 +15,25 @@ const CreateWindowArgsSchema = WindowsTableSchema.pick({
     query: true,
 });
 
+export type CreateWindowResult = {
+    window_id: Id<"windows">,
+    window_tag: string,
+};
 export const createWindow = zInternalMutation({
     args: CreateWindowArgsSchema,
-    handler: async (ctx, args) => {
+    returns: z.object({
+        window_id: zid("windows"),
+        window_tag: z.string(),
+    }),
+    handler: async (ctx, args): Promise<CreateWindowResult> => {
         const window_tag = buildRandomTag();
-        return ctx.db.insert("windows", {
+        const window_id = await ctx.db.insert("windows", {
             ...args,
             window_tag,
             status: "start",
             current_stage: "l0_raw",
         });
+        return { window_id, window_tag };
     },
 });
 
