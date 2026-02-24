@@ -57,6 +57,7 @@ export const startWindowFlow: ReturnType<typeof zInternalAction> = zInternalActi
       { window_id: args.window_id },
     );
 
+    // for now, only run this if the window has no evidence
     let evidenceResult = { inserted: 0, total: existing.length };
     if (existing.length === 0) {
       evidenceResult = await ctx.runAction(
