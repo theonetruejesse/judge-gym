@@ -3,7 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
@@ -66,8 +66,7 @@ export const startWindowFlow = zInternalAction({
 });
 
 
-// todo, clean up this file
-
+// todo, clean up the list functions
 
 type EvidenceStatus =
   | "scraping"
@@ -172,7 +171,6 @@ const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
   scoring_config: true,
 });
 
-
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_config: ExperimentConfigInputSchema,
@@ -182,10 +180,17 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const experiment_id = await ctx.runMutation(
-      internal.domain.runs.experiments_services.initExperiment,
-      args,
+    const { experiment_config, evidence_ids } = args;
+
+    const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
+      experiment_config
     );
+
+    await ctx.runMutation(internal.domain.runs.experiments_repo.insertExperimentEvidences, {
+      experiment_id,
+      evidence_ids,
+    });
+
     return { experiment_id };
   },
 });
@@ -211,6 +216,8 @@ export const startExperiment: ReturnType<typeof zMutation> = zMutation({
     return result;
   },
 });
+
+// todo, clean up the list functions
 
 export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   args: z.object({}),
@@ -364,6 +371,7 @@ export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
     };
   },
 });
+
 // change this to handle the permanent failure cases
 function deriveEvidenceStatus(
   evidences: Array<{

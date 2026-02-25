@@ -23,6 +23,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
 - Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
+- Lab experiment editor uses TanStack Form with server-parsed defaults and debounced URL param sync.
 
 **What does not exist yet (in this repo)**
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
