@@ -23,10 +23,6 @@ import {
   WindowSelectField,
 } from "./window-fields";
 
-interface WindowFormProps {
-  defaultValues?: WindowFormDefaults;
-}
-
 function WindowFormParamsSync({ values }: { values: WindowFormValues }) {
   const updateParams = useUpdateWindowFormParams({ delayMs: 400 });
 
@@ -57,6 +53,10 @@ function WindowFormDateRangeSync({
   }, [form, values.end_date, values.start_date]);
 
   return null;
+}
+
+interface WindowFormProps {
+  defaultValues?: WindowFormDefaults;
 }
 
 export function WindowForm({ defaultValues }: WindowFormProps) {
