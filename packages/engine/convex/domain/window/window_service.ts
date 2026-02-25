@@ -42,51 +42,14 @@ export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zIntern
   },
 });
 
-export const startWindowFlow: ReturnType<typeof zInternalAction> = zInternalAction({
-  args: z.object({
-    window_id: zid("windows"),
-    limit: z.number().optional(),
-  }),
-  returns: z.object({
-    inserted: z.number(),
-    total: z.number(),
-  }),
-  handler: async (ctx, args) => {
-    const existing = await ctx.runQuery(
-      internal.domain.window.window_repo.listEvidenceByWindow,
-      { window_id: args.window_id },
-    );
-
-    // for now, only run this if the window has no evidence
-    let evidenceResult = { inserted: 0, total: existing.length };
-    if (existing.length === 0) {
-      evidenceResult = await ctx.runAction(
-        internal.domain.window.window_service.collectWindowEvidence,
-        {
-          window_id: args.window_id,
-          limit: args.limit,
-        },
-      );
-    }
-
-    await ctx.runMutation(
-      internal.domain.window.window_service.startWindowOrchestration,
-      { window_id: args.window_id },
-    );
-
-    return evidenceResult;
-  },
-});
-
-// todo, fix later
 export const startWindowOrchestration = zInternalMutation({
   args: z.object({
     window_id: zid("windows"),
   }),
   handler: async (ctx, args) => {
     const window = await ctx.db.get(args.window_id);
-
     if (!window) throw new Error("Window not found");
+
     if (
       window.status === "completed" ||
       window.status === "canceled" ||

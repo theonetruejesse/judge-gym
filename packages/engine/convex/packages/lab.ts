@@ -8,9 +8,6 @@ import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
 
-
-// todo, clean up this file
-
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
   country: true,
@@ -32,7 +29,7 @@ export const createWindowForm = zMutation({
       evidence_window,
     );
 
-    await ctx.scheduler.runAfter(0, internal.domain.window.window_service.startWindowFlow,
+    await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowFlow,
       { window_id, evidence_limit }
     );
 
@@ -47,10 +44,20 @@ export const startWindowFlow = zInternalAction({
   }),
   handler: async (ctx, args) => {
     const { window_id, evidence_limit } = args;
+
     await ctx.runAction(
-      internal.domain.window.window_service.startWindowFlow,
-      { window_id, limit: evidence_limit },
+      internal.domain.window.window_service.collectWindowEvidence,
+      {
+        window_id,
+        limit: evidence_limit,
+      },
     );
+
+    await ctx.runMutation(
+      internal.domain.window.window_service.startWindowOrchestration,
+      { window_id },
+    );
+
     await ctx.runMutation(
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
@@ -59,10 +66,8 @@ export const startWindowFlow = zInternalAction({
 });
 
 
-const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
-  rubric_config: true,
-  scoring_config: true,
-});
+// todo, clean up this file
+
 
 type EvidenceStatus =
   | "scraping"
@@ -71,30 +76,6 @@ type EvidenceStatus =
   | "abstracting"
   | "ready";
 
-
-
-export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    window_id: zid("windows"),
-    evidences: z.array(
-      z.object({
-        title: z.string(),
-        url: z.string(),
-        raw_content: z.string(),
-      }),
-    ),
-  }),
-  returns: z.object({
-    inserted: z.number(),
-    total: z.number(),
-  }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      internal.domain.window.window_repo.insertEvidenceBatch,
-      args,
-    );
-  },
-});
 
 export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
   args: z.object({}),
@@ -185,6 +166,12 @@ export const listEvidenceByWindow: ReturnType<typeof zQuery> = zQuery({
       }));
   },
 });
+
+const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
+  rubric_config: true,
+  scoring_config: true,
+});
+
 
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
