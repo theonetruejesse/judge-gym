@@ -16,18 +16,18 @@ type BatchPollResult =
   | { status: "running" }
   | { status: "error"; error: string }
   | {
-      status: "completed";
-      results: Array<{
-        custom_key: string;
-        status: "completed" | "error";
-        output?: {
-          assistant_output: string;
-          input_tokens?: number;
-          output_tokens?: number;
-        };
-        error?: string;
-      }>;
-    };
+    status: "completed";
+    results: Array<{
+      custom_key: string;
+      status: "completed" | "error";
+      output?: {
+        assistant_output: string;
+        input_tokens?: number;
+        output_tokens?: number;
+      };
+      error?: string;
+    }>;
+  };
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
@@ -52,7 +52,7 @@ function toJsonl(requests: BatchRequestInput[]): string {
         model: getProviderModel(req.model),
         messages,
       };
-      if (req.max_tokens !== undefined) body.max_tokens = req.max_tokens;
+      if (req.max_tokens !== undefined) body.max_completion_tokens = req.max_tokens;
 
       return JSON.stringify({
         custom_id: req.custom_key,
