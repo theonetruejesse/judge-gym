@@ -3,6 +3,7 @@ import { Bitter, JetBrains_Mono } from "next/font/google";
 
 import "./globals.css";
 import Providers from "./providers";
+import { Toaster } from "sonner";
 
 const serif = Bitter({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({
         className={`${serif.variable} ${mono.variable} min-h-screen antialiased font-[var(--font-1-mono)]`}
       >
         <Providers>{children}</Providers>
+        <Toaster />
       </body>
     </html>
   );

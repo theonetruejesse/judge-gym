@@ -1,6 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zAction, zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
+import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
 import type { Doc } from "../_generated/dataModel";
@@ -19,20 +19,7 @@ const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   model: true,
 });
 
-const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
-  rubric_config: true,
-  scoring_config: true,
-});
-
-type EvidenceStatus =
-  | "scraping"
-  | "cleaning"
-  | "neutralizing"
-  | "abstracting"
-  | "ready";
-
-
-export const initEvidenceWindowAndCollect = zAction({
+export const createWindowForm = zMutation({
   args: z.object({
     evidence_window: EvidenceWindowInputSchema,
     evidence_limit: z.number(),
@@ -72,7 +59,19 @@ export const startWindowFlow = zInternalAction({
 });
 
 
-///
+const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
+  rubric_config: true,
+  scoring_config: true,
+});
+
+type EvidenceStatus =
+  | "scraping"
+  | "cleaning"
+  | "neutralizing"
+  | "abstracting"
+  | "ready";
+
+
 
 export const insertEvidenceBatch: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
