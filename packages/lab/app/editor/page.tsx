@@ -20,6 +20,22 @@ export default function EditorLandingPage() {
           <Card className="border-border bg-card/80 p-6">
             <div>
               <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Experiment
+              </p>
+              <p className="mt-1 text-xs opacity-60">
+                Configure rubric/scoring stages and freeze evidence selections.
+              </p>
+            </div>
+            <Button
+              asChild
+              className="mt-4 w-full text-[10px] uppercase tracking-wider"
+            >
+              <Link href="/editor/experiment">New Experiment</Link>
+            </Button>
+          </Card>
+          <Card className="border-border bg-card/80 p-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
                 Evidence Window
               </p>
               <p className="mt-1 text-xs opacity-60">

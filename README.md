@@ -19,6 +19,10 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - Experiment initialization now freezes evidence selections via `experiment_evidence`.
+- The lab UI supports creating experiments, selecting evidence, and starting runs.
+- Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
+- Lab window form fields are composed from reusable input, calendar, and select components.
+- Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
 
 **What does not exist yet (in this repo)**
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
@@ -32,7 +36,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Path | Role |
 | --- | --- |
 | `packages/engine` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
-| `packages/lab` | Next.js app (UI client for evidence windows) |
+| `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
@@ -41,8 +45,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- |
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
 | `domain/llm_calls/` | Batch/job/request repos + services |
-| `domain/experiments/` | Experiment creation + evidence binding |
-| `domain/runs/` | Run orchestration for rubric + scoring stages |
+| `domain/runs/` | Experiment creation + evidence binding + run orchestration |
 | `domain/window/` | Evidence window orchestration + search |
 | `models/` | Zod schemas for tables and shared enums |
 | `platform/` | Providers, rate limiter, run policy |
@@ -59,8 +62,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/orchestrator/target_registry.ts` | Custom key routing to domain handlers |
 | `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
-| `domain/experiments/experiments_entrypoints.ts` | Experiment creation + evidence binding |
-| `domain/experiments/experiments_repo.ts` | Experiment storage + evidence queries |
+| `domain/runs/experiments_services.ts` | Experiment creation + evidence binding |
+| `domain/runs/experiments_repo.ts` | Experiment storage + evidence queries |
 | `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
 | `domain/runs/run_repo.ts` | Run/sample + rubric/score persistence |

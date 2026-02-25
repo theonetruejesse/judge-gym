@@ -6,18 +6,22 @@ export const MODEL_OPTIONS = modelTypeSchema.options.map(
 
 export const STATUS_COLORS: Record<string, string> = {
   running: "#22c55e",
-  complete: "#3b82f6",
+  completed: "#3b82f6",
   paused: "#8b5cf6",
-  pending: "#6b7280",
+  queued: "#6b7280",
+  start: "#64748b",
   canceled: "#ef4444",
+  error: "#f97316",
 };
 
 export const STATUS_COLORS_MUTED: Record<string, string> = {
   running: "#3f8f5b",
-  complete: "#3b6ea5",
+  completed: "#3b6ea5",
   paused: "#6b4aa5",
-  pending: "#7b8190",
+  queued: "#7b8190",
+  start: "#708197",
   canceled: "#a44545",
+  error: "#c35d2a",
 };
 
 export const TASK_TYPE_LABELS: Record<string, string> = {
@@ -39,7 +43,7 @@ export const SCORING_METHOD_LABELS: Record<string, string> = {
 };
 
 export const RANDOMIZATION_LABELS: Record<string, string> = {
-  anonymize_labels: "Anonymize Labels",
+  anonymize_stages: "Anonymize Labels",
   shuffle_rubric_order: "Shuffle Rubric Order",
   hide_label_text: "Hide Label Text",
 };
