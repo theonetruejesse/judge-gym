@@ -195,7 +195,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
-export const startExperiment: ReturnType<typeof zMutation> = zMutation({
+export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
     target_count: z.number().int().min(1),

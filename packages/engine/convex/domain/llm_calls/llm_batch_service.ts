@@ -205,6 +205,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
   for (const row of results) {
     const req = requestByKey.get(row.custom_key);
     if (!req) continue;
+    if (req.status !== "pending") continue;
 
     if (row.status === "completed" && row.output) {
       totalInput += row.output.input_tokens ?? 0;

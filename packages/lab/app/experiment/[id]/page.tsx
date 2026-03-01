@@ -135,10 +135,9 @@ export default function ExperimentDetailPage({
     }
   }, [params]);
 
-  const experiments = useQuery(
-    api.packages.lab.listExperiments,
-    {},
-  ) as ExperimentListItem[] | undefined;
+  const experiments = useQuery(api.packages.lab.listExperiments, {}) as
+    | ExperimentListItem[]
+    | undefined;
   const experimentsLoading = experiments === undefined;
   const experimentRows = experiments ?? [];
 
@@ -163,7 +162,7 @@ export default function ExperimentDetailPage({
       : "skip",
   ) as RunSummary | undefined;
 
-  const startExperiment = useMutation(api.packages.lab.startExperiment);
+  const startExperimentRun = useMutation(api.packages.lab.startExperimentRun);
 
   useEffect(() => {
     if (!summary?.latest_run?.target_count) return;
@@ -248,7 +247,8 @@ export default function ExperimentDetailPage({
                 {selected.experiment_tag ?? selected.experiment_id}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {selected.experiment_id} · {summaryData?.window_count ?? 0} windows
+                {selected.experiment_id} · {summaryData?.window_count ?? 0}{" "}
+                windows
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -257,7 +257,9 @@ export default function ExperimentDetailPage({
                 style={{
                   backgroundColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}20`,
                   color:
-                    STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS],
+                    STATUS_COLORS[
+                      selected.status as keyof typeof STATUS_COLORS
+                    ],
                   borderColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}40`,
                 }}
               >
@@ -288,7 +290,10 @@ export default function ExperimentDetailPage({
             </div>
           )}
 
-          <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as typeof tab)}
+          >
             <TabsList className="bg-card/80">
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="runs">
@@ -314,7 +319,8 @@ export default function ExperimentDetailPage({
 
       <footer className="flex h-7 flex-shrink-0 items-center justify-between border-t border-border bg-card/80 px-4 text-[10px] text-muted-foreground">
         <span>
-          {experimentRows.length} experiments · {evidenceItemsData.length} evidence items
+          {experimentRows.length} experiments · {evidenceItemsData.length}{" "}
+          evidence items
         </span>
         <span>Convex live · Last sync: just now</span>
       </footer>
@@ -349,10 +355,7 @@ function ConfigPanel({ summary }: { summary: ExperimentSummary | undefined }) {
       SCORING_METHOD_LABELS[summary.scoring_config.method] ??
         summary.scoring_config.method,
     ],
-    [
-      "Abstain Enabled",
-      summary.scoring_config.abstain_enabled ? "Yes" : "No",
-    ],
+    ["Abstain Enabled", summary.scoring_config.abstain_enabled ? "Yes" : "No"],
     ["Randomizations", randomizations],
   ];
 
@@ -434,7 +437,10 @@ function RunsPanel({
             <div className="w-32">
               <Progress value={runProgress} />
             </div>
-            <span className="text-[11px] font-medium" style={{ color: "#ff6b35" }}>
+            <span
+              className="text-[11px] font-medium"
+              style={{ color: "#ff6b35" }}
+            >
               {runProgress}%
             </span>
           </div>

@@ -13,17 +13,24 @@ type BatchRequest = {
 type BatchStatus = "completed" | "running" | "error";
 
 type ChatMode = "success" | "error";
+type BatchOutputResolver = (req: BatchRequest, index: number) => {
+  assistant_output: string;
+  input_tokens?: number;
+  output_tokens?: number;
+};
 
 let batchCounter = 0;
 const batches = new Map<string, BatchRequest[]>();
 let batchMode: BatchStatus = "completed";
 let chatMode: ChatMode = "success";
+let batchOutputResolver: BatchOutputResolver | null = null;
 
 export function __resetMockProviders() {
   batchCounter = 0;
   batches.clear();
   batchMode = "completed";
   chatMode = "success";
+  batchOutputResolver = null;
 }
 
 export function __setMockBatchMode(mode: BatchStatus) {
@@ -32,6 +39,10 @@ export function __setMockBatchMode(mode: BatchStatus) {
 
 export function __setMockChatMode(mode: ChatMode) {
   chatMode = mode;
+}
+
+export function __setMockBatchOutputResolver(resolver: BatchOutputResolver | null) {
+  batchOutputResolver = resolver;
 }
 
 const BatchRequestSchema = z.object({
@@ -97,15 +108,20 @@ export const pollOpenAiBatchAction = zInternalAction({
     const requests = batches.get(args.batch_ref) ?? [];
     return {
       status: "completed" as const,
-      results: requests.map((req, index) => ({
-        custom_key: req.custom_key,
-        status: "completed" as const,
-        output: {
-          assistant_output: `mock_output_${index}`,
-          input_tokens: 5,
-          output_tokens: 3,
-        },
-      })),
+      results: requests.map((req, index) => {
+        const output = batchOutputResolver
+          ? batchOutputResolver(req, index)
+          : {
+            assistant_output: `mock_output_${index}`,
+            input_tokens: 5,
+            output_tokens: 3,
+          };
+        return {
+          custom_key: req.custom_key,
+          status: "completed" as const,
+          output,
+        };
+      }),
     };
   },
 });

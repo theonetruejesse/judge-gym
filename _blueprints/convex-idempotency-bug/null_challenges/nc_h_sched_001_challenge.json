@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_sched_001",
+  "microHypothesisID": "h_sched_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Scheduler might prevent overlapping running-batch workflows",
+      "falsificationQueries": [
+        "Check runScheduler for locking or in-flight flags",
+        "Check shouldRunAt usage on running batches"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_scheduler_and_running_batch.md"
+      ],
+      "falsificationAnalysis": "runScheduler starts workflows for every running batch when shouldRunAt passes, without a lock or in-flight marker. This does not falsify overlap risk.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

@@ -9,19 +9,17 @@ import { getProviderForModel } from "../../platform/providers/provider_types";
 import type { MutationCtx } from "../../_generated/server";
 import { ENGINE_SETTINGS } from "../../settings";
 
-const DEFAULT_EVIDENCE_LIMIT = 15;
-
 export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
-    limit: z.number().optional(),
+    limit: z.number()
   }),
   returns: z.object({
     inserted: z.number(),
     total: z.number(),
   }),
   handler: async (ctx, args) => {
-    const limit = args.limit ?? DEFAULT_EVIDENCE_LIMIT;
+    const limit = args.limit;
     const results = await ctx.runAction(
       internal.domain.window.window_repo.runWindowSearch,
       {
@@ -94,6 +92,23 @@ export const applyRequestResult = zInternalMutation({
 
     const evidence = await ctx.db.get(evidenceId);
     if (!evidence) throw new Error("Evidence not found");
+
+    if (evidence[config.outputField]) {
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.patchRequest,
+        {
+          request_id: args.request_id,
+          patch: {
+            status: "success",
+            assistant_output: args.output,
+            input_tokens: args.input_tokens,
+            output_tokens: args.output_tokens,
+          },
+        },
+      );
+      await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
+      return;
+    }
 
     await ctx.db.patch(evidenceId, {
       [config.outputField]: args.output,
