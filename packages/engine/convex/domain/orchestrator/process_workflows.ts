@@ -32,6 +32,7 @@ export const processWorkflow = new WorkflowManager(components.workflow,
         initialBackoffMs: 100,
         base: 2,
       },
+      maxParallelism: 25,
       retryActionsByDefault: true,
     }
   }

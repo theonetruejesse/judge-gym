@@ -20,12 +20,32 @@ export const createRun = zInternalMutation({
   args: CreateRunArgsSchema,
   returns: zid("runs"),
   handler: async (ctx, args) => {
-    return ctx.db.insert("runs", {
-      experiment_id: args.experiment_id,
-      target_count: args.target_count,
+    const { experiment_id, target_count } = args;
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
+
+    const run_id = await ctx.db.insert("runs", {
+      experiment_id,
+      target_count,
       status: "start",
       current_stage: "rubric_gen",
     });
+
+    for (let i = 0; i < args.target_count; i++) {
+      const seed = i + 1; // todo, alter for real random seed
+      await ctx.db.insert("samples", {
+        run_id,
+        experiment_id: experiment._id,
+        model: experiment.scoring_config.model,
+        seed,
+        rubric_id: null,
+        rubric_critic_id: null,
+        score_id: null,
+        score_critic_id: null,
+      });
+    }
+
+    return run_id;
   },
 });
 

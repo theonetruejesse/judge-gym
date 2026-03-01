@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "originalQuestion": "Investigate non-idempotent inserts in Convex workflow path when starting an experiment run (lab.ts startExperiment). Trace code paths, isolate bug, and propose fixes.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/convex-idempotency-bug",
+    "finalPlanPath": "_blueprints/convex-idempotency-bug/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      "019c960f-6df9-7831-9fdb-67ee9a6f1543",
+      "019c960f-937a-7b31-ae5c-d0cec977b360",
+      "019c960f-849d-7563-a4c4-1a4230202c60"
+    ],
+    "falsifier": "codex",
+    "certaintyScorer": "codex",
+    "synthesizer": "codex"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_orchestrator",
+      "agentId": "019c960f-6df9-7831-9fdb-67ee9a6f1543",
+      "role": "researcher"
+    },
+    {
+      "areaOfAnalysisID": "A_scheduler",
+      "agentId": "019c960f-937a-7b31-ae5c-d0cec977b360",
+      "role": "researcher"
+    },
+    {
+      "areaOfAnalysisID": "A_workflow",
+      "agentId": "019c960f-849d-7563-a4c4-1a4230202c60",
+      "role": "researcher"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_start_experiment_flow.md",
+      "knowledge/k_002_enqueue_stage_batching.md",
+      "knowledge/k_003_scheduler_and_running_batch.md",
+      "knowledge/k_004_apply_results_not_idempotent.md",
+      "knowledge/k_005_workflow_replay_and_retry.md",
+      "knowledge/k_006_batch_retry_creates_requests.md"
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": []
+  },
+  "areasOfAnalysis": [
+    {
+      "id": "A_orchestrator",
+      "title": "Run and Orchestrator Path",
+      "scope": "Trace startExperiment through run_service and orchestrator enqueue logic"
+    },
+    {
+      "id": "A_scheduler",
+      "title": "Scheduler + Batch Workflow Execution",
+      "scope": "Scheduler triggers queued/running batch workflows and applies results"
+    },
+    {
+      "id": "A_workflow",
+      "title": "Workflow/Workpool Semantics",
+      "scope": "Workflow step replay and retries that can cause re-execution"
+    }
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A_orchestrator_001_apply_not_idempotent.json",
+    "hypotheses/hyp_A_scheduler_001_overlap.json",
+    "hypotheses/hyp_A_workflow_001_retry.json"
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "_blueprints/convex-idempotency-bug/blueprint.md"
+}

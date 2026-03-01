@@ -7,7 +7,7 @@ import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getProviderForModel } from "../../platform/providers/provider_types";
-import { RunStageSchema, type RunStage } from "../../models/experiments";
+import { type RunStage } from "../../models/experiments";
 import {
   extractReasoningBeforeVerdict,
   parseExpertAgreementResponse,
@@ -29,115 +29,17 @@ export const startRunFlow = zInternalMutation({
   }),
   returns: z.object({
     run_id: zid("runs"),
-    samples_created: z.number(),
   }),
   handler: async (ctx, args) => {
-    const experiment = await ctx.db.get(args.experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-
-    const run_id = await ctx.db.insert("runs", {
-      experiment_id: experiment._id,
-      target_count: args.target_count,
-      status: "start",
-      current_stage: "rubric_gen",
-    });
-
-    let samples_created = 0;
-    for (let i = 0; i < args.target_count; i++) {
-      const seed = i + 1;
-      await ctx.db.insert("samples", {
-        run_id,
-        experiment_id: experiment._id,
-        model: experiment.scoring_config.model,
-        seed,
-        rubric_id: null,
-        rubric_critic_id: null,
-        score_id: null,
-        score_critic_id: null,
-      });
-      samples_created += 1;
-    }
-
-    await ctx.db.patch(run_id, {
-      status: "running",
-      current_stage: "rubric_gen",
-    });
+    const run_id: Id<"runs"> = await ctx.runMutation(
+      internal.domain.runs.run_repo.createRun,
+      args,
+    );
 
     const orchestrator = new RunOrchestrator(ctx);
     await orchestrator.enqueueStage(run_id, "rubric_gen");
 
-    return { run_id, samples_created };
-  },
-});
-
-export const seedRunSamples = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-  }),
-  returns: z.number(),
-  handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.run_id);
-    if (!run) throw new Error("Run not found");
-    const experiment = await ctx.db.get(run.experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-
-    const existing = await ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
-    if (existing.length >= run.target_count) return 0;
-
-    let created = 0;
-    for (let i = existing.length; i < run.target_count; i++) {
-      const seed = i + 1;
-      await ctx.db.insert("samples", {
-        run_id: run._id,
-        experiment_id: experiment._id,
-        model: experiment.scoring_config.model,
-        seed,
-        rubric_id: null,
-        rubric_critic_id: null,
-        score_id: null,
-        score_critic_id: null,
-      });
-      created += 1;
-    }
-    return created;
-  },
-});
-
-export const startRunOrchestration = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-  }),
-  handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.run_id);
-    if (!run) throw new Error("Run not found");
-    if (
-      run.status === "completed" ||
-      run.status === "canceled" ||
-      run.status === "error"
-    )
-      return;
-
-    await ctx.db.patch(args.run_id, {
-      status: "running",
-      current_stage: "rubric_gen",
-    });
-
-    const orchestrator = new RunOrchestrator(ctx);
-    await orchestrator.enqueueStage(args.run_id, "rubric_gen");
-  },
-});
-
-export const enqueueRunStage = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-    stage: RunStageSchema,
-  }),
-  handler: async (ctx, args) => {
-    const orchestrator = new RunOrchestrator(ctx);
-    await orchestrator.enqueueStage(args.run_id, args.stage);
+    return { run_id };
   },
 });
 
@@ -157,6 +59,51 @@ export const applyRequestResult = zInternalMutation({
     if (!sample) throw new Error("Sample not found");
 
     try {
+      if (stage === "rubric_gen" && sample.rubric_id) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        return;
+      }
+      if (stage === "rubric_critic" && sample.rubric_critic_id) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        return;
+      }
+      if (stage === "score_gen" && sample.score_id) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        return;
+      }
+      if (stage === "score_critic" && sample.score_critic_id) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        return;
+      }
+
       if (stage === "rubric_gen") {
         const experiment = await ctx.db.get(sample.experiment_id);
         if (!experiment) throw new Error("Experiment not found");

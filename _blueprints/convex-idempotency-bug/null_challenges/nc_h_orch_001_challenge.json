@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_orch_001",
+  "microHypothesisID": "h_orch_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "applyBatchResults or applyRequestResult might already be idempotent",
+      "falsificationQueries": [
+        "Inspect applyBatchResults for status checks",
+        "Inspect applyRequestResult for existing-output guards"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_apply_results_not_idempotent.md"
+      ],
+      "falsificationAnalysis": "applyBatchResults applies results regardless of request status and applyRequestResult always inserts outputs. No idempotency guard exists, so the hypothesis holds.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

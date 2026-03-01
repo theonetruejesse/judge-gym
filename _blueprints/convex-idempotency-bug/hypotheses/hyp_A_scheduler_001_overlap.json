@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_sched_001",
+  "areaOfAnalysisID": "A_scheduler",
+  "statement": "The scheduler can start multiple running-batch workflows for the same batch without a lock, leading to repeated application of the same batch results.",
+  "confidence": 0.6,
+  "rationale": "runScheduler starts workflows for all running batches each poll when shouldRunAt passes, without setting an in-flight flag before starting.",
+  "keyAssumptions": [
+    "Scheduler ticks can overlap with long-running workflow steps.",
+    "next_poll_at is not advanced until after polling completes."
+  ],
+  "validationCriteria": [
+    "See multiple workflow runs targeting the same batch_id within a short time window.",
+    "Observe applyBatchResults executed more than once for same batch_ref."
+  ],
+  "critiquePoints": [
+    "If shouldRunAt and poll interval prevent overlap, duplicates may be rare."
+  ],
+  "questions": [
+    "Is there evidence of multiple running-batch workflows per batch in logs?"
+  ]
+}
