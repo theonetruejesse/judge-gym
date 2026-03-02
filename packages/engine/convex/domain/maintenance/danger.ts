@@ -17,6 +17,8 @@ const tableNames = [
     "scores",
     "score_critics",
     "sample_evidence_scores",
+    "telemetry_events",
+    "telemetry_trace_counters",
 ] as const satisfies ReadonlyArray<keyof DataModel>;
 
 type TableName = (typeof tableNames)[number];
