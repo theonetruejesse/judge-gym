@@ -19,10 +19,19 @@ const EvidenceWindowInputSchema = WindowsTableSchema.pick({
 export const createWindowForm = zMutation({
   args: z.object({
     evidence_window: EvidenceWindowInputSchema,
-    evidence_limit: z.number(),
+    evidence_limit: z.number().int().min(1),
   }),
   handler: async (ctx, args): Promise<CreateWindowResult> => {
     const { evidence_window, evidence_limit } = args;
+    const startDate = new Date(evidence_window.start_date);
+    const endDate = new Date(evidence_window.end_date);
+    if (
+      Number.isNaN(startDate.getTime()) ||
+      Number.isNaN(endDate.getTime()) ||
+      endDate < startDate
+    ) {
+      throw new Error("Invalid window dates");
+    }
 
     const { window_id, window_tag } = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
@@ -40,7 +49,7 @@ export const createWindowForm = zMutation({
 export const startWindowFlow = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
-    evidence_limit: z.number(),
+    evidence_limit: z.number().int().min(1),
   }),
   handler: async (ctx, args) => {
     const { window_id, evidence_limit } = args;
@@ -102,6 +111,14 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       internal.domain.window.window_repo.listWindows,
       {},
     );
+    const evidenceRows = await ctx.db.query("evidences").collect();
+    const evidencesByWindow = new Map<string, Array<Doc<"evidences">>>();
+    for (const evidence of evidenceRows) {
+      const current = evidencesByWindow.get(evidence.window_id) ?? [];
+      current.push(evidence);
+      evidencesByWindow.set(evidence.window_id, current);
+    }
+
     const results = [] as Array<{
       window_id: string;
       start_date: string;
@@ -115,10 +132,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
     }>;
 
     for (const window of windows) {
-      const evidences = await ctx.runQuery(
-        internal.domain.window.window_repo.listEvidenceByWindow,
-        { window_id: window._id },
-      );
+      const evidences = evidencesByWindow.get(window._id) ?? [];
       const evidence_status = deriveEvidenceStatus(evidences);
       results.push({
         window_id: window._id,
@@ -213,7 +227,10 @@ export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
     );
-    return result;
+    return {
+      run_id: result.run_id,
+      samples_created: args.target_count,
+    };
   },
 });
 
@@ -318,56 +335,6 @@ export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
       cleaned_content: evidence.l1_cleaned_content ?? undefined,
       neutralized_content: evidence.l2_neutralized_content ?? undefined,
       abstracted_content: evidence.l3_abstracted_content ?? undefined,
-    };
-  },
-});
-
-export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ window_id: zid("windows") }),
-  returns: z
-    .object({
-      window_id: zid("windows"),
-      status: z.string(),
-      current_stage: z.string(),
-      window_tag: z.string(),
-      model: modelTypeSchema,
-      query: z.string(),
-      country: z.string(),
-      start_date: z.string(),
-      end_date: z.string(),
-    })
-    .nullable(),
-  handler: async (ctx, { window_id }) => {
-    let window: {
-      _id: string;
-      status: string;
-      current_stage: string;
-      window_tag: string;
-      model: ModelType;
-      query: string;
-      country: string;
-      start_date: string;
-      end_date: string;
-    } | null = null;
-    try {
-      window = await ctx.runQuery(
-        internal.domain.window.window_repo.getWindow,
-        { window_id },
-      );
-    } catch (error) {
-      return null;
-    }
-    if (!window) return null;
-    return {
-      window_id: window._id,
-      status: window.status,
-      current_stage: window.current_stage,
-      window_tag: window.window_tag,
-      model: window.model,
-      query: window.query,
-      country: window.country,
-      start_date: window.start_date,
-      end_date: window.end_date,
     };
   },
 });

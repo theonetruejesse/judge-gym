@@ -3,7 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { ExperimentsTableSchema } from "../../models/experiments";
 import { buildRandomTag } from "../../utils/tags";
-import type { Doc, Id } from "../../_generated/dataModel";
+import type { Id } from "../../_generated/dataModel";
 
 export const CreateExperimentArgsSchema = ExperimentsTableSchema.pick({
   rubric_config: true,
@@ -19,15 +19,6 @@ export const createExperiment = zInternalMutation({
       rubric_config: args.rubric_config,
       scoring_config: args.scoring_config,
     });
-  },
-});
-
-export const getExperiment = zInternalQuery({
-  args: z.object({ experiment_id: zid("experiments") }),
-  handler: async (ctx, args): Promise<Doc<"experiments">> => {
-    const experiment = await ctx.db.get(args.experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-    return experiment;
   },
 });
 
@@ -48,23 +39,5 @@ export const insertExperimentEvidences = zInternalMutation({
         evidence_id,
       });
     }
-  },
-});
-
-export const listExperimentEvidence = zInternalQuery({
-  args: z.object({ experiment_id: zid("experiments") }),
-  handler: async (ctx, args): Promise<Doc<"evidences">[]> => {
-    const links = await ctx.db
-      .query("experiment_evidence")
-      .withIndex("by_experiment", (q) => q.eq("experiment_id", args.experiment_id))
-      .collect();
-
-    const evidences: Doc<"evidences">[] = [];
-    for (const link of links) {
-      const evidence = await ctx.db.get(link.evidence_id);
-      if (evidence) evidences.push(evidence);
-    }
-
-    return evidences;
   },
 });

@@ -52,28 +52,6 @@ export const listOrphanedRequests = zInternalQuery({
   },
 });
 
-export const listRequestsByCustomKey = zInternalQuery({
-  args: z.object({ custom_key: z.string() }),
-  handler: async (ctx, args): Promise<Doc<"llm_requests">[]> => {
-    return ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key", (q) => q.eq("custom_key", args.custom_key))
-      .collect();
-  },
-});
-
-export const listPendingRequestsByCustomKey = zInternalQuery({
-  args: z.object({ custom_key: z.string() }),
-  handler: async (ctx, args): Promise<Doc<"llm_requests">[]> => {
-    return ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key_status", (q) =>
-        q.eq("custom_key", args.custom_key).eq("status", "pending"),
-      )
-      .collect();
-  },
-});
-
 export const patchRequest = zInternalMutation({
   args: z.object({
     request_id: zid("llm_requests"),
