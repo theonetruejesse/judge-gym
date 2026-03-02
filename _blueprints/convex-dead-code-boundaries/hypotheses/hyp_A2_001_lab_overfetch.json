@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A2_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Replacing list-everything patterns with per-entity queries (e.g., using or replacing `getWindowSummary`) will reduce Lab payloads and eliminate N+1 work in `listEvidenceWindows`.",
+  "confidence": 0.58,
+  "rationale": "`listEvidenceWindows` loops per-window to compute counts, and evidence detail fetches the full list just to pick one window.",
+  "keyAssumptions": ["Window detail pages only need a single window summary"],
+  "validationCriteria": ["Performance metrics show reduced queries per page", "Lab UI still renders correct window details"],
+  "critiquePoints": ["Some pages may rely on the full list for navigation"],
+  "questions": ["Do any Lab screens require the full window list on load?"]
+}

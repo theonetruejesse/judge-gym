@@ -1,0 +1,14 @@
+{
+  "challengeID": "nc_h_A1_001",
+  "microHypothesisID": "h_A1_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Unused internal functions might be called by tests or scripts",
+      "falsificationQueries": ["rg for function names across repo", "check Convex tests for usage"],
+      "falsificationEvidenceFound": ["/Users/jesselee/dev/research/jg/judge-gym/packages/engine/convex/tests"],
+      "falsificationAnalysis": "Tests reference tables like `rubric_critics`/`score_critics`, but no direct calls to the listed internal functions were found in repo-wide search. This weakly supports unused status but does not rule out external scripts.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

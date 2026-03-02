@@ -25,6 +25,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Lab window form fields are composed from reusable input, calendar, and select components.
 - Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
 - Lab experiment editor uses TanStack Form with server-parsed defaults and debounced URL param sync.
+- Lab experiment detail now fetches by route id directly (no list-first experiment fetch).
+- `listEvidenceWindows` now aggregates evidence in one query pass instead of per-window lookups.
 
 **What does not exist yet (in this repo)**
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
@@ -65,10 +67,10 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
 | `domain/runs/experiments_services.ts` | Experiment creation + evidence binding |
-| `domain/runs/experiments_repo.ts` | Experiment storage + evidence queries |
+| `domain/runs/experiments_repo.ts` | Experiment storage + evidence binding |
 | `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
-| `domain/runs/run_repo.ts` | Run/sample + rubric/score persistence |
+| `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
 | `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
 | `domain/window/window_service.ts` | Window lifecycle, apply results, stage advancement |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |

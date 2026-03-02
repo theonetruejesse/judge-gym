@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A3_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "Moving apply/requeue routing out of `llm_job_service`/`llm_batch_service` into an orchestrator-owned request lifecycle module will simplify adding new target types and reduce boundary leakage.",
+  "confidence": 0.6,
+  "rationale": "Execution services currently resolve handlers and requeue requests directly, duplicating orchestration responsibilities.",
+  "keyAssumptions": ["Execution services can return neutral results without breaking workflows"],
+  "validationCriteria": ["New target type requires changes in only one registry layer", "Existing workflows still pass tests"],
+  "critiquePoints": ["Refactor may touch many call sites and tests"],
+  "questions": ["Which layer should own retry policy decisions: scheduler or domain service?"]
+}

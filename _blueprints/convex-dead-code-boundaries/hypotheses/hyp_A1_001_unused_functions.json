@@ -1,0 +1,11 @@
+{
+  "microHypothesisID": "h_A1_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "Multiple internal repo helpers and at least one Lab endpoint are unused and can be removed without impacting current Lab UI flows.",
+  "confidence": 0.62,
+  "rationale": "Repo-wide searches show only definitions for several internal functions and `getWindowSummary` has no call sites.",
+  "keyAssumptions": ["No external tooling or scripts call these internal functions"],
+  "validationCriteria": ["Call-graph search confirms no runtime references", "Tests and Lab flows pass after removal"],
+  "critiquePoints": ["Some functions may be used manually in dev or future branches"],
+  "questions": ["Are any of these functions invoked by ops scripts or notebooks?"]
+}
