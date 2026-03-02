@@ -3,6 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { RunsTableSchema } from "../../models/experiments";
 import type { Doc, Id } from "../../_generated/dataModel";
+import { generateSeeds } from "../../utils/randomize";
 
 const CreateRunArgsSchema = RunsTableSchema.pick({
   experiment_id: true,
@@ -24,9 +25,11 @@ export const createRun = zInternalMutation({
       current_stage: "rubric_gen",
     });
 
+    const baseSeed = (Math.random() * 0xffffffff) | 0;
+    const seeds = generateSeeds(baseSeed, args.target_count);
     const sampleIds: Id<"samples">[] = [];
     for (let i = 0; i < args.target_count; i++) {
-      const seed = i + 1; // todo, alter with a real random seed generator
+      const seed = seeds[i];
       const sample_id = await ctx.db.insert("samples", {
         run_id,
         experiment_id: experiment._id,
