@@ -244,6 +244,7 @@ describe(live ? "live run orchestration" : "live run orchestration (skipped)", (
         "rubric_critics",
         "scores",
         "score_critics",
+        "sample_evidence_scores",
       ] as const;
       const entries = await Promise.all(
         tables.map(async (name) => {

@@ -3,7 +3,15 @@ import { defineSchema, defineTable } from "convex/server";
 import { LlmBatchesTableSchema, LlmJobsTableSchema, LlmRequestsTableSchema } from "./models/llm_calls";
 import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
 import { ExperimentEvidencesTableSchema, ExperimentsTableSchema, RunsTableSchema } from "./models/experiments";
-import { SamplesTableSchema, RubricsTableSchema, RubricCriticsTableSchema, ScoresTableSchema, ScoreCriticsTableSchema } from "./models/samples";
+import {
+  SamplesTableSchema,
+  RubricsTableSchema,
+  RubricCriticsTableSchema,
+  ScoresTableSchema,
+  ScoreCriticsTableSchema,
+  SampleEvidenceScoresTableSchema,
+} from "./models/samples";
+import { TelemetryEventsTableSchema, TelemetryTraceCountersTableSchema } from "./models/telemetry";
 
 export default defineSchema({
   llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema))
@@ -41,4 +49,16 @@ export default defineSchema({
   rubric_critics: defineTable(zodOutputToConvex(RubricCriticsTableSchema)).index("by_sample", ["sample_id"]),
   scores: defineTable(zodOutputToConvex(ScoresTableSchema)).index("by_sample", ["sample_id"]),
   score_critics: defineTable(zodOutputToConvex(ScoreCriticsTableSchema)).index("by_sample", ["sample_id"]),
+  sample_evidence_scores: defineTable(zodOutputToConvex(SampleEvidenceScoresTableSchema))
+    .index("by_run", ["run_id"])
+    .index("by_sample", ["sample_id"])
+    .index("by_evidence", ["evidence_id"])
+    .index("by_score_id", ["score_id"])
+    .index("by_score_critic_id", ["score_critic_id"])
+    .index("by_sample_evidence", ["sample_id", "evidence_id"]),
+  telemetry_events: defineTable(zodOutputToConvex(TelemetryEventsTableSchema))
+    .index("by_trace_seq", ["trace_id", "seq"])
+    .index("by_entity_ts", ["entity_type", "entity_id", "ts_ms"]),
+  telemetry_trace_counters: defineTable(zodOutputToConvex(TelemetryTraceCountersTableSchema))
+    .index("by_trace_id", ["trace_id"]),
 });

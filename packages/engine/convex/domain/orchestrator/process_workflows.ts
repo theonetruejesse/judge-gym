@@ -22,6 +22,7 @@ import {
 } from "../llm_calls/llm_job_service";
 import type { ActionCtx } from "../../_generated/server";
 import type { Id } from "../../_generated/dataModel";
+import { emitTraceEvent } from "../telemetry/emit";
 
 export const processWorkflow = new WorkflowManager(components.workflow,
   {
@@ -40,6 +41,11 @@ export const processWorkflow = new WorkflowManager(components.workflow,
 
 type WorkflowStep = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
 
+function traceIdForCustomKey(customKey: string) {
+  const [entity, id] = customKey.split(":");
+  return `${entity}:${id}`;
+}
+
 export async function handleQueuedJobWorkflow(
   step: WorkflowStep,
   args: { job_id: Id<"llm_jobs"> },
@@ -50,6 +56,15 @@ export async function handleQueuedJobWorkflow(
     { job_id: args.job_id },
   );
   if (!job || job.status !== "queued") return;
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_queued_handler_started",
+    status: "queued",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
 
   await markJobRunning({ ctx: step, job_id: job._id });
 
@@ -61,10 +76,28 @@ export async function handleQueuedJobWorkflow(
 
   if (anyPending) {
     await scheduleJobRun({ ctx: step, job_id: job._id, now });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(job.custom_key),
+      entity_type: "job",
+      entity_id: String(job._id),
+      event_name: "job_rescheduled",
+      status: "running",
+      custom_key: job.custom_key,
+      stage: job.custom_key.split(":")[2] ?? null,
+    });
     return;
   }
 
   await finalizeJob({ ctx: step, job_id: job._id, anyErrors });
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_finalized",
+    status: anyErrors ? "error" : "success",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
 }
 
 export const processQueuedJobWorkflow = processWorkflow.define({
@@ -83,6 +116,15 @@ export async function handleRunningJobWorkflow(
   );
   if (!job || job.status !== "running") return;
   if (!shouldRunAt(job.next_run_at, now)) return;
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_running_polled",
+    status: "running",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
 
   const { anyPending, anyErrors } = await runJobRequests({
     ctx: step,
@@ -92,10 +134,28 @@ export async function handleRunningJobWorkflow(
 
   if (anyPending) {
     await scheduleJobRun({ ctx: step, job_id: job._id, now });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(job.custom_key),
+      entity_type: "job",
+      entity_id: String(job._id),
+      event_name: "job_rescheduled",
+      status: "running",
+      custom_key: job.custom_key,
+      stage: job.custom_key.split(":")[2] ?? null,
+    });
     return;
   }
 
   await finalizeJob({ ctx: step, job_id: job._id, anyErrors });
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_finalized",
+    status: anyErrors ? "error" : "success",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
 }
 
 export const processRunningJobWorkflow = processWorkflow.define({
@@ -114,9 +174,27 @@ export async function handleQueuedBatchWorkflow(
   )) as BatchWithRequestsResult;
 
   if (batch.status !== "queued") return;
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(batch.custom_key),
+    entity_type: "batch",
+    entity_id: String(batch._id),
+    event_name: "batch_queued_handler_started",
+    status: "queued",
+    custom_key: batch.custom_key,
+    stage: batch.custom_key.split(":")[2] ?? null,
+  });
 
   if (requests.length === 0) {
     await markBatchEmpty({ ctx: step, batch_id: batch._id });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_marked_empty",
+      status: "success",
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+    });
     return;
   }
 
@@ -131,11 +209,31 @@ export async function handleQueuedBatchWorkflow(
       batch_id: batch._id,
       next_poll_at: retryAfter,
     });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_rate_limited",
+      status: "queued",
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+      payload_json: JSON.stringify({ retry_after: retryAfter }),
+    });
     return;
   }
 
   const result = await submitBatch({ ctx: step, requests }); // todo, check error
   await markBatchRunning({ ctx: step, batch, batch_ref: result.batch_ref });
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(batch.custom_key),
+    entity_type: "batch",
+    entity_id: String(batch._id),
+    event_name: "batch_submitted",
+    status: "running",
+    custom_key: batch.custom_key,
+    stage: batch.custom_key.split(":")[2] ?? null,
+    payload_json: JSON.stringify({ batch_ref: result.batch_ref }),
+  });
 }
 
 export const processQueuedBatchWorkflow = processWorkflow.define({
@@ -155,6 +253,15 @@ export async function handleRunningBatchWorkflow(
   if (batch.status !== "running") return;
   if (!shouldRunAt(batch.next_poll_at, Date.now())) return;
   if (!batch.batch_ref) return;
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(batch.custom_key),
+    entity_type: "batch",
+    entity_id: String(batch._id),
+    event_name: "batch_polled",
+    status: "running",
+    custom_key: batch.custom_key,
+    stage: batch.custom_key.split(":")[2] ?? null,
+  });
 
   const result = await step.runAction(
     internal.platform.providers.provider_services.pollOpenAiBatchAction,
@@ -167,6 +274,15 @@ export async function handleRunningBatchWorkflow(
       batch_id: batch._id,
       next_poll_at: getNextRunAt(Date.now()),
     });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_still_running",
+      status: "running",
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+    });
     return;
   }
   if (result.status === "error") {
@@ -175,6 +291,16 @@ export async function handleRunningBatchWorkflow(
       batch,
       requests,
       error: result.error,
+    });
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_poll_error",
+      status: "error",
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+      payload_json: JSON.stringify({ error: result.error }),
     });
     return;
   }
@@ -193,6 +319,20 @@ export async function handleRunningBatchWorkflow(
   });
 
   await markBatchSuccess({ ctx: step, batch_id: batch._id });
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(batch.custom_key),
+    entity_type: "batch",
+    entity_id: String(batch._id),
+    event_name: "batch_success",
+    status: "success",
+    custom_key: batch.custom_key,
+    stage: batch.custom_key.split(":")[2] ?? null,
+    payload_json: JSON.stringify({
+      total_input: counters.totalInput,
+      total_output: counters.totalOutput,
+      missing_results: counters.missingResultCount,
+    }),
+  });
 }
 
 export const processRunningBatchWorkflow = processWorkflow.define({

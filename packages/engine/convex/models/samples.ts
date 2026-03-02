@@ -59,3 +59,11 @@ export const ScoreCriticsTableSchema = z.object({
     justification: z.string(),
     expert_agreement_prob: z.number(),
 });
+
+export const SampleEvidenceScoresTableSchema = z.object({
+    run_id: zid("runs"),
+    sample_id: zid("samples"),
+    evidence_id: zid("evidences"),
+    score_id: zid("scores").nullable(),
+    score_critic_id: zid("score_critics").nullable(),
+});

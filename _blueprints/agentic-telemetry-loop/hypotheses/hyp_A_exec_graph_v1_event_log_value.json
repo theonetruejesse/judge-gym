@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_exec_graph_001",
+  "areaOfAnalysisID": "A_exec_graph",
+  "statement": "An append-only telemetry event log keyed by run/window/request/custom_key will materially improve causal ordering and root-cause diagnosis over current mutable-state-only observability.",
+  "confidence": 0.9,
+  "rationale": "Current architecture has stage ordering and status tables but lacks persistent event transitions.",
+  "keyAssumptions": [
+    "Telemetry events are emitted at orchestration choke points.",
+    "Event volume remains manageable with bounded taxonomy."
+  ],
+  "validationCriteria": [
+    "Given a run_id, agent can reconstruct ordered lifecycle without reading raw logs.",
+    "At least 80% of failure investigations can be resolved from telemetry queries."
+  ],
+  "critiquePoints": [
+    "Some ordering is already inferable through existing fields and creation times."
+  ],
+  "questions": [
+    "Should parent-child retry lineage be in events only or also in llm_requests schema?"
+  ]
+}

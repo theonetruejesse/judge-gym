@@ -9,6 +9,7 @@ import { ActiveBatchesResult } from "../llm_calls/llm_batch_repo";
 import { ActiveJobsResult } from "../llm_calls/llm_job_repo";
 import { zid } from "convex-helpers/server/zod4";
 import { resolveRequeueHandler } from "./target_registry";
+import { emitTraceEvent } from "../telemetry/emit";
 
 export const requeueRequest = zInternalMutation({
   args: z.object({
@@ -133,8 +134,15 @@ export const runScheduler = zInternalMutation({
       running_jobs: running_jobs.length,
       orphaned_requests: orphanedRequests.length,
     };
+    await emitTraceEvent(ctx, {
+      trace_id: "scheduler:global",
+      entity_type: "scheduler",
+      entity_id: "scheduler",
+      event_name: "scheduler_tick",
+      status: "running",
+      payload_json: JSON.stringify(result),
+    });
     console.info(result);
     return result;
   },
 });
-

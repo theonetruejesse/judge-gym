@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_agentic_001",
+  "areaOfAnalysisID": "A_agentic_loop",
+  "statement": "An agent can run end-to-end experiment workflows against production code paths and diagnose issues from telemetry queries, with selective mocks remaining for deterministic CI.",
+  "confidence": 0.72,
+  "rationale": "Production APIs and orchestrator tests already exist, but full automated loop still has export and deterministic testing gaps.",
+  "keyAssumptions": [
+    "Telemetry query endpoints are added.",
+    "Export path for analysis is completed or substituted."
+  ],
+  "validationCriteria": [
+    "Agent runbook can execute start->wait->trace->classify->replay on real flows."
+  ],
+  "critiquePoints": [
+    "Live-provider tests remain expensive and env-gated."
+  ],
+  "questions": [
+    "What percentage of CI should stay mocked vs live?"
+  ]
+}
