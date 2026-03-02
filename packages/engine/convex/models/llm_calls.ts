@@ -5,6 +5,7 @@ import { modelTypeSchema, providerTypeSchema } from "../platform/providers/provi
 export const ProcessStatusSchema = z.enum([
   "queued",
   "running",
+  "finalizing",
   "success",
   "error",
 ]);
@@ -17,6 +18,8 @@ export const LlmBatchesTableSchema = z.object({
   attempts: z.number().int().min(0).optional(),
   next_poll_at: z.number().optional(),
   last_error: z.string().optional(),
+  poll_claim_owner: z.string().nullable().optional(),
+  poll_claim_expires_at: z.number().nullable().optional(),
   // for decoding windows/runs
   custom_key: z.string(),
 });

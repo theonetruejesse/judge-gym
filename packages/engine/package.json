@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "convex dev",
     "predev": "convex dev --until-success",
+    "telemetry:check": "bun run scripts/check_telemetry.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:once": "vitest run",

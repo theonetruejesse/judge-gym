@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ModelType } from "../platform/providers/provider_types";
 import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
@@ -135,6 +135,170 @@ async function getQueuedBatch(
 }
 
 describe("orchestrator full run (batch path)", () => {
+  test("claims running batch poll lease and allows reclaim after expiry", async () => {
+    const t = initTest();
+    const batch_id = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: MODEL,
+        custom_key: "run:test:rubric_gen",
+      },
+    );
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+      batch_id,
+      patch: {
+        status: "running",
+        next_poll_at: Date.now() - 1,
+      },
+    });
+
+    const now = Date.now();
+    const firstClaim = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimRunningBatchForPoll,
+      {
+        batch_id,
+        owner: "worker-a",
+        now,
+        lease_ms: 10_000,
+      },
+    );
+    expect(firstClaim.claimed).toBe(true);
+
+    const deniedClaim = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimRunningBatchForPoll,
+      {
+        batch_id,
+        owner: "worker-b",
+        now: now + 1_000,
+        lease_ms: 10_000,
+      },
+    );
+    expect(deniedClaim.claimed).toBe(false);
+
+    const reclaimed = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimRunningBatchForPoll,
+      {
+        batch_id,
+        owner: "worker-b",
+        now: now + 10_001,
+        lease_ms: 10_000,
+      },
+    );
+    expect(reclaimed.claimed).toBe(true);
+  });
+
+  test("claims queued batch submit lease and denies concurrent submitter", async () => {
+    const t = initTest();
+    const batch_id = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: MODEL,
+        custom_key: "window:test:l1_cleaned",
+      },
+    );
+
+    const now = Date.now();
+    const firstClaim = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimQueuedBatchForSubmit,
+      {
+        batch_id,
+        owner: "submitter-a",
+        now,
+        lease_ms: 10_000,
+      },
+    );
+    expect(firstClaim.claimed).toBe(true);
+
+    const deniedClaim = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimQueuedBatchForSubmit,
+      {
+        batch_id,
+        owner: "submitter-b",
+        now: now + 1_000,
+        lease_ms: 10_000,
+      },
+    );
+    expect(deniedClaim.claimed).toBe(false);
+
+    const reclaimed = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.claimQueuedBatchForSubmit,
+      {
+        batch_id,
+        owner: "submitter-b",
+        now: now + 10_001,
+        lease_ms: 10_000,
+      },
+    );
+    expect(reclaimed.claimed).toBe(true);
+  });
+
+  test("logs batch error retries as new request rows instead of reusing pending row", async () => {
+    const t = initTest();
+    __setMockBatchMode("error");
+    const step = {
+      runAction: t.action,
+      runMutation: t.mutation,
+      runQuery: t.query,
+    };
+
+    const window_id = await createWindowWithEvidence(t, 1);
+    const evidences = await listEvidence(t, window_id);
+    const evidence = evidences[0];
+    if (!evidence) throw new Error("Expected evidence");
+
+    const batch_id = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: MODEL,
+        custom_key: `window:${window_id}:l1_cleaned`,
+      },
+    );
+
+    const request_id = await t.mutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: MODEL,
+        system_prompt: "s",
+        user_prompt: "u",
+        custom_key: `evidence:${evidence._id}:l1_cleaned`,
+        attempts: 0,
+      },
+    );
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch, {
+      request_ids: [request_id],
+      batch_id,
+    });
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+      batch_id,
+      patch: {
+        status: "running",
+        batch_ref: "mock_error_batch_ref",
+        next_poll_at: Date.now() - 1,
+      },
+    });
+
+    await handleRunningBatchWorkflow(step, { batch_id });
+
+    const rows = await t.run(async (ctx) => {
+      return ctx.db
+        .query("llm_requests")
+        .withIndex("by_custom_key", (q) =>
+          q.eq("custom_key", `evidence:${evidence._id}:l1_cleaned`),
+        )
+        .collect();
+    });
+
+    expect(rows.length).toBe(2);
+    const statuses = rows.map((row) => row.status).sort();
+    expect(statuses).toEqual(["error", "pending"]);
+    const errored = rows.find((row) => row.status === "error");
+    const pending = rows.find((row) => row.status === "pending");
+    expect(errored?._id).not.toBe(pending?._id);
+  });
+
   test("processes all stages and reports table counts", async () => {
     const t = initTest();
     const step = {
@@ -280,16 +444,14 @@ describe("orchestrator full run (batch path)", () => {
     for (const stage of stages) {
       const batch = await getQueuedBatch(t);
       await handleQueuedBatchWorkflow(step, { batch_id: batch._id });
+      await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+        batch_id: batch._id,
+        patch: {
+          next_poll_at: Date.now() - 1,
+        },
+      });
 
       for (let i = 0; i < repeatApplies; i += 1) {
-        await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
-          batch_id: batch._id,
-          patch: {
-            status: "running",
-            batch_ref: batch.batch_ref ?? undefined,
-            next_poll_at: Date.now() - 1,
-          },
-        });
         await handleRunningBatchWorkflow(step, { batch_id: batch._id });
       }
 
@@ -338,5 +500,15 @@ describe("orchestrator full run (batch path)", () => {
     expect(counts.rubric_critics).toBe(10);
     expect(counts.scores).toBe(50);
     expect(counts.score_critics).toBe(50);
+
+    const traceEvents = await t.query(api.packages.lab.getTraceEvents, {
+      trace_id: `run:${run_id}`,
+      limit: 500,
+    });
+    const duplicateApplies = traceEvents.events.filter(
+      (event: { event_name: string }) =>
+        event.event_name === "request_apply_duplicate_success",
+    ).length;
+    expect(duplicateApplies).toBe(0);
   });
 });

@@ -79,7 +79,10 @@ export const runScheduler = zInternalMutation({
       queued_jobs.length === 0 &&
       running_jobs.length === 0 &&
       orphanedRequests.length === 0
-    ) return;
+    ) {
+      console.info("Scheduler done!");
+      return;
+    }
 
     for (const batch of queued_batches) {
       if (!shouldRunAt(batch.next_poll_at, now)) continue;
