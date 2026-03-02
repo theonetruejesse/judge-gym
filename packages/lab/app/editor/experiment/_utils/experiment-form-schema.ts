@@ -41,7 +41,7 @@ export const experimentFormSchema = z.object({
       "Invalid scoring model.",
     ),
   scale_size: z.coerce
-    .number({ required_error: "Scale size is required." })
+    .number()
     .int("Scale size must be a whole number.")
     .min(1, "Scale size must be at least 1."),
   method: z.enum(methodOptions),
