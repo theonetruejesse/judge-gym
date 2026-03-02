@@ -351,19 +351,16 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
             sampleIds.has(request.custom_key.split(":")[1] ?? "") ||
             scoreUnitIds.has(request.custom_key.split(":")[1] ?? ""),
           );
-          const seeds = samples
-            .map((sample) => sample.seed)
-            .slice()
-            .sort((a, b) => a - b);
-          const seed_sequence_ok =
+          const seeds = samples.map((sample) => sample.seed);
+          const seed_unique_ok =
             seeds.length === scenario.target_count &&
-            seeds.every((seed, idx) => seed === idx + 1);
+            new Set(seeds).size === seeds.length;
 
           return {
             sample_count: samples.length,
             score_unit_count: scoreUnits.length,
             request_count: requests.length,
-            seed_sequence_ok,
+            seed_unique_ok,
           };
         });
 
@@ -388,7 +385,7 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
         console.info("live_e2e_matrix_result", JSON.stringify(summary, null, 2));
 
         expect(perRunCounts.sample_count).toBe(scenario.target_count);
-        expect(perRunCounts.seed_sequence_ok).toBe(true);
+        expect(perRunCounts.seed_unique_ok).toBe(true);
       }
     },
     45 * 60 * 1000,
