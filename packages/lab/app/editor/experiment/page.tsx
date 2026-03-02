@@ -5,13 +5,16 @@ import {
 } from "./_utils/experiment-form-schema";
 
 interface ExperimentEditorPageProps {
-  searchParams: ExperimentFormSearchParams;
+  searchParams?: Promise<ExperimentFormSearchParams>;
 }
 
-export default function ExperimentEditorPage({
+export default async function ExperimentEditorPage({
   searchParams,
 }: ExperimentEditorPageProps) {
-  const defaultValues = getExperimentFormDefaultsFromSearchParams(searchParams);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const defaultValues = getExperimentFormDefaultsFromSearchParams(
+    resolvedSearchParams,
+  );
 
   return <ExperimentEditor defaultValues={defaultValues} />;
 }
