@@ -195,17 +195,86 @@ interface ApplyBatchResultsArgs {
 }
 export async function applyBatchResults(args: ApplyBatchResultsArgs) {
   const { ctx, requests, results, now } = args;
-  const requestByKey = new Map(
-    requests.map((req) => [req.custom_key, req] as const),
-  );
+  const resultRowsByKey = new Map<string, BatchResult[]>();
+  for (const row of results) {
+    const current = resultRowsByKey.get(row.custom_key) ?? [];
+    current.push(row);
+    resultRowsByKey.set(row.custom_key, current);
+  }
 
   let totalInput = 0;
   let totalOutput = 0;
+  let missingResultCount = 0;
 
-  for (const row of results) {
-    const req = requestByKey.get(row.custom_key);
-    if (!req) continue;
+  for (const req of requests) {
     if (req.status !== "pending") continue;
+    const matchingRows = resultRowsByKey.get(req.custom_key) ?? [];
+    const row = matchingRows.shift();
+
+    if (!row) {
+      missingResultCount += 1;
+      const attempts = (req.attempts ?? 0) + 1;
+      if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: req._id,
+            patch: {
+              status: "error",
+              attempts,
+              last_error: "missing_batch_result",
+            },
+          },
+        );
+
+        const nextAttempt = attempts + 1;
+        const retryRequestId = await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+          {
+            model: req.model,
+            system_prompt: req.system_prompt ?? undefined,
+            user_prompt: req.user_prompt,
+            custom_key: req.custom_key,
+            attempts: nextAttempt,
+          },
+        );
+
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: retryRequestId,
+            patch: {
+              next_attempt_at: getNextAttemptAt(now),
+            },
+          },
+        );
+
+        await ctx.runMutation(
+          internal.domain.orchestrator.scheduler.requeueRequest,
+          { request_id: retryRequestId },
+        );
+      } else {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: req._id,
+            patch: {
+              status: "error",
+              attempts,
+              last_error: "missing_batch_result",
+            },
+          },
+        );
+        const handler = resolveErrorHandler(req.custom_key);
+        if (handler) {
+          await ctx.runMutation(handler, {
+            request_id: req._id,
+            custom_key: req.custom_key,
+          });
+        }
+      }
+      continue;
+    }
 
     if (row.status === "completed" && row.output) {
       totalInput += row.output.input_tokens ?? 0;
@@ -287,7 +356,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
     }
   }
 
-  return { totalInput, totalOutput };
+  return { totalInput, totalOutput, missingResultCount };
 }
 
 interface ApplyBatchRateLimitUsageArgs {

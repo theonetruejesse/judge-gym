@@ -7,6 +7,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
+import { emitTraceEvent } from "../domain/telemetry/emit";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -37,6 +38,18 @@ export const createWindowForm = zMutation({
       internal.domain.window.window_repo.createWindow,
       evidence_window,
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "window",
+      entity_id: String(window_id),
+      event_name: "window_created",
+      status: "start",
+      stage: "l0_raw",
+      payload_json: JSON.stringify({
+        country: evidence_window.country,
+        query: evidence_window.query,
+      }),
+    });
 
     await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowFlow,
       { window_id, evidence_limit }
@@ -53,6 +66,15 @@ export const startWindowFlow = zInternalAction({
   }),
   handler: async (ctx, args) => {
     const { window_id, evidence_limit } = args;
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "window",
+      entity_id: String(window_id),
+      event_name: "window_flow_started",
+      payload_json: JSON.stringify({
+        evidence_limit,
+      }),
+    });
 
     await ctx.runAction(
       internal.domain.window.window_service.collectWindowEvidence,
@@ -71,6 +93,15 @@ export const startWindowFlow = zInternalAction({
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "scheduler",
+      entity_id: "scheduler",
+      event_name: "scheduler_kickoff_for_window",
+      payload_json: JSON.stringify({
+        window_id,
+      }),
+    });
   },
 });
 
@@ -204,6 +235,17 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       experiment_id,
       evidence_ids,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `experiment:${experiment_id}`,
+      entity_type: "run",
+      entity_id: String(experiment_id),
+      event_name: "experiment_initialized",
+      status: "start",
+      payload_json: JSON.stringify({
+        evidence_count: evidence_ids.length,
+        scoring_model: experiment_config.scoring_config.model,
+      }),
+    });
 
     return { experiment_id };
   },
@@ -223,6 +265,18 @@ export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
       internal.domain.runs.run_service.startRunFlow,
       args,
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${result.run_id}`,
+      entity_type: "run",
+      entity_id: String(result.run_id),
+      event_name: "run_started",
+      stage: "rubric_gen",
+      status: "queued",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+      }),
+    });
     await ctx.runMutation(
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
@@ -303,6 +357,167 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.experiments_data.getRunSummary,
       args,
     );
+  },
+});
+
+export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ window_id: zid("windows") }),
+  handler: async (ctx, { window_id }) => {
+    const window = await ctx.runQuery(
+      internal.domain.window.window_repo.getWindow,
+      { window_id },
+    );
+    const evidences = (await ctx.runQuery(
+      internal.domain.window.window_repo.listEvidenceByWindow,
+      { window_id },
+    )) as Array<Doc<"evidences">>;
+
+    let l1_completed = 0;
+    let l2_completed = 0;
+    let l3_completed = 0;
+    for (const evidence of evidences) {
+      if (evidence.l1_cleaned_content) l1_completed += 1;
+      if (evidence.l2_neutralized_content) l2_completed += 1;
+      if (evidence.l3_abstracted_content) l3_completed += 1;
+    }
+
+    return {
+      window_id: window._id,
+      status: window.status,
+      current_stage: window.current_stage,
+      evidence_total: evidences.length,
+      l1_completed,
+      l2_completed,
+      l3_completed,
+      trace_id: `window:${window._id}`,
+    };
+  },
+});
+
+export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ run_id: zid("runs") }),
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.runQuery(internal.domain.runs.run_repo.getRun, {
+      run_id,
+    });
+    const samples = await ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+    const scoreUnits = await ctx.db
+      .query("sample_evidence_scores")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+
+    const requestRows: Array<Doc<"llm_requests">> = [];
+    for (const sample of samples) {
+      const stageKeys = [
+        `sample:${sample._id}:rubric_gen`,
+        `sample:${sample._id}:rubric_critic`,
+        `sample:${sample._id}:score_gen`,
+        `sample:${sample._id}:score_critic`,
+      ];
+      for (const key of stageKeys) {
+        const rows = await ctx.db
+          .query("llm_requests")
+          .withIndex("by_custom_key", (q) => q.eq("custom_key", key))
+          .collect();
+        requestRows.push(...rows);
+      }
+    }
+    for (const unit of scoreUnits) {
+      const stageKeys = [
+        `sample_evidence:${unit._id}:score_gen`,
+        `sample_evidence:${unit._id}:score_critic`,
+      ];
+      for (const key of stageKeys) {
+        const rows = await ctx.db
+          .query("llm_requests")
+          .withIndex("by_custom_key", (q) => q.eq("custom_key", key))
+          .collect();
+        requestRows.push(...rows);
+      }
+    }
+
+    const stageRollup = {
+      rubric_gen: { pending: 0, success: 0, error: 0 },
+      rubric_critic: { pending: 0, success: 0, error: 0 },
+      score_gen: { pending: 0, success: 0, error: 0 },
+      score_critic: { pending: 0, success: 0, error: 0 },
+    };
+    const failed_requests = [] as Array<{
+      request_id: Id<"llm_requests">;
+      custom_key: string;
+      attempts: number | null;
+      last_error: string | null;
+      status: "pending" | "success" | "error";
+    }>;
+
+    for (const request of requestRows) {
+      const parts = request.custom_key.split(":");
+      const stage = parts[2];
+      if (
+        stage !== "rubric_gen" &&
+        stage !== "rubric_critic" &&
+        stage !== "score_gen" &&
+        stage !== "score_critic"
+      ) {
+        continue;
+      }
+      stageRollup[stage][request.status] += 1;
+      if (request.status === "error") {
+        failed_requests.push({
+          request_id: request._id,
+          custom_key: request.custom_key,
+          attempts: request.attempts ?? null,
+          last_error: request.last_error ?? null,
+          status: request.status,
+        });
+      }
+    }
+
+    const [rubrics, rubric_critics, scores, score_critics] = await Promise.all([
+      ctx.db.query("rubrics").collect(),
+      ctx.db.query("rubric_critics").collect(),
+      ctx.db.query("scores").collect(),
+      ctx.db.query("score_critics").collect(),
+    ]);
+    const sampleIds = new Set(samples.map((sample) => String(sample._id)));
+
+    const ownedByRun = <T extends { sample_id: Id<"samples"> }>(rows: T[]) =>
+      rows.filter((row) => sampleIds.has(String(row.sample_id))).length;
+
+    return {
+      run_id: run._id,
+      status: run.status,
+      current_stage: run.current_stage,
+      target_count: run.target_count,
+      request_counts: {
+        total: requestRows.length,
+        error: failed_requests.length,
+      },
+      stage_rollup: stageRollup,
+      failed_requests,
+      artifact_counts: {
+        samples: samples.length,
+        rubrics: ownedByRun(rubrics),
+        rubric_critics: ownedByRun(rubric_critics),
+        scores: ownedByRun(scores),
+        score_critics: ownedByRun(score_critics),
+      },
+      trace_id: `run:${run._id}`,
+    };
+  },
+});
+
+export const getTraceEvents: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    trace_id: z.string(),
+    cursor_seq: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(internal.domain.telemetry.events.listByTrace, args);
   },
 });
 

@@ -31,6 +31,17 @@ type BatchPollResult =
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+type ParsedBatchRow = {
+  custom_key: string;
+  status: "completed" | "error";
+  output?: {
+    assistant_output: string;
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+  error?: string;
+};
+
 function requireKey(): string {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -80,6 +91,86 @@ async function fetchText(url: string, init: RequestInit): Promise<string> {
     throw new Error(`OpenAI API error ${res.status}: ${text}`);
   }
   return text;
+}
+
+function extractAssistantOutput(choiceContent: unknown): string {
+  if (typeof choiceContent === "string") return choiceContent;
+  if (!Array.isArray(choiceContent)) return "";
+  return choiceContent
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (
+        part &&
+        typeof part === "object" &&
+        "text" in part &&
+        typeof (part as { text?: unknown }).text === "string"
+      ) {
+        return (part as { text: string }).text;
+      }
+      return "";
+    })
+    .join("");
+}
+
+function parseBatchRows(
+  content: string,
+  fallbackStatus: "completed" | "error",
+): ParsedBatchRow[] {
+  const parsed: ParsedBatchRow[] = [];
+  const rows = content
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
+
+  for (const row of rows) {
+    const customKey = typeof row.custom_id === "string" ? row.custom_id : "";
+    if (!customKey) continue;
+
+    if (row.error) {
+      parsed.push({
+        custom_key: customKey,
+        status: "error",
+        error: row.error?.message ?? "provider_error",
+      });
+      continue;
+    }
+
+    const response = row.response ?? row;
+    const body = response.body ?? {};
+    const statusCode =
+      typeof response.status_code === "number" ? response.status_code : null;
+    if (statusCode !== null && statusCode >= 400) {
+      parsed.push({
+        custom_key: customKey,
+        status: "error",
+        error: body?.error?.message ?? `provider_http_${statusCode}`,
+      });
+      continue;
+    }
+
+    const choice = body.choices?.[0]?.message;
+    const output = extractAssistantOutput(choice?.content);
+    if (fallbackStatus === "error" && output.length === 0) {
+      parsed.push({
+        custom_key: customKey,
+        status: "error",
+        error: body?.error?.message ?? "provider_error",
+      });
+      continue;
+    }
+
+    parsed.push({
+      custom_key: customKey,
+      status: "completed",
+      output: {
+        assistant_output: output,
+        input_tokens: body.usage?.prompt_tokens,
+        output_tokens: body.usage?.completion_tokens,
+      },
+    });
+  }
+
+  return parsed;
 }
 
 export async function submitOpenAiBatch(
@@ -141,47 +232,48 @@ export async function pollOpenAiBatch(
   }
 
   const outputFileId = batch.output_file_id as string | undefined;
-  if (!outputFileId) {
-    return { status: "error", error: "missing_output_file" };
+  const errorFileId = batch.error_file_id as string | undefined;
+  if (!outputFileId && !errorFileId) {
+    return { status: "error", error: "missing_output_and_error_file" };
   }
 
-  const content = await fetchText(
-    `${OPENAI_BASE_URL}/files/${outputFileId}/content`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
+  const mergedByKey = new Map<string, ParsedBatchRow>();
+
+  if (outputFileId) {
+    const outputContent = await fetchText(
+      `${OPENAI_BASE_URL}/files/${outputFileId}/content`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
       },
-    },
-  );
-
-  const results = content
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line));
-
-  const parsed = results.map((row: any) => {
-    if (row.error) {
-      return {
-        custom_key: row.custom_id,
-        status: "error" as const,
-        error: row.error?.message ?? "provider_error",
-      };
+    );
+    for (const row of parseBatchRows(outputContent, "completed")) {
+      mergedByKey.set(row.custom_key, row);
     }
-    const response = row.response ?? row;
-    const body = response.body ?? {};
-    const choice = body.choices?.[0]?.message;
-    const output = choice?.content ?? "";
-    return {
-      custom_key: row.custom_id,
-      status: "completed" as const,
-      output: {
-        assistant_output: output,
-        input_tokens: body.usage?.prompt_tokens,
-        output_tokens: body.usage?.completion_tokens,
-      },
-    };
-  });
+  }
 
-  return { status: "completed", results: parsed };
+  if (errorFileId) {
+    const errorContent = await fetchText(
+      `${OPENAI_BASE_URL}/files/${errorFileId}/content`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+    );
+    for (const row of parseBatchRows(errorContent, "error")) {
+      const existing = mergedByKey.get(row.custom_key);
+      if (!existing || row.status === "error") {
+        mergedByKey.set(row.custom_key, row);
+      }
+    }
+  }
+
+  return {
+    status: "completed",
+    results: Array.from(mergedByKey.values()),
+  };
 }

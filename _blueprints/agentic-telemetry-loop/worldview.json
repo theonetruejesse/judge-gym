@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "originalQuestion": "Look through the codebase and build a holistic telemetry proposal for agentic end-to-end experiment runs.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/agentic-telemetry-loop",
+    "finalPlanPath": "_blueprints/agentic-telemetry-loop/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex",
+    "researchers": [
+      "019cacc0-42f9-7e21-953d-18d9c2f26d9a",
+      "019cacc0-42ff-76a1-bed1-85ae09d5da1e",
+      "019cacc0-435a-7921-b27b-9ad2f49242c0",
+      "019cacc0-4333-7ea2-865b-1c1e3ece2e63"
+    ],
+    "falsifier": "019cacc3-162d-7101-a7cb-465ee3889d11",
+    "certaintyScorer": "019cacc6-5bc1-7a30-96c0-95603073c531",
+    "synthesizer": "codex"
+  },
+  "areasOfAnalysis": [
+    {
+      "id": "A_exec_graph",
+      "title": "Execution Graph and Ordering",
+      "scope": "Run/window orchestration ordering, scheduler behavior, and correlation keys."
+    },
+    {
+      "id": "A_schema_instrumentation",
+      "title": "Schema and Instrumentation Strategy",
+      "scope": "Minimal telemetry schema and wrapper/instrumentation points for Convex code."
+    },
+    {
+      "id": "A_agentic_loop",
+      "title": "Agentic End-to-End Loop",
+      "scope": "How agents execute production flows and diagnose failures using telemetry."
+    },
+    {
+      "id": "A_tooling_tradeoffs",
+      "title": "Tooling Tradeoffs",
+      "scope": "Convex logs-only vs internal event log vs deferred OpenTelemetry backend."
+    }
+  ],
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_exec_graph",
+      "agentId": "019cacc0-42f9-7e21-953d-18d9c2f26d9a",
+      "role": "researcher"
+    },
+    {
+      "areaOfAnalysisID": "A_schema_instrumentation",
+      "agentId": "019cacc0-42ff-76a1-bed1-85ae09d5da1e",
+      "role": "researcher"
+    },
+    {
+      "areaOfAnalysisID": "A_agentic_loop",
+      "agentId": "019cacc0-435a-7921-b27b-9ad2f49242c0",
+      "role": "researcher"
+    },
+    {
+      "areaOfAnalysisID": "A_tooling_tradeoffs",
+      "agentId": "019cacc0-4333-7ea2-865b-1c1e3ece2e63",
+      "role": "researcher"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_execution_stage_gating.md",
+      "knowledge/k_002_scheduler_and_routing.md",
+      "knowledge/k_003_observability_gap.md",
+      "knowledge/k_004_correlation_keys.md",
+      "knowledge/k_005_retry_lineage_gap.md",
+      "knowledge/k_006_idempotent_apply_paths.md",
+      "knowledge/k_007_existing_e2e_coverage.md",
+      "knowledge/k_008_analysis_loop_gap.md",
+      "knowledge/k_009_convex_logs_limits.md",
+      "knowledge/k_010_otel_tradeoff.md"
+    ]
+  },
+  "microHypotheses": [
+    "hypotheses/hyp_A_exec_graph_v1_event_log_value.json",
+    "hypotheses/hyp_A_tooling_v1_logs_only_limit.json",
+    "hypotheses/hyp_A_tooling_v1_defer_otel.json",
+    "hypotheses/hyp_A_agentic_v1_prod_api_loop.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesisA": "hypotheses/hyp_A_tooling_v1_logs_only_limit.json",
+      "hypothesisB": "hypotheses/hyp_A_agentic_v1_prod_api_loop.json",
+      "note": "Logs and current mutable status fields are partially usable; hypothesis strength depends on historical and causal requirements."
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": []
+  },
+  "synthesisOutput": "_blueprints/agentic-telemetry-loop/blueprint.md"
+}

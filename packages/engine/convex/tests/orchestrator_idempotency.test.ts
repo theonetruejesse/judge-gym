@@ -217,6 +217,7 @@ describe("orchestrator full run (batch path)", () => {
         "rubric_critics",
         "scores",
         "score_critics",
+        "sample_evidence_scores",
       ] as const;
       const entries = await Promise.all(
         tables.map(async (name) => {
@@ -321,6 +322,7 @@ describe("orchestrator full run (batch path)", () => {
         "rubric_critics",
         "scores",
         "score_critics",
+        "sample_evidence_scores",
       ] as const;
       const entries = await Promise.all(
         tables.map(async (name) => {
@@ -334,7 +336,7 @@ describe("orchestrator full run (batch path)", () => {
     console.info("duplicate_apply_table_counts", counts);
     expect(counts.rubrics).toBe(10);
     expect(counts.rubric_critics).toBe(10);
-    expect(counts.scores).toBe(10);
-    expect(counts.score_critics).toBe(10);
+    expect(counts.scores).toBe(50);
+    expect(counts.score_critics).toBe(50);
   });
 });

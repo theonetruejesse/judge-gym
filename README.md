@@ -18,7 +18,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
+- The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, with per-trace sequence ordering.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
+- A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
 - Experiment initialization now freezes evidence selections via `experiment_evidence`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
@@ -92,13 +94,16 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_requests` | Individual LLM calls | `status`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
+| `telemetry_events` | Ordered event log for traces | `trace_id`, `seq`, `entity_type`, `entity_id`, `event_name`, `stage`, `status`, `payload_json` |
+| `telemetry_trace_counters` | Per-trace sequence allocator | `trace_id`, `next_seq` |
 
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `experiments` | Experiment configs | `experiment_tag`, `rubric_config`, `scoring_config` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count` |
-| `samples` | Run samples | `run_id`, `rubric_id`, `score_id`, critic IDs |
+| `samples` | Run samples (rubric scope) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed` |
+| `sample_evidence_scores` | Run score units (sample × evidence) | `run_id`, `sample_id`, `evidence_id`, `score_id`, `score_critic_id` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
 **Indexes that drive orchestration**
@@ -125,10 +130,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 **Run flow (experiment)**
 1. `initExperiment` creates an experiment and freezes selected evidence in `experiment_evidence`.
-2. `startRunFlow` creates a run, seeds `samples`, and sets `current_stage` to `rubric_gen`.
+2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and selected evidence, and sets `current_stage` to `rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
-4. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
-5. `maybeAdvanceRunStage` advances stages when every sample is either completed or terminally failed.
+4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every selected evidence item.
+5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
+6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages).
 
 **Architecture overview**
 ```mermaid
@@ -174,7 +180,8 @@ Custom keys are how LLM results route back into domain handlers.
 
 **Request keys**
 - `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
-- `RunOrchestrator.makeRequestKey` formats request keys as `sample:<sample_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats rubric-stage request keys as `sample:<sample_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_evidence:<sample_evidence_score_id>:<stage>`.
 
 **Process keys**
 - `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
@@ -182,7 +189,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 **Routing**
 - `target_registry` maps custom key prefixes to handlers.
-- `evidence` routes are window-specific, and `sample` routes map run-stage results back to samples.
+- `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_evidence` targets.
 
 ---
 
@@ -289,7 +296,7 @@ stateDiagram-v2
 
 **Provider actions**
 - `submitOpenAiBatchAction` uploads a JSONL file and creates an OpenAI batch.
-- `pollOpenAiBatchAction` polls the batch status and parses JSONL results.
+- `pollOpenAiBatchAction` polls the batch status and parses both output and error JSONL files.
 - `openAiChatAction` uses the `ai` SDK to call OpenAI chat for job-mode requests.
 
 **Provider configuration**
@@ -305,6 +312,7 @@ stateDiagram-v2
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
 - Orphaned `llm_requests` are counted but not automatically requeued.
+- Batch completion now treats missing per-request result rows as request errors/retries, preventing silent `pending` stalls.
 
 ---
 

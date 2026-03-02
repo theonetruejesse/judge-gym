@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../utils/custom_fns";
-import { RunOrchestrator } from "./run_orchestrator";
+import { RunOrchestrator, type RunRequestTargetType } from "./run_orchestrator";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
@@ -21,6 +21,7 @@ import {
   type ExperimentConfig,
 } from "./run_strategies";
 import { generateLabelMapping } from "../../utils/randomize";
+import { emitTraceEvent } from "../telemetry/emit";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -38,6 +39,18 @@ export const startRunFlow = zInternalMutation({
 
     const orchestrator = new RunOrchestrator(ctx);
     await orchestrator.enqueueStage(run_id, "rubric_gen");
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${run_id}`,
+      entity_type: "run",
+      entity_id: String(run_id),
+      event_name: "run_stage_enqueued",
+      stage: "rubric_gen",
+      status: "queued",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+      }),
+    });
 
     return { run_id };
   },
@@ -53,12 +66,19 @@ export const applyRequestResult = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
-    const sampleId = targetId as Id<"samples">;
-    const sample = await ctx.db.get(sampleId);
-    if (!sample) throw new Error("Sample not found");
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
+    const target = await resolveRunTarget(ctx, targetType, targetId);
+    const sample = target.sample;
+    const sampleId = sample._id;
+    const scoreUnit = target.scoreUnit;
 
     try {
+      if (
+        (stage === "rubric_gen" || stage === "rubric_critic") &&
+        targetType !== "sample"
+      ) {
+        throw new Error(`Unexpected target type for stage ${stage}: ${targetType}`);
+      }
       if (stage === "rubric_gen" && sample.rubric_id) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
@@ -68,6 +88,15 @@ export const applyRequestResult = zInternalMutation({
           },
         );
         await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        });
         return;
       }
       if (stage === "rubric_critic" && sample.rubric_critic_id) {
@@ -79,9 +108,18 @@ export const applyRequestResult = zInternalMutation({
           },
         );
         await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        });
         return;
       }
-      if (stage === "score_gen" && sample.score_id) {
+      if (stage === "score_gen" && (scoreUnit?.score_id ?? sample.score_id)) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
@@ -90,9 +128,21 @@ export const applyRequestResult = zInternalMutation({
           },
         );
         await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        });
         return;
       }
-      if (stage === "score_critic" && sample.score_critic_id) {
+      if (
+        stage === "score_critic" &&
+        (scoreUnit?.score_critic_id ?? sample.score_critic_id)
+      ) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
@@ -101,6 +151,15 @@ export const applyRequestResult = zInternalMutation({
           },
         );
         await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        });
         return;
       }
 
@@ -173,11 +232,13 @@ export const applyRequestResult = zInternalMutation({
         const rubric = await ctx.db.get(sample.rubric_id);
         if (!rubric) throw new Error("Rubric not found");
 
-        const evidence = await resolveEvidenceForSample(
-          ctx,
-          sample,
-          experiment,
-        );
+        const evidence = scoreUnit
+          ? await ctx.db.get(scoreUnit.evidence_id)
+          : await resolveEvidenceForSample(
+              ctx,
+              sample,
+              experiment,
+            );
         if (!evidence) throw new Error("Evidence not found for sample");
 
         const config: ExperimentConfig = {
@@ -210,11 +271,16 @@ export const applyRequestResult = zInternalMutation({
           decoded_scores: decodedScores,
         });
 
-        await ctx.db.patch(sampleId, { score_id });
+        if (scoreUnit) {
+          await ctx.db.patch(scoreUnit._id, { score_id });
+        } else {
+          await ctx.db.patch(sampleId, { score_id });
+        }
       }
 
       if (stage === "score_critic") {
-        if (!sample.score_id) throw new Error("Score missing for sample");
+        const score_id = scoreUnit?.score_id ?? sample.score_id;
+        if (!score_id) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
         const score_critic_id = await ctx.db.insert("score_critics", {
           sample_id: sampleId,
@@ -224,11 +290,27 @@ export const applyRequestResult = zInternalMutation({
           expert_agreement_prob: parsed.expertAgreementProb,
         });
 
-        await ctx.db.patch(sampleId, { score_critic_id });
+        if (scoreUnit) {
+          await ctx.db.patch(scoreUnit._id, { score_critic_id });
+        } else {
+          await ctx.db.patch(sampleId, { score_critic_id });
+        }
       }
     } catch (error) {
       await markRequestParseFailure(ctx, args.request_id, error);
       await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${sample.run_id}`,
+        entity_type: "request",
+        entity_id: String(args.request_id),
+        event_name: "request_parse_error",
+        stage,
+        status: "error",
+        custom_key: args.custom_key,
+        payload_json: JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      });
       return;
     }
 
@@ -246,6 +328,15 @@ export const applyRequestResult = zInternalMutation({
     );
 
     await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_applied",
+      stage,
+      status: "success",
+      custom_key: args.custom_key,
+    });
   },
 });
 
@@ -256,9 +347,17 @@ export const handleRequestError = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
-    const sample = await ctx.db.get(targetId as Id<"samples">);
-    if (!sample) throw new Error("Sample not found");
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
+    const { sample } = await resolveRunTarget(ctx, targetType, targetId);
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_error",
+      stage,
+      status: "error",
+      custom_key: args.custom_key,
+    });
     await maybeAdvanceRunStage(ctx, sample.run_id, stage);
   },
 });
@@ -274,12 +373,8 @@ export const requeueRunRequest = zInternalMutation({
     );
 
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(request.custom_key);
-
-    const sample = await ctx.db.get(targetId as Id<"samples">);
-    if (!sample) {
-      throw new Error(`Sample not found for retry: ${targetId}`);
-    }
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(request.custom_key);
+    const { sample } = await resolveRunTarget(ctx, targetType, targetId);
 
     const provider = getProviderForModel(request.model);
     const jobId = (await ctx.runMutation(
@@ -301,8 +396,53 @@ export const requeueRunRequest = zInternalMutation({
         },
       },
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(request._id),
+      event_name: "request_requeued_to_job",
+      stage,
+      status: "queued",
+      custom_key: request.custom_key,
+      payload_json: JSON.stringify({
+        job_id: jobId,
+      }),
+    });
   },
 });
+
+async function resolveRunTarget(
+  ctx: MutationCtx,
+  targetType: RunRequestTargetType,
+  targetId: string,
+): Promise<{
+  sample: Doc<"samples">;
+  scoreUnit: Doc<"sample_evidence_scores"> | null;
+}> {
+  if (targetType === "sample") {
+    const sample = await ctx.db.get(targetId as Id<"samples">);
+    if (!sample) {
+      throw new Error(`Sample not found for request target: ${targetId}`);
+    }
+    return { sample, scoreUnit: null };
+  }
+
+  const scoreUnit = await ctx.db.get(
+    targetId as Id<"sample_evidence_scores">,
+  );
+  if (!scoreUnit) {
+    throw new Error(`Sample-evidence score unit not found: ${targetId}`);
+  }
+
+  const sample = await ctx.db.get(scoreUnit.sample_id);
+  if (!sample) {
+    throw new Error(
+      `Sample not found for score unit ${targetId}: ${scoreUnit.sample_id}`,
+    );
+  }
+
+  return { sample, scoreUnit };
+}
 
 async function maybeAdvanceRunStage(
   ctx: MutationCtx,
@@ -329,6 +469,18 @@ async function maybeAdvanceRunStage(
       status: "error",
       current_stage: stage,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${runId}`,
+      entity_type: "run",
+      entity_id: String(runId),
+      event_name: "run_terminal_error",
+      stage,
+      status: "error",
+      payload_json: JSON.stringify({
+        completed: progress.completed,
+        failed: progress.failed,
+      }),
+    });
     return;
   }
 
@@ -338,11 +490,36 @@ async function maybeAdvanceRunStage(
       status: "completed",
       current_stage: stage,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${runId}`,
+      entity_type: "run",
+      entity_id: String(runId),
+      event_name: "run_completed",
+      stage,
+      status: "completed",
+      payload_json: JSON.stringify({
+        completed: progress.completed,
+        failed: progress.failed,
+      }),
+    });
     return;
   }
 
   if (run.current_stage !== stage) return;
   await ctx.db.patch(runId, { current_stage: nextStage });
+  await emitTraceEvent(ctx, {
+    trace_id: `run:${runId}`,
+    entity_type: "run",
+    entity_id: String(runId),
+    event_name: "run_stage_advanced",
+    stage: nextStage,
+    status: "running",
+    payload_json: JSON.stringify({
+      from_stage: stage,
+      completed: progress.completed,
+      failed: progress.failed,
+    }),
+  });
   await orchestrator.enqueueStage(runId, nextStage);
 }
 
