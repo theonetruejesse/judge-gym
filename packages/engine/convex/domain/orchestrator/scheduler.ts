@@ -35,6 +35,15 @@ function isSchedulerRun(name: string): boolean {
   );
 }
 
+function hasActiveBatchPollLease(
+  batch: ActiveBatchesResult["running_batches"][number],
+  now: number,
+): boolean {
+  return batch.poll_claim_owner != null
+    && batch.poll_claim_expires_at != null
+    && batch.poll_claim_expires_at > now;
+}
+
 export const startScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
@@ -96,6 +105,7 @@ export const runScheduler = zInternalMutation({
 
     for (const batch of running_batches) {
       if (!shouldRunAt(batch.next_poll_at, now)) continue;
+      if (hasActiveBatchPollLease(batch, now)) continue;
       await processWorkflow.start(
         ctx,
         internal.domain.orchestrator.process_workflows.processRunningBatchWorkflow,

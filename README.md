@@ -20,7 +20,12 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, with per-trace sequence ordering.
 - Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
+- Scheduler/workflow batch polling now skips running batches that already have an active poll lease, reducing duplicate workflow starts and `batch_poll_claim_denied` churn during finalization.
+- Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
 - Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
+- Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
+- Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
+- Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`) without nuking windows/evidence/experiments.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace ordering, lifecycle events, and counter consistency for recent runs.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
@@ -30,6 +35,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Lab window form fields are composed from reusable input, calendar, and select components.
 - Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
 - Lab experiment editor uses TanStack Form with server-parsed defaults and debounced URL param sync.
+- Lab App Router editor pages resolve promise-based `searchParams` before deriving form defaults (Next 15 compatible typing).
 - Lab experiment detail now fetches by route id directly (no list-first experiment fetch).
 - `listEvidenceWindows` now aggregates evidence in one query pass instead of per-window lookups.
 

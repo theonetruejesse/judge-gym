@@ -20,6 +20,10 @@ type SampleDoc = Doc<"samples">;
 type SampleEvidenceScoreDoc = Doc<"sample_evidence_scores">;
 
 type RequestState = "pending" | "none" | "retryable" | "exhausted";
+type RequestStateIndex = {
+  pendingKeys: Set<string>;
+  maxAttemptsByKey: Map<string, number>;
+};
 
 const SCORE_STAGES: RunStage[] = ["score_gen", "score_critic"];
 
@@ -49,30 +53,58 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     return STAGE_ORDER[idx + 1] ?? null;
   }
 
-  private async classifyRequestState(customKey: string): Promise<RequestState> {
-    const pendingRequests = await this.ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key_status", (q) =>
-        q.eq("custom_key", customKey).eq("status", "pending"),
-      )
-      .collect();
-    if (pendingRequests.length > 0) return "pending";
-
-    const requests = await this.ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
-      .collect();
-    if (requests.length === 0) return "none";
-
-    const maxAttempts = requests.reduce(
-      (max, req) => Math.max(max, req.attempts ?? 0),
-      0,
-    );
+  private classifyRequestState(index: RequestStateIndex, customKey: string): RequestState {
+    if (index.pendingKeys.has(customKey)) return "pending";
+    const maxAttempts = index.maxAttemptsByKey.get(customKey);
+    if (maxAttempts == null) return "none";
     if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
       return "exhausted";
     }
-
     return "retryable";
+  }
+
+  private async buildRequestStateIndex(
+    customKeys: Set<string>,
+    stage: RunStage,
+  ): Promise<RequestStateIndex> {
+    if (customKeys.size === 0) {
+      return {
+        pendingKeys: new Set(),
+        maxAttemptsByKey: new Map(),
+      };
+    }
+
+    const stageSuffix = `:${stage}`;
+    const pendingRows = await this.ctx.db
+      .query("llm_requests")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+    const errorRows = await this.ctx.db
+      .query("llm_requests")
+      .withIndex("by_status", (q) => q.eq("status", "error"))
+      .collect();
+
+    const pendingKeys = new Set<string>();
+    const maxAttemptsByKey = new Map<string, number>();
+
+    for (const row of pendingRows) {
+      if (!row.custom_key.endsWith(stageSuffix)) continue;
+      if (!customKeys.has(row.custom_key)) continue;
+      pendingKeys.add(row.custom_key);
+      const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
+      const attempts = row.attempts ?? 0;
+      if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
+    }
+
+    for (const row of errorRows) {
+      if (!row.custom_key.endsWith(stageSuffix)) continue;
+      if (!customKeys.has(row.custom_key)) continue;
+      const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
+      const attempts = row.attempts ?? 0;
+      if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
+    }
+
+    return { pendingKeys, maxAttemptsByKey };
   }
 
   public async getStageProgress(
@@ -94,6 +126,16 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     let failed = 0;
     let hasPending = false;
 
+    const candidateKeys = new Set<string>();
+    for (const unit of scoreUnits) {
+      const sample = sampleById.get(String(unit.sample_id));
+      if (!sample) continue;
+      const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
+      if (outputId || this.isScoreUnitStageBlocked(unit, sample, stage)) continue;
+      candidateKeys.add(this.makeRequestKey(unit._id, stage));
+    }
+    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+
     for (const unit of scoreUnits) {
       const sample = sampleById.get(String(unit.sample_id));
       if (!sample) {
@@ -101,26 +143,22 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
         continue;
       }
 
-      const outputId =
-        stage === "score_gen" ? unit.score_id : unit.score_critic_id;
+      const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
       if (outputId) {
         completed += 1;
         continue;
       }
-
       if (this.isScoreUnitStageBlocked(unit, sample, stage)) {
         failed += 1;
         continue;
       }
 
       const customKey = this.makeRequestKey(unit._id, stage);
-      const state = await this.classifyRequestState(customKey);
-
+      const state = this.classifyRequestState(requestStateIndex, customKey);
       if (state === "pending" || state === "none" || state === "retryable") {
         hasPending = true;
         continue;
       }
-
       failed += 1;
     }
 
@@ -264,6 +302,14 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     let failed = 0;
     let hasPending = false;
 
+    const candidateKeys = new Set<string>();
+    for (const sample of samples) {
+      if (this.getSampleOutputId(sample, stage)) continue;
+      if (this.isSampleStageBlocked(sample, stage)) continue;
+      candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
+    }
+    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+
     for (const sample of samples) {
       const outputId = this.getSampleOutputId(sample, stage);
       if (outputId) {
@@ -277,7 +323,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       }
 
       const customKey = this.makeRequestKeyForTarget("sample", sample._id, stage);
-      const state = await this.classifyRequestState(customKey);
+      const state = this.classifyRequestState(requestStateIndex, customKey);
 
       if (state === "pending" || state === "none" || state === "retryable") {
         hasPending = true;
@@ -326,12 +372,20 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       .withIndex("by_run", (q) => q.eq("run_id", runId))
       .collect();
 
+    const candidateKeys = new Set<string>();
+    for (const sample of samples) {
+      if (this.getSampleOutputId(sample, stage)) continue;
+      if (this.isSampleStageBlocked(sample, stage)) continue;
+      candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
+    }
+    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+
     for (const sample of samples) {
       if (this.getSampleOutputId(sample, stage)) continue;
       if (this.isSampleStageBlocked(sample, stage)) continue;
 
       const customKey = this.makeRequestKeyForTarget("sample", sample._id, stage);
-      const state = await this.classifyRequestState(customKey);
+      const state = this.classifyRequestState(requestStateIndex, customKey);
       if (state === "pending" || state === "exhausted") continue;
 
       const inputPayload = await this.buildRubricPayload(stage, sample, config);
@@ -361,12 +415,20 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     if (!run) throw new Error("Run not found");
     const evidenceList = await this.listEvidenceForExperiment(run.experiment_id);
 
+    const candidateKeys = new Set<string>();
+    for (const sample of samples) {
+      if (this.getSampleOutputId(sample, stage)) continue;
+      if (this.isSampleStageBlocked(sample, stage)) continue;
+      candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
+    }
+    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+
     for (const sample of samples) {
       if (this.getSampleOutputId(sample, stage)) continue;
       if (this.isSampleStageBlocked(sample, stage)) continue;
 
       const customKey = this.makeRequestKeyForTarget("sample", sample._id, stage);
-      const state = await this.classifyRequestState(customKey);
+      const state = this.classifyRequestState(requestStateIndex, customKey);
       if (state === "pending" || state === "exhausted") continue;
 
       const inputPayload = await this.buildLegacyScorePayload(
@@ -394,25 +456,37 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   ) {
     const pending: Array<{ targetId: string; input: string }> = [];
     const sampleById = await this.mapSamplesByRun(runId);
+    const candidateKeys = new Set<string>();
+    const unitSamplePairs: Array<{ unit: SampleEvidenceScoreDoc; sample: SampleDoc }> = [];
 
     for (const unit of scoreUnits) {
       const sample = sampleById.get(String(unit.sample_id));
       if (!sample) continue;
-
-      const outputId =
-        stage === "score_gen" ? unit.score_id : unit.score_critic_id;
+      const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
       if (outputId) continue;
       if (this.isScoreUnitStageBlocked(unit, sample, stage)) continue;
+      unitSamplePairs.push({ unit, sample });
+      candidateKeys.add(this.makeRequestKey(unit._id, stage));
+    }
 
+    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+    const rubricBySampleId = await this.mapRubricsBySampleId(unitSamplePairs);
+    const evidenceById = await this.mapEvidenceByUnitId(unitSamplePairs);
+    const scoreByUnitId =
+      stage === "score_critic" ? await this.mapScoresByUnitId(unitSamplePairs) : new Map();
+
+    for (const { unit, sample } of unitSamplePairs) {
       const customKey = this.makeRequestKey(unit._id, stage);
-      const state = await this.classifyRequestState(customKey);
+      const state = this.classifyRequestState(requestStateIndex, customKey);
       if (state === "pending" || state === "exhausted") continue;
 
-      const inputPayload = await this.buildScorePayloadForUnit(
+      const inputPayload = this.buildScorePayloadForUnit(
         stage,
-        unit,
         sample,
         config,
+        rubricBySampleId.get(String(sample._id)),
+        evidenceById.get(String(unit._id)),
+        scoreByUnitId.get(String(unit._id)),
       );
       if (!inputPayload) continue;
 
@@ -507,18 +581,17 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     return null;
   }
 
-  private async buildScorePayloadForUnit(
+  private buildScorePayloadForUnit(
     stage: RunStage,
-    unit: SampleEvidenceScoreDoc,
     sample: SampleDoc,
     config: ExperimentConfig,
-  ): Promise<unknown | null> {
-    if (!sample.rubric_id) return null;
-    const rubric = await this.ctx.db.get(sample.rubric_id);
-    if (!rubric) return null;
+    rubric: Doc<"rubrics"> | null | undefined,
+    evidence: Doc<"evidences"> | null | undefined,
+    score: Doc<"scores"> | null | undefined,
+  ): unknown | null {
+    if (!sample.rubric_id || !rubric) return null;
 
     if (stage === "score_gen") {
-      const evidence = await this.ctx.db.get(unit.evidence_id);
       if (!evidence) return null;
       return {
         config,
@@ -539,10 +612,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     }
 
     if (stage === "score_critic") {
-      if (!unit.score_id) return null;
-      const score = await this.ctx.db.get(unit.score_id);
       if (!score) return null;
-      const evidence = await this.ctx.db.get(unit.evidence_id);
       if (!evidence) return null;
       const evidenceStrategy = resolveEvidenceStrategy(config);
       const evidenceText =
@@ -560,6 +630,86 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     }
 
     return null;
+  }
+
+  private async mapRubricsBySampleId(
+    pairs: Array<{ unit: SampleEvidenceScoreDoc; sample: SampleDoc }>,
+  ): Promise<Map<string, Doc<"rubrics"> | null>> {
+    const rubricIds = new Set<string>();
+    for (const { sample } of pairs) {
+      if (sample.rubric_id) rubricIds.add(String(sample.rubric_id));
+    }
+
+    const rubricById = new Map<string, Doc<"rubrics"> | null>();
+    for (const rubricId of rubricIds) {
+      const rubric = await this.ctx.db.get(rubricId as Id<"rubrics">);
+      rubricById.set(rubricId, rubric ?? null);
+    }
+
+    const rubricBySampleId = new Map<string, Doc<"rubrics"> | null>();
+    for (const { sample } of pairs) {
+      if (!sample.rubric_id) {
+        rubricBySampleId.set(String(sample._id), null);
+        continue;
+      }
+      rubricBySampleId.set(
+        String(sample._id),
+        rubricById.get(String(sample.rubric_id)) ?? null,
+      );
+    }
+    return rubricBySampleId;
+  }
+
+  private async mapEvidenceByUnitId(
+    pairs: Array<{ unit: SampleEvidenceScoreDoc; sample: SampleDoc }>,
+  ): Promise<Map<string, Doc<"evidences"> | null>> {
+    const evidenceIds = new Set<string>();
+    for (const { unit } of pairs) {
+      evidenceIds.add(String(unit.evidence_id));
+    }
+
+    const evidenceById = new Map<string, Doc<"evidences"> | null>();
+    for (const evidenceId of evidenceIds) {
+      const evidence = await this.ctx.db.get(evidenceId as Id<"evidences">);
+      evidenceById.set(evidenceId, evidence ?? null);
+    }
+
+    const evidenceByUnitId = new Map<string, Doc<"evidences"> | null>();
+    for (const { unit } of pairs) {
+      evidenceByUnitId.set(
+        String(unit._id),
+        evidenceById.get(String(unit.evidence_id)) ?? null,
+      );
+    }
+    return evidenceByUnitId;
+  }
+
+  private async mapScoresByUnitId(
+    pairs: Array<{ unit: SampleEvidenceScoreDoc; sample: SampleDoc }>,
+  ): Promise<Map<string, Doc<"scores"> | null>> {
+    const scoreIds = new Set<string>();
+    for (const { unit } of pairs) {
+      if (unit.score_id) scoreIds.add(String(unit.score_id));
+    }
+
+    const scoreById = new Map<string, Doc<"scores"> | null>();
+    for (const scoreId of scoreIds) {
+      const score = await this.ctx.db.get(scoreId as Id<"scores">);
+      scoreById.set(scoreId, score ?? null);
+    }
+
+    const scoreByUnitId = new Map<string, Doc<"scores"> | null>();
+    for (const { unit } of pairs) {
+      if (!unit.score_id) {
+        scoreByUnitId.set(String(unit._id), null);
+        continue;
+      }
+      scoreByUnitId.set(
+        String(unit._id),
+        scoreById.get(String(unit.score_id)) ?? null,
+      );
+    }
+    return scoreByUnitId;
   }
 
   private async listEvidenceForExperiment(

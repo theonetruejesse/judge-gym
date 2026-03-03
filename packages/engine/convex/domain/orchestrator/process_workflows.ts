@@ -295,6 +295,10 @@ export async function handleRunningBatchWorkflow(
   if (batch.status !== "running" && batch.status !== "finalizing") return;
   if (!shouldRunAt(batch.next_poll_at, now)) return;
   if (!batch.batch_ref) return;
+  const hasActiveLease = batch.poll_claim_owner != null
+    && batch.poll_claim_expires_at != null
+    && batch.poll_claim_expires_at > now;
+  if (hasActiveLease) return;
   const owner = `${batch._id}:${now}:${Math.random().toString(36).slice(2)}`;
   const claim = await step.runMutation(
     internal.domain.llm_calls.llm_batch_repo.claimRunningBatchForPoll,
