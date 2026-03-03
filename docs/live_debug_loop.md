@@ -1,0 +1,74 @@
+# Live Debug Loop
+
+This runbook standardizes live debugging for run and window orchestration in Convex.
+
+## Interfaces
+
+- Convex package APIs in `packages/engine/convex/packages/codex.ts`
+  - `packages/codex:getProcessHealth`
+  - `packages/codex:getStuckWork`
+  - `packages/codex:tailTrace`
+  - `packages/codex:runDebugActions`
+  - `packages/codex:autoHealProcess`
+- Bun wrapper in `packages/engine/scripts/live_debug.ts`
+  - `bun run debug:watch`
+  - `bun run debug:stuck`
+  - `bun run debug:heal`
+  - `bun run debug:tail`
+
+## Typical Flow
+
+1. Watch process health
+- Run: `bun run debug:watch --run <run_id>`
+- Window: `bun run debug:watch --window <window_id>`
+
+2. Check stuck backlog
+- `bun run debug:stuck --older-ms 120000`
+
+3. Dry-run remediation
+- Run: `bun run debug:heal --run <run_id>`
+- Window: `bun run debug:heal --window <window_id>`
+
+4. Apply remediation
+- Run: `bun run debug:heal --run <run_id> --apply`
+- Window: `bun run debug:heal --window <window_id> --apply`
+
+5. Verify progress
+- Continue watch loop and confirm stage pending count decreases.
+- Tail trace if needed: `bun run debug:tail --trace run:<run_id>`
+
+## Safe Actions
+
+- `start_scheduler_if_idle`
+- `requeue_orphan_request`
+- `requeue_retryable_request`
+- `release_expired_batch_claim`
+- `nudge_batch_poll_now`
+
+## Failure Playbook
+
+### Stuck finalizing batch
+- Symptom: `finalizing_no_progress`
+- Action: dry-run `debug:heal`, then apply.
+- Expected: expired claim released and poll nudged.
+
+### Pending orphan request
+- Symptom: `pending_request_no_owner`
+- Action: dry-run/apply `debug:heal`.
+- Expected: request requeued through target registry handler.
+
+### Scheduler dead while work exists
+- Symptom: `scheduler_not_running`
+- Action: dry-run/apply `debug:heal`.
+- Expected: scheduler is re-started once.
+
+### Retryable parse/provider error not requeued
+- Symptom: error request with attempts below cap and no replacement pending.
+- Action: dry-run/apply `debug:heal`.
+- Expected: retry request scheduled.
+
+## Notes
+
+- Start with dry-run in production-like runs.
+- If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
+- Current caveat: `packages/codex:getProcessHealth` may hit Convex read limits on large runs. For those runs, prefer `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` + `packages/codex:getStuckWork`.

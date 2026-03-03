@@ -20,6 +20,7 @@ const tableNames = [
     "sample_evidence_scores",
     "telemetry_events",
     "telemetry_trace_counters",
+    "telemetry_entity_state",
 ] as const satisfies ReadonlyArray<keyof DataModel>;
 
 type TableName = (typeof tableNames)[number];
@@ -84,6 +85,7 @@ export const deleteRunData = zInternalMutation({
             llm_requests: z.number(),
             telemetry_events: z.number(),
             telemetry_trace_counters: z.number(),
+            telemetry_entity_state: z.number(),
         }),
     }),
     handler: async (ctx, args) => {
@@ -109,6 +111,7 @@ export const deleteRunData = zInternalMutation({
                     llm_requests: 0,
                     telemetry_events: 0,
                     telemetry_trace_counters: 0,
+                    telemetry_entity_state: 0,
                 },
             };
         }
@@ -188,10 +191,15 @@ export const deleteRunData = zInternalMutation({
             .query("telemetry_trace_counters")
             .withIndex("by_trace_id", (q) => q.eq("trace_id", traceId))
             .collect();
+        const runTelemetryEntityState = await ctx.db
+            .query("telemetry_entity_state")
+            .withIndex("by_trace_entity", (q) => q.eq("trace_id", traceId))
+            .collect();
 
         if (!isDryRun) {
             for (const doc of runTelemetryEvents) await ctx.db.delete(doc._id);
             for (const doc of runTelemetryCounters) await ctx.db.delete(doc._id);
+            for (const doc of runTelemetryEntityState) await ctx.db.delete(doc._id);
             for (const doc of runRequests) await ctx.db.delete(doc._id);
             for (const doc of runBatches) await ctx.db.delete(doc._id);
             for (const doc of runJobs) await ctx.db.delete(doc._id);
@@ -221,6 +229,7 @@ export const deleteRunData = zInternalMutation({
                 llm_requests: runRequests.length,
                 telemetry_events: runTelemetryEvents.length,
                 telemetry_trace_counters: runTelemetryCounters.length,
+                telemetry_entity_state: runTelemetryEntityState.length,
             },
         };
     },
@@ -310,6 +319,43 @@ export const deleteTelemetryAfterEvent = zInternalMutation({
         if (!args.isDryRun) {
             for (const row of eventsToDelete) {
                 await ctx.db.delete(row._id);
+            }
+            for (const [trace_id] of eventsByTrace.entries()) {
+                const entityStateRows = await ctx.db
+                    .query("telemetry_entity_state")
+                    .withIndex("by_trace_entity", (q) => q.eq("trace_id", trace_id))
+                    .collect();
+                for (const row of entityStateRows) {
+                    await ctx.db.delete(row._id);
+                }
+
+                const remainingTraceEvents = allEvents.filter(
+                    (row) => row.trace_id === trace_id && row._creationTime <= anchor._creationTime,
+                );
+                const latestByEntity = new Map<string, Doc<"telemetry_events">>();
+                for (const event of remainingTraceEvents) {
+                    const key = `${event.entity_type}:${event.entity_id}`;
+                    const current = latestByEntity.get(key);
+                    if (!current || event.seq > current.seq) {
+                        latestByEntity.set(key, event);
+                    }
+                }
+
+                for (const event of latestByEntity.values()) {
+                    await ctx.db.insert("telemetry_entity_state", {
+                        entity_type: event.entity_type,
+                        entity_id: event.entity_id,
+                        trace_id: event.trace_id,
+                        last_seq: event.seq,
+                        last_event_name: event.event_name,
+                        last_stage: event.stage ?? null,
+                        last_status: event.status ?? null,
+                        last_custom_key: event.custom_key ?? null,
+                        last_attempt: event.attempt ?? null,
+                        last_ts_ms: event.ts_ms,
+                        last_payload_json: event.payload_json ?? null,
+                    });
+                }
             }
         }
 

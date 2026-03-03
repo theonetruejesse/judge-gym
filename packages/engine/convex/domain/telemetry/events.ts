@@ -55,6 +55,33 @@ export const emitEvent = zInternalMutation({
       payload_json: args.payload_json ?? null,
     });
 
+    const existingEntityState = await ctx.db
+      .query("telemetry_entity_state")
+      .withIndex("by_entity", (q) =>
+        q.eq("entity_type", args.entity_type).eq("entity_id", args.entity_id),
+      )
+      .first();
+    const statePatch = {
+      trace_id: args.trace_id,
+      last_seq: seq,
+      last_event_name: args.event_name,
+      last_stage: args.stage ?? null,
+      last_status: args.status ?? null,
+      last_custom_key: args.custom_key ?? null,
+      last_attempt: args.attempt ?? null,
+      last_ts_ms: ts_ms,
+      last_payload_json: args.payload_json ?? null,
+    };
+    if (existingEntityState) {
+      await ctx.db.patch(existingEntityState._id, statePatch);
+    } else {
+      await ctx.db.insert("telemetry_entity_state", {
+        entity_type: args.entity_type,
+        entity_id: args.entity_id,
+        ...statePatch,
+      });
+    }
+
     return { seq };
   },
 });
@@ -106,5 +133,35 @@ export const listByTrace = zInternalQuery({
       events: sliced,
       next_cursor_seq,
     };
+  },
+});
+
+export const getEntityState = zInternalQuery({
+  args: z.object({
+    entity_type: TelemetryEntityTypeSchema,
+    entity_id: z.string(),
+  }),
+  returns: z
+    .object({
+      entity_type: TelemetryEntityTypeSchema,
+      entity_id: z.string(),
+      trace_id: z.string(),
+      last_seq: z.number(),
+      last_event_name: z.string(),
+      last_stage: z.string().nullable().optional(),
+      last_status: z.string().nullable().optional(),
+      last_custom_key: z.string().nullable().optional(),
+      last_attempt: z.number().nullable().optional(),
+      last_ts_ms: z.number(),
+      last_payload_json: z.string().nullable().optional(),
+    })
+    .nullable(),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("telemetry_entity_state")
+      .withIndex("by_entity", (q) =>
+        q.eq("entity_type", args.entity_type).eq("entity_id", args.entity_id),
+      )
+      .first();
   },
 });

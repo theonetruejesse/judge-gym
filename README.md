@@ -27,6 +27,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`) without nuking windows/evidence/experiments.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace ordering, lifecycle events, and counter consistency for recent runs.
+- The engine now includes a codex live-debug surface (`packages/engine/convex/packages/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
+- The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
 - Experiment initialization now freezes evidence selections via `experiment_evidence`.
@@ -105,6 +107,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 | `telemetry_events` | Ordered event log for traces | `trace_id`, `seq`, `entity_type`, `entity_id`, `event_name`, `stage`, `status`, `payload_json` |
 | `telemetry_trace_counters` | Per-trace sequence allocator | `trace_id`, `next_seq` |
+| `telemetry_entity_state` | Latest event snapshot per entity | `entity_type`, `entity_id`, `trace_id`, `last_*` |
 
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
