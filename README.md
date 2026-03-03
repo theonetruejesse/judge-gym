@@ -190,12 +190,11 @@ flowchart TD
 
 1. If the model is not batchable → **job**.
 2. If request count `< min_batch_size` → **job**.
-3. If request count `<= job_fallback_count` → **job**.
-4. Otherwise → **batch**.
+3. Otherwise → **batch**.
 
 **Policy sources**
 
-- `ENGINE_SETTINGS.run_policy` defines `min_batch_size`, `job_fallback_count`, and other limits.
+- `ENGINE_SETTINGS.run_policy` defines `min_batch_size` and other limits.
 
 ---
 
@@ -221,18 +220,13 @@ Custom keys are how LLM results route back into domain handlers.
 
 ---
 
-## Scheduler and Workflow Mechanics
+## Scheduler Mechanics
 
 **Scheduler**
 
 - `startScheduler` is idempotent; it only schedules a single `runScheduler` if one is not already pending.
-- `runScheduler` loads queued/running batches and jobs, starts workflows when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
+- `runScheduler` loads queued/running batches and jobs, schedules bounded internal handlers when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
 - If there are no queued/running batches or jobs (and no orphaned requests), `runScheduler` exits without rescheduling.
-
-**Workflow manager**
-
-- `process_workflows` defines `processQueuedBatchWorkflow`, `processRunningBatchWorkflow`, `processQueuedJobWorkflow`, and `processRunningJobWorkflow`.
-- Workflow retries use the default retry policy defined in `WorkflowManager`.
 
 **Important detail**
 
@@ -274,11 +268,10 @@ Custom keys are how LLM results route back into domain handlers.
 
 | Policy field           | Default | Meaning                                                    | Enforced in                            |
 | ---------------------- | ------- | ---------------------------------------------------------- | -------------------------------------- |
-| `poll_interval_ms`     | `5000`  | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
-| `max_batch_size`       | `500`   | Maximum batch size (defined, not enforced in current code) | `settings.ts` only                     |
+| `poll_interval_ms`     | `10000` | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
+| `max_batch_size`       | `100`   | Maximum requests per provider batch chunk                  | `BaseOrchestrator.createBatch`         |
 | `min_batch_size`       | `10`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
-| `job_fallback_count`   | `5`     | Job fallback threshold                                     | `BaseOrchestrator.decideRoute`         |
-| `max_tokens`           | `5000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
+| `max_tokens`           | `8000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
 | `max_batch_retries`    | `2`     | Batch re-poll/retry cap                                    | `llm_batch_service`                    |
 | `max_request_attempts` | `2`     | Request retry cap                                          | `llm_batch_service`, `llm_job_service` |
 | `retry_backoff_ms`     | `60000` | Backoff before retry                                       | `utils/scheduling.ts`                  |

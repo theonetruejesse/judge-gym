@@ -75,7 +75,6 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
   protected decideRoute(model: ModelType, count: number): "batch" | "job" {
     if (!isBatchableModel(model)) return "job";
     if (count < this.policy.min_batch_size) return "job";
-    if (count <= this.policy.job_fallback_count) return "job";
     return "batch";
   }
 
