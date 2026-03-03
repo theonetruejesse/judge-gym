@@ -1,0 +1,32 @@
+{
+  "challengeID": "nc_A4_challenge",
+  "microHypothesisID": "h_A4_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Queue-table + lease workers will reduce duplicate risk under concurrency",
+      "falsificationQueries": [
+        "convex scheduler atomicity guarantees for queue enqueue paths",
+        "how action scheduling semantics can still produce duplication/drop windows"
+      ],
+      "falsificationEvidenceFound": [
+        "https://docs.convex.dev/scheduling/scheduled-functions"
+      ],
+      "falsificationAnalysis": "If queue workers or enqueue paths involve actions, scheduling is non-atomic and action execution is at-most-once with no automatic retry. That creates concrete windows where a unit is partially progressed or lost unless additional exactly-once/outbox controls are implemented. Queue tables and leases alone do not prove duplicate-risk reduction.",
+      "outcome": "Failed"
+    },
+    {
+      "targetDescription": "Queue architecture improves throughput predictability as concurrency grows",
+      "falsificationQueries": [
+        "platform scheduling and transaction hard limits affecting queue workers",
+        "read/write/index limits under high queue churn"
+      ],
+      "falsificationEvidenceFound": [
+        "https://docs.convex.dev/production/state/limits",
+        "https://docs.convex.dev/error"
+      ],
+      "falsificationAnalysis": "Convex hard limits (scheduled fan-out caps, scheduled-job concurrency, transaction scan/write ceilings) and OCC contention behavior can cause non-linear degradation under queue hotspots. Therefore, predictability is not guaranteed by moving to queue tables; it depends on shard design, claim batching, and contention control that the hypothesis does not prove.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

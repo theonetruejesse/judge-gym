@@ -1,0 +1,34 @@
+{
+  "challengeID": "nc_A1_challenge",
+  "microHypothesisID": "A1_workflow_heavy",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "h_A1_001: payload-bounded chunking/reference loading is sufficient to keep workflow-heavy orchestration viable",
+      "falsificationQueries": [
+        "workflow component payload and journal limits",
+        "convex mutation transaction limits affecting workflow internals"
+      ],
+      "falsificationEvidenceFound": [
+        "https://github.com/get-convex/workflow",
+        "https://docs.convex.dev/production/state/limits"
+      ],
+      "falsificationAnalysis": "The workflow component documents hard limits: step inputs/outputs total 1 MiB per workflow execution, and workflow state is bounded by mutation limits (16 MiB including workflow overhead). Convex also enforces function argument limits (Node actions: 5 MiB) and transaction read/write ceilings. These constraints imply chunking/ref-loading is necessary but not sufficient; state growth and per-step serialization still create hard failure modes.",
+      "outcome": "Failed"
+    },
+    {
+      "targetDescription": "h_A1_003: workflow-first remains preferable because built-in durability/retry offsets complexity if determinism risk is managed operationally",
+      "falsificationQueries": [
+        "workflow determinism change behavior for in-flight workflows",
+        "workflow retry defaults and parallelism caveats"
+      ],
+      "falsificationEvidenceFound": [
+        "https://github.com/get-convex/workflow",
+        "https://github.com/get-convex/workflow/issues/35",
+        "https://docs.convex.dev/scheduling/scheduled-functions"
+      ],
+      "falsificationAnalysis": "Workflow docs state meaningful implementation changes (added/removed/reordered steps) can trigger determinism violations for active workflows. Maintainer issue #35 further states changing much of anything while workflows are ongoing can make them fail. Also, retry behavior is not universally automatic (workflow action retries default off unless configured; scheduled actions are at-most-once and not auto-retried). This undercuts the claim that durability/retry benefits reliably offset operational complexity.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

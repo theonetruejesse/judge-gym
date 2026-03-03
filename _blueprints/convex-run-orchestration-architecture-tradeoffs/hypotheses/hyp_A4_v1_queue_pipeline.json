@@ -1,0 +1,33 @@
+{
+  "microHypothesisID": "h_A4_001",
+  "areaOfAnalysisID": "A4",
+  "statement": "Replacing scan-and-dispatch scheduling with an explicit run-unit queue table plus OCC-guarded claim/lease workers will reduce duplicate processing risk and improve throughput predictability under concurrency.",
+  "confidence": 0.74,
+  "rationale": "Current code already approximates lease claims at batch level, while external queue systems and Convex docs indicate at-least-once/retry behavior should be handled with explicit leases, idempotency, and poison-message handling.",
+  "keyAssumptions": [
+    "Run processing can be decomposed into independently claimable run units with deterministic completion criteria.",
+    "A due-indexed queue table can be queried and claimed with bounded read cost compared with current status scans.",
+    "Unit-level idempotency keys can be enforced for provider submit/poll/finalize side effects."
+  ],
+  "validationCriteria": [
+    "Under concurrent scheduler/worker load, duplicate terminal updates per run unit drop versus baseline.",
+    "P95 time-to-start for queued units remains stable as total in-flight work grows.",
+    "OCC retry and conflict rates remain acceptable at target parallelism.",
+    "Poison units transition to a dead-letter state after max receives and do not block healthy throughput."
+  ],
+  "critiquePoints": [
+    "Queue-table architecture can increase implementation complexity and observability burden.",
+    "If current lease logic is already sufficient and contention is low, gains may be marginal.",
+    "Improper claim batching may shift bottlenecks to dequeue/query hotspots."
+  ],
+  "questions": [
+    "What are current duplicate-processing and OCC conflict baselines in production-like load?",
+    "Should lease extension/heartbeat be added, or should leases remain short with pure retry?",
+    "What should be the dead-letter policy and replay tooling for failed run units?"
+  ],
+  "uncertainties": [
+    "Observed frequency of workflows exceeding the 30s lease window is unknown.",
+    "Measured impact of queue-table read/write amplification on Convex function limits is unknown.",
+    "Degree of existing idempotency in downstream result-apply handlers is not fully verified."
+  ]
+}
