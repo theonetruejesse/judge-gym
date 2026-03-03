@@ -120,15 +120,39 @@ type ProcessMembership = {
   evidenceIds: Set<string>;
 };
 
-type RequestState = "pending" | "failed" | "waiting";
+type RequestTargetState = {
+  target_type: "sample" | "sample_evidence" | "evidence";
+  target_id: string;
+  stage: string;
+  custom_key: string;
+  has_pending: boolean;
+  oldest_pending_ts: number | null;
+  max_attempts: number;
+  latest_error_class: string | null;
+  latest_error_message: string | null;
+};
 
-type RequestTraceSummary = {
-  hasPending: boolean;
-  maxAttempts: number;
-  retryableErrors: Doc<"llm_requests">[];
-  failureErrors: Doc<"llm_requests">[];
+type StageProgressSummary = {
+  progress: Array<z.infer<typeof StageProgressSchema>>;
+  errorClasses: string[];
   oldestPendingTs: number | null;
 };
+
+const RUN_STAGES: Array<z.infer<typeof RunStageSchema>> = [
+  "rubric_gen",
+  "rubric_critic",
+  "score_gen",
+  "score_critic",
+];
+
+const WINDOW_STAGES: Array<z.infer<typeof WindowStageSchema>> = [
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+];
+
+const LEGACY_REQUEST_SCAN_LIMIT_PER_STATUS = 1500;
+const MIXED_SNAPSHOT_SCAN_LIMIT_PER_STATUS = 300;
 
 function parseCustomKey(key: string) {
   const [targetType, targetId, stage] = key.split(":");
@@ -227,67 +251,151 @@ function requestBelongsToMembership(
   return membership.evidenceIds.has(targetId);
 }
 
-async function summarizeRequestKey(
+async function listProcessRequestTargetStates(
   ctx: QueryCtx | MutationCtx,
-  customKey: string,
-): Promise<RequestTraceSummary> {
-  const rows = await ctx.db
-    .query("llm_requests")
-    .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
+  membership: ProcessMembership,
+): Promise<{ rows: RequestTargetState[]; approximate: boolean }> {
+  const snapshotRows = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_process", (q) =>
+      q.eq("process_type", membership.process_type).eq("process_id", membership.process_id),
+    )
     .collect();
-
-  let hasPending = false;
-  let maxAttempts = 0;
-  const retryableErrors: Doc<"llm_requests">[] = [];
-  const failureErrors: Doc<"llm_requests">[] = [];
-  let oldestPendingTs: number | null = null;
-
-  for (const row of rows) {
-    const attempts = row.attempts ?? 0;
-    if (attempts > maxAttempts) maxAttempts = attempts;
-
-    if (row.status === "pending") {
-      hasPending = true;
-      if (oldestPendingTs == null || row._creationTime < oldestPendingTs) {
-        oldestPendingTs = row._creationTime;
-      }
-      continue;
-    }
-
-    if (row.status === "error") {
-      if (attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
-        failureErrors.push(row);
-      } else {
-        retryableErrors.push(row);
-      }
-    }
+  const aggregate = new Map<string, RequestTargetState>();
+  for (const row of snapshotRows) {
+    aggregate.set(row.custom_key, {
+      target_type: row.target_type,
+      target_id: row.target_id,
+      stage: row.stage,
+      custom_key: row.custom_key,
+      has_pending: row.has_pending,
+      oldest_pending_ts: row.oldest_pending_ts,
+      max_attempts: row.max_attempts,
+      latest_error_class: row.latest_error_class,
+      latest_error_message: row.latest_error_message,
+    });
   }
 
+  const perStatusLimit =
+    snapshotRows.length > 0
+      ? MIXED_SNAPSHOT_SCAN_LIMIT_PER_STATUS
+      : LEGACY_REQUEST_SCAN_LIMIT_PER_STATUS;
+
+  const [pendingRows, errorRows] = await Promise.all([
+    ctx.db
+      .query("llm_requests")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("desc")
+      .take(perStatusLimit),
+    ctx.db
+      .query("llm_requests")
+      .withIndex("by_status", (q) => q.eq("status", "error"))
+      .order("desc")
+      .take(perStatusLimit),
+  ]);
+  const latestErrorMeta = new Map<string, { attempts: number; ts: number }>();
+  for (const row of snapshotRows) {
+    latestErrorMeta.set(row.custom_key, {
+      attempts: row.max_attempts,
+      ts: row.updated_at_ms,
+    });
+  }
+  const upsert = (
+    request: Doc<"llm_requests">,
+    status: "pending" | "error",
+  ) => {
+    if (!requestBelongsToMembership(membership, request)) return;
+    const { targetType, targetId, stage } = parseCustomKey(request.custom_key);
+    if (
+      !targetId || !stage
+      || (targetType !== "sample" && targetType !== "sample_evidence" && targetType !== "evidence")
+    ) {
+      return;
+    }
+    if (snapshotRows.length > 0 && aggregate.has(request.custom_key)) return;
+
+    const existing = aggregate.get(request.custom_key);
+    const base: RequestTargetState = existing ?? {
+      target_type: targetType,
+      target_id: targetId,
+      stage,
+      custom_key: request.custom_key,
+      has_pending: false,
+      oldest_pending_ts: null,
+      max_attempts: 0,
+      latest_error_class: null,
+      latest_error_message: null,
+    };
+    const attempts = request.attempts ?? 0;
+
+    if (status === "pending") {
+      base.has_pending = true;
+      if (base.oldest_pending_ts == null || request._creationTime < base.oldest_pending_ts) {
+        base.oldest_pending_ts = request._creationTime;
+      }
+    } else {
+      const meta = latestErrorMeta.get(request.custom_key) ?? { attempts: -1, ts: -1 };
+      if (attempts > meta.attempts || (attempts === meta.attempts && request._creationTime > meta.ts)) {
+        base.latest_error_class = classifyError(request.last_error);
+        base.latest_error_message = request.last_error ?? null;
+        latestErrorMeta.set(request.custom_key, {
+          attempts,
+          ts: request._creationTime,
+        });
+      }
+    }
+    if (attempts > base.max_attempts) base.max_attempts = attempts;
+    aggregate.set(request.custom_key, base);
+  };
+
+  for (const row of pendingRows) upsert(row, "pending");
+  for (const row of errorRows) upsert(row, "error");
+
   return {
-    hasPending,
-    maxAttempts,
-    retryableErrors,
-    failureErrors,
-    oldestPendingTs,
+    rows: [...aggregate.values()],
+    approximate:
+      pendingRows.length === perStatusLimit
+      || errorRows.length === perStatusLimit,
   };
 }
 
-function summarizeTargetFromRequests(
-  completed: boolean,
-  summary: RequestTraceSummary,
-): RequestState {
-  if (completed) return "pending";
-  if (summary.hasPending) return "pending";
-  if (summary.maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
-    return "failed";
+function isTargetFailed(targetState: RequestTargetState | undefined): boolean {
+  if (!targetState) return false;
+  if (targetState.has_pending) return false;
+  return targetState.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts;
+}
+
+function appendErrorClass(
+  state: RequestTargetState | undefined,
+  sink: string[],
+) {
+  if (!state || !state.latest_error_class) return;
+  sink.push(state.latest_error_class);
+}
+
+function considerOldestPending(
+  state: RequestTargetState | undefined,
+  sink: number[],
+) {
+  if (!state || !state.has_pending || state.oldest_pending_ts == null) return;
+  sink.push(state.oldest_pending_ts);
+}
+
+function buildTargetStateIndex(
+  rows: RequestTargetState[],
+): Map<string, RequestTargetState> {
+  const byKey = new Map<string, RequestTargetState>();
+  for (const row of rows) {
+    byKey.set(row.custom_key, row);
   }
-  return "waiting";
+  return byKey;
 }
 
 async function buildRunStageProgress(
   ctx: QueryCtx | MutationCtx,
   run_id: Id<"runs">,
-) {
+  targetStates: Map<string, RequestTargetState>,
+): Promise<StageProgressSummary> {
   const samples = await ctx.db
     .query("samples")
     .withIndex("by_run", (q) => q.eq("run_id", run_id))
@@ -299,20 +407,12 @@ async function buildRunStageProgress(
 
   const scoreTargetCount = scoreUnits.length > 0 ? scoreUnits.length : samples.length;
 
-  const stages: Array<z.infer<typeof RunStageSchema>> = [
-    "rubric_gen",
-    "rubric_critic",
-    "score_gen",
-    "score_critic",
-  ];
-
   const pendingTimes: number[] = [];
-  const retryableErrors: Doc<"llm_requests">[] = [];
-  const failureErrors: Doc<"llm_requests">[] = [];
+  const errorClasses: string[] = [];
 
   const progress = [] as Array<z.infer<typeof StageProgressSchema>>;
 
-  for (const stage of stages) {
+  for (const stage of RUN_STAGES) {
     const total = stage === "rubric_gen" || stage === "rubric_critic"
       ? samples.length
       : scoreTargetCount;
@@ -322,48 +422,44 @@ async function buildRunStageProgress(
 
     if (stage === "rubric_gen") {
       for (const sample of samples) {
-        const summary = await summarizeRequestKey(ctx, `sample:${sample._id}:${stage}`);
-        const state = summarizeTargetFromRequests(Boolean(sample.rubric_id), summary);
+        const key = `sample:${sample._id}:${stage}`;
+        const state = targetStates.get(key);
         if (sample.rubric_id) completed += 1;
-        if (state === "failed") failed += 1;
-        if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-        retryableErrors.push(...summary.retryableErrors);
-        failureErrors.push(...summary.failureErrors);
+        if (!sample.rubric_id && isTargetFailed(state)) failed += 1;
+        considerOldestPending(state, pendingTimes);
+        appendErrorClass(state, errorClasses);
       }
     }
 
     if (stage === "rubric_critic") {
       for (const sample of samples) {
-        const summary = await summarizeRequestKey(ctx, `sample:${sample._id}:${stage}`);
-        const state = summarizeTargetFromRequests(Boolean(sample.rubric_critic_id), summary);
+        const key = `sample:${sample._id}:${stage}`;
+        const state = targetStates.get(key);
         if (sample.rubric_critic_id) completed += 1;
-        if (state === "failed") failed += 1;
-        if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-        retryableErrors.push(...summary.retryableErrors);
-        failureErrors.push(...summary.failureErrors);
+        if (!sample.rubric_critic_id && isTargetFailed(state)) failed += 1;
+        considerOldestPending(state, pendingTimes);
+        appendErrorClass(state, errorClasses);
       }
     }
 
     if (stage === "score_gen") {
       if (scoreUnits.length > 0) {
         for (const unit of scoreUnits) {
-          const summary = await summarizeRequestKey(ctx, `sample_evidence:${unit._id}:${stage}`);
-          const state = summarizeTargetFromRequests(Boolean(unit.score_id), summary);
+          const key = `sample_evidence:${unit._id}:${stage}`;
+          const state = targetStates.get(key);
           if (unit.score_id) completed += 1;
-          if (state === "failed") failed += 1;
-          if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-          retryableErrors.push(...summary.retryableErrors);
-          failureErrors.push(...summary.failureErrors);
+          if (!unit.score_id && isTargetFailed(state)) failed += 1;
+          considerOldestPending(state, pendingTimes);
+          appendErrorClass(state, errorClasses);
         }
       } else {
         for (const sample of samples) {
-          const summary = await summarizeRequestKey(ctx, `sample:${sample._id}:${stage}`);
-          const state = summarizeTargetFromRequests(Boolean(sample.score_id), summary);
+          const key = `sample:${sample._id}:${stage}`;
+          const state = targetStates.get(key);
           if (sample.score_id) completed += 1;
-          if (state === "failed") failed += 1;
-          if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-          retryableErrors.push(...summary.retryableErrors);
-          failureErrors.push(...summary.failureErrors);
+          if (!sample.score_id && isTargetFailed(state)) failed += 1;
+          considerOldestPending(state, pendingTimes);
+          appendErrorClass(state, errorClasses);
         }
       }
     }
@@ -371,23 +467,21 @@ async function buildRunStageProgress(
     if (stage === "score_critic") {
       if (scoreUnits.length > 0) {
         for (const unit of scoreUnits) {
-          const summary = await summarizeRequestKey(ctx, `sample_evidence:${unit._id}:${stage}`);
-          const state = summarizeTargetFromRequests(Boolean(unit.score_critic_id), summary);
+          const key = `sample_evidence:${unit._id}:${stage}`;
+          const state = targetStates.get(key);
           if (unit.score_critic_id) completed += 1;
-          if (state === "failed") failed += 1;
-          if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-          retryableErrors.push(...summary.retryableErrors);
-          failureErrors.push(...summary.failureErrors);
+          if (!unit.score_critic_id && isTargetFailed(state)) failed += 1;
+          considerOldestPending(state, pendingTimes);
+          appendErrorClass(state, errorClasses);
         }
       } else {
         for (const sample of samples) {
-          const summary = await summarizeRequestKey(ctx, `sample:${sample._id}:${stage}`);
-          const state = summarizeTargetFromRequests(Boolean(sample.score_critic_id), summary);
+          const key = `sample:${sample._id}:${stage}`;
+          const state = targetStates.get(key);
           if (sample.score_critic_id) completed += 1;
-          if (state === "failed") failed += 1;
-          if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-          retryableErrors.push(...summary.retryableErrors);
-          failureErrors.push(...summary.failureErrors);
+          if (!sample.score_critic_id && isTargetFailed(state)) failed += 1;
+          considerOldestPending(state, pendingTimes);
+          appendErrorClass(state, errorClasses);
         }
       }
     }
@@ -404,8 +498,7 @@ async function buildRunStageProgress(
 
   return {
     progress,
-    retryableErrors,
-    failureErrors,
+    errorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
   };
 }
@@ -413,42 +506,35 @@ async function buildRunStageProgress(
 async function buildWindowStageProgress(
   ctx: QueryCtx | MutationCtx,
   window_id: Id<"windows">,
-) {
+  targetStates: Map<string, RequestTargetState>,
+): Promise<StageProgressSummary> {
   const evidences = await ctx.db
     .query("evidences")
     .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
     .collect();
 
-  const stages: Array<z.infer<typeof WindowStageSchema>> = [
-    "l1_cleaned",
-    "l2_neutralized",
-    "l3_abstracted",
-  ];
-
   const pendingTimes: number[] = [];
-  const retryableErrors: Doc<"llm_requests">[] = [];
-  const failureErrors: Doc<"llm_requests">[] = [];
+  const errorClasses: string[] = [];
   const progress = [] as Array<z.infer<typeof StageProgressSchema>>;
 
-  for (const stage of stages) {
+  for (const stage of WINDOW_STAGES) {
     const total = evidences.length;
     let completed = 0;
     let failed = 0;
 
     for (const evidence of evidences) {
-      const summary = await summarizeRequestKey(ctx, `evidence:${evidence._id}:${stage}`);
+      const key = `evidence:${evidence._id}:${stage}`;
+      const state = targetStates.get(key);
       const stageCompleted = stage === "l1_cleaned"
         ? Boolean(evidence.l1_cleaned_content)
         : stage === "l2_neutralized"
           ? Boolean(evidence.l2_neutralized_content)
           : Boolean(evidence.l3_abstracted_content);
 
-      const state = summarizeTargetFromRequests(stageCompleted, summary);
       if (stageCompleted) completed += 1;
-      if (state === "failed") failed += 1;
-      if (summary.oldestPendingTs != null) pendingTimes.push(summary.oldestPendingTs);
-      retryableErrors.push(...summary.retryableErrors);
-      failureErrors.push(...summary.failureErrors);
+      if (!stageCompleted && isTargetFailed(state)) failed += 1;
+      considerOldestPending(state, pendingTimes);
+      appendErrorClass(state, errorClasses);
     }
 
     const pending = Math.max(0, total - completed - failed);
@@ -463,8 +549,7 @@ async function buildWindowStageProgress(
 
   return {
     progress,
-    retryableErrors,
-    failureErrors,
+    errorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
   };
 }
@@ -671,11 +756,12 @@ async function collectProcessHealth(
     throw new Error(`${args.process_type} not found: ${args.process_id}`);
   }
 
-  const [batchState, jobState, orphanedRequests, schedulerScheduled] = await Promise.all([
+  const [batchState, jobState, orphanedRequests, schedulerScheduled, stateRowsResult] = await Promise.all([
     ctx.runQuery(internal.domain.llm_calls.llm_batch_repo.listActiveBatches, {}),
     ctx.runQuery(internal.domain.llm_calls.llm_job_repo.listActiveJobs, {}),
     ctx.runQuery(internal.domain.llm_calls.llm_request_repo.listOrphanedRequests, {}),
     hasScheduledScheduler(ctx),
+    listProcessRequestTargetStates(ctx, membership),
   ]);
 
   const processPrefix = `${membership.process_type}:${membership.process_id}:`;
@@ -696,9 +782,10 @@ async function collectProcessHealth(
     requestBelongsToMembership(membership, row),
   );
 
+  const stateByCustomKey = buildTargetStateIndex(stateRowsResult.rows);
   const stageSummary = membership.process_type === "run"
-    ? await buildRunStageProgress(ctx, membership.process_id as Id<"runs">)
-    : await buildWindowStageProgress(ctx, membership.process_id as Id<"windows">);
+    ? await buildRunStageProgress(ctx, membership.process_id as Id<"runs">, stateByCustomKey)
+    : await buildWindowStageProgress(ctx, membership.process_id as Id<"windows">, stateByCustomKey);
 
   const noProgressSince = await ctx.db
     .query("telemetry_entity_state")
@@ -716,9 +803,8 @@ async function collectProcessHealth(
     : Math.max(0, Date.now() - stageSummary.oldestPendingTs);
 
   const errorCounts = new Map<string, number>();
-  for (const row of [...stageSummary.retryableErrors, ...stageSummary.failureErrors]) {
-    const key = classifyError(row.last_error);
-    errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+  for (const errorClass of stageSummary.errorClasses) {
+    errorCounts.set(errorClass, (errorCounts.get(errorClass) ?? 0) + 1);
   }
 
   const recentLimit = args.include_recent_events ?? 50;

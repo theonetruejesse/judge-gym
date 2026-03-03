@@ -89,11 +89,11 @@ Use this when a new Codex instance has zero prior context.
   - Apply: same call with `dry_run: false`
   - CLI: `bun run debug:heal --run <run_id>` then `--apply`
 
-### 5. Current known limitation
-- `packages/codex:getProcessHealth` can exceed Convex read limits on large runs (for example `target_count=30` with large score-unit fanout).
-- Workaround for now:
-  - Use `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` + `packages/codex:getStuckWork`.
-  - Do not rely on `getProcessHealth` as the single source of truth for high-cardinality runs until optimized.
+### 5. Current `getProcessHealth` behavior
+- `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
+- Legacy caveat:
+  - For older runs/windows created before snapshots existed, the query falls back to a bounded recent `llm_requests` scan.
+  - If legacy history is very large, non-active-stage error rollups may be approximate; pair with `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` when you need full historical forensics.
 
 ## Agentic Recursion Contract
 

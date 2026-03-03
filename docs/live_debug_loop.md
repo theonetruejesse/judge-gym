@@ -71,4 +71,5 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
-- Current caveat: `packages/codex:getProcessHealth` may hit Convex read limits on large runs. For those runs, prefer `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` + `packages/codex:getStuckWork`.
+- `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
+- Legacy caveat: if a process predates snapshots, bounded fallback reconstruction can make non-active-stage error rollups approximate. Use `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` for full historical forensics.

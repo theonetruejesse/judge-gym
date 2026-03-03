@@ -7,6 +7,7 @@ const tableNames = [
     "llm_batches",
     "llm_jobs",
     "llm_requests",
+    "process_request_targets",
     "windows",
     "evidences",
     "experiments",
@@ -83,6 +84,7 @@ export const deleteRunData = zInternalMutation({
             llm_batches: z.number(),
             llm_jobs: z.number(),
             llm_requests: z.number(),
+            process_request_targets: z.number(),
             telemetry_events: z.number(),
             telemetry_trace_counters: z.number(),
             telemetry_entity_state: z.number(),
@@ -109,6 +111,7 @@ export const deleteRunData = zInternalMutation({
                     llm_batches: 0,
                     llm_jobs: 0,
                     llm_requests: 0,
+                    process_request_targets: 0,
                     telemetry_events: 0,
                     telemetry_trace_counters: 0,
                     telemetry_entity_state: 0,
@@ -182,6 +185,12 @@ export const deleteRunData = zInternalMutation({
             }
             return false;
         });
+        const runTargetStateRows = await ctx.db
+            .query("process_request_targets")
+            .withIndex("by_process", (q) =>
+                q.eq("process_type", "run").eq("process_id", String(args.run_id)),
+            )
+            .collect();
 
         const runTelemetryEvents = await ctx.db
             .query("telemetry_events")
@@ -201,6 +210,7 @@ export const deleteRunData = zInternalMutation({
             for (const doc of runTelemetryCounters) await ctx.db.delete(doc._id);
             for (const doc of runTelemetryEntityState) await ctx.db.delete(doc._id);
             for (const doc of runRequests) await ctx.db.delete(doc._id);
+            for (const doc of runTargetStateRows) await ctx.db.delete(doc._id);
             for (const doc of runBatches) await ctx.db.delete(doc._id);
             for (const doc of runJobs) await ctx.db.delete(doc._id);
             for (const doc of scoreCritics) await ctx.db.delete(doc._id);
@@ -227,6 +237,7 @@ export const deleteRunData = zInternalMutation({
                 llm_batches: runBatches.length,
                 llm_jobs: runJobs.length,
                 llm_requests: runRequests.length,
+                process_request_targets: runTargetStateRows.length,
                 telemetry_events: runTelemetryEvents.length,
                 telemetry_trace_counters: runTelemetryCounters.length,
                 telemetry_entity_state: runTelemetryEntityState.length,
