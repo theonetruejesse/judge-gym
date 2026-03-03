@@ -1,6 +1,11 @@
 import { zodOutputToConvex } from "convex-helpers/server/zod4";
 import { defineSchema, defineTable } from "convex/server";
-import { LlmBatchesTableSchema, LlmJobsTableSchema, LlmRequestsTableSchema } from "./models/llm_calls";
+import {
+  LlmBatchesTableSchema,
+  LlmJobsTableSchema,
+  LlmRequestsTableSchema,
+  ProcessRequestTargetStateTableSchema,
+} from "./models/llm_calls";
 import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
 import { ExperimentEvidencesTableSchema, ExperimentsTableSchema, RunsTableSchema } from "./models/experiments";
 import {
@@ -29,6 +34,10 @@ export default defineSchema({
     .index("by_orphaned", ["status", "batch_id", "job_id"])
     .index("by_custom_key", ["custom_key"])
     .index("by_custom_key_status", ["custom_key", "status"]),
+  process_request_targets: defineTable(zodOutputToConvex(ProcessRequestTargetStateTableSchema))
+    .index("by_process", ["process_type", "process_id"])
+    .index("by_process_stage", ["process_type", "process_id", "stage"])
+    .index("by_custom_key", ["custom_key"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
     .index("by_window_id", ["window_id"])

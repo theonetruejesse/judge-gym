@@ -57,3 +57,18 @@ export const LlmRequestsTableSchema = z.object({
   next_attempt_at: z.number().optional(),
   last_error: z.string().optional(),
 });
+
+export const ProcessRequestTargetStateTableSchema = z.object({
+  process_type: z.enum(["run", "window"]),
+  process_id: z.string(),
+  target_type: z.enum(["sample", "sample_evidence", "evidence"]),
+  target_id: z.string(),
+  stage: z.string(),
+  custom_key: z.string(),
+  has_pending: z.boolean(),
+  oldest_pending_ts: z.number().nullable(),
+  max_attempts: z.number().int().min(0),
+  latest_error_class: z.string().nullable(),
+  latest_error_message: z.string().nullable(),
+  updated_at_ms: z.number(),
+});
