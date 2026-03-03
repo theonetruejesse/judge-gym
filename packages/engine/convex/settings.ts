@@ -10,7 +10,7 @@ export type EngineSettings = {
 export const ENGINE_SETTINGS: EngineSettings = {
   run_policy: {
     poll_interval_ms: 5_000,
-    max_batch_size: 500,
+    max_batch_size: 100,
     min_batch_size: 10,
     job_fallback_count: 5,
     max_tokens: 8_000,

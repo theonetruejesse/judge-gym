@@ -22,6 +22,7 @@ import {
 } from "./run_strategies";
 import { generateLabelMapping } from "../../utils/randomize";
 import { emitTraceEvent } from "../telemetry/emit";
+import { getNextAttemptAt } from "../../utils/scheduling";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -528,17 +529,53 @@ async function markRequestParseFailure(
   requestId: Id<"llm_requests">,
   error: unknown,
 ) {
+  const request = await ctx.runQuery(
+    internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+    { request_id: requestId },
+  );
   const message = error instanceof Error ? error.message : String(error);
+  const attempts = (request.attempts ?? 0) + 1;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
     {
       request_id: requestId,
       patch: {
         status: "error",
-        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        attempts,
         last_error: message,
       },
     },
+  );
+
+  if (attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    return;
+  }
+
+  const nextAttempt = attempts + 1;
+  const retryRequestId = await ctx.runMutation(
+    internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+    {
+      model: request.model,
+      system_prompt: request.system_prompt ?? undefined,
+      user_prompt: request.user_prompt,
+      custom_key: request.custom_key,
+      attempts: nextAttempt,
+    },
+  );
+
+  await ctx.runMutation(
+    internal.domain.llm_calls.llm_request_repo.patchRequest,
+    {
+      request_id: retryRequestId,
+      patch: {
+        next_attempt_at: getNextAttemptAt(Date.now()),
+      },
+    },
+  );
+
+  await ctx.runMutation(
+    internal.domain.orchestrator.scheduler.requeueRequest,
+    { request_id: retryRequestId },
   );
 }
 
