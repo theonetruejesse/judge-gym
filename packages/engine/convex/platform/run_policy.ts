@@ -8,8 +8,6 @@ export const RunPolicySchema = z.object({
   max_batch_size: z.number().int().min(1),
   // Minimum number of requests required to use batching.
   min_batch_size: z.number().int().min(1),
-  // Fallback to jobs when remaining requests fall below this count.
-  job_fallback_count: z.number().int().min(0),
   // Per-request token cap (input + output). This is a hard guardrail.
   max_tokens: z.number().int().min(1),
   // Max number of times a provider batch can be re-polled/retried.
