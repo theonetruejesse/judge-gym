@@ -1,0 +1,32 @@
+{
+  "challengeID": "nc_A3_challenge",
+  "microHypothesisID": "h_A3_map_reduce_counters_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Transactional per-(run,stage) counters will preserve correctness while reducing scans",
+      "falsificationQueries": [
+        "convex OCC conflicts on hot documents",
+        "convex guidance on write contention for frequently updated documents"
+      ],
+      "falsificationEvidenceFound": [
+        "https://docs.convex.dev/error",
+        "https://docs.convex.dev/database/advanced/occ"
+      ],
+      "falsificationAnalysis": "Convex documents optimistic concurrency control and explicitly calls out frequent updates to the same document as a common conflict source. A per-(run,stage) counter centralizes writes and can become a hotspot, increasing retries/permanent OCC failures under parallel completions. That weakens both throughput and correctness guarantees unless counters are sharded or otherwise contention-proofed.",
+      "outcome": "Failed"
+    },
+    {
+      "targetDescription": "Counter architecture avoids scan pressure enough to be clearly superior",
+      "falsificationQueries": [
+        "remaining read limits and index scan caps in Convex",
+        "whether counter reconciliation still requires broad scans"
+      ],
+      "falsificationEvidenceFound": [
+        "https://docs.convex.dev/production/state/limits"
+      ],
+      "falsificationAnalysis": "Even with counters, Convex enforces strict read/scan and index-range limits per function. Reconciliation, drift repair, and migration backfills can still hit large-scan paths. This means counters do not automatically eliminate the platform-limit risk; they shift it unless migration/reconciliation is carefully bounded.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

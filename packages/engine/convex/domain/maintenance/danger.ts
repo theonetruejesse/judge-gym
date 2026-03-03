@@ -64,6 +64,81 @@ export const nukeTables = zInternalMutation({
     },
 });
 
+export const nukeTableChunk = zInternalMutation({
+    args: z.object({
+        table: tableNameEnum,
+        limit: z.number().int().min(1).max(10000).default(2000),
+        isDryRun: z.boolean().default(true),
+    }),
+    returns: z.object({
+        table: tableNameEnum,
+        isDryRun: z.boolean(),
+        requested_limit: z.number(),
+        deleted_count: z.number(),
+        has_more: z.boolean(),
+    }),
+    handler: async (ctx, args) => {
+        const docs = await ctx.db.query(args.table).take(args.limit);
+        if (!args.isDryRun) {
+            for (const doc of docs as Doc<TableName>[]) {
+                await ctx.db.delete(doc._id);
+            }
+        }
+        return {
+            table: args.table,
+            isDryRun: args.isDryRun,
+            requested_limit: args.limit,
+            deleted_count: docs.length,
+            has_more: docs.length === args.limit,
+        };
+    },
+});
+
+export const nukeTablesPass = zInternalMutation({
+    args: z.object({
+        limitPerTable: z.number().int().min(1).max(10000).default(2000),
+        isDryRun: z.boolean().default(true),
+    }),
+    returns: z.object({
+        isDryRun: z.boolean(),
+        limitPerTable: z.number(),
+        total_deleted: z.number(),
+        tables: z.array(
+            z.object({
+                name: tableNameEnum,
+                deleted_count: z.number(),
+                has_more: z.boolean(),
+            }),
+        ),
+    }),
+    handler: async (ctx, args) => {
+        const tables: Array<{ name: TableName; deleted_count: number; has_more: boolean }> = [];
+        let totalDeleted = 0;
+
+        for (const tableName of tableNames) {
+            const docs = await ctx.db.query(tableName).take(args.limitPerTable);
+            if (!args.isDryRun) {
+                for (const doc of docs as Doc<TableName>[]) {
+                    await ctx.db.delete(doc._id);
+                }
+            }
+            totalDeleted += docs.length;
+            tables.push({
+                name: tableName,
+                deleted_count: docs.length,
+                has_more: docs.length === args.limitPerTable,
+            });
+        }
+
+        return {
+            isDryRun: args.isDryRun,
+            limitPerTable: args.limitPerTable,
+            total_deleted: totalDeleted,
+            tables,
+        };
+    },
+});
+
 export const deleteRunData = zInternalMutation({
     args: z.object({
         run_id: zid("runs"),

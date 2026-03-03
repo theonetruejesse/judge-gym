@@ -14,6 +14,26 @@ type MutationRunner = Pick<MutationCtx, "runMutation">;
 type ActionRunner = Pick<ActionCtx, "runAction">;
 type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
 
+function classifyError(error: string | null | undefined): string {
+  const value = String(error ?? "").toLowerCase();
+  if (!value) return "unknown";
+  if (value.includes("parse")) return "parse_error";
+  if (value.includes("timeout")) return "timeout";
+  if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
+  if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
+    return "orchestrator_error";
+  }
+  if (value.includes("provider") || value.includes("api") || value.includes("openai") || value.includes("5xx")) {
+    return "api_error";
+  }
+  return "unknown";
+}
+
+function isTerminalRequestError(error: string | null | undefined): boolean {
+  const cls = classifyError(error);
+  return cls === "parse_error" || cls === "orchestrator_error";
+}
+
 interface MarkBatchEmptyArgs {
   ctx: MutationRunner;
   batch_id: Id<"llm_batches">;
@@ -108,7 +128,9 @@ interface HandleBatchErrorArgs {
 export async function handleBatchError(args: HandleBatchErrorArgs) {
   const { ctx, batch, requests, error } = args;
   const attempts = (batch.attempts ?? 0) + 1;
-  if (attempts <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
+  const forceTerminal = String(error).toLowerCase().includes("terminal:")
+    || isTerminalRequestError(error);
+  if (!forceTerminal && attempts <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
     const retryRequestIds: Id<"llm_requests">[] = [];
     await ctx.runMutation(
       internal.domain.llm_calls.llm_batch_repo.patchBatch,
@@ -218,17 +240,17 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
   );
 
   for (const req of requests) {
-  await ctx.runMutation(
-    internal.domain.llm_calls.llm_request_repo.patchRequest,
-    {
-      request_id: req._id,
-      patch: {
-        status: "error",
-        last_error: error,
-        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+    await ctx.runMutation(
+      internal.domain.llm_calls.llm_request_repo.patchRequest,
+      {
+        request_id: req._id,
+        patch: {
+          status: "error",
+          last_error: error,
+          attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        },
       },
-    },
-  );
+    );
     const handler = resolveErrorHandler(req.custom_key);
     if (handler) {
       await ctx.runMutation(handler, {
@@ -384,19 +406,85 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
       const handler = resolveApplyHandler(req.custom_key);
       if (!handler) throw new Error(`Unsupported target type for result: ${req.custom_key}`);
 
-      await ctx.runMutation(handler, {
-        request_id: req._id,
-        custom_key: req.custom_key,
-        output: row.output.assistant_output,
-        input_tokens: row.output.input_tokens,
-        output_tokens: row.output.output_tokens,
-      });
+      try {
+        await ctx.runMutation(handler, {
+          request_id: req._id,
+          custom_key: req.custom_key,
+          output: row.output.assistant_output,
+          input_tokens: row.output.input_tokens,
+          output_tokens: row.output.output_tokens,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const attempts = (req.attempts ?? 0) + 1;
+        const terminal = isTerminalRequestError(message);
+        if (!terminal && attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+          await ctx.runMutation(
+            internal.domain.llm_calls.llm_request_repo.patchRequest,
+            {
+              request_id: req._id,
+              patch: {
+                status: "error",
+                attempts,
+                last_error: message,
+              },
+            },
+          );
+
+          const nextAttempt = attempts + 1;
+          const retryRequestId = await ctx.runMutation(
+            internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+            {
+              model: req.model,
+              system_prompt: req.system_prompt ?? undefined,
+              user_prompt: req.user_prompt,
+              custom_key: req.custom_key,
+              attempts: nextAttempt,
+            },
+          );
+
+          await ctx.runMutation(
+            internal.domain.llm_calls.llm_request_repo.patchRequest,
+            {
+              request_id: retryRequestId,
+              patch: {
+                next_attempt_at: getNextAttemptAt(now),
+              },
+            },
+          );
+
+          await ctx.runMutation(
+            internal.domain.orchestrator.scheduler.requeueRequest,
+            { request_id: retryRequestId },
+          );
+        } else {
+          await ctx.runMutation(
+            internal.domain.llm_calls.llm_request_repo.patchRequest,
+            {
+              request_id: req._id,
+              patch: {
+                status: "error",
+                attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+                last_error: message,
+              },
+            },
+          );
+          const errorHandler = resolveErrorHandler(req.custom_key);
+          if (errorHandler) {
+            await ctx.runMutation(errorHandler, {
+              request_id: req._id,
+              custom_key: req.custom_key,
+            });
+          }
+        }
+      }
 
       continue;
     }
 
     const attempts = (req.attempts ?? 0) + 1;
-    if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    const terminal = isTerminalRequestError(row.error ?? "provider_error");
+    if (!terminal && attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
       await ctx.runMutation(
         internal.domain.llm_calls.llm_request_repo.patchRequest,
         {

@@ -27,28 +27,40 @@ An open-source LLM-as-Judge design space engine. Turborepo monorepo with bun (en
 
 ## Live Debug Loop
 
-Use the codex debug surface (`packages/engine/convex/packages/codex.ts`) plus Bun scripts for run/window triage and safe recovery.
+Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus Bun scripts for run/window triage and safe recovery.
+
+### Orchestration Model (Current)
+
+- The engine uses native Convex scheduler + internal actions/mutations.
+- `@convex-dev/workflow` / workpool is not used in the run/window hot path.
+- Scheduler dispatch is bounded per tick to prevent runaway queue growth.
+- Batch poll leases are still used to prevent concurrent duplicate poll/apply.
 
 ### Preflight
+
 - Confirm you are in `packages/engine`.
 - Prefer dry-run actions first.
 
 ### Monitor
+
 - Run process: `bun run debug:watch --run <run_id>`
 - Window process: `bun run debug:watch --window <window_id>`
 - Trace tail: `bun run debug:tail --trace run:<run_id>`
 
 ### Diagnose
+
 - List stuck work globally: `bun run debug:stuck --older-ms 120000`
 - List stuck work for runs only: `bun run debug:stuck --older-ms 120000 --run <run_id>`
 
 ### Recover (safe automation)
+
 - Dry-run auto-heal run: `bun run debug:heal --run <run_id>`
 - Apply auto-heal run: `bun run debug:heal --run <run_id> --apply`
 - Dry-run auto-heal window: `bun run debug:heal --window <window_id>`
 - Apply auto-heal window: `bun run debug:heal --window <window_id> --apply`
 
 ### Recovery Guardrails
+
 - Default to dry-run for first pass.
 - Only use codex safe actions (`start_scheduler_if_idle`, request requeue, expired lease release, poll nudge).
 - If a process remains stalled after safe actions, inspect `getProcessHealth` and trace events before any manual data mutation.
@@ -58,10 +70,12 @@ Use the codex debug surface (`packages/engine/convex/packages/codex.ts`) plus Bu
 Use this when a new Codex instance has zero prior context.
 
 ### 1. Identify deployment and latest experiments
+
 - `mcp__convex__status` with `projectDir=/Users/jesselee/dev/research/jg/judge-gym/packages/engine`
 - `mcp__convex__run` -> `packages/lab:listExperiments` with `{}`
 
 ### 2. Clone a new experiment from an existing experiment
+
 - Source config:
   - `mcp__convex__run` -> `packages/lab:getExperimentSummary` with `{ "experiment_id": "<source_experiment_id>" }`
 - Source evidence set:
@@ -70,10 +84,22 @@ Use this when a new Codex instance has zero prior context.
   - `mcp__convex__run` -> `packages/lab:initExperiment` with:
     - `experiment_config` from source summary (`rubric_config`, `scoring_config`)
     - `evidence_ids` from source evidence list
+- Model swap clone (common A/B pattern):
+  - Keep all fields the same, but set both:
+    - `experiment_config.rubric_config.model`
+    - `experiment_config.scoring_config.model`
+  - Example target: `"gpt-4.1"`
 
 ### 3. Start run and monitor
+
 - Start:
   - `mcp__convex__run` -> `packages/lab:startExperimentRun` with `{ "experiment_id": "<new_experiment_id>", "target_count": <n> }`
+- Parallel run caveat:
+  - If two starts are triggered concurrently, `packages/lab:startExperimentRun` can OCC conflict under heavy `llm_requests` churn.
+  - Safe fallback:
+    1. call `domain/runs/run_service:startRunFlow` with same args,
+    2. call `domain/orchestrator/scheduler:startScheduler`,
+    3. optionally emit `run_started` via `domain/telemetry/events:emitEvent` for trace consistency.
 - Monitor:
   - `mcp__convex__run` -> `packages/lab:getRunSummary`
   - `mcp__convex__run` -> `packages/lab:getRunDiagnostics`
@@ -81,6 +107,7 @@ Use this when a new Codex instance has zero prior context.
   - Optional CLI: `bun run debug:watch --run <run_id>`
 
 ### 4. Stall diagnosis and safe recovery
+
 - Find stuck work:
   - `mcp__convex__run` -> `packages/codex:getStuckWork`
   - CLI: `bun run debug:stuck --older-ms 120000`
@@ -90,21 +117,30 @@ Use this when a new Codex instance has zero prior context.
   - CLI: `bun run debug:heal --run <run_id>` then `--apply`
 
 ### 5. Current `getProcessHealth` behavior
+
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
 - Legacy caveat:
   - For older runs/windows created before snapshots existed, the query falls back to a bounded recent `llm_requests` scan.
   - If legacy history is very large, non-active-stage error rollups may be approximate; pair with `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` when you need full historical forensics.
+
+### 6. Retry semantics (current expectation)
+
+- Parse/orchestrator-side apply failures are treated as terminal request failures.
+- Provider/network/rate-limit classes remain retryable up to policy caps.
+- Every retry is represented as a new `llm_requests` row; failed attempts remain persisted for forensic analysis.
 
 ## Agentic Recursion Contract
 
 For every merged behavior change (orchestration, telemetry, retries, scheduling, diagnostics):
 
 1. Documentation update check is mandatory
+
 - Update `AGENTS.md` when operator flow, debugging flow, or agent workflow changes.
 - Update `README.md` when architecture, tables, scripts, or user-facing behavior changes.
 - Update `docs/live_debug_loop.md` when debug commands, MCP function usage, or recovery playbooks change.
 
 2. Evidence + validation note is mandatory
+
 - Record what was validated (typecheck/tests/live checks) in the PR or task summary.
 - If a limitation remains, document:
   - exact symptom,
@@ -113,6 +149,7 @@ For every merged behavior change (orchestration, telemetry, retries, scheduling,
   - planned fix direction.
 
 3. Fresh-context operability is mandatory
+
 - A new agent with no prior context must be able to:
   - identify deployment,
   - clone/start an experiment from existing configs,
@@ -122,4 +159,5 @@ For every merged behavior change (orchestration, telemetry, retries, scheduling,
 - If any of these steps changed, update the “Fresh-Context MCP Runbook” in the same change.
 
 4. Release gate
+
 - No change is considered complete until the docs above are updated or explicitly confirmed unchanged in the final task summary.

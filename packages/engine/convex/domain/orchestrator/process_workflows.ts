@@ -1,8 +1,6 @@
-import { WorkflowManager } from "@convex-dev/workflow";
-import { components, internal } from "../../_generated/api";
-import { v } from "convex/values";
+import z from "zod";
 import { getNextRunAt, shouldRunAt } from "../../utils/scheduling";
-import { BatchWithRequestsResult } from "../llm_calls/llm_batch_repo";
+import type { BatchWithRequestsResult } from "../llm_calls/llm_batch_repo";
 import {
   applyBatchRateLimitUsage,
   applyBatchResults,
@@ -23,28 +21,37 @@ import {
 import type { ActionCtx } from "../../_generated/server";
 import type { Id } from "../../_generated/dataModel";
 import { emitTraceEvent } from "../telemetry/emit";
+import { internal } from "../../_generated/api";
+import { zInternalAction } from "../../utils/custom_fns";
+import { zid } from "convex-helpers/server/zod4";
 
-export const processWorkflow = new WorkflowManager(components.workflow,
-  {
-    workpoolOptions: {
-      // todo, check whether engine config is needed here
-      defaultRetryBehavior: {
-        maxAttempts: 3,
-        initialBackoffMs: 100,
-        base: 2,
-      },
-      maxParallelism: 25,
-      retryActionsByDefault: true,
-    }
-  }
-);
+const BATCH_POLL_LEASE_MS = 30_000;
 
 type WorkflowStep = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
-const BATCH_POLL_LEASE_MS = 30_000;
 
 function traceIdForCustomKey(customKey: string) {
   const [entity, id] = customKey.split(":");
   return `${entity}:${id}`;
+}
+
+function classifyError(error: unknown): string {
+  const value = String(error ?? "").toLowerCase();
+  if (!value) return "unknown";
+  if (value.includes("parse")) return "parse_error";
+  if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
+    return "orchestrator_error";
+  }
+  if (value.includes("timeout")) return "timeout";
+  if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
+  if (value.includes("provider") || value.includes("api") || value.includes("openai") || value.includes("5xx")) {
+    return "api_error";
+  }
+  return "unknown";
+}
+
+function isTerminalApplyError(error: unknown): boolean {
+  const cls = classifyError(error);
+  return cls === "parse_error" || cls === "orchestrator_error";
 }
 
 export async function handleQueuedJobWorkflow(
@@ -101,9 +108,11 @@ export async function handleQueuedJobWorkflow(
   });
 }
 
-export const processQueuedJobWorkflow = processWorkflow.define({
-  args: { job_id: v.id("llm_jobs") },
-  handler: handleQueuedJobWorkflow,
+export const processQueuedJobWorkflow = zInternalAction({
+  args: z.object({ job_id: zid("llm_jobs") }),
+  handler: async (ctx, args) => {
+    await handleQueuedJobWorkflow(ctx, { job_id: args.job_id });
+  },
 });
 
 export async function handleRunningJobWorkflow(
@@ -159,11 +168,12 @@ export async function handleRunningJobWorkflow(
   });
 }
 
-export const processRunningJobWorkflow = processWorkflow.define({
-  args: { job_id: v.id("llm_jobs") },
-  handler: handleRunningJobWorkflow,
+export const processRunningJobWorkflow = zInternalAction({
+  args: z.object({ job_id: zid("llm_jobs") }),
+  handler: async (ctx, args) => {
+    await handleRunningJobWorkflow(ctx, { job_id: args.job_id });
+  },
 });
-
 
 export async function handleQueuedBatchWorkflow(
   step: WorkflowStep,
@@ -257,7 +267,7 @@ export async function handleQueuedBatchWorkflow(
       return;
     }
 
-    const result = await submitBatch({ ctx: step, requests }); // todo, check error
+    const result = await submitBatch({ ctx: step, requests });
     await markBatchRunning({ ctx: step, batch, batch_ref: result.batch_ref });
     await emitTraceEvent(step, {
       trace_id: traceIdForCustomKey(batch.custom_key),
@@ -277,9 +287,11 @@ export async function handleQueuedBatchWorkflow(
   }
 }
 
-export const processQueuedBatchWorkflow = processWorkflow.define({
-  args: { batch_id: v.id("llm_batches") },
-  handler: handleQueuedBatchWorkflow,
+export const processQueuedBatchWorkflow = zInternalAction({
+  args: z.object({ batch_id: zid("llm_batches") }),
+  handler: async (ctx, args) => {
+    await handleQueuedBatchWorkflow(ctx, { batch_id: args.batch_id });
+  },
 });
 
 export async function handleRunningBatchWorkflow(
@@ -294,11 +306,23 @@ export async function handleRunningBatchWorkflow(
 
   if (batch.status !== "running" && batch.status !== "finalizing") return;
   if (!shouldRunAt(batch.next_poll_at, now)) return;
-  if (!batch.batch_ref) return;
+  if (!batch.batch_ref) {
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_missing_ref",
+      status: batch.status,
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+    });
+    return;
+  }
   const hasActiveLease = batch.poll_claim_owner != null
     && batch.poll_claim_expires_at != null
     && batch.poll_claim_expires_at > now;
   if (hasActiveLease) return;
+
   const owner = `${batch._id}:${now}:${Math.random().toString(36).slice(2)}`;
   const claim = await step.runMutation(
     internal.domain.llm_calls.llm_batch_repo.claimRunningBatchForPoll,
@@ -321,6 +345,7 @@ export async function handleRunningBatchWorkflow(
     });
     return;
   }
+
   await emitTraceEvent(step, {
     trace_id: traceIdForCustomKey(batch.custom_key),
     entity_type: "batch",
@@ -364,6 +389,7 @@ export async function handleRunningBatchWorkflow(
       });
       return;
     }
+
     if (result.status === "error") {
       await handleBatchError({
         ctx: step,
@@ -394,6 +420,7 @@ export async function handleRunningBatchWorkflow(
       },
     );
     if (!markedFinalizing.ok) return;
+
     await emitTraceEvent(step, {
       trace_id: traceIdForCustomKey(batch.custom_key),
       entity_type: "batch",
@@ -404,34 +431,62 @@ export async function handleRunningBatchWorkflow(
       stage: batch.custom_key.split(":")[2] ?? null,
     });
 
-    const counters = await applyBatchResults({
-      ctx: step,
-      requests,
-      results: result.results,
-      now: Date.now(),
-    });
-    await applyBatchRateLimitUsage({
-      ctx: step,
-      model: batch.model,
-      totalInput: counters.totalInput,
-      totalOutput: counters.totalOutput,
-    });
+    try {
+      const counters = await applyBatchResults({
+        ctx: step,
+        requests,
+        results: result.results,
+        now: Date.now(),
+      });
+      await applyBatchRateLimitUsage({
+        ctx: step,
+        model: batch.model,
+        totalInput: counters.totalInput,
+        totalOutput: counters.totalOutput,
+      });
 
-    await markBatchSuccess({ ctx: step, batch_id: batch._id });
-    await emitTraceEvent(step, {
-      trace_id: traceIdForCustomKey(batch.custom_key),
-      entity_type: "batch",
-      entity_id: String(batch._id),
-      event_name: "batch_success",
-      status: "success",
-      custom_key: batch.custom_key,
-      stage: batch.custom_key.split(":")[2] ?? null,
-      payload_json: JSON.stringify({
-        total_input: counters.totalInput,
-        total_output: counters.totalOutput,
-        missing_results: counters.missingResultCount,
-      }),
-    });
+      await markBatchSuccess({ ctx: step, batch_id: batch._id });
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(batch.custom_key),
+        entity_type: "batch",
+        entity_id: String(batch._id),
+        event_name: "batch_success",
+        status: "success",
+        custom_key: batch.custom_key,
+        stage: batch.custom_key.split(":")[2] ?? null,
+        payload_json: JSON.stringify({
+          total_input: counters.totalInput,
+          total_output: counters.totalOutput,
+          missing_results: counters.missingResultCount,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const classified = classifyError(message);
+      const terminal = isTerminalApplyError(error);
+
+      await handleBatchError({
+        ctx: step,
+        batch,
+        requests,
+        error: `${terminal ? "terminal" : "retryable"}:${classified}:${message}`,
+      });
+
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(batch.custom_key),
+        entity_type: "batch",
+        entity_id: String(batch._id),
+        event_name: "batch_apply_error",
+        status: "error",
+        custom_key: batch.custom_key,
+        stage: batch.custom_key.split(":")[2] ?? null,
+        payload_json: JSON.stringify({
+          error: message,
+          class: classified,
+          terminal,
+        }),
+      });
+    }
   } finally {
     await step.runMutation(
       internal.domain.llm_calls.llm_batch_repo.releaseBatchPollClaim,
@@ -440,7 +495,9 @@ export async function handleRunningBatchWorkflow(
   }
 }
 
-export const processRunningBatchWorkflow = processWorkflow.define({
-  args: { batch_id: v.id("llm_batches") },
-  handler: handleRunningBatchWorkflow,
+export const processRunningBatchWorkflow = zInternalAction({
+  args: z.object({ batch_id: zid("llm_batches") }),
+  handler: async (ctx, args) => {
+    await handleRunningBatchWorkflow(ctx, { batch_id: args.batch_id });
+  },
 });

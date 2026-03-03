@@ -5,16 +5,19 @@ An open-source LLM-as-Judge design space engine. judge-gym focuses on how rubric
 This README documents the **current implementation in `judge-gym/` only** and is intentionally self-contained. It does not assume features that exist only in `v0-old/` or `v1-target/`.
 
 **Prerequisites**
+
 - Node.js `>=22.12.0`
 - Bun `>=1.1.27`
 
 **Node version management (nvm)**
 This repo pins Node via `.nvmrc` to keep all packages on the same version.
+
 1. `nvm install 22.12.0`
 2. `nvm use 22.12.0`
 3. `nvm alias default 22.12.0`
 
 **What exists today**
+
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
@@ -25,9 +28,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
 - Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
-- Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`) without nuking windows/evidence/experiments.
+- Engine maintenance helpers now include targeted run cleanup (`deleteRunData`), telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`), and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace ordering, lifecycle events, and counter consistency for recent runs.
-- The engine now includes a codex live-debug surface (`packages/engine/convex/packages/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
+- The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
 - The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
@@ -43,6 +46,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - `listEvidenceWindows` now aggregates evidence in one query pass instead of per-window lookups.
 
 **What does not exist yet (in this repo)**
+
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
 - A runtime override layer for `ENGINE_SETTINGS`.
 
@@ -121,6 +125,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
 **Indexes that drive orchestration**
+
 - `evidences.by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending` gate per-stage work.
 - `llm_requests.by_orphaned` identifies pending requests without a batch or job.
 - `llm_batches.by_status`, `llm_jobs.by_status` allow scheduler polling by status.
@@ -130,6 +135,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 ## Orchestration Flow (End-to-End)
 
 **High-level path**
+
 1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
 2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`.
 3. `startWindowOrchestration` sets the window to `running`, sets `current_stage` to `l1_cleaned`, and calls `WindowOrchestrator.enqueueStage`.
@@ -143,6 +149,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 11. `maybeAdvanceWindowStage` advances to the next stage or completes the window if all evidence items are done.
 
 **Run flow (experiment)**
+
 1. `initExperiment` creates an experiment and freezes selected evidence in `experiment_evidence`.
 2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and selected evidence, and sets `current_stage` to `rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
@@ -151,6 +158,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages).
 
 **Architecture overview**
+
 ```mermaid
 flowchart TD
   Lab[Convex lab API] --> WindowService[window_service]
@@ -175,15 +183,18 @@ flowchart TD
 ## Decision Tree: Batch vs Job
 
 **Where the decision is made**
+
 - `BaseOrchestrator.decideRoute` chooses between batch and job.
 
 **Decision logic**
+
 1. If the model is not batchable → **job**.
 2. If request count `< min_batch_size` → **job**.
 3. If request count `<= job_fallback_count` → **job**.
 4. Otherwise → **batch**.
 
 **Policy sources**
+
 - `ENGINE_SETTINGS.run_policy` defines `min_batch_size`, `job_fallback_count`, and other limits.
 
 ---
@@ -193,15 +204,18 @@ flowchart TD
 Custom keys are how LLM results route back into domain handlers.
 
 **Request keys**
+
 - `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
 - `RunOrchestrator.makeRequestKey` formats rubric-stage request keys as `sample:<sample_id>:<stage>`.
 - `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_evidence:<sample_evidence_score_id>:<stage>`.
 
 **Process keys**
+
 - `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
 - `RunOrchestrator.makeProcessKey` formats batch/job keys as `run:<run_id>:<stage>`.
 
 **Routing**
+
 - `target_registry` maps custom key prefixes to handlers.
 - `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_evidence` targets.
 
@@ -210,15 +224,18 @@ Custom keys are how LLM results route back into domain handlers.
 ## Scheduler and Workflow Mechanics
 
 **Scheduler**
+
 - `startScheduler` is idempotent; it only schedules a single `runScheduler` if one is not already pending.
 - `runScheduler` loads queued/running batches and jobs, starts workflows when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
 - If there are no queued/running batches or jobs (and no orphaned requests), `runScheduler` exits without rescheduling.
 
 **Workflow manager**
+
 - `process_workflows` defines `processQueuedBatchWorkflow`, `processRunningBatchWorkflow`, `processQueuedJobWorkflow`, and `processRunningJobWorkflow`.
 - Workflow retries use the default retry policy defined in `WorkflowManager`.
 
 **Important detail**
+
 - Orphaned requests are detected but not automatically requeued by the scheduler in the current code.
 
 ---
@@ -226,22 +243,26 @@ Custom keys are how LLM results route back into domain handlers.
 ## Rate Limiting, Retries, and Backoff
 
 **Rate limiting**
+
 - Implemented with `@convex-dev/rate-limiter` using token buckets.
 - Rate-limit tiers are defined per model in `platform/rate_limiter/provider_tiers.ts`.
 - Batch and job rate-limit keys share the same config, with `batch_*` keys generated automatically.
 
 **Batch flow**
+
 1. `checkBatchRateLimit` checks the batch requests key for the model.
 2. If rate limited, `next_poll_at` is pushed to the `retryAfter` time.
 3. On completion, `applyBatchRateLimitUsage` charges input/output token buckets.
 4. `handleBatchError` retries a batch up to `max_batch_retries`, then marks requests as error and triggers error handlers.
 
 **Job flow**
+
 1. `runJobRequests` checks request-level rate limits.
 2. If rate limited, `next_attempt_at` is set to the limiter’s `retryAfter`.
 3. Errors are retried up to `max_request_attempts`; beyond that, the request is marked error and routed to the error handler.
 
 **Retry and backoff**
+
 - `max_request_attempts` and `retry_backoff_ms` are enforced in both batch and job paths.
 - `getNextAttemptAt` and `getNextRunAt` derive from `ENGINE_SETTINGS.run_policy`.
 
@@ -251,22 +272,23 @@ Custom keys are how LLM results route back into domain handlers.
 
 `ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine/convex/settings.ts`.
 
-| Policy field | Default | Meaning | Enforced in |
-| --- | --- | --- | --- |
-| `poll_interval_ms` | `5000` | Minimum time between scheduler polls | `scheduler.ts`, `utils/scheduling.ts` |
-| `max_batch_size` | `500` | Maximum batch size (defined, not enforced in current code) | `settings.ts` only |
-| `min_batch_size` | `10` | Minimum requests needed to batch | `BaseOrchestrator.decideRoute` |
-| `job_fallback_count` | `5` | Job fallback threshold | `BaseOrchestrator.decideRoute` |
-| `max_tokens` | `5000` | Hard cap per request | `llm_batch_service`, `llm_job_service` |
-| `max_batch_retries` | `2` | Batch re-poll/retry cap | `llm_batch_service` |
-| `max_request_attempts` | `2` | Request retry cap | `llm_batch_service`, `llm_job_service` |
-| `retry_backoff_ms` | `60000` | Backoff before retry | `utils/scheduling.ts` |
+| Policy field           | Default | Meaning                                                    | Enforced in                            |
+| ---------------------- | ------- | ---------------------------------------------------------- | -------------------------------------- |
+| `poll_interval_ms`     | `5000`  | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
+| `max_batch_size`       | `500`   | Maximum batch size (defined, not enforced in current code) | `settings.ts` only                     |
+| `min_batch_size`       | `10`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
+| `job_fallback_count`   | `5`     | Job fallback threshold                                     | `BaseOrchestrator.decideRoute`         |
+| `max_tokens`           | `5000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
+| `max_batch_retries`    | `2`     | Batch re-poll/retry cap                                    | `llm_batch_service`                    |
+| `max_request_attempts` | `2`     | Request retry cap                                          | `llm_batch_service`, `llm_job_service` |
+| `retry_backoff_ms`     | `60000` | Backoff before retry                                       | `utils/scheduling.ts`                  |
 
 ---
 
 ## State Machines
 
 **Window lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> start
@@ -276,6 +298,7 @@ stateDiagram-v2
 ```
 
 **LLM request lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> pending
@@ -285,6 +308,7 @@ stateDiagram-v2
 ```
 
 **Batch lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> queued
@@ -295,6 +319,7 @@ stateDiagram-v2
 ```
 
 **Job lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> queued
@@ -309,11 +334,13 @@ stateDiagram-v2
 ## Provider Layer
 
 **Provider actions**
+
 - `submitOpenAiBatchAction` uploads a JSONL file and creates an OpenAI batch.
 - `pollOpenAiBatchAction` polls the batch status and parses both output and error JSONL files.
 - `openAiChatAction` uses the `ai` SDK to call OpenAI chat for job-mode requests.
 
 **Provider configuration**
+
 - `provider_types.ts` defines providers and model IDs.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.

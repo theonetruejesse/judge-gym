@@ -2,9 +2,16 @@
 
 This runbook standardizes live debugging for run and window orchestration in Convex.
 
+## Architecture assumptions
+
+- Scheduler is the only orchestrator loop.
+- The run/window hot path does not use `@convex-dev/workflow` workpool execution.
+- Scheduler dispatch is bounded per tick; large backlogs are drained over multiple ticks.
+- Batch poll leases are used to avoid duplicate concurrent poll/apply handlers.
+
 ## Interfaces
 
-- Convex package APIs in `packages/engine/convex/packages/codex.ts`
+- Convex package APIs in `packages/engine/convex/maintenance/codex.ts`
   - `packages/codex:getProcessHealth`
   - `packages/codex:getStuckWork`
   - `packages/codex:tailTrace`
@@ -19,21 +26,26 @@ This runbook standardizes live debugging for run and window orchestration in Con
 ## Typical Flow
 
 1. Watch process health
+
 - Run: `bun run debug:watch --run <run_id>`
 - Window: `bun run debug:watch --window <window_id>`
 
 2. Check stuck backlog
+
 - `bun run debug:stuck --older-ms 120000`
 
 3. Dry-run remediation
+
 - Run: `bun run debug:heal --run <run_id>`
 - Window: `bun run debug:heal --window <window_id>`
 
 4. Apply remediation
+
 - Run: `bun run debug:heal --run <run_id> --apply`
 - Window: `bun run debug:heal --window <window_id> --apply`
 
 5. Verify progress
+
 - Continue watch loop and confirm stage pending count decreases.
 - Tail trace if needed: `bun run debug:tail --trace run:<run_id>`
 
@@ -48,24 +60,40 @@ This runbook standardizes live debugging for run and window orchestration in Con
 ## Failure Playbook
 
 ### Stuck finalizing batch
+
 - Symptom: `finalizing_no_progress`
 - Action: dry-run `debug:heal`, then apply.
 - Expected: expired claim released and poll nudged.
 
 ### Pending orphan request
+
 - Symptom: `pending_request_no_owner`
 - Action: dry-run/apply `debug:heal`.
 - Expected: request requeued through target registry handler.
 
 ### Scheduler dead while work exists
+
 - Symptom: `scheduler_not_running`
 - Action: dry-run/apply `debug:heal`.
 - Expected: scheduler is re-started once.
 
+### Large backlog but no explosion
+
+- Symptom: pending queue remains non-zero for several ticks.
+- Action: continue watch loop and verify pending count trends downward.
+- Expected: bounded throughput and stable function-call rate (not unbounded growth).
+
 ### Retryable parse/provider error not requeued
+
 - Symptom: error request with attempts below cap and no replacement pending.
 - Action: dry-run/apply `debug:heal`.
 - Expected: retry request scheduled.
+
+### Parse/apply failures
+
+- Symptom: parse-related failure at apply stage.
+- Expected behavior: terminal failure for that request (no infinite retry loop).
+- Verify via `getProcessHealth` error summary and trace events.
 
 ## Notes
 
