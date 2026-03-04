@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "originalQuestion": "Design low-risk canary test specifications and observability coverage for judge-gym run flow before full experiment matrix, using current telemetry/debug surfaces and identifying remaining gaps.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/run-canary-observability-readiness",
+    "finalPlanPath": "_blueprints/run-canary-observability-readiness/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex-main",
+    "researchers": [
+      { "id": "019cb7b3-a39e-7a30-8fad-682d9031b094", "name": "Sartre", "area": "A_01" },
+      { "id": "019cb7b3-a3b7-78d3-85c4-40c096880862", "name": "Bernoulli", "area": "A_02" },
+      { "id": "019cb7b3-a3dd-7162-9e27-504014f2c7d9", "name": "Hubble", "area": "A_03" },
+      { "id": "019cb7b3-a41e-7721-85bc-eb803caf48ad", "name": "Lovelace", "area": "A_04" },
+      { "id": "019cb7b3-a437-7bf1-bc45-32146e12b848", "name": "Zeno", "area": "A_05" }
+    ],
+    "falsifier": { "id": "019cb7b6-f8ef-7882-89c0-7fe6efa05403", "name": "Godel" },
+    "certaintyScorer": { "id": "019cb7ba-4b81-78f0-ae9c-48464a108b96", "name": "Maxwell" },
+    "synthesizer": "codex-main"
+  },
+  "areasOfAnalysis": [
+    { "id": "A_01", "scope": "Telemetry and debug surface coverage", "assigned": "Sartre", "evidence": ["k_001"] },
+    { "id": "A_02", "scope": "Failure-mode coverage and residual risks", "assigned": "Bernoulli", "evidence": ["k_002"] },
+    { "id": "A_03", "scope": "Staged run canary specs", "assigned": "Hubble", "evidence": ["k_003"] },
+    { "id": "A_04", "scope": "Reset boundaries with window preservation", "assigned": "Lovelace", "evidence": ["k_004"] },
+    { "id": "A_05", "scope": "External Convex reliability constraints", "assigned": "Zeno", "evidence": ["k_005"] }
+  ],
+  "assignments": [
+    { "areaID": "A_01", "agent": "Sartre" },
+    { "areaID": "A_02", "agent": "Bernoulli" },
+    { "areaID": "A_03", "agent": "Hubble" },
+    { "areaID": "A_04", "agent": "Lovelace" },
+    { "areaID": "A_05", "agent": "Zeno" }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_telemetry_surface.md",
+      "knowledge/k_002_failure_modes_and_guards.md",
+      "knowledge/k_003_canary_specs.md",
+      "knowledge/k_004_reset_boundaries.md",
+      "knowledge/k_005_convex_external_constraints.md"
+    ]
+  },
+  "microHypotheses": [
+    "hypotheses/hyp_A_01_001_observability_gaps.json",
+    "hypotheses/hyp_A_02_001_residual_failure_risk.json",
+    "hypotheses/hyp_A_03_001_staged_canary_is_sufficient.json",
+    "hypotheses/hyp_A_04_001_preserve_windows_reset.json",
+    "hypotheses/hyp_A_05_001_convex_ops_alignment.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesisID": "h_A_02_001",
+      "status": "challenged",
+      "challenge": "null_challenges/nc_h_A_02_001_challenge.json",
+      "resolution": "Lower confidence; add intermediate scale canary gate"
+    },
+    {
+      "hypothesisID": "h_A_03_001",
+      "status": "challenged",
+      "challenge": "null_challenges/nc_h_A_03_001_challenge.json",
+      "resolution": "1->4 ladder insufficient alone; require target_count=10 gate"
+    },
+    {
+      "hypothesisID": "h_A_04_001",
+      "status": "challenged",
+      "challenge": "null_challenges/nc_h_A_04_001_challenge.json",
+      "resolution": "Retain run-scoped reset but require active-run guardrail and caution on scan cost"
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      { "item": "k_001", "score": 0.83 },
+      { "item": "k_002", "score": 0.86 },
+      { "item": "k_003", "score": 0.82 },
+      { "item": "k_004", "score": 0.84 },
+      { "item": "k_005", "score": 0.81 },
+      { "item": "h_A_01_001", "score": 0.76 },
+      { "item": "h_A_02_001", "score": 0.62 },
+      { "item": "h_A_03_001", "score": 0.58 },
+      { "item": "h_A_04_001", "score": 0.66 },
+      { "item": "h_A_05_001", "score": 0.79 },
+      { "item": "S1", "score": 0.86 },
+      { "item": "S2", "score": 0.74 },
+      { "item": "S3", "score": 0.84 },
+      { "item": "S4", "score": 0.88 },
+      { "item": "S5", "score": 0.81 },
+      { "item": "S6", "score": 0.77 },
+      { "item": "S7", "score": 0.85 },
+      { "item": "S8", "score": 0.80 }
+    ]
+  },
+  "synthesisOutput": "_blueprints/run-canary-observability-readiness/blueprint.md"
+}

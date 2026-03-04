@@ -1,0 +1,22 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove telemetry/debug sufficiency with added degradation/approximation gates.",
+      "falsificationQueries": [
+        "Does approximation and sequence diagnostics already exist?",
+        "Are there hidden telemetry-loss modes?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/convex/domain/maintenance/codex.ts:330",
+        "packages/engine/convex/domain/maintenance/codex.ts:427",
+        "packages/engine/convex/domain/maintenance/codex.ts:832",
+        "packages/engine/convex/domain/telemetry/emit.ts:19"
+      ],
+      "falsificationAnalysis": "Findings support the conditional hypothesis: gaps exist but are directly targetable with explicit operator gates.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

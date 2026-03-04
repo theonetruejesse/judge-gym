@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_05_001",
+  "microHypothesisID": "h_A_05_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove need for external logs + OCC/backlog alerting.",
+      "falsificationQueries": [
+        "Are dashboard logs durable enough for production forensics?"
+      ],
+      "falsificationEvidenceFound": [
+        "https://docs.convex.dev/functions/debugging",
+        "https://docs.convex.dev/dashboard/deployments/logs",
+        "https://docs.convex.dev/production/integrations/log-streams"
+      ],
+      "falsificationAnalysis": "Challenge failed; official guidance supports external logging for production and historical forensics.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

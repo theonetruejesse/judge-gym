@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "Per-run cleanup (`deleteRunData`) is the safest reset workflow for iterative canaries when preserving windows/evidence.",
+  "confidence": 0.85,
+  "rationale": "Global nukes remove windows; run-scoped delete aligns with desired preservation boundaries.",
+  "keyAssumptions": [
+    "run IDs are tracked reliably",
+    "cleanup is run after terminal or intentionally aborted runs"
+  ],
+  "validationCriteria": [
+    "windows/evidences remain intact after cleanup",
+    "run artifacts and run telemetry are removed for targeted runs"
+  ],
+  "critiquePoints": [
+    "current implementation uses broad scans that may strain large datasets"
+  ],
+  "questions": [
+    "Do we need chunked/indexed delete for high-volume loops?"
+  ]
+}
