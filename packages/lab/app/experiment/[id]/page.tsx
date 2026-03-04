@@ -66,7 +66,6 @@ type EvidenceItem = {
   title: string;
   url: string;
   created_at: number;
-  window_tag?: string;
 };
 
 type RunSummary = {
@@ -477,7 +476,7 @@ function EvidencePanel({ evidenceItems }: { evidenceItems: EvidenceItem[] }) {
                 <div className="text-[10px] opacity-50">{item.url}</div>
               </TableCell>
               <TableCell className="text-xs opacity-70">
-                {item.window_tag ?? item.window_id}
+                {item.window_id}
               </TableCell>
               <TableCell className="text-right text-xs opacity-60">
                 {new Date(item.created_at).toLocaleDateString()}

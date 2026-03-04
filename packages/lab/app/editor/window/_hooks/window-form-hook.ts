@@ -47,12 +47,12 @@ export const useWindowForm = ({ defaultValues }: UseWindowFormProps) => {
     },
     onSubmit: async ({ value }) => {
       const { evidence_limit, ...evidence_window } = value;
-      const { window_id, window_tag } = await createWindowForm({
+      const { window_id } = await createWindowForm({
         evidence_window,
         evidence_limit,
       });
       toast("Window created.", {
-        description: `Collecting evidence for ${window_tag}...`,
+        description: `Collecting evidence for ${window_id}...`,
       });
       router.push(`/`);
     },

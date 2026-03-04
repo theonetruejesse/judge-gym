@@ -62,7 +62,6 @@ type EvidenceWindowItem = {
   country: string;
   query: string;
   model: string;
-  window_tag?: string;
   evidence_count: number;
   evidence_status:
     | "scraping"
@@ -350,7 +349,7 @@ export default function EvidenceHomePage() {
                     onClick={() => router.push(`/evidence/${window.window_id}`)}
                   >
                     <TableCell className="font-medium text-foreground">
-                      {window.window_tag ?? "—"}
+                      {window.query ?? "—"}
                     </TableCell>
                     <TableCell className="opacity-70">
                       {window.country}

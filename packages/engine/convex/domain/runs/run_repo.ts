@@ -44,8 +44,8 @@ export const createRun = zInternalMutation({
     }
 
     const evidenceLinks = await ctx.db
-      .query("experiment_evidence")
-      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .query("pool_evidence")
+      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
       .collect();
     const evidenceIds = evidenceLinks
       .slice()

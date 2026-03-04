@@ -613,8 +613,8 @@ async function resolveEvidenceForSample(
   experiment: Doc<"experiments">,
 ) {
   const links = await ctx.db
-    .query("experiment_evidence")
-    .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+    .query("pool_evidence")
+    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
     .collect();
 
   const ordered = links

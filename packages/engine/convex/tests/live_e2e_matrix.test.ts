@@ -228,8 +228,9 @@ async function tableCounts(t: ReturnType<typeof convexTest>) {
     const tables = [
       "windows",
       "evidences",
+      "pools",
+      "pool_evidence",
       "experiments",
-      "experiment_evidence",
       "runs",
       "samples",
       "llm_batches",
@@ -309,6 +310,9 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
           evidence_id: Id<"evidences">;
         }>;
         expect(windowEvidence.length).toBeGreaterThan(0);
+        const pool = await t.mutation(api.packages.lab.createPool, {
+          evidence_ids: windowEvidence.map((row) => row.evidence_id),
+        });
 
         const experiment = await t.mutation(api.packages.lab.initExperiment, {
           experiment_config: {
@@ -325,7 +329,7 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
               randomizations: [],
             },
           },
-          evidence_ids: windowEvidence.map((row) => row.evidence_id),
+          pool_id: pool.pool_id,
         });
 
         const run = await t.mutation(api.packages.lab.startExperimentRun, {

@@ -208,7 +208,7 @@ function createSyntheticWindow(scenario: Scenario) {
     start_date: "2026-03-01",
     end_date: "2026-03-03",
     query: `synthetic ${scenario.id}`,
-  }) as { window_id: string; window_tag: string };
+  }) as { window_id: string };
 
   runConvex("domain/window/window_repo:insertEvidenceBatch", {
     window_id: created.window_id,
@@ -268,7 +268,9 @@ function createRunFromWindow(windowId: string, targetCount: number) {
 
   const initialized = runConvex("packages/lab:initExperiment", {
     experiment_config: defaultExperimentConfig(),
-    evidence_ids: evidenceIds,
+    pool_id: runConvex("packages/lab:createPool", {
+      evidence_ids: evidenceIds,
+    }).pool_id,
   }) as { experiment_id: string };
 
   const started = runConvex("packages/lab:startExperimentRun", {

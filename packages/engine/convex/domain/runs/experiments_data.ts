@@ -34,9 +34,11 @@ async function listEvidenceLinks(
   ctx: QueryCtx,
   experimentId: Id<"experiments">,
 ) {
+  const experiment = await ctx.db.get(experimentId);
+  if (!experiment) throw new Error("Experiment not found");
   return ctx.db
-    .query("experiment_evidence")
-    .withIndex("by_experiment", (q) => q.eq("experiment_id", experimentId))
+    .query("pool_evidence")
+    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
     .collect();
 }
 
@@ -197,22 +199,11 @@ export const listExperimentEvidence = zInternalQuery({
       title: string;
       url: string;
       created_at: number;
-      window_tag?: string;
     }> = [];
-
-    const windowCache = new Map<Id<"windows">, Doc<"windows">>();
 
     for (const link of links) {
       const evidence = await ctx.db.get(link.evidence_id);
       if (!evidence) continue;
-      let window = windowCache.get(evidence.window_id);
-      if (!window) {
-        const fetched = await ctx.db.get(evidence.window_id);
-        if (fetched) {
-          window = fetched;
-          windowCache.set(evidence.window_id, fetched);
-        }
-      }
 
       evidenceRows.push({
         evidence_id: evidence._id,
@@ -220,7 +211,6 @@ export const listExperimentEvidence = zInternalQuery({
         title: evidence.title,
         url: evidence.url,
         created_at: evidence._creationTime,
-        window_tag: window?.window_tag,
       });
     }
 

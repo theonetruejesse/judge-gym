@@ -23,6 +23,7 @@ export function useExperimentForm({
   onStatusChange,
 }: UseExperimentFormProps) {
   const router = useRouter();
+  const createPool = useMutation(api.packages.lab.createPool);
   const initExperiment = useMutation(api.packages.lab.initExperiment);
 
   const form = useForm({
@@ -56,6 +57,9 @@ export function useExperimentForm({
       }
 
       try {
+        const pool = await createPool({
+          evidence_ids: selectedEvidenceIds,
+        });
         const result = await initExperiment({
           experiment_config: {
             rubric_config: {
@@ -71,7 +75,7 @@ export function useExperimentForm({
               randomizations: value.randomizations,
             },
           },
-          evidence_ids: selectedEvidenceIds,
+          pool_id: pool.pool_id,
         });
         onStatusChange?.("Experiment created.");
         router.replace(`/experiment/${result.experiment_id}`);

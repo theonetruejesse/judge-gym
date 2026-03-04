@@ -95,9 +95,12 @@ Use this when a new Codex instance has zero prior context.
 - Source evidence set:
   - `mcp__convex__run` -> `packages/lab:listExperimentEvidence` with `{ "experiment_id": "<source_experiment_id>" }`
 - Create new experiment:
+  - `mcp__convex__run` -> `packages/lab:createPool` with:
+    - `evidence_ids` from source evidence list
+    - optional `pool_tag` override
   - `mcp__convex__run` -> `packages/lab:initExperiment` with:
     - `experiment_config` from source summary (`rubric_config`, `scoring_config`)
-    - `evidence_ids` from source evidence list
+    - `pool_id` from `createPool`
 - Model swap clone (common A/B pattern):
   - Keep all fields the same, but set both:
     - `experiment_config.rubric_config.model`
