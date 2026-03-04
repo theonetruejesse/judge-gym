@@ -23,23 +23,10 @@ export const emitEvent = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const ts_ms = args.ts_ms ?? Date.now();
-    const existingCounter = await ctx.db
-      .query("telemetry_trace_counters")
-      .withIndex("by_trace_id", (q) => q.eq("trace_id", args.trace_id))
-      .first();
-
-    let seq = 1;
-    if (!existingCounter) {
-      await ctx.db.insert("telemetry_trace_counters", {
-        trace_id: args.trace_id,
-        next_seq: 2,
-      });
-    } else {
-      seq = existingCounter.next_seq;
-      await ctx.db.patch(existingCounter._id, {
-        next_seq: existingCounter.next_seq + 1,
-      });
-    }
+    // Hot traces can emit many events concurrently (especially request-level events).
+    // Avoid a shared per-trace counter write hotspot by deriving a high-entropy seq.
+    // This preserves sortability by event time while eliminating counter OCC conflicts.
+    const seq = ts_ms * 1_000 + Math.floor(Math.random() * 1_000);
 
     await ctx.db.insert("telemetry_events", {
       trace_id: args.trace_id,

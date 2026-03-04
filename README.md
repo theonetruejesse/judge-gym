@@ -21,7 +21,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
-- The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, with per-trace sequence ordering.
+- The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, using timestamp-entropy sequence values to avoid per-trace counter write hotspots under concurrency.
 - Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
 - Scheduler/workflow batch polling now skips running batches that already have an active poll lease, reducing duplicate workflow starts and `batch_poll_claim_denied` churn during finalization.
 - Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
@@ -31,7 +31,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`), telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`), and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
-- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace ordering, lifecycle events, and counter consistency for recent runs.
+- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace lifecycle and failure signals for recent runs.
 - The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
 - Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
@@ -118,7 +118,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 | `telemetry_events` | Ordered event log for traces | `trace_id`, `seq`, `entity_type`, `entity_id`, `event_name`, `stage`, `status`, `payload_json` |
-| `telemetry_trace_counters` | Per-trace sequence allocator | `trace_id`, `next_seq` |
+| `telemetry_trace_counters` | Legacy per-trace sequence allocator (no longer used by active event writes) | `trace_id`, `next_seq` |
 | `telemetry_entity_state` | Latest event snapshot per entity | `entity_type`, `entity_id`, `trace_id`, `last_*` |
 
 **Experiment and run tables (orchestrated)**

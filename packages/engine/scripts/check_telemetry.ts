@@ -143,7 +143,7 @@ function main() {
     : runConvexData("telemetry_events", limit) as TelemetryEvent[];
   const counters = countersFile
     ? loadJsonFile<TelemetryCounter[]>(countersFile)
-    : runConvexData("telemetry_trace_counters", limit) as TelemetryCounter[];
+    : [];
 
   const traceId = chooseTraceId(events, argTraceId);
   const traceEvents = events
@@ -158,18 +158,11 @@ function main() {
   const seqSet = new Set(seqs);
   const minSeq = seqs[0];
   const maxSeq = seqs[seqs.length - 1];
-  const missingSeqs: number[] = [];
-  for (let seq = minSeq; seq <= maxSeq; seq += 1) {
-    if (!seqSet.has(seq)) {
-      missingSeqs.push(seq);
-    }
-  }
   const duplicateSeqCount = seqs.length - new Set(seqs).size;
-  const contiguous = missingSeqs.length === 0 && duplicateSeqCount === 0;
+  const hasSeqCollisions = duplicateSeqCount > 0;
 
   const counter = counters.find((row) => row.trace_id === traceId);
   const counterNextSeq = counter?.next_seq ?? null;
-  const counterMatchesMax = counterNextSeq === maxSeq + 1;
 
   const eventCountByName = new Map<string, number>();
   const statusCount = new Map<string, number>();
@@ -218,23 +211,20 @@ function main() {
   ).size;
 
   const healthOk =
-    contiguous
-    && counterMatchesMax
-    && started
+    started
     && schedulerKickoff
     && completed
-    && failureCount === 0;
+    && failureCount === 0
+    && !hasSeqCollisions;
 
   console.log(`trace_id: ${traceId}`);
   console.log(`events: ${traceEvents.length} (seq ${minSeq}..${maxSeq})`);
   console.log(
     `time_range: ${formatTs(firstTs)} -> ${formatTs(lastTs)} (${durationSec.toFixed(1)}s)`,
   );
-  console.log(`sequence_contiguous: ${contiguous}`);
+  console.log("sequence_strategy: timestamp_entropy");
   console.log(`duplicate_seq_count: ${duplicateSeqCount}`);
-  console.log(`missing_seq_count: ${missingSeqs.length}`);
   console.log(`counter_next_seq: ${counterNextSeq}`);
-  console.log(`counter_matches_max_plus_one: ${counterMatchesMax}`);
   console.log(`started_events_present: ${started}`);
   console.log(`scheduler_kickoff_present: ${schedulerKickoff}`);
   console.log(`window_completed_present: ${completed}`);
