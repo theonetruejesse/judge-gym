@@ -148,7 +148,7 @@ export const applyRequestResult = zInternalMutation({
         stage,
         status: "success",
         custom_key: args.custom_key,
-      });
+      }, { defer: true });
       await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
       return;
     }
@@ -179,7 +179,7 @@ export const applyRequestResult = zInternalMutation({
       stage,
       status: "success",
       custom_key: args.custom_key,
-    });
+    }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },
 });
@@ -202,7 +202,7 @@ export const handleRequestError = zInternalMutation({
       stage,
       status: "error",
       custom_key: args.custom_key,
-    });
+    }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },
 });

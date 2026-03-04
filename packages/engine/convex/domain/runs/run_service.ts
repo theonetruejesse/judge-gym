@@ -101,7 +101,7 @@ export const applyRequestResult = zInternalMutation({
           stage,
           status: "success",
           custom_key: args.custom_key,
-        });
+        }, { defer: true });
         return;
       }
       if (stage === "rubric_critic" && sample.rubric_critic_id) {
@@ -121,7 +121,7 @@ export const applyRequestResult = zInternalMutation({
           stage,
           status: "success",
           custom_key: args.custom_key,
-        });
+        }, { defer: true });
         return;
       }
       if (stage === "score_gen" && (scoreUnit?.score_id ?? sample.score_id)) {
@@ -141,7 +141,7 @@ export const applyRequestResult = zInternalMutation({
           stage,
           status: "success",
           custom_key: args.custom_key,
-        });
+        }, { defer: true });
         return;
       }
       if (
@@ -164,7 +164,7 @@ export const applyRequestResult = zInternalMutation({
           stage,
           status: "success",
           custom_key: args.custom_key,
-        });
+        }, { defer: true });
         return;
       }
 
@@ -314,7 +314,7 @@ export const applyRequestResult = zInternalMutation({
         payload_json: JSON.stringify({
           error: error instanceof Error ? error.message : String(error),
         }),
-      });
+      }, { defer: true });
       return;
     }
 
@@ -339,7 +339,7 @@ export const applyRequestResult = zInternalMutation({
       stage,
       status: "success",
       custom_key: args.custom_key,
-    });
+    }, { defer: true });
   },
 });
 
@@ -360,7 +360,7 @@ export const handleRequestError = zInternalMutation({
       stage,
       status: "error",
       custom_key: args.custom_key,
-    });
+    }, { defer: true });
   },
 });
 
@@ -409,7 +409,7 @@ export const requeueRunRequest = zInternalMutation({
       payload_json: JSON.stringify({
         job_id: jobId,
       }),
-    });
+    }, { defer: true });
   },
 });
 

@@ -1,7 +1,9 @@
 import { internal } from "../../_generated/api";
 import type { ActionCtx, MutationCtx } from "../../_generated/server";
 
-type TelemetryCtx = Pick<ActionCtx | MutationCtx, "runMutation">;
+type TelemetryCtx = Pick<ActionCtx | MutationCtx, "runMutation"> & {
+  scheduler?: Pick<ActionCtx["scheduler"], "runAfter">;
+};
 
 type EmitTraceEventArgs = {
   trace_id: string;
@@ -19,8 +21,17 @@ type EmitTraceEventArgs = {
 export async function emitTraceEvent(
   ctx: TelemetryCtx,
   args: EmitTraceEventArgs,
+  options?: { defer?: boolean },
 ) {
   try {
+    if (options?.defer && ctx.scheduler) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.telemetry.events.emitEvent,
+        args,
+      );
+      return;
+    }
     await ctx.runMutation(internal.domain.telemetry.events.emitEvent, args);
   } catch (error) {
     console.warn("telemetry_emit_failed", String(error));
