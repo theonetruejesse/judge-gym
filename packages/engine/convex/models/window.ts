@@ -11,7 +11,6 @@ export const WindowsTableSchema = z.object({
     end_date: z.string(),
     country: z.string(),
     query: z.string(),
-    window_tag: z.string(),
 });
 
 export const EvidencesTableSchema = z.object({
@@ -25,4 +24,13 @@ export const EvidencesTableSchema = z.object({
     l2_request_id: zid("llm_requests").nullable(),
     l3_abstracted_content: z.string().nullable(),
     l3_request_id: zid("llm_requests").nullable(),
+});
+
+export const PoolsTableSchema = z.object({
+    pool_tag: z.string(),
+});
+
+export const PoolEvidencesTableSchema = z.object({
+    pool_id: zid("pools"),
+    evidence_id: zid("evidences"),
 });

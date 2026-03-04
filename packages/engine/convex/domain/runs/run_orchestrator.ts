@@ -715,9 +715,12 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   private async listEvidenceForExperiment(
     experimentId: Id<"experiments">,
   ): Promise<EvidenceDoc[]> {
+    const experiment = await this.ctx.db.get(experimentId);
+    if (!experiment) return [];
+
     const links = await this.ctx.db
-      .query("experiment_evidence")
-      .withIndex("by_experiment", (q) => q.eq("experiment_id", experimentId))
+      .query("pool_evidence")
+      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
       .collect();
 
     const ordered = links

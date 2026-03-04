@@ -19,7 +19,6 @@ export type EvidenceWindowItem = {
   country: string;
   query: string;
   model: string;
-  window_tag?: string;
 };
 
 export type EvidenceItem = {
@@ -80,7 +79,7 @@ export function EvidenceSelector({
             <SelectContent>
               {windows.map((window) => (
                 <SelectItem key={window.window_id} value={window.window_id}>
-                  {window.window_tag ?? window.query}
+                  {window.query}
                 </SelectItem>
               ))}
               <SelectSeparator />

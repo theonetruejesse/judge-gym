@@ -34,7 +34,7 @@ export const createWindowForm = zMutation({
       throw new Error("Invalid window dates");
     }
 
-    const { window_id, window_tag } = await ctx.runMutation(
+    const { window_id } = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
       evidence_window,
     );
@@ -55,7 +55,7 @@ export const createWindowForm = zMutation({
       { window_id, evidence_limit }
     );
 
-    return { window_id, window_tag };
+    return { window_id };
   },
 });
 
@@ -126,7 +126,6 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: z.string(),
       query: z.string(),
       model: modelTypeSchema,
-      window_tag: z.string(),
       evidence_count: z.number(),
       evidence_status: z.enum([
         "scraping",
@@ -157,7 +156,6 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: string;
       query: string;
       model: ModelType;
-      window_tag: string;
       evidence_count: number;
       evidence_status: EvidenceStatus;
     }>;
@@ -172,13 +170,12 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
         country: window.country,
         query: window.query,
         model: window.model,
-        window_tag: window.window_tag,
         evidence_count: evidences.length,
         evidence_status,
       });
     }
 
-    results.sort((a, b) => a.window_tag.localeCompare(b.window_tag));
+    results.sort((a, b) => a.query.localeCompare(b.query));
     return results;
   },
 });
@@ -219,22 +216,24 @@ const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_config: ExperimentConfigInputSchema,
-    evidence_ids: z.array(zid("evidences")).min(1),
+    pool_id: zid("pools"),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const { experiment_config, evidence_ids } = args;
+    const { experiment_config, pool_id } = args;
 
     const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
-      experiment_config
+      {
+        ...experiment_config,
+        pool_id,
+      }
     );
-
-    await ctx.runMutation(internal.domain.runs.experiments_repo.insertExperimentEvidences, {
-      experiment_id,
-      evidence_ids,
-    });
+    const poolLinks = await ctx.runQuery(
+      internal.domain.runs.experiments_repo.listPoolEvidenceLinks,
+      { pool_id },
+    );
     await emitTraceEvent(ctx, {
       trace_id: `experiment:${experiment_id}`,
       entity_type: "run",
@@ -242,12 +241,29 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       event_name: "experiment_initialized",
       status: "start",
       payload_json: JSON.stringify({
-        evidence_count: evidence_ids.length,
+        evidence_count: poolLinks.length,
         scoring_model: experiment_config.scoring_config.model,
       }),
     });
 
     return { experiment_id };
+  },
+});
+
+export const createPool: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    evidence_ids: z.array(zid("evidences")).min(1),
+    pool_tag: z.string().optional(),
+  }),
+  returns: z.object({
+    pool_id: zid("pools"),
+  }),
+  handler: async (ctx, args) => {
+    const pool_id = await ctx.runMutation(
+      internal.domain.runs.experiments_repo.createPool,
+      args,
+    );
+    return { pool_id };
   },
 });
 
@@ -339,7 +355,6 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
       title: z.string(),
       url: z.string(),
       created_at: z.number(),
-      window_tag: z.string().optional(),
     }),
   ),
   handler: async (ctx, args) => {

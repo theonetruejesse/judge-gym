@@ -43,7 +43,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
-- Experiment initialization now freezes evidence selections via `experiment_evidence`.
+- Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidence`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
@@ -75,7 +75,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- |
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
 | `domain/llm_calls/` | Batch/job/request repos + services |
-| `domain/runs/` | Experiment creation + evidence binding + run orchestration |
+| `domain/runs/` | Experiment creation + pool binding + run orchestration |
 | `domain/window/` | Evidence window orchestration + search |
 | `models/` | Zod schemas for tables and shared enums |
 | `platform/` | Providers, rate limiter, run policy |
@@ -92,8 +92,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/orchestrator/target_registry.ts` | Custom key routing to domain handlers |
 | `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
-| `domain/runs/experiments_services.ts` | Experiment creation + evidence binding |
-| `domain/runs/experiments_repo.ts` | Experiment storage + evidence binding |
+| `domain/runs/experiments_services.ts` | Experiment creation + pool binding |
+| `domain/runs/experiments_repo.ts` | Experiment/pool storage + pool evidence binding |
 | `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
 | `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
@@ -113,7 +113,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Orchestration tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date`, `window_tag` |
+| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date` |
 | `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
 | `llm_requests` | Individual LLM calls | `status`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
 | `process_request_targets` | Derived per-target request state snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `has_pending`, `max_attempts`, `latest_error_class` |
@@ -125,7 +125,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `experiments` | Experiment configs | `experiment_tag`, `rubric_config`, `scoring_config` |
+| `pools` | Reusable evidence pools | `pool_tag` |
+| `pool_evidence` | Evidence membership for pools | `pool_id`, `evidence_id` |
+| `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count` |
 | `samples` | Run samples (rubric scope) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed` |
 | `sample_evidence_scores` | Run score units (sample × evidence) | `run_id`, `sample_id`, `evidence_id`, `score_id`, `score_critic_id` |
@@ -157,10 +159,10 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 **Run flow (experiment)**
 
-1. `initExperiment` creates an experiment and freezes selected evidence in `experiment_evidence`.
-2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and selected evidence, and sets `current_stage` to `rubric_gen`.
+1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
+2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and sets `current_stage` to `rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
-4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every selected evidence item.
+4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every pool evidence item.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
 6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages).
 

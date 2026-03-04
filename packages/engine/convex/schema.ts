@@ -7,7 +7,14 @@ import {
   ProcessRequestTargetStateTableSchema,
 } from "./models/llm_calls";
 import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
-import { ExperimentEvidencesTableSchema, ExperimentsTableSchema, RunsTableSchema } from "./models/experiments";
+import {
+  ExperimentsTableSchema,
+  RunsTableSchema,
+} from "./models/experiments";
+import {
+  PoolEvidencesTableSchema,
+  PoolsTableSchema
+} from "./models/window";
 import {
   SamplesTableSchema,
   RubricsTableSchema,
@@ -46,9 +53,12 @@ export default defineSchema({
     .index("by_l1_id", ["l1_request_id"])
     .index("by_l2_id", ["l2_request_id"])
     .index("by_l3_id", ["l3_request_id"]),
-  experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema)),
-  experiment_evidence: defineTable(zodOutputToConvex(ExperimentEvidencesTableSchema))
-    .index("by_experiment", ["experiment_id"]),
+  pools: defineTable(zodOutputToConvex(PoolsTableSchema))
+    .index("by_pool_tag", ["pool_tag"]),
+  pool_evidence: defineTable(zodOutputToConvex(PoolEvidencesTableSchema))
+    .index("by_pool", ["pool_id"]),
+  experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
+    .index("by_pool", ["pool_id"]),
   runs: defineTable(zodOutputToConvex(RunsTableSchema))
     .index("by_experiment", ["experiment_id"]),
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
