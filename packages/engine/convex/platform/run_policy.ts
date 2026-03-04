@@ -16,6 +16,8 @@ export const RunPolicySchema = z.object({
   max_request_attempts: z.number().int().min(1),
   // Backoff before retrying failed job requests (ms).
   retry_backoff_ms: z.number().int().min(0),
+  // Max in-flight requests processed concurrently within a single job tick.
+  job_request_concurrency: z.number().int().min(1),
 });
 
 export type RunPolicy = z.infer<typeof RunPolicySchema>;

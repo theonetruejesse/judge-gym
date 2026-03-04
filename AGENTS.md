@@ -46,11 +46,13 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Run process: `bun run debug:watch --run <run_id>`
 - Window process: `bun run debug:watch --window <window_id>`
 - Trace tail: `bun run debug:tail --trace run:<run_id>`
+- Process telemetry analysis: `bun run debug:analyze --run <run_id>` or `bun run debug:analyze --window <window_id>`
 
 ### Diagnose
 
 - List stuck work globally: `bun run debug:stuck --older-ms 120000`
 - List stuck work for runs only: `bun run debug:stuck --older-ms 120000 --run <run_id>`
+- Deep trace diagnostics (bounded pagination): `bun run debug:analyze --window <window_id> --max-events 10000`
 
 ### Recover (safe automation)
 

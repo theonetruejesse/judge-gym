@@ -32,6 +32,8 @@ export const LlmJobsTableSchema = z.object({
   custom_key: z.string(),
   next_run_at: z.number().optional(),
   last_error: z.string().optional(),
+  run_claim_owner: z.string().nullable().optional(),
+  run_claim_expires_at: z.number().nullable().optional(),
 });
 
 export const RequestStatusSchema = z.enum([

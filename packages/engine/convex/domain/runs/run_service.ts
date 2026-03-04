@@ -72,6 +72,10 @@ export const applyRequestResult = zInternalMutation({
     const sample = target.sample;
     const sampleId = sample._id;
     const scoreUnit = target.scoreUnit;
+    const request = await ctx.runQuery(
+      internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+      { request_id: args.request_id },
+    );
 
     try {
       if (
@@ -81,6 +85,7 @@ export const applyRequestResult = zInternalMutation({
         throw new Error(`Unexpected target type for stage ${stage}: ${targetType}`);
       }
       if (stage === "rubric_gen" && sample.rubric_id) {
+        if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
@@ -101,6 +106,7 @@ export const applyRequestResult = zInternalMutation({
         return;
       }
       if (stage === "rubric_critic" && sample.rubric_critic_id) {
+        if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
@@ -121,6 +127,7 @@ export const applyRequestResult = zInternalMutation({
         return;
       }
       if (stage === "score_gen" && (scoreUnit?.score_id ?? sample.score_id)) {
+        if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
@@ -144,6 +151,7 @@ export const applyRequestResult = zInternalMutation({
         stage === "score_critic" &&
         (scoreUnit?.score_critic_id ?? sample.score_critic_id)
       ) {
+        if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {

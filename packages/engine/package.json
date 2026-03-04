@@ -19,6 +19,7 @@
     "debug:stuck": "bun run scripts/live_debug.ts stuck",
     "debug:heal": "bun run scripts/live_debug.ts heal",
     "debug:tail": "bun run scripts/live_debug.ts tail",
+    "debug:analyze": "bun run scripts/live_debug.ts analyze",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:once": "vitest run",

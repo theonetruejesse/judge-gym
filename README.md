@@ -33,6 +33,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
 - The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
+- The engine includes Bun process telemetry analysis in `packages/engine`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
 - Experiment initialization now freezes evidence selections via `experiment_evidence`.
@@ -251,7 +252,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 **Job flow**
 
-1. `runJobRequests` checks request-level rate limits.
+1. `runJobRequests` processes due pending requests with bounded in-job concurrency (`run_policy.job_request_concurrency`) and checks request-level rate limits per request.
 2. If rate limited, `next_attempt_at` is set to the limiter’s `retryAfter`.
 3. Errors are retried up to `max_request_attempts`; beyond that, the request is marked error and routed to the error handler.
 
@@ -268,13 +269,14 @@ Custom keys are how LLM results route back into domain handlers.
 
 | Policy field           | Default | Meaning                                                    | Enforced in                            |
 | ---------------------- | ------- | ---------------------------------------------------------- | -------------------------------------- |
-| `poll_interval_ms`     | `10000` | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
+| `poll_interval_ms`     | `20000` | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
 | `max_batch_size`       | `100`   | Maximum requests per provider batch chunk                  | `BaseOrchestrator.createBatch`         |
-| `min_batch_size`       | `10`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
+| `min_batch_size`       | `25`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
 | `max_tokens`           | `8000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
 | `max_batch_retries`    | `2`     | Batch re-poll/retry cap                                    | `llm_batch_service`                    |
 | `max_request_attempts` | `2`     | Request retry cap                                          | `llm_batch_service`, `llm_job_service` |
 | `retry_backoff_ms`     | `60000` | Backoff before retry                                       | `utils/scheduling.ts`                  |
+| `job_request_concurrency` | `8`  | Max concurrent request executions per job processing tick  | `llm_job_service`                      |
 
 ---
 
