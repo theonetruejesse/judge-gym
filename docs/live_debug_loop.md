@@ -123,4 +123,6 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - request duplicate-apply churn
   - repeated job finalization
   - events emitted after terminal completion
+- Run terminal ordering expectation:
+  - `run_completed` should be the final run-trace event (no trailing request/job events).
 - Legacy caveat: if a process predates snapshots, bounded fallback reconstruction can make non-active-stage error rollups approximate. Use `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` for full historical forensics.

@@ -27,6 +27,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
 - Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
 - Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
+- Run trace ordering now emits request/job terminal events before `run_completed`, so terminal telemetry no longer includes post-terminal transport events.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`), telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`), and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
