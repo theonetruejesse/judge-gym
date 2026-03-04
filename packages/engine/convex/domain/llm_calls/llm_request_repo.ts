@@ -135,7 +135,7 @@ async function refreshProcessRequestTargetState(
     .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
     .first();
 
-  const payload = {
+  const basePayload = {
     process_type: processRef.process_type,
     process_id: processRef.process_id,
     target_type: parsed.target_type,
@@ -147,14 +147,31 @@ async function refreshProcessRequestTargetState(
     max_attempts: maxAttempts,
     latest_error_class: latestErrorClass,
     latest_error_message: latestErrorMessage,
-    updated_at_ms: Date.now(),
   } as const;
 
   if (existing) {
-    await ctx.db.patch(existing._id, payload);
+    const unchanged = existing.process_type === basePayload.process_type
+      && existing.process_id === basePayload.process_id
+      && existing.target_type === basePayload.target_type
+      && existing.target_id === basePayload.target_id
+      && existing.stage === basePayload.stage
+      && existing.custom_key === basePayload.custom_key
+      && existing.has_pending === basePayload.has_pending
+      && existing.oldest_pending_ts === basePayload.oldest_pending_ts
+      && existing.max_attempts === basePayload.max_attempts
+      && existing.latest_error_class === basePayload.latest_error_class
+      && existing.latest_error_message === basePayload.latest_error_message;
+    if (unchanged) return;
+    await ctx.db.patch(existing._id, {
+      ...basePayload,
+      updated_at_ms: Date.now(),
+    });
     return;
   }
-  await ctx.db.insert("process_request_targets", payload);
+  await ctx.db.insert("process_request_targets", {
+    ...basePayload,
+    updated_at_ms: Date.now(),
+  });
 }
 
 export const createLlmRequest = zInternalMutation({
@@ -204,7 +221,26 @@ export const patchRequest = zInternalMutation({
   handler: async (ctx, args) => {
     const request = await ctx.db.get(args.request_id);
     if (!request) throw new Error("Request not found");
+    const patchEntries = Object.entries(args.patch);
+    const changedEntries = patchEntries.filter(([key, value]) =>
+      (request as Record<string, unknown>)[key] !== value,
+    );
+    if (changedEntries.length === 0) return;
+
     await ctx.db.patch(args.request_id, args.patch);
-    await refreshProcessRequestTargetState(ctx, request.custom_key);
+
+    const changedKeys = new Set(changedEntries.map(([key]) => key));
+    const snapshotRelevant = changedKeys.has("status")
+      || changedKeys.has("attempts")
+      || changedKeys.has("last_error")
+      || changedKeys.has("custom_key");
+    if (!snapshotRelevant) return;
+
+    const oldCustomKey = request.custom_key;
+    const nextCustomKey = (args.patch.custom_key as string | undefined) ?? oldCustomKey;
+    await refreshProcessRequestTargetState(ctx, oldCustomKey);
+    if (nextCustomKey !== oldCustomKey) {
+      await refreshProcessRequestTargetState(ctx, nextCustomKey);
+    }
   },
 });

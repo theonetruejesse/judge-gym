@@ -26,6 +26,7 @@ import { zInternalAction } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
 
 const BATCH_POLL_LEASE_MS = 30_000;
+const JOB_RUN_LEASE_MS = 30_000;
 
 type WorkflowStep = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
 
@@ -64,6 +65,37 @@ export async function handleQueuedJobWorkflow(
     { job_id: args.job_id },
   );
   if (!job || job.status !== "queued") return;
+  const owner = `${job._id}:${now}:${Math.random().toString(36).slice(2)}`;
+  const claim = await step.runMutation(
+    internal.domain.llm_calls.llm_job_repo.claimQueuedJobForRun,
+    {
+      job_id: job._id,
+      owner,
+      now,
+      lease_ms: JOB_RUN_LEASE_MS,
+    },
+  );
+  if (!claim.claimed) {
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(job.custom_key),
+      entity_type: "job",
+      entity_id: String(job._id),
+      event_name: "job_run_claim_denied",
+      status: "queued",
+      custom_key: job.custom_key,
+      stage: job.custom_key.split(":")[2] ?? null,
+    });
+    return;
+  }
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_run_claimed",
+    status: "queued",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
   await emitTraceEvent(step, {
     trace_id: traceIdForCustomKey(job.custom_key),
     entity_type: "job",
@@ -74,38 +106,53 @@ export async function handleQueuedJobWorkflow(
     stage: job.custom_key.split(":")[2] ?? null,
   });
 
-  await markJobRunning({ ctx: step, job_id: job._id });
+  try {
+    await markJobRunning({ ctx: step, job_id: job._id });
 
-  const { anyPending, anyErrors } = await runJobRequests({
-    ctx: step,
-    requests,
-    now,
-  });
-
-  if (anyPending) {
-    await scheduleJobRun({ ctx: step, job_id: job._id, now });
-    await emitTraceEvent(step, {
-      trace_id: traceIdForCustomKey(job.custom_key),
-      entity_type: "job",
-      entity_id: String(job._id),
-      event_name: "job_rescheduled",
-      status: "running",
-      custom_key: job.custom_key,
-      stage: job.custom_key.split(":")[2] ?? null,
+    const { anyPending, anyErrors } = await runJobRequests({
+      ctx: step,
+      requests,
+      now,
     });
-    return;
-  }
 
-  await finalizeJob({ ctx: step, job_id: job._id, anyErrors });
-  await emitTraceEvent(step, {
-    trace_id: traceIdForCustomKey(job.custom_key),
-    entity_type: "job",
-    entity_id: String(job._id),
-    event_name: "job_finalized",
-    status: anyErrors ? "error" : "success",
-    custom_key: job.custom_key,
-    stage: job.custom_key.split(":")[2] ?? null,
-  });
+    if (anyPending) {
+      await scheduleJobRun({ ctx: step, job_id: job._id, now });
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(job.custom_key),
+        entity_type: "job",
+        entity_id: String(job._id),
+        event_name: "job_rescheduled",
+        status: "running",
+        custom_key: job.custom_key,
+        stage: job.custom_key.split(":")[2] ?? null,
+      });
+      return;
+    }
+
+    const finalizeResult = await finalizeJob({
+      ctx: step,
+      job_id: job._id,
+      owner,
+      anyErrors,
+      now: Date.now(),
+    });
+    if (finalizeResult.finalized) {
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(job.custom_key),
+        entity_type: "job",
+        entity_id: String(job._id),
+        event_name: "job_finalized",
+        status: anyErrors ? "error" : "success",
+        custom_key: job.custom_key,
+        stage: job.custom_key.split(":")[2] ?? null,
+      });
+    }
+  } finally {
+    await step.runMutation(
+      internal.domain.llm_calls.llm_job_repo.releaseJobRunClaim,
+      { job_id: job._id, owner },
+    );
+  }
 }
 
 export const processQueuedJobWorkflow = zInternalAction({
@@ -126,6 +173,37 @@ export async function handleRunningJobWorkflow(
   );
   if (!job || job.status !== "running") return;
   if (!shouldRunAt(job.next_run_at, now)) return;
+  const owner = `${job._id}:${now}:${Math.random().toString(36).slice(2)}`;
+  const claim = await step.runMutation(
+    internal.domain.llm_calls.llm_job_repo.claimRunningJobForRun,
+    {
+      job_id: job._id,
+      owner,
+      now,
+      lease_ms: JOB_RUN_LEASE_MS,
+    },
+  );
+  if (!claim.claimed) {
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(job.custom_key),
+      entity_type: "job",
+      entity_id: String(job._id),
+      event_name: "job_run_claim_denied",
+      status: "running",
+      custom_key: job.custom_key,
+      stage: job.custom_key.split(":")[2] ?? null,
+    });
+    return;
+  }
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(job.custom_key),
+    entity_type: "job",
+    entity_id: String(job._id),
+    event_name: "job_run_claimed",
+    status: "running",
+    custom_key: job.custom_key,
+    stage: job.custom_key.split(":")[2] ?? null,
+  });
   await emitTraceEvent(step, {
     trace_id: traceIdForCustomKey(job.custom_key),
     entity_type: "job",
@@ -136,36 +214,51 @@ export async function handleRunningJobWorkflow(
     stage: job.custom_key.split(":")[2] ?? null,
   });
 
-  const { anyPending, anyErrors } = await runJobRequests({
-    ctx: step,
-    requests,
-    now,
-  });
-
-  if (anyPending) {
-    await scheduleJobRun({ ctx: step, job_id: job._id, now });
-    await emitTraceEvent(step, {
-      trace_id: traceIdForCustomKey(job.custom_key),
-      entity_type: "job",
-      entity_id: String(job._id),
-      event_name: "job_rescheduled",
-      status: "running",
-      custom_key: job.custom_key,
-      stage: job.custom_key.split(":")[2] ?? null,
+  try {
+    const { anyPending, anyErrors } = await runJobRequests({
+      ctx: step,
+      requests,
+      now,
     });
-    return;
-  }
 
-  await finalizeJob({ ctx: step, job_id: job._id, anyErrors });
-  await emitTraceEvent(step, {
-    trace_id: traceIdForCustomKey(job.custom_key),
-    entity_type: "job",
-    entity_id: String(job._id),
-    event_name: "job_finalized",
-    status: anyErrors ? "error" : "success",
-    custom_key: job.custom_key,
-    stage: job.custom_key.split(":")[2] ?? null,
-  });
+    if (anyPending) {
+      await scheduleJobRun({ ctx: step, job_id: job._id, now });
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(job.custom_key),
+        entity_type: "job",
+        entity_id: String(job._id),
+        event_name: "job_rescheduled",
+        status: "running",
+        custom_key: job.custom_key,
+        stage: job.custom_key.split(":")[2] ?? null,
+      });
+      return;
+    }
+
+    const finalizeResult = await finalizeJob({
+      ctx: step,
+      job_id: job._id,
+      owner,
+      anyErrors,
+      now: Date.now(),
+    });
+    if (finalizeResult.finalized) {
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(job.custom_key),
+        entity_type: "job",
+        entity_id: String(job._id),
+        event_name: "job_finalized",
+        status: anyErrors ? "error" : "success",
+        custom_key: job.custom_key,
+        stage: job.custom_key.split(":")[2] ?? null,
+      });
+    }
+  } finally {
+    await step.runMutation(
+      internal.domain.llm_calls.llm_job_repo.releaseJobRunClaim,
+      { job_id: job._id, owner },
+    );
+  }
 }
 
 export const processRunningJobWorkflow = zInternalAction({

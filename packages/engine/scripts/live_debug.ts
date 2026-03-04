@@ -3,13 +3,14 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 type Args = {
-  command: "watch" | "stuck" | "heal" | "tail";
+  command: "watch" | "stuck" | "heal" | "tail" | "analyze";
   processType?: "run" | "window";
   processId?: string;
   traceId?: string;
   olderMs: number;
   limit: number;
   intervalMs: number;
+  maxEvents: number;
   apply: boolean;
 };
 
@@ -21,6 +22,7 @@ function parseArgs(argv: string[]): Args {
   let olderMs = 120_000;
   let limit = 50;
   let intervalMs = 4_000;
+  let maxEvents = 5_000;
   let apply = false;
 
   for (let i = 1; i < argv.length; i += 1) {
@@ -57,6 +59,11 @@ function parseArgs(argv: string[]): Args {
       i += 1;
       continue;
     }
+    if (arg === "--max-events" && argv[i + 1]) {
+      maxEvents = Number(argv[i + 1]) || maxEvents;
+      i += 1;
+      continue;
+    }
     if (arg === "--apply") {
       apply = true;
       continue;
@@ -71,6 +78,7 @@ function parseArgs(argv: string[]): Args {
     olderMs,
     limit,
     intervalMs,
+    maxEvents,
     apply,
   };
 }
@@ -96,28 +104,37 @@ function parseJsonFromStdout(stdout: string): unknown {
 }
 
 function runConvex(functionName: string, payload: object) {
+  const candidates = functionName.startsWith("domain/maintenance/codex:")
+    ? [functionName]
+    : [
+      functionName,
+      functionName.replace("packages/codex:", "domain/maintenance/codex:"),
+    ];
   const localConvexBin = path.join(process.cwd(), "node_modules", ".bin", "convex");
   const hasLocalConvexBin = existsSync(localConvexBin);
 
-  const command = hasLocalConvexBin ? localConvexBin : "npx";
-  const args = hasLocalConvexBin
-    ? ["run", functionName, JSON.stringify(payload)]
-    : ["-y", "convex@latest", "run", functionName, JSON.stringify(payload)];
+  let lastError: string | null = null;
+  for (const candidate of candidates) {
+    const command = hasLocalConvexBin ? localConvexBin : "npx";
+    const args = hasLocalConvexBin
+      ? ["run", candidate, JSON.stringify(payload)]
+      : ["-y", "convex@latest", "run", candidate, JSON.stringify(payload)];
 
-  const result = spawnSync(command, args, {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
+    const result = spawnSync(command, args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
 
-  if (result.status !== 0) {
-    throw new Error([
-      `Convex call failed: ${functionName}`,
+    if (result.status === 0) {
+      return parseJsonFromStdout(result.stdout ?? "");
+    }
+    lastError = [
+      `Convex call failed: ${candidate}`,
       `stdout: ${result.stdout?.trim() ?? ""}`,
       `stderr: ${result.stderr?.trim() ?? ""}`,
-    ].join("\n"));
+    ].join("\n");
   }
-
-  return parseJsonFromStdout(result.stdout ?? "");
+  throw new Error(lastError ?? `Convex call failed: ${functionName}`);
 }
 
 function requireProcess(args: Args) {
@@ -201,6 +218,52 @@ function runTail(args: Args) {
   console.log(JSON.stringify(result, null, 2));
 }
 
+function formatMs(ms: number | null): string {
+  if (ms == null) return "null";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function runAnalyze(args: Args) {
+  requireProcess(args);
+  const result = runConvex("packages/codex:analyzeProcessTelemetry", {
+    process_type: args.processType,
+    process_id: args.processId,
+    max_events: args.maxEvents,
+  }) as any;
+
+  console.log(`process=${result.process_type}:${result.process_id}`);
+  console.log(`trace=${result.trace_id}`);
+  console.log(`sampled_events=${result.sampled_events} reached_end=${result.reached_end_of_trace}`);
+  console.log(
+    `seq_range=${result.seq_min ?? "null"}..${result.seq_max ?? "null"} missing=${result.missing_seq_count} dup=${result.duplicate_seq_count}`,
+  );
+  console.log(
+    `counter_next_seq=${result.counter_next_seq ?? "null"} counter_matches=${result.counter_matches_seq_max}`,
+  );
+  console.log(
+    `duration=${formatMs(result.duration_ms)} terminal=${result.terminal_stats.terminal_event_name ?? "null"} events_after_terminal=${result.terminal_stats.events_after_terminal}`,
+  );
+  console.log(
+    `requests unique=${result.request_stats.unique_request_entities} applied=${result.request_stats.request_applied_total} duplicate_apply=${result.request_stats.duplicate_apply_success_total} dup_requests=${result.request_stats.requests_with_duplicate_apply_success} max_dup_per_request=${result.request_stats.max_duplicate_apply_success_per_request}`,
+  );
+  console.log(
+    `jobs unique=${result.job_stats.unique_job_entities} finalized=${result.job_stats.job_finalized_total} multi_finalized=${result.job_stats.jobs_finalized_multiple_times} max_finalized_per_job=${result.job_stats.max_job_finalized_per_job}`,
+  );
+  console.log("");
+  console.log("top_events:");
+  for (const row of result.event_counts.slice(0, 12)) {
+    console.log(`  ${row.event_name}: ${row.count}`);
+  }
+  console.log("");
+  console.log("stage_summaries:");
+  for (const stage of result.stage_summaries) {
+    console.log(
+      `  ${stage.stage} route=${stage.route} duration=${formatMs(stage.duration_ms)} applied=${stage.request_applied} duplicate_apply=${stage.request_apply_duplicate_success} request_error=${stage.request_error} job_poll=${stage.job_running_polled} job_finalized=${stage.job_finalized} batch_polled=${stage.batch_polled} batch_success=${stage.batch_success}`,
+    );
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -218,6 +281,10 @@ async function main() {
   }
   if (args.command === "tail") {
     runTail(args);
+    return;
+  }
+  if (args.command === "analyze") {
+    runAnalyze(args);
     return;
   }
 

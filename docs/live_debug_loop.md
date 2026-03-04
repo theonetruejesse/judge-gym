@@ -13,6 +13,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Convex package APIs in `packages/engine/convex/maintenance/codex.ts`
   - `packages/codex:getProcessHealth`
+  - `packages/codex:analyzeProcessTelemetry`
   - `packages/codex:getStuckWork`
   - `packages/codex:tailTrace`
   - `packages/codex:runDebugActions`
@@ -22,6 +23,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - `bun run debug:stuck`
   - `bun run debug:heal`
   - `bun run debug:tail`
+  - `bun run debug:analyze`
 
 ## Typical Flow
 
@@ -34,17 +36,23 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - `bun run debug:stuck --older-ms 120000`
 
-3. Dry-run remediation
+3. Analyze trace behavior (route + duplicate churn)
+
+- Run: `bun run debug:analyze --run <run_id>`
+- Window: `bun run debug:analyze --window <window_id>`
+- Increase sample depth for dense traces: `--max-events 10000`
+
+4. Dry-run remediation
 
 - Run: `bun run debug:heal --run <run_id>`
 - Window: `bun run debug:heal --window <window_id>`
 
-4. Apply remediation
+5. Apply remediation
 
 - Run: `bun run debug:heal --run <run_id> --apply`
 - Window: `bun run debug:heal --window <window_id> --apply`
 
-5. Verify progress
+6. Verify progress
 
 - Continue watch loop and confirm stage pending count decreases.
 - Tail trace if needed: `bun run debug:tail --trace run:<run_id>`
@@ -100,4 +108,9 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
+- `packages/codex:analyzeProcessTelemetry` paginates trace reads and summarizes:
+  - per-stage route usage (`job`/`batch`/`mixed`)
+  - request duplicate-apply churn
+  - repeated job finalization
+  - events emitted after terminal completion
 - Legacy caveat: if a process predates snapshots, bounded fallback reconstruction can make non-active-stage error rollups approximate. Use `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` for full historical forensics.

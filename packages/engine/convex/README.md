@@ -8,6 +8,7 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Internal actions process queued/running batches and jobs.
 - Internal mutations own state transitions and durable table writes.
 - `process_request_targets` provides snapshot-backed process health rollups.
+- `analyzeProcessTelemetry` provides bounded, paginated trace analysis for route usage and duplicate-event churn.
 - Telemetry is written to:
   - `telemetry_events`
   - `telemetry_trace_counters`
@@ -34,6 +35,7 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - The run/window hot path does not depend on `@convex-dev/workflow`.
 - Scheduler dispatch is bounded per tick to avoid fanout explosions.
 - Batch poll lease claims prevent duplicate concurrent polls.
+- Job request execution is bounded-parallel per job tick via `run_policy.job_request_concurrency`.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps

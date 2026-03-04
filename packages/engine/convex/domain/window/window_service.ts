@@ -111,6 +111,13 @@ export const applyRequestResult = zInternalMutation({
     if (!evidence) throw new Error("Evidence not found");
 
     if (evidence[config.outputField]) {
+      const request = await ctx.runQuery(
+        internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+        { request_id: args.request_id },
+      );
+      if (request.status === "success") {
+        return;
+      }
       await ctx.runMutation(
         internal.domain.llm_calls.llm_request_repo.patchRequest,
         {

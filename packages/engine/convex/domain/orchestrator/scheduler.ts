@@ -51,6 +51,15 @@ function hasActiveBatchPollLease(
     && batch.poll_claim_expires_at > now;
 }
 
+function hasActiveJobRunLease(
+  job: ActiveJobsResult["running_jobs"][number] | ActiveJobsResult["queued_jobs"][number],
+  now: number,
+): boolean {
+  return job.run_claim_owner != null
+    && job.run_claim_expires_at != null
+    && job.run_claim_expires_at > now;
+}
+
 async function isSchedulerScheduled(ctx: MutationCtx): Promise<boolean> {
   const scheduled = await ctx.db.system
     .query("_scheduled_functions")
@@ -195,6 +204,7 @@ export const runScheduler = zInternalMutation({
       for (const job of queued_jobs) {
         if (processedQueuedJobs >= MAX_QUEUED_JOBS_PER_TICK) break;
         if (!shouldRunAt(job.next_run_at, now)) continue;
+        if (hasActiveJobRunLease(job, now)) continue;
         await ctx.scheduler.runAfter(
           0,
           internal.domain.orchestrator.process_workflows.processQueuedJobWorkflow,
@@ -206,6 +216,7 @@ export const runScheduler = zInternalMutation({
       for (const job of running_jobs) {
         if (processedRunningJobs >= MAX_RUNNING_JOBS_PER_TICK) break;
         if (!shouldRunAt(job.next_run_at, now)) continue;
+        if (hasActiveJobRunLease(job, now)) continue;
         await ctx.scheduler.runAfter(
           0,
           internal.domain.orchestrator.process_workflows.processRunningJobWorkflow,

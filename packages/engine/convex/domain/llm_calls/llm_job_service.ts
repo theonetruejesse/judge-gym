@@ -50,18 +50,19 @@ export async function scheduleJobRun(args: ScheduleJobRunArgs) {
 interface FinalizeJobArgs {
   ctx: MutationRunner;
   job_id: Id<"llm_jobs">;
+  owner: string;
   anyErrors: boolean;
+  now: number;
 }
 export async function finalizeJob(args: FinalizeJobArgs) {
-  const { ctx, job_id, anyErrors } = args;
-  await ctx.runMutation(
-    internal.domain.llm_calls.llm_job_repo.patchJob,
+  const { ctx, job_id, owner, anyErrors, now } = args;
+  return ctx.runMutation(
+    internal.domain.llm_calls.llm_job_repo.finalizeJobIfClaimedAndRunning,
     {
       job_id,
-      patch: {
-        status: anyErrors ? "error" : "success",
-        next_run_at: undefined,
-      },
+      owner,
+      any_errors: anyErrors,
+      now,
     },
   );
 }
@@ -188,13 +189,17 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
   const { ctx, requests, now } = args;
   let anyPending = false;
   let anyErrors = false;
+  const runnable: Doc<"llm_requests">[] = [];
   for (const req of requests) {
     if (req.status !== "pending") continue;
     if (!shouldRunAt(req.next_attempt_at, now)) {
       anyPending = true;
       continue;
     }
+    runnable.push(req);
+  }
 
+  const processRequest = async (req: Doc<"llm_requests">) => {
     const keys = getRateLimitKeysForModel(req.model, "job");
     if (keys) {
       const limit = await rateLimiter.limit(ctx, keys.requestsKey, {
@@ -207,7 +212,7 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
           retryAfter: limit.retryAfter,
         });
         anyPending = true;
-        continue;
+        return;
       }
     }
 
@@ -238,7 +243,21 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
         anyErrors = true;
       }
     }
-  }
+  };
+
+  let nextIndex = 0;
+  const workerCount = Math.min(
+    runnable.length,
+    Math.max(1, ENGINE_SETTINGS.run_policy.job_request_concurrency),
+  );
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < runnable.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await processRequest(runnable[index]!);
+    }
+  });
+  await Promise.all(workers);
 
   return { anyPending, anyErrors };
 }

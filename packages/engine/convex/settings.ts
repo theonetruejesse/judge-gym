@@ -16,6 +16,7 @@ export const ENGINE_SETTINGS: EngineSettings = {
     max_batch_retries: 2,
     max_request_attempts: 2,
     retry_backoff_ms: 60_000,
+    job_request_concurrency: 8,
   },
   rate_limits: {
     providers: {

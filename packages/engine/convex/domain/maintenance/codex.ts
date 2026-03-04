@@ -109,6 +109,65 @@ const DebugActionResultSchema = z.object({
   reason: z.string(),
 });
 
+const AnalyzeStageSummarySchema = z.object({
+  stage: z.string(),
+  first_ts_ms: z.number().nullable(),
+  last_ts_ms: z.number().nullable(),
+  duration_ms: z.number().nullable(),
+  route: z.enum(["job", "batch", "mixed", "none"]),
+  request_applied: z.number(),
+  request_apply_duplicate_success: z.number(),
+  request_error: z.number(),
+  job_queued_handler_started: z.number(),
+  job_running_polled: z.number(),
+  job_finalized: z.number(),
+  batch_queued_handler_started: z.number(),
+  batch_polled: z.number(),
+  batch_success: z.number(),
+  batch_poll_claim_denied: z.number(),
+  batch_submit_claim_denied: z.number(),
+});
+
+const ProcessTelemetryAnalysisSchema = z.object({
+  process_type: ProcessTypeSchema,
+  process_id: z.string(),
+  trace_id: z.string(),
+  sampled_events: z.number(),
+  reached_end_of_trace: z.boolean(),
+  seq_min: z.number().nullable(),
+  seq_max: z.number().nullable(),
+  missing_seq_count: z.number(),
+  duplicate_seq_count: z.number(),
+  counter_next_seq: z.number().nullable(),
+  counter_matches_seq_max: z.boolean(),
+  first_ts_ms: z.number().nullable(),
+  last_ts_ms: z.number().nullable(),
+  duration_ms: z.number().nullable(),
+  event_counts: z.array(z.object({
+    event_name: z.string(),
+    count: z.number(),
+  })),
+  stage_summaries: z.array(AnalyzeStageSummarySchema),
+  request_stats: z.object({
+    unique_request_entities: z.number(),
+    request_applied_total: z.number(),
+    duplicate_apply_success_total: z.number(),
+    requests_with_duplicate_apply_success: z.number(),
+    max_duplicate_apply_success_per_request: z.number(),
+  }),
+  job_stats: z.object({
+    unique_job_entities: z.number(),
+    job_finalized_total: z.number(),
+    jobs_finalized_multiple_times: z.number(),
+    max_job_finalized_per_job: z.number(),
+  }),
+  terminal_stats: z.object({
+    terminal_event_name: z.string().nullable(),
+    terminal_seq: z.number().nullable(),
+    events_after_terminal: z.number(),
+  }),
+});
+
 type ProcessMembership = {
   process_type: "run" | "window";
   process_id: string;
@@ -130,6 +189,20 @@ type RequestTargetState = {
   max_attempts: number;
   latest_error_class: string | null;
   latest_error_message: string | null;
+};
+
+type TraceEvent = {
+  trace_id: string;
+  seq: number;
+  entity_type: "window" | "run" | "batch" | "job" | "request" | "scheduler";
+  entity_id: string;
+  event_name: string;
+  stage?: string | null;
+  status?: string | null;
+  custom_key?: string | null;
+  attempt?: number | null;
+  ts_ms: number;
+  payload_json?: string | null;
 };
 
 type StageProgressSummary = {
@@ -864,6 +937,75 @@ async function collectProcessHealth(
   };
 }
 
+async function listTraceEventsBounded(
+  ctx: QueryCtx | MutationCtx,
+  trace_id: string,
+  maxEvents: number,
+): Promise<{
+  events: TraceEvent[];
+  reached_end_of_trace: boolean;
+}> {
+  const events: TraceEvent[] = [];
+  let cursorSeq: number | undefined;
+  while (events.length < maxEvents) {
+    const remaining = Math.max(1, maxEvents - events.length);
+    const pageSize = Math.min(500, remaining);
+    const page = await ctx.runQuery(internal.domain.telemetry.events.listByTrace, {
+      trace_id,
+      cursor_seq: cursorSeq,
+      limit: pageSize,
+    });
+    events.push(...page.events);
+    if (page.next_cursor_seq == null) {
+      return { events, reached_end_of_trace: true };
+    }
+    cursorSeq = page.next_cursor_seq;
+  }
+  return { events, reached_end_of_trace: false };
+}
+
+function computeSequenceDiagnostics(
+  seqs: number[],
+) {
+  if (seqs.length === 0) {
+    return {
+      seq_min: null,
+      seq_max: null,
+      missing_seq_count: 0,
+      duplicate_seq_count: 0,
+    };
+  }
+
+  const sorted = seqs.slice().sort((a, b) => a - b);
+  const seqSet = new Set(sorted);
+  const seqMin = sorted[0];
+  const seqMax = sorted[sorted.length - 1];
+  let missing = 0;
+  for (let seq = seqMin; seq <= seqMax; seq += 1) {
+    if (!seqSet.has(seq)) missing += 1;
+  }
+  const duplicate = sorted.length - seqSet.size;
+  return {
+    seq_min: seqMin,
+    seq_max: seqMax,
+    missing_seq_count: missing,
+    duplicate_seq_count: duplicate,
+  };
+}
+
+function incrementMapCount(map: Map<string, number>, key: string) {
+  map.set(key, (map.get(key) ?? 0) + 1);
+}
+
+function isTerminalProcessEvent(
+  processType: "run" | "window",
+  eventName: string,
+): boolean {
+  return processType === "run"
+    ? eventName === "run_completed" || eventName === "run_terminal_error"
+    : eventName === "window_completed" || eventName === "window_terminal_error";
+}
+
 export const tailTrace: ReturnType<typeof zQuery> = zQuery({
   args: z.object({
     trace_id: z.string(),
@@ -1092,6 +1234,182 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     return {
       checked_at_ms: now,
       items: items.slice(0, args.limit),
+    };
+  },
+});
+
+export const analyzeProcessTelemetry: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    max_events: z.number().int().min(50).max(20_000).default(5_000),
+  }),
+  returns: ProcessTelemetryAnalysisSchema,
+  handler: async (ctx, args) => {
+    const membership = await buildMembership(ctx, args.process_type, args.process_id);
+    if (!membership) {
+      throw new Error(`${args.process_type} not found: ${args.process_id}`);
+    }
+
+    const traceScan = await listTraceEventsBounded(ctx, membership.trace_id, args.max_events);
+    const events = traceScan.events.slice().sort((a, b) => a.seq - b.seq);
+    const seqs = events.map((event) => event.seq);
+    const seqDiagnostics = computeSequenceDiagnostics(seqs);
+
+    const traceCounter = await ctx.db
+      .query("telemetry_trace_counters")
+      .withIndex("by_trace_id", (q) => q.eq("trace_id", membership.trace_id))
+      .first();
+
+    const eventCounts = new Map<string, number>();
+    const stageSummaries = new Map<string, z.infer<typeof AnalyzeStageSummarySchema>>();
+    const requestAppliedByRequest = new Map<string, number>();
+    const requestDuplicateByRequest = new Map<string, number>();
+    const jobFinalizedByJob = new Map<string, number>();
+
+    let firstTs: number | null = null;
+    let lastTs: number | null = null;
+    let terminalSeq: number | null = null;
+    let terminalEventName: string | null = null;
+
+    const getStageSummary = (stage: string) => {
+      const existing = stageSummaries.get(stage);
+      if (existing) return existing;
+      const created: z.infer<typeof AnalyzeStageSummarySchema> = {
+        stage,
+        first_ts_ms: null,
+        last_ts_ms: null,
+        duration_ms: null,
+        route: "none",
+        request_applied: 0,
+        request_apply_duplicate_success: 0,
+        request_error: 0,
+        job_queued_handler_started: 0,
+        job_running_polled: 0,
+        job_finalized: 0,
+        batch_queued_handler_started: 0,
+        batch_polled: 0,
+        batch_success: 0,
+        batch_poll_claim_denied: 0,
+        batch_submit_claim_denied: 0,
+      };
+      stageSummaries.set(stage, created);
+      return created;
+    };
+
+    for (const event of events) {
+      incrementMapCount(eventCounts, event.event_name);
+
+      if (firstTs == null || event.ts_ms < firstTs) firstTs = event.ts_ms;
+      if (lastTs == null || event.ts_ms > lastTs) lastTs = event.ts_ms;
+
+      if (terminalSeq == null && isTerminalProcessEvent(args.process_type, event.event_name)) {
+        terminalSeq = event.seq;
+        terminalEventName = event.event_name;
+      }
+
+      const stage = event.stage ?? "none";
+      const stageSummary = getStageSummary(stage);
+      if (stageSummary.first_ts_ms == null || event.ts_ms < stageSummary.first_ts_ms) {
+        stageSummary.first_ts_ms = event.ts_ms;
+      }
+      if (stageSummary.last_ts_ms == null || event.ts_ms > stageSummary.last_ts_ms) {
+        stageSummary.last_ts_ms = event.ts_ms;
+      }
+
+      if (event.event_name === "request_applied") {
+        stageSummary.request_applied += 1;
+        if (event.entity_type === "request") {
+          incrementMapCount(requestAppliedByRequest, event.entity_id);
+        }
+      }
+      if (event.event_name === "request_apply_duplicate_success") {
+        stageSummary.request_apply_duplicate_success += 1;
+        if (event.entity_type === "request") {
+          incrementMapCount(requestDuplicateByRequest, event.entity_id);
+        }
+      }
+      if (event.event_name === "request_error") stageSummary.request_error += 1;
+      if (event.event_name === "job_queued_handler_started") {
+        stageSummary.job_queued_handler_started += 1;
+        stageSummary.route = stageSummary.route === "batch" ? "mixed" : "job";
+      }
+      if (event.event_name === "job_running_polled") stageSummary.job_running_polled += 1;
+      if (event.event_name === "job_finalized") {
+        stageSummary.job_finalized += 1;
+        if (event.entity_type === "job") {
+          incrementMapCount(jobFinalizedByJob, event.entity_id);
+        }
+      }
+      if (event.event_name === "batch_queued_handler_started") {
+        stageSummary.batch_queued_handler_started += 1;
+        stageSummary.route = stageSummary.route === "job" ? "mixed" : "batch";
+      }
+      if (event.event_name === "batch_polled") stageSummary.batch_polled += 1;
+      if (event.event_name === "batch_success") stageSummary.batch_success += 1;
+      if (event.event_name === "batch_poll_claim_denied") stageSummary.batch_poll_claim_denied += 1;
+      if (event.event_name === "batch_submit_claim_denied") stageSummary.batch_submit_claim_denied += 1;
+    }
+
+    for (const summary of stageSummaries.values()) {
+      if (summary.first_ts_ms != null && summary.last_ts_ms != null) {
+        summary.duration_ms = Math.max(0, summary.last_ts_ms - summary.first_ts_ms);
+      }
+    }
+
+    const duplicateValues = [...requestDuplicateByRequest.values()];
+    const jobFinalizeValues = [...jobFinalizedByJob.values()];
+
+    return {
+      process_type: args.process_type,
+      process_id: args.process_id,
+      trace_id: membership.trace_id,
+      sampled_events: events.length,
+      reached_end_of_trace: traceScan.reached_end_of_trace,
+      seq_min: seqDiagnostics.seq_min,
+      seq_max: seqDiagnostics.seq_max,
+      missing_seq_count: seqDiagnostics.missing_seq_count,
+      duplicate_seq_count: seqDiagnostics.duplicate_seq_count,
+      counter_next_seq: traceCounter?.next_seq ?? null,
+      counter_matches_seq_max: traceCounter?.next_seq != null
+        && seqDiagnostics.seq_max != null
+        && traceCounter.next_seq === seqDiagnostics.seq_max + 1,
+      first_ts_ms: firstTs,
+      last_ts_ms: lastTs,
+      duration_ms: firstTs != null && lastTs != null ? Math.max(0, lastTs - firstTs) : null,
+      event_counts: [...eventCounts.entries()]
+        .map(([event_name, count]) => ({ event_name, count }))
+        .sort((a, b) => b.count - a.count || a.event_name.localeCompare(b.event_name)),
+      stage_summaries: [...stageSummaries.values()]
+        .sort((a, b) => a.stage.localeCompare(b.stage)),
+      request_stats: {
+        unique_request_entities: new Set(
+          events
+            .filter((event) => event.entity_type === "request")
+            .map((event) => event.entity_id),
+        ).size,
+        request_applied_total: [...requestAppliedByRequest.values()].reduce((sum, count) => sum + count, 0),
+        duplicate_apply_success_total: duplicateValues.reduce((sum, count) => sum + count, 0),
+        requests_with_duplicate_apply_success: duplicateValues.filter((count) => count > 0).length,
+        max_duplicate_apply_success_per_request: duplicateValues.length > 0 ? Math.max(...duplicateValues) : 0,
+      },
+      job_stats: {
+        unique_job_entities: new Set(
+          events
+            .filter((event) => event.entity_type === "job")
+            .map((event) => event.entity_id),
+        ).size,
+        job_finalized_total: jobFinalizeValues.reduce((sum, count) => sum + count, 0),
+        jobs_finalized_multiple_times: jobFinalizeValues.filter((count) => count > 1).length,
+        max_job_finalized_per_job: jobFinalizeValues.length > 0 ? Math.max(...jobFinalizeValues) : 0,
+      },
+      terminal_stats: {
+        terminal_event_name: terminalEventName,
+        terminal_seq: terminalSeq,
+        events_after_terminal: terminalSeq == null
+          ? 0
+          : events.filter((event) => event.seq > terminalSeq).length,
+      },
     };
   },
 });
