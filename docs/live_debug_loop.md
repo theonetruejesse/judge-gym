@@ -119,6 +119,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
 - Telemetry sequence values are timestamp-entropy based; do not assume contiguous `seq` values for a trace.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
+- Codex debug queries now use bounded scans (`take` caps) for table/system checks (including scheduler scheduled-function checks), so large historical deployments do not hard-fail on unbounded read counts.
 - `packages/codex:analyzeProcessTelemetry` paginates trace reads and summarizes:
   - per-stage route usage (`job`/`batch`/`mixed`)
   - request duplicate-apply churn
