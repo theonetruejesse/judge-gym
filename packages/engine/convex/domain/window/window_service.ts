@@ -298,6 +298,12 @@ async function maybeAdvanceWindowStage(
       completed += 1;
       continue;
     }
+    const input = evidence[config.inputField];
+    if (input === null) {
+      // This stage was never eligible for this target because upstream output
+      // did not exist (for example, upstream terminal failure).
+      continue;
+    }
 
     const custom_key = orchestrator.makeRequestKey(evidence._id, stage);
     const pendingRequests = await ctx.db
