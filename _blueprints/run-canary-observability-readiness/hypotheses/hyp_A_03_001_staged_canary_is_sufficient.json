@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "A staged canary ladder (1 -> 4 targets, then recovery drill) is sufficient to de-risk full matrix launch.",
+  "confidence": 0.8,
+  "rationale": "It exercises start/advance/finalize, retries, and safe recovery without high blast radius.",
+  "keyAssumptions": [
+    "canary evidence set is representative",
+    "observed timing scales roughly with target_count"
+  ],
+  "validationCriteria": [
+    "all canary stages complete within SLA",
+    "no persistent stuck reasons after one auto-heal cycle"
+  ],
+  "critiquePoints": [
+    "May miss long-tail contention only seen at larger fanout"
+  ],
+  "questions": [
+    "Should we add an intermediate target_count=10 gate before full launch?"
+  ]
+}

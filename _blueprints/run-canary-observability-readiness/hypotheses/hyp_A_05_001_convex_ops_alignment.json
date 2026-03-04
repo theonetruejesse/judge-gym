@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_05_001",
+  "areaOfAnalysisID": "A_05",
+  "statement": "Production readiness requires explicit OCC/backlog alerting and external log sink integration in addition to in-app telemetry.",
+  "confidence": 0.79,
+  "rationale": "Convex docs emphasize OCC contention behavior, action pitfalls, and finite dashboard log retention.",
+  "keyAssumptions": [
+    "workload will periodically hit contention spikes",
+    "team needs post-incident forensics beyond short-lived dashboard logs"
+  ],
+  "validationCriteria": [
+    "log-stream metrics available during canary",
+    "alerts fire on scheduler lag and mutation conflict spikes"
+  ],
+  "critiquePoints": [
+    "extra operational setup adds implementation overhead"
+  ],
+  "questions": [
+    "What minimum alert set is needed before full matrix?"
+  ]
+}
