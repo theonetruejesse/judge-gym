@@ -17,6 +17,7 @@ const MAX_QUEUED_BATCHES_PER_TICK = 10;
 const MAX_RUNNING_BATCHES_PER_TICK = 20;
 const MAX_QUEUED_JOBS_PER_TICK = 20;
 const MAX_RUNNING_JOBS_PER_TICK = 30;
+const SCHEDULED_SCAN_MAX_ROWS = 2_000;
 
 export const requeueRequest = zInternalMutation({
   args: z.object({
@@ -63,7 +64,8 @@ function hasActiveJobRunLease(
 async function isSchedulerScheduled(ctx: MutationCtx): Promise<boolean> {
   const scheduled = await ctx.db.system
     .query("_scheduled_functions")
-    .collect();
+    .order("desc")
+    .take(SCHEDULED_SCAN_MAX_ROWS);
   return scheduled.some(
     (row) => isSchedulerRun(row.name) && row.completedTime == null,
   );
