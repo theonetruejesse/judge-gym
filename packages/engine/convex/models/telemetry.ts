@@ -23,11 +23,6 @@ export const TelemetryEventsTableSchema = z.object({
   payload_json: z.string().nullable().optional(),
 });
 
-export const TelemetryTraceCountersTableSchema = z.object({
-  trace_id: z.string(),
-  next_seq: z.number().int().min(1),
-});
-
 export const TelemetryEntityStateTableSchema = z.object({
   entity_type: TelemetryEntityTypeSchema,
   entity_id: z.string(),

@@ -119,7 +119,6 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 | `telemetry_events` | Ordered event log for traces | `trace_id`, `seq`, `entity_type`, `entity_id`, `event_name`, `stage`, `status`, `payload_json` |
-| `telemetry_trace_counters` | Legacy per-trace sequence allocator (no longer used by active event writes) | `trace_id`, `next_seq` |
 | `telemetry_entity_state` | Latest event snapshot per entity | `entity_type`, `entity_id`, `trace_id`, `last_*` |
 
 **Experiment and run tables (orchestrated)**

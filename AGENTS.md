@@ -72,7 +72,6 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 ### Telemetry Notes
 
 - `telemetry_events.seq` is timestamp-entropy based (not contiguous per-trace counters).
-- `telemetry_trace_counters` is legacy and may exist from older runs, but active event writes do not rely on it.
 - `domain/maintenance/danger:deleteRunData` now refuses active runs (`start|queued|running|paused`) unless `allow_active=true` is explicitly passed.
 
 ### Synthetic Matrix Notes
