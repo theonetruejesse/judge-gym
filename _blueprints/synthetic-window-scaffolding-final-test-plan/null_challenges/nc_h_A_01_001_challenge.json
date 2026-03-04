@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Bounded dispatch causes measurable queue-age growth under burst load",
+      "falsificationQueries": [
+        "Is dispatch effectively unbounded per tick?",
+        "Do existing metrics prove no queue-age growth under concurrency?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_scheduler_orchestration.md"
+      ],
+      "falsificationAnalysis": "Per-tick caps are explicit, but current repo lacks built-in queue-age percentile instrumentation to conclusively quantify growth behavior.",
+      "outcome": "Unclear"
+    }
+  ],
+  "overallOutcome": "Unclear"
+}

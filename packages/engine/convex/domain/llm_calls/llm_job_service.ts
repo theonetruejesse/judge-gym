@@ -199,9 +199,16 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
     runnable.push(req);
   }
 
-  const processRequest = async (req: Doc<"llm_requests">) => {
+  // Reserve request rate-limit capacity sequentially to avoid hot-row OCC
+  // conflicts on the shared `rateLimits` table under concurrent workers.
+  const admitted: Doc<"llm_requests">[] = [];
+  for (const req of runnable) {
     const keys = getRateLimitKeysForModel(req.model, "job");
-    if (keys) {
+    if (!keys) {
+      admitted.push(req);
+      continue;
+    }
+    try {
       const limit = await rateLimiter.limit(ctx, keys.requestsKey, {
         throws: false,
       });
@@ -212,10 +219,20 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
           retryAfter: limit.retryAfter,
         });
         anyPending = true;
-        return;
+        continue;
       }
+      admitted.push(req);
+    } catch {
+      await deferRequestForRateLimit({
+        ctx,
+        request_id: req._id,
+        retryAfter: getNextAttemptAt(now),
+      });
+      anyPending = true;
     }
+  }
 
+  const processRequest = async (req: Doc<"llm_requests">) => {
     try {
       const output = await ctx.runAction(
         internal.platform.providers.provider_services.openAiChatAction,
@@ -247,14 +264,14 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
 
   let nextIndex = 0;
   const workerCount = Math.min(
-    runnable.length,
+    admitted.length,
     Math.max(1, ENGINE_SETTINGS.run_policy.job_request_concurrency),
   );
   const workers = Array.from({ length: workerCount }, async () => {
-    while (nextIndex < runnable.length) {
+    while (nextIndex < admitted.length) {
       const index = nextIndex;
       nextIndex += 1;
-      await processRequest(runnable[index]!);
+      await processRequest(admitted[index]!);
     }
   });
   await Promise.all(workers);

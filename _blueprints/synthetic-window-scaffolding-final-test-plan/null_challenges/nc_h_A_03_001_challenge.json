@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Fallback health approximation can be hidden from callers",
+      "falsificationQueries": [
+        "Is approximation exposed in health schema?",
+        "Is fallback full-history exact?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_debug_observability.md"
+      ],
+      "falsificationAnalysis": "Fallback caps are bounded and approximation is internal; hypothesis remains valid though expected frequency is lower due to snapshot-first behavior.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

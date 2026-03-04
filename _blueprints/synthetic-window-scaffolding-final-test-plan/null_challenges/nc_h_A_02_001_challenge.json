@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_02_001",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Rate-limit deferral can churn without consuming attempts",
+      "falsificationQueries": [
+        "Does rate-limit path increment attempts?",
+        "Is deferral count capped separately?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_retry_semantics.md"
+      ],
+      "falsificationAnalysis": "Deferral patches next-at timestamps while attempt increments occur on execution failures, so the hypothesis survives falsification.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

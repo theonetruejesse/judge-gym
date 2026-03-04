@@ -2,26 +2,175 @@
   "meta": {
     "originalQuestion": "Using low-sample synthetic setup in packages/engine, what remaining tests are required to validate window/run orchestration reliability before evidence flow rollout, and in what order should they be executed?",
     "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/synthetic-window-scaffolding-final-test-plan",
-    "finalPlanPath": null
+    "finalPlanPath": "blueprint.md"
   },
   "agentRegistry": {
-    "lead": null,
-    "researchers": [],
-    "falsifier": null,
-    "certaintyScorer": null,
-    "synthesizer": null
+    "lead": "codex-main",
+    "researchers": [
+      {
+        "id": "019cb6ff-71d3-7ae3-9e86-0ab667c6b912",
+        "nickname": "Singer",
+        "role": "A_01"
+      },
+      {
+        "id": "019cb6ff-71f2-7ad1-a926-ffdb05344744",
+        "nickname": "Ohm",
+        "role": "A_02"
+      },
+      {
+        "id": "019cb6ff-7210-7cf1-aace-e85344ee068b",
+        "nickname": "Hume",
+        "role": "A_03"
+      },
+      {
+        "id": "019cb6ff-7280-7652-a663-bc55bde6ae98",
+        "nickname": "Descartes",
+        "role": "A_04"
+      }
+    ],
+    "falsifier": {
+      "id": "019cb702-f2ad-75a3-bb74-04dab3359c2f",
+      "nickname": "Bernoulli"
+    },
+    "certaintyScorer": {
+      "id": "019cb703-076a-7b51-a47b-c0c871656d79",
+      "nickname": "Huygens"
+    },
+    "synthesizer": "codex-main"
   },
-  "assignments": [],
+  "assignments": [
+    {
+      "areaID": "A_01",
+      "title": "Scheduler and stage-transition behavior",
+      "assignee": "Singer",
+      "output": "knowledge/k_001_scheduler_orchestration.md"
+    },
+    {
+      "areaID": "A_02",
+      "title": "Retry semantics and duplicate-write risk",
+      "assignee": "Ohm",
+      "output": "knowledge/k_002_retry_semantics.md"
+    },
+    {
+      "areaID": "A_03",
+      "title": "Telemetry, health diagnostics, and heal surface",
+      "assignee": "Hume",
+      "output": "knowledge/k_003_debug_observability.md"
+    },
+    {
+      "areaID": "A_04",
+      "title": "Synthetic harness and route-boundary test design",
+      "assignee": "Descartes",
+      "output": "knowledge/k_004_synthetic_harness.md"
+    },
+    {
+      "areaID": "A_05",
+      "title": "Convex constraint-aware testing bounds",
+      "assignee": "codex-main",
+      "output": "knowledge/k_005_convex_limits.md"
+    }
+  ],
   "knowledgeBase": {
-    "entries": []
+    "entries": [
+      "knowledge/k_001_scheduler_orchestration.md",
+      "knowledge/k_002_retry_semantics.md",
+      "knowledge/k_003_debug_observability.md",
+      "knowledge/k_004_synthetic_harness.md",
+      "knowledge/k_005_convex_limits.md",
+      "knowledge/k_006_baseline_observations.md"
+    ]
   },
-  "evidenceReviews": [],
+  "evidenceReviews": [
+    {
+      "hypothesis": "h_A_01_001",
+      "nullChallenge": "Unclear"
+    },
+    {
+      "hypothesis": "h_A_02_001",
+      "nullChallenge": "Passed"
+    },
+    {
+      "hypothesis": "h_A_03_001",
+      "nullChallenge": "Passed"
+    },
+    {
+      "hypothesis": "h_A_04_001",
+      "nullChallenge": "Failed"
+    },
+    {
+      "hypothesis": "h_A_05_001",
+      "nullChallenge": "Passed"
+    }
+  ],
   "certainty": {
     "reportPath": "certainty/certainty_report.md",
-    "scores": []
+    "scores": [
+      {
+        "id": "k_001",
+        "score": 0.87
+      },
+      {
+        "id": "k_002",
+        "score": 0.85
+      },
+      {
+        "id": "k_003",
+        "score": 0.83
+      },
+      {
+        "id": "k_004",
+        "score": 0.79
+      },
+      {
+        "id": "k_005",
+        "score": 0.68
+      },
+      {
+        "id": "k_006",
+        "score": 0.72
+      },
+      {
+        "id": "h_A_01_001",
+        "score": 0.77
+      },
+      {
+        "id": "h_A_02_001",
+        "score": 0.66
+      },
+      {
+        "id": "h_A_03_001",
+        "score": 0.61
+      },
+      {
+        "id": "h_A_04_001",
+        "score": 0.84
+      },
+      {
+        "id": "h_A_05_001",
+        "score": 0.80
+      }
+    ]
   },
-  "areasOfAnalysis": [],
-  "microHypotheses": [],
-  "hypothesisConflicts": [],
-  "synthesisOutput": null
+  "areasOfAnalysis": [
+    "A_01",
+    "A_02",
+    "A_03",
+    "A_04",
+    "A_05"
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A_01_v1_scheduler_backpressure.json",
+    "hypotheses/hyp_A_02_v1_rate_limit_deferral.json",
+    "hypotheses/hyp_A_03_v1_health_approximation.json",
+    "hypotheses/hyp_A_04_v1_route_boundary_matrix.json",
+    "hypotheses/hyp_A_05_v1_limit_safe_diagnostics.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "id": "conflict_001",
+      "description": "h_A_04_001 claims boundary risk dominance, but falsifier marked evidence insufficient.",
+      "resolution": "Treat as priority test direction, not proven fact; require S3/S4/S6 evidence before asserting dominance."
+    }
+  ],
+  "synthesisOutput": "blueprint.md"
 }

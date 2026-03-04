@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Rate-limit deferrals can produce prolonged pending churn because they do not consume request retry attempts.",
+  "confidence": 0.74,
+  "rationale": "Deferral updates next-at timestamps without incrementing attempts in current job/batch flows.",
+  "keyAssumptions": [
+    "Provider limiter can remain constrained for long intervals"
+  ],
+  "validationCriteria": [
+    "Under forced limiter deny, attempts remain flat while next-at shifts repeatedly",
+    "System recovers once limiter opens without manual row surgery"
+  ],
+  "critiquePoints": [
+    "May be acceptable policy if bounded by scheduler health checks"
+  ],
+  "questions": [
+    "Should there be a deferral cap or aging-based escalation?"
+  ]
+}
