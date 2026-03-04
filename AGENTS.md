@@ -67,6 +67,7 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Default to dry-run for first pass.
 - Only use codex safe actions (`start_scheduler_if_idle`, request requeue, expired lease release, poll nudge).
 - If a process remains stalled after safe actions, inspect `getProcessHealth` and trace events before any manual data mutation.
+- `domain/maintenance/danger:deleteRunData` now refuses active runs (`start|queued|running|paused`) unless `allow_active=true` is explicitly passed.
 
 ### Synthetic Matrix Notes
 

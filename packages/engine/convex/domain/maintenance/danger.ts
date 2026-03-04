@@ -143,6 +143,7 @@ export const deleteRunData = zInternalMutation({
     args: z.object({
         run_id: zid("runs"),
         isDryRun: z.boolean().default(true),
+        allow_active: z.boolean().default(false),
     }),
     returns: z.object({
         isDryRun: z.boolean(),
@@ -192,6 +193,19 @@ export const deleteRunData = zInternalMutation({
                     telemetry_entity_state: 0,
                 },
             };
+        }
+
+        const activeStatuses = new Set<Doc<"runs">["status"]>([
+            "start",
+            "queued",
+            "running",
+            "paused",
+        ]);
+        if (activeStatuses.has(run.status) && !args.allow_active) {
+            throw new Error(
+                `Refusing to delete active run ${args.run_id} with status=${run.status}. ` +
+                    "Pass allow_active=true to override.",
+            );
         }
 
         const samples = await ctx.db
