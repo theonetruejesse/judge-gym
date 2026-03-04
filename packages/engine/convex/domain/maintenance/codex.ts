@@ -138,8 +138,6 @@ const ProcessTelemetryAnalysisSchema = z.object({
   seq_max: z.number().nullable(),
   missing_seq_count: z.number(),
   duplicate_seq_count: z.number(),
-  counter_next_seq: z.number().nullable(),
-  counter_matches_seq_max: z.boolean(),
   first_ts_ms: z.number().nullable(),
   last_ts_ms: z.number().nullable(),
   duration_ms: z.number().nullable(),
@@ -1278,11 +1276,6 @@ export const analyzeProcessTelemetry: ReturnType<typeof zQuery> = zQuery({
     const seqs = events.map((event) => event.seq);
     const seqDiagnostics = computeSequenceDiagnostics(seqs);
 
-    const traceCounter = await ctx.db
-      .query("telemetry_trace_counters")
-      .withIndex("by_trace_id", (q) => q.eq("trace_id", membership.trace_id))
-      .first();
-
     const eventCounts = new Map<string, number>();
     const stageSummaries = new Map<string, z.infer<typeof AnalyzeStageSummarySchema>>();
     const requestAppliedByRequest = new Map<string, number>();
@@ -1392,10 +1385,6 @@ export const analyzeProcessTelemetry: ReturnType<typeof zQuery> = zQuery({
       seq_max: seqDiagnostics.seq_max,
       missing_seq_count: seqDiagnostics.missing_seq_count,
       duplicate_seq_count: seqDiagnostics.duplicate_seq_count,
-      counter_next_seq: traceCounter?.next_seq ?? null,
-      counter_matches_seq_max: traceCounter?.next_seq != null
-        && seqDiagnostics.seq_max != null
-        && traceCounter.next_seq === seqDiagnostics.seq_max + 1,
       first_ts_ms: firstTs,
       last_ts_ms: lastTs,
       duration_ms: firstTs != null && lastTs != null ? Math.max(0, lastTs - firstTs) : null,

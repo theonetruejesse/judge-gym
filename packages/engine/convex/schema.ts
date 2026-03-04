@@ -19,7 +19,6 @@ import {
 import {
   TelemetryEntityStateTableSchema,
   TelemetryEventsTableSchema,
-  TelemetryTraceCountersTableSchema,
 } from "./models/telemetry";
 
 export default defineSchema({
@@ -72,8 +71,6 @@ export default defineSchema({
   telemetry_events: defineTable(zodOutputToConvex(TelemetryEventsTableSchema))
     .index("by_trace_seq", ["trace_id", "seq"])
     .index("by_entity_ts", ["entity_type", "entity_id", "ts_ms"]),
-  telemetry_trace_counters: defineTable(zodOutputToConvex(TelemetryTraceCountersTableSchema))
-    .index("by_trace_id", ["trace_id"]),
   telemetry_entity_state: defineTable(zodOutputToConvex(TelemetryEntityStateTableSchema))
     .index("by_entity", ["entity_type", "entity_id"])
     .index("by_trace_entity", ["trace_id", "entity_type", "entity_id"])

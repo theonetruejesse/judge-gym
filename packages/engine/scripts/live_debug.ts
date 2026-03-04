@@ -239,9 +239,6 @@ function runAnalyze(args: Args) {
     `seq_range=${result.seq_min ?? "null"}..${result.seq_max ?? "null"} missing=${result.missing_seq_count} dup=${result.duplicate_seq_count}`,
   );
   console.log(
-    `counter_next_seq=${result.counter_next_seq ?? "null"} counter_matches=${result.counter_matches_seq_max}`,
-  );
-  console.log(
     `duration=${formatMs(result.duration_ms)} terminal=${result.terminal_stats.terminal_event_name ?? "null"} events_after_terminal=${result.terminal_stats.events_after_terminal}`,
   );
   console.log(

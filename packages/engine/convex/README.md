@@ -11,7 +11,6 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - `analyzeProcessTelemetry` provides bounded, paginated trace analysis for route usage and duplicate-event churn.
 - Telemetry is written to:
   - `telemetry_events`
-  - `telemetry_trace_counters`
   - `telemetry_entity_state`
 
 ## Key Modules

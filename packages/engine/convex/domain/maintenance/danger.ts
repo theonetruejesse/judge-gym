@@ -20,7 +20,6 @@ const tableNames = [
     "score_critics",
     "sample_evidence_scores",
     "telemetry_events",
-    "telemetry_trace_counters",
     "telemetry_entity_state",
 ] as const satisfies ReadonlyArray<keyof DataModel>;
 
@@ -162,7 +161,6 @@ export const deleteRunData = zInternalMutation({
             llm_requests: z.number(),
             process_request_targets: z.number(),
             telemetry_events: z.number(),
-            telemetry_trace_counters: z.number(),
             telemetry_entity_state: z.number(),
         }),
     }),
@@ -189,7 +187,6 @@ export const deleteRunData = zInternalMutation({
                     llm_requests: 0,
                     process_request_targets: 0,
                     telemetry_events: 0,
-                    telemetry_trace_counters: 0,
                     telemetry_entity_state: 0,
                 },
             };
@@ -285,10 +282,6 @@ export const deleteRunData = zInternalMutation({
             .query("telemetry_events")
             .withIndex("by_trace_seq", (q) => q.eq("trace_id", traceId))
             .collect();
-        const runTelemetryCounters = await ctx.db
-            .query("telemetry_trace_counters")
-            .withIndex("by_trace_id", (q) => q.eq("trace_id", traceId))
-            .collect();
         const runTelemetryEntityState = await ctx.db
             .query("telemetry_entity_state")
             .withIndex("by_trace_entity", (q) => q.eq("trace_id", traceId))
@@ -296,7 +289,6 @@ export const deleteRunData = zInternalMutation({
 
         if (!isDryRun) {
             for (const doc of runTelemetryEvents) await ctx.db.delete(doc._id);
-            for (const doc of runTelemetryCounters) await ctx.db.delete(doc._id);
             for (const doc of runTelemetryEntityState) await ctx.db.delete(doc._id);
             for (const doc of runRequests) await ctx.db.delete(doc._id);
             for (const doc of runTargetStateRows) await ctx.db.delete(doc._id);
@@ -328,7 +320,6 @@ export const deleteRunData = zInternalMutation({
                 llm_requests: runRequests.length,
                 process_request_targets: runTargetStateRows.length,
                 telemetry_events: runTelemetryEvents.length,
-                telemetry_trace_counters: runTelemetryCounters.length,
                 telemetry_entity_state: runTelemetryEntityState.length,
             },
         };
@@ -354,8 +345,6 @@ export const deleteTelemetryAfterEvent = zInternalMutation({
             z.object({
                 trace_id: z.string(),
                 deleted_events: z.number(),
-                counter_action: z.enum(["none", "patch_next_seq", "delete_counter"]),
-                next_seq_after: z.number().nullable(),
             }),
         ),
     }),
@@ -375,44 +364,15 @@ export const deleteTelemetryAfterEvent = zInternalMutation({
             eventsByTrace.set(row.trace_id, existing);
         }
 
-        const allCounters = await ctx.db.query("telemetry_trace_counters").collect();
-        const counterByTrace = new Map(allCounters.map((counter) => [counter.trace_id, counter]));
-
         const affected: Array<{
             trace_id: string;
             deleted_events: number;
-            counter_action: "none" | "patch_next_seq" | "delete_counter";
-            next_seq_after: number | null;
         }> = [];
 
         for (const [trace_id, traceEvents] of eventsByTrace.entries()) {
-            const remaining = allEvents.filter(
-                (row) => row.trace_id === trace_id && row._creationTime <= anchor._creationTime,
-            );
-            const maxSeq = remaining.reduce((max, row) => Math.max(max, row.seq), 0);
-            const nextSeq = maxSeq > 0 ? maxSeq + 1 : null;
-            const counter = counterByTrace.get(trace_id);
-
-            let counter_action: "none" | "patch_next_seq" | "delete_counter" = "none";
-            if (counter) {
-                if (nextSeq === null) {
-                    counter_action = "delete_counter";
-                    if (!args.isDryRun) {
-                        await ctx.db.delete(counter._id);
-                    }
-                } else if (counter.next_seq !== nextSeq) {
-                    counter_action = "patch_next_seq";
-                    if (!args.isDryRun) {
-                        await ctx.db.patch(counter._id, { next_seq: nextSeq });
-                    }
-                }
-            }
-
             affected.push({
                 trace_id,
                 deleted_events: traceEvents.length,
-                counter_action,
-                next_seq_after: nextSeq,
             });
         }
 

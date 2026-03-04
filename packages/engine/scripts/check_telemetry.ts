@@ -18,23 +18,16 @@ type TelemetryEvent = {
   payload_json?: string | null;
 };
 
-type TelemetryCounter = {
-  trace_id: string;
-  next_seq: number;
-};
-
 type Args = {
   traceId?: string;
   limit: number;
   eventsFile?: string;
-  countersFile?: string;
 };
 
 function parseArgs(argv: string[]): Args {
   let traceId: string | undefined;
   let limit = 6000;
   let eventsFile: string | undefined;
-  let countersFile: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -56,16 +49,12 @@ function parseArgs(argv: string[]): Args {
       i += 1;
       continue;
     }
-    if (arg === "--counters-file" && argv[i + 1]) {
-      countersFile = argv[i + 1];
-      i += 1;
-    }
   }
 
-  return { traceId, limit, eventsFile, countersFile };
+  return { traceId, limit, eventsFile };
 }
 
-function runConvexData(table: "telemetry_events" | "telemetry_trace_counters", limit: number): unknown {
+function runConvexData(table: "telemetry_events", limit: number): unknown {
   const localConvexBin = path.join(process.cwd(), "node_modules", ".bin", "convex");
   const hasLocalConvexBin = existsSync(localConvexBin);
   const command = hasLocalConvexBin ? localConvexBin : "npx";
@@ -137,13 +126,10 @@ function formatTs(tsMs: number): string {
 }
 
 function main() {
-  const { traceId: argTraceId, limit, eventsFile, countersFile } = parseArgs(process.argv.slice(2));
+  const { traceId: argTraceId, limit, eventsFile } = parseArgs(process.argv.slice(2));
   const events = eventsFile
     ? loadJsonFile<TelemetryEvent[]>(eventsFile)
     : runConvexData("telemetry_events", limit) as TelemetryEvent[];
-  const counters = countersFile
-    ? loadJsonFile<TelemetryCounter[]>(countersFile)
-    : [];
 
   const traceId = chooseTraceId(events, argTraceId);
   const traceEvents = events
@@ -161,8 +147,6 @@ function main() {
   const duplicateSeqCount = seqs.length - new Set(seqs).size;
   const hasSeqCollisions = duplicateSeqCount > 0;
 
-  const counter = counters.find((row) => row.trace_id === traceId);
-  const counterNextSeq = counter?.next_seq ?? null;
 
   const eventCountByName = new Map<string, number>();
   const statusCount = new Map<string, number>();
@@ -224,7 +208,6 @@ function main() {
   );
   console.log("sequence_strategy: timestamp_entropy");
   console.log(`duplicate_seq_count: ${duplicateSeqCount}`);
-  console.log(`counter_next_seq: ${counterNextSeq}`);
   console.log(`started_events_present: ${started}`);
   console.log(`scheduler_kickoff_present: ${schedulerKickoff}`);
   console.log(`window_completed_present: ${completed}`);
