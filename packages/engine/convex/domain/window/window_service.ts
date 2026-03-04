@@ -10,6 +10,8 @@ import type { MutationCtx } from "../../_generated/server";
 import { ENGINE_SETTINGS } from "../../settings";
 import { emitTraceEvent } from "../telemetry/emit";
 
+const WINDOW_INJECT_PARSE_ERROR_RATE = 0.5;
+
 export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
@@ -93,6 +95,16 @@ export const enqueueWindowStage = zInternalMutation({
   },
 });
 
+export const reconcileWindowStage = zInternalMutation({
+  args: z.object({
+    window_id: zid("windows"),
+    stage: SemanticLevelSchema,
+  }),
+  handler: async (ctx, args) => {
+    await maybeAdvanceWindowStage(ctx, args.window_id, args.stage);
+  },
+});
+
 export const applyRequestResult = zInternalMutation({
   args: z.object({
     request_id: zid("llm_requests"),
@@ -109,6 +121,13 @@ export const applyRequestResult = zInternalMutation({
 
     const evidence = await ctx.db.get(evidenceId);
     if (!evidence) throw new Error("Evidence not found");
+
+    if (
+      evidence[config.outputField] == null &&
+      Math.random() < WINDOW_INJECT_PARSE_ERROR_RATE
+    ) {
+      throw new Error("Injected parse error for window failure-path testing");
+    }
 
     if (evidence[config.outputField]) {
       const request = await ctx.runQuery(

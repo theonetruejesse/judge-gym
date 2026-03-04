@@ -7,7 +7,7 @@ import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getProviderForModel } from "../../platform/providers/provider_types";
-import { type RunStage } from "../../models/experiments";
+import { RunStageSchema, type RunStage } from "../../models/experiments";
 import {
   extractReasoningBeforeVerdict,
   parseExpertAgreementResponse,
@@ -417,6 +417,16 @@ export const requeueRunRequest = zInternalMutation({
         job_id: jobId,
       }),
     });
+  },
+});
+
+export const reconcileRunStage = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageSchema,
+  }),
+  handler: async (ctx, args) => {
+    await maybeAdvanceRunStage(ctx, args.run_id, args.stage);
   },
 });
 

@@ -35,6 +35,44 @@ function traceIdForCustomKey(customKey: string) {
   return `${entity}:${id}`;
 }
 
+function parseProcessCustomKey(customKey: string): {
+  processType: "run" | "window";
+  processId: string;
+  stage: string;
+} | null {
+  const [processType, processId, stage] = customKey.split(":");
+  if (!processType || !processId || !stage) return null;
+  if (processType !== "run" && processType !== "window") return null;
+  return { processType, processId, stage };
+}
+
+async function reconcileProcessStageAfterTransportFinalized(
+  step: WorkflowStep,
+  customKey: string,
+) {
+  const parsed = parseProcessCustomKey(customKey);
+  if (!parsed) return;
+
+  if (parsed.processType === "window") {
+    await step.runMutation(
+      internal.domain.window.window_service.reconcileWindowStage,
+      {
+        window_id: parsed.processId as Id<"windows">,
+        stage: parsed.stage as "l0_raw" | "l1_cleaned" | "l2_neutralized" | "l3_abstracted",
+      },
+    );
+    return;
+  }
+
+  await step.runMutation(
+    internal.domain.runs.run_service.reconcileRunStage,
+    {
+      run_id: parsed.processId as Id<"runs">,
+      stage: parsed.stage as "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic",
+    },
+  );
+}
+
 function classifyError(error: unknown): string {
   const value = String(error ?? "").toLowerCase();
   if (!value) return "unknown";
@@ -146,6 +184,7 @@ export async function handleQueuedJobWorkflow(
         custom_key: job.custom_key,
         stage: job.custom_key.split(":")[2] ?? null,
       });
+      await reconcileProcessStageAfterTransportFinalized(step, job.custom_key);
     }
   } finally {
     await step.runMutation(
@@ -252,6 +291,7 @@ export async function handleRunningJobWorkflow(
         custom_key: job.custom_key,
         stage: job.custom_key.split(":")[2] ?? null,
       });
+      await reconcileProcessStageAfterTransportFinalized(step, job.custom_key);
     }
   } finally {
     await step.runMutation(
@@ -553,6 +593,7 @@ export async function handleRunningBatchWorkflow(
           missing_results: counters.missingResultCount,
         }),
       });
+      await reconcileProcessStageAfterTransportFinalized(step, batch.custom_key);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const classified = classifyError(message);

@@ -32,7 +32,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace ordering, lifecycle events, and counter consistency for recent runs.
 - The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
-- Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, so terminal trace events remain end-of-process signals.
+- Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
 - The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
 - The engine includes Bun process telemetry analysis in `packages/engine`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
