@@ -46,6 +46,7 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Run process: `bun run debug:watch --run <run_id>`
 - Window process: `bun run debug:watch --window <window_id>`
 - Trace tail: `bun run debug:tail --trace run:<run_id>`
+- Synthetic matrix runner: `bun run debug:matrix` (nukes between scenarios, runs low-sample synthetic window/run cases, writes markdown report)
 - Process telemetry analysis: `bun run debug:analyze --run <run_id>` or `bun run debug:analyze --window <window_id>`
 
 ### Diagnose
@@ -66,6 +67,11 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Default to dry-run for first pass.
 - Only use codex safe actions (`start_scheduler_if_idle`, request requeue, expired lease release, poll nudge).
 - If a process remains stalled after safe actions, inspect `getProcessHealth` and trace events before any manual data mutation.
+
+### Synthetic Matrix Notes
+
+- Synthetic fault injection hooks have been removed from runtime code.
+- Historical synthetic matrix reports are preserved in `packages/engine/docs/` for comparison.
 
 ## Fresh-Context MCP Runbook
 
