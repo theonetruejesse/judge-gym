@@ -118,6 +118,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
 - Telemetry sequence values are timestamp-entropy based; do not assume contiguous `seq` values for a trace.
+- In `analyzeProcessTelemetry`, `missing_seq_count` is intentionally `0` under timestamp-entropy sequence mode; use duplicate-seq and terminal ordering signals for integrity checks.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - Codex debug queries now use bounded scans (`take` caps) for table/system checks (including scheduler scheduled-function checks), so large historical deployments do not hard-fail on unbounded read counts.
 - `packages/codex:analyzeProcessTelemetry` paginates trace reads and summarizes:

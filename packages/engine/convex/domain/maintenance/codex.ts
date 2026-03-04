@@ -985,18 +985,24 @@ function computeSequenceDiagnostics(
   }
 
   const sorted = seqs.slice().sort((a, b) => a - b);
-  const seqSet = new Set(sorted);
   const seqMin = sorted[0];
   const seqMax = sorted[sorted.length - 1];
-  let missing = 0;
-  for (let seq = seqMin; seq <= seqMax; seq += 1) {
-    if (!seqSet.has(seq)) missing += 1;
+
+  let duplicate = 0;
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const current = sorted[i];
+    if (current === prev) {
+      duplicate += 1;
+    }
   }
-  const duplicate = sorted.length - seqSet.size;
+
   return {
     seq_min: seqMin,
     seq_max: seqMax,
-    missing_seq_count: missing,
+    // Telemetry seq uses timestamp-entropy and is intentionally non-contiguous.
+    // Missing-sequence math is not meaningful in this mode.
+    missing_seq_count: 0,
     duplicate_seq_count: duplicate,
   };
 }

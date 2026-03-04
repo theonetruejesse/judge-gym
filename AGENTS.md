@@ -134,6 +134,7 @@ Use this when a new Codex instance has zero prior context.
 
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
+- `packages/codex:analyzeProcessTelemetry` treats `seq` as timestamp-entropy IDs; `missing_seq_count` is intentionally `0` (non-contiguous sequence is expected), while duplicate-seq and terminal ordering checks remain meaningful.
 - Legacy caveat:
   - For older runs/windows created before snapshots existed, the query falls back to a bounded recent `llm_requests` scan.
   - If legacy history is very large, non-active-stage error rollups may be approximate; pair with `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` when you need full historical forensics.
