@@ -93,7 +93,6 @@ export const applyRequestResult = zInternalMutation({
             patch: { status: "success" },
           },
         );
-        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
         await emitTraceEvent(ctx, {
           trace_id: `run:${sample.run_id}`,
           entity_type: "request",
@@ -114,7 +113,6 @@ export const applyRequestResult = zInternalMutation({
             patch: { status: "success" },
           },
         );
-        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
         await emitTraceEvent(ctx, {
           trace_id: `run:${sample.run_id}`,
           entity_type: "request",
@@ -135,7 +133,6 @@ export const applyRequestResult = zInternalMutation({
             patch: { status: "success" },
           },
         );
-        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
         await emitTraceEvent(ctx, {
           trace_id: `run:${sample.run_id}`,
           entity_type: "request",
@@ -159,7 +156,6 @@ export const applyRequestResult = zInternalMutation({
             patch: { status: "success" },
           },
         );
-        await maybeAdvanceRunStage(ctx, sample.run_id, stage);
         await emitTraceEvent(ctx, {
           trace_id: `run:${sample.run_id}`,
           entity_type: "request",
@@ -307,7 +303,6 @@ export const applyRequestResult = zInternalMutation({
       }
     } catch (error) {
       await markRequestParseFailure(ctx, args.request_id, error);
-      await maybeAdvanceRunStage(ctx, sample.run_id, stage);
       await emitTraceEvent(ctx, {
         trace_id: `run:${sample.run_id}`,
         entity_type: "request",
@@ -336,7 +331,6 @@ export const applyRequestResult = zInternalMutation({
       },
     );
 
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
     await emitTraceEvent(ctx, {
       trace_id: `run:${sample.run_id}`,
       entity_type: "request",
@@ -367,7 +361,6 @@ export const handleRequestError = zInternalMutation({
       status: "error",
       custom_key: args.custom_key,
     });
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
   },
 });
 
