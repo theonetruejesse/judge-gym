@@ -39,6 +39,7 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
+- Synthetic matrix testing is supported via external scripts/reports; runtime fault-injection hooks are not enabled in production code paths.
 
 ## Validation
 

@@ -24,6 +24,10 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - `bun run debug:heal`
   - `bun run debug:tail`
   - `bun run debug:analyze`
+- Synthetic matrix runner in `packages/engine/scripts/synthetic_matrix.ts`
+  - `bun run debug:matrix`
+  - runs low-sample synthetic window/run scenarios
+  - captures per-scenario telemetry summaries to `docs/synthetic_matrix_report_2026-03-03.md`
 
 ## Typical Flow
 
