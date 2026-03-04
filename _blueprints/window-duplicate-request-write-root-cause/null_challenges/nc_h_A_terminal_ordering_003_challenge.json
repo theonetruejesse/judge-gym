@@ -1,0 +1,21 @@
+{
+  "challengeID": "ch_h_A_terminal_ordering_003_null_01",
+  "microHypothesisID": "h_A_terminal_ordering_003",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that post-terminal events are only from duplicate in-flight handlers.",
+      "falsificationQueries": [
+        "Inspect run/window applyRequestResult ordering around maybeAdvance* and request_applied emit."
+      ],
+      "falsificationEvidenceFound": [
+        "/Users/jesselee/dev/research/jg/judge-gym/packages/engine/convex/domain/window/window_service.ts:353",
+        "/Users/jesselee/dev/research/jg/judge-gym/packages/engine/convex/domain/window/window_service.ts:158",
+        "/Users/jesselee/dev/research/jg/judge-gym/packages/engine/convex/domain/runs/run_service.ts:494",
+        "/Users/jesselee/dev/research/jg/judge-gym/packages/engine/convex/domain/runs/run_service.ts:332"
+      ],
+      "falsificationAnalysis": "Normal handler ordering can emit request_applied after terminal completion in same mutation flow; hypothesis as stated is too narrow.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}
