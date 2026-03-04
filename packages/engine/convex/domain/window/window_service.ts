@@ -130,7 +130,6 @@ export const applyRequestResult = zInternalMutation({
           },
         },
       );
-      await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
       await emitTraceEvent(ctx, {
         trace_id: `window:${evidence.window_id}`,
         entity_type: "request",
@@ -140,6 +139,7 @@ export const applyRequestResult = zInternalMutation({
         status: "success",
         custom_key: args.custom_key,
       });
+      await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
       return;
     }
 
@@ -161,7 +161,6 @@ export const applyRequestResult = zInternalMutation({
       },
     );
 
-    await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
     await emitTraceEvent(ctx, {
       trace_id: `window:${evidence.window_id}`,
       entity_type: "request",
@@ -171,6 +170,7 @@ export const applyRequestResult = zInternalMutation({
       status: "success",
       custom_key: args.custom_key,
     });
+    await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },
 });
 
@@ -257,6 +257,69 @@ const STAGE_ORDER: SemanticLevel[] = [
   "l2_neutralized",
   "l3_abstracted",
 ];
+
+function processKeyForWindowStage(
+  windowId: Id<"windows">,
+  stage: SemanticLevel,
+): string {
+  return `window:${String(windowId)}:${stage}`;
+}
+
+async function hasActiveWindowTransportWork(
+  ctx: MutationCtx,
+  windowId: Id<"windows">,
+  stage: SemanticLevel,
+): Promise<boolean> {
+  const processKey = processKeyForWindowStage(windowId, stage);
+
+  const hasQueuedBatch = (
+    await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "queued"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  if (hasQueuedBatch) return true;
+
+  const hasRunningBatch = (
+    await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "running"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  if (hasRunningBatch) return true;
+
+  const hasFinalizingBatch = (
+    await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  if (hasFinalizingBatch) return true;
+
+  const hasQueuedJob = (
+    await ctx.db
+      .query("llm_jobs")
+      .withIndex("by_status", (q) => q.eq("status", "queued"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  if (hasQueuedJob) return true;
+
+  const hasRunningJob = (
+    await ctx.db
+      .query("llm_jobs")
+      .withIndex("by_status", (q) => q.eq("status", "running"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  if (hasRunningJob) return true;
+
+  const hasFinalizingJob = (
+    await ctx.db
+      .query("llm_jobs")
+      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
+      .collect()
+  ).some((row) => row.custom_key === processKey);
+  return hasFinalizingJob;
+}
 
 function nextStageFor(stage: SemanticLevel): SemanticLevel | null {
   const idx = STAGE_ORDER.indexOf(stage);
@@ -359,6 +422,7 @@ async function maybeAdvanceWindowStage(
 
   const nextStage = nextStageFor(stage);
   if (!nextStage) {
+    if (await hasActiveWindowTransportWork(ctx, windowId, stage)) return;
     await ctx.db.patch(windowId, {
       status: "completed",
       current_stage: stage,
