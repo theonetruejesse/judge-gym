@@ -71,6 +71,12 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 ## Failure Playbook
 
+### Run data reset safety
+
+- `domain/maintenance/danger:deleteRunData` rejects active runs by default (`start`, `queued`, `running`, `paused`).
+- To force deletion of an active run, pass `allow_active=true` explicitly (for emergency recovery only).
+- Prefer dry-run first and capture deletion counts before applying.
+
 ### Stuck finalizing batch
 
 - Symptom: `finalizing_no_progress`
