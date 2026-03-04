@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "originalQuestion": "Identify root causes of repeated writes and duplicate apply/finalize telemetry in window flow, and propose high-confidence architectural fixes with verification plan.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/window-duplicate-request-write-root-cause",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "codex-main",
+    "researchers": [
+      { "id": "019cb60e-d09c-7d50-8864-c34359e8627d", "nickname": "Goodall", "role": "researcher" },
+      { "id": "019cb60e-d0ac-7dd0-8f30-7eb960b5ec14", "nickname": "Lovelace", "role": "researcher" },
+      { "id": "019cb60e-d0f7-7822-9215-01f3cae0e8de", "nickname": "Peirce", "role": "researcher" }
+    ],
+    "falsifier": { "id": "019cb612-1943-79f2-b16d-f70bf6479a4a", "nickname": "Faraday" },
+    "certaintyScorer": { "id": "019cb617-7560-77b3-b5cf-7cf6188b2c90", "nickname": "Hooke" },
+    "synthesizer": "codex-main"
+  },
+  "assignments": [
+    {
+      "areaId": "A_01",
+      "name": "Window apply idempotency path",
+      "assignee": "Goodall",
+      "outputs": ["knowledge/k_001_window_apply_duplicate_branch.md"]
+    },
+    {
+      "areaId": "A_02",
+      "name": "Scheduler/workflow re-entry controls",
+      "assignee": "Lovelace",
+      "outputs": ["knowledge/k_002_job_reentry_no_claim.md", "knowledge/k_004_batch_finalizing_reentry_window.md"]
+    },
+    {
+      "areaId": "A_03",
+      "name": "Request/snapshot write amplification",
+      "assignee": "Peirce",
+      "outputs": ["knowledge/k_003_patch_request_write_amplification.md"]
+    },
+    {
+      "areaId": "A_04",
+      "name": "Empirical telemetry + platform constraints",
+      "assignee": "codex-main",
+      "outputs": ["knowledge/k_005_empirical_window_ab_baseline.md", "knowledge/k_006_convex_execution_model_constraints.md"]
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_window_apply_duplicate_branch.md",
+      "knowledge/k_002_job_reentry_no_claim.md",
+      "knowledge/k_003_patch_request_write_amplification.md",
+      "knowledge/k_004_batch_finalizing_reentry_window.md",
+      "knowledge/k_005_empirical_window_ab_baseline.md",
+      "knowledge/k_006_convex_execution_model_constraints.md"
+    ]
+  },
+  "evidenceReviews": [
+    {
+      "reviewer": "Faraday",
+      "artifacts": [
+        "null_challenges/nc_h_A_job_reentry_001_challenge.json",
+        "null_challenges/nc_h_A_request_idempotency_002_challenge.json",
+        "null_challenges/nc_h_A_terminal_ordering_003_challenge.json"
+      ]
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      { "id": "h_A_job_reentry_001", "score": 0.85 },
+      { "id": "h_A_request_idempotency_002", "score": 0.91 },
+      { "id": "h_A_terminal_ordering_003", "score": 0.38 },
+      { "id": "S1", "score": 0.90 },
+      { "id": "S2", "score": 0.88 },
+      { "id": "S3", "score": 0.92 },
+      { "id": "S4", "score": 0.89 },
+      { "id": "S5", "score": 0.62 },
+      { "id": "S6", "score": 0.94 }
+    ]
+  },
+  "areasOfAnalysis": [
+    { "id": "A_01", "title": "Window apply idempotency path" },
+    { "id": "A_02", "title": "Scheduler/workflow re-entry controls" },
+    { "id": "A_03", "title": "Request/snapshot write amplification" },
+    { "id": "A_04", "title": "Empirical telemetry + platform constraints" }
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A_job_reentry_001_v1_job_claim_missing.json",
+    "hypotheses/hyp_A_request_idempotency_002_v1_noop_patch_writes.json",
+    "hypotheses/hyp_A_terminal_ordering_003_v1_post_terminal_events.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesis": "h_A_terminal_ordering_003",
+      "status": "falsified_by_null_challenge",
+      "note": "Post-terminal events can occur from normal caller ordering, not only duplicate in-flight handlers."
+    }
+  ],
+  "synthesisOutput": "blueprint.md"
+}

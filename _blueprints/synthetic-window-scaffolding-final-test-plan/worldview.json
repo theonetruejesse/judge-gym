@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "originalQuestion": "Using low-sample synthetic setup in packages/engine, what remaining tests are required to validate window/run orchestration reliability before evidence flow rollout, and in what order should they be executed?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/synthetic-window-scaffolding-final-test-plan",
+    "finalPlanPath": null
+  },
+  "agentRegistry": {
+    "lead": null,
+    "researchers": [],
+    "falsifier": null,
+    "certaintyScorer": null,
+    "synthesizer": null
+  },
+  "assignments": [],
+  "knowledgeBase": {
+    "entries": []
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": []
+  },
+  "areasOfAnalysis": [],
+  "microHypotheses": [],
+  "hypothesisConflicts": [],
+  "synthesisOutput": null
+}

@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_job_reentry_001",
+  "areaOfAnalysisID": "A_job_reentry_control",
+  "statement": "The dominant source of duplicate apply/finalize churn is missing per-job lease/claim ownership, allowing concurrent running-job workflows on the same job.",
+  "confidence": 0.89,
+  "rationale": "Scheduler can dispatch running jobs repeatedly and job workflows do not claim ownership before polling/finalizing, matching observed repeated job_finalized and duplicate apply patterns.",
+  "keyAssumptions": [
+    "Multiple running-job actions overlap in time for the same job.",
+    "Current data races are not fully mitigated by status checks alone."
+  ],
+  "validationCriteria": [
+    "After introducing job claim lease, jobs_finalized_multiple_times drops to 0 on matched window run.",
+    "After introducing job claim lease, duplicate_apply_success_total drops by >80%."
+  ],
+  "critiquePoints": [
+    "Even with job claims, repeated no-op patch writes may persist if duplicate branch still patches/emits.",
+    "Batch mode may still duplicate under finalizing lease expiry."
+  ],
+  "questions": [
+    "Should job claim lease be separate for queued and running handlers?",
+    "How should lease heartbeat be handled during long provider latency?"
+  ]
+}
