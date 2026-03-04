@@ -226,6 +226,14 @@ const WINDOW_STAGES: Array<z.infer<typeof WindowStageSchema>> = [
 
 const LEGACY_REQUEST_SCAN_LIMIT_PER_STATUS = 1500;
 const MIXED_SNAPSHOT_SCAN_LIMIT_PER_STATUS = 300;
+const SCHEDULER_SCAN_MAX_ROWS = 2_000;
+const STUCK_BATCH_SCAN_MAX_ROWS = 2_000;
+const STUCK_PROCESS_SCAN_MAX_ROWS = 300;
+const AUTO_HEAL_ERROR_SCAN_MAX_ROWS = 3_000;
+const AUTO_HEAL_BATCH_SCAN_MAX_ROWS = 2_000;
+const PROCESS_MEMBERSHIP_SCAN_MAX_ROWS = 2_500;
+const PROCESS_TARGET_STATE_SCAN_MAX_ROWS = 3_000;
+const STAGE_ARTIFACT_SCAN_MAX_ROWS = 3_000;
 
 function parseCustomKey(key: string) {
   const [targetType, targetId, stage] = key.split(":");
@@ -259,7 +267,7 @@ function isSchedulerRun(name: string): boolean {
 }
 
 async function hasScheduledScheduler(ctx: QueryCtx | MutationCtx): Promise<boolean> {
-  const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
+  const scheduled = await ctx.db.system.query("_scheduled_functions").order("desc").take(SCHEDULER_SCAN_MAX_ROWS);
   return scheduled.some((row) => isSchedulerRun(row.name) && row.completedTime == null);
 }
 
@@ -274,11 +282,11 @@ async function buildMembership(
     const samples = await ctx.db
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
+      .take(PROCESS_MEMBERSHIP_SCAN_MAX_ROWS);
     const scoreUnits = await ctx.db
       .query("sample_evidence_scores")
       .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
+      .take(PROCESS_MEMBERSHIP_SCAN_MAX_ROWS);
 
     return {
       process_type,
@@ -297,7 +305,7 @@ async function buildMembership(
   const evidences = await ctx.db
     .query("evidences")
     .withIndex("by_window_id", (q) => q.eq("window_id", window._id))
-    .collect();
+    .take(PROCESS_MEMBERSHIP_SCAN_MAX_ROWS);
   return {
     process_type,
     process_id,
@@ -333,7 +341,7 @@ async function listProcessRequestTargetStates(
     .withIndex("by_process", (q) =>
       q.eq("process_type", membership.process_type).eq("process_id", membership.process_id),
     )
-    .collect();
+    .take(PROCESS_TARGET_STATE_SCAN_MAX_ROWS);
   const aggregate = new Map<string, RequestTargetState>();
   for (const row of snapshotRows) {
     aggregate.set(row.custom_key, {
@@ -427,6 +435,8 @@ async function listProcessRequestTargetStates(
   return {
     rows: [...aggregate.values()],
     approximate:
+      snapshotRows.length === PROCESS_TARGET_STATE_SCAN_MAX_ROWS
+      ||
       pendingRows.length === perStatusLimit
       || errorRows.length === perStatusLimit,
   };
@@ -472,11 +482,11 @@ async function buildRunStageProgress(
   const samples = await ctx.db
     .query("samples")
     .withIndex("by_run", (q) => q.eq("run_id", run_id))
-    .collect();
+    .take(STAGE_ARTIFACT_SCAN_MAX_ROWS);
   const scoreUnits = await ctx.db
     .query("sample_evidence_scores")
     .withIndex("by_run", (q) => q.eq("run_id", run_id))
-    .collect();
+    .take(STAGE_ARTIFACT_SCAN_MAX_ROWS);
 
   const scoreTargetCount = scoreUnits.length > 0 ? scoreUnits.length : samples.length;
 
@@ -584,7 +594,7 @@ async function buildWindowStageProgress(
   const evidences = await ctx.db
     .query("evidences")
     .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
-    .collect();
+    .take(STAGE_ARTIFACT_SCAN_MAX_ROWS);
 
   const pendingTimes: number[] = [];
   const errorClasses: string[] = [];
@@ -1060,16 +1070,28 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     const cutoff = now - args.older_than_ms;
     const items: Array<z.infer<typeof StuckWorkSchema>> = [];
 
-    const [runningBatches, finalizingBatches, orphaned, runs, windows, schedulerScheduled] = await Promise.all([
-      ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running")).collect(),
-      ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing")).collect(),
+    const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
+    const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
+    const runQuery = ctx.db.query("runs");
+    const runningWindowQuery = ctx.db.query("windows").withIndex("by_status", (q) => q.eq("status", "running"));
+
+    const [
+      runningBatches,
+      finalizingBatches,
+      orphaned,
+      runs,
+      windows,
+      schedulerScheduled,
+    ] = await Promise.all([
+      runningBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
+      finalizingBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       ctx.runQuery(internal.domain.llm_calls.llm_request_repo.listOrphanedRequests, {}),
       args.process_type && args.process_type !== "run"
         ? Promise.resolve([] as Doc<"runs">[])
-        : ctx.db.query("runs").collect(),
+        : runQuery.take(STUCK_PROCESS_SCAN_MAX_ROWS),
       args.process_type && args.process_type !== "window"
         ? Promise.resolve([] as Doc<"windows">[])
-        : ctx.db.query("windows").withIndex("by_status", (q) => q.eq("status", "running")).collect(),
+        : runningWindowQuery.take(STUCK_PROCESS_SCAN_MAX_ROWS),
       hasScheduledScheduler(ctx),
     ]);
 
@@ -1177,7 +1199,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
 
     const runRows = args.process_type === "window"
       ? []
-      : await ctx.db.query("runs").collect();
+      : runs;
     for (const run of runRows) {
       if (args.process_type && args.process_type !== "run") continue;
       if (run.status === "completed" || run.status === "error" || run.status === "canceled") continue;
@@ -1205,7 +1227,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
 
     const windowRows = args.process_type === "run"
       ? []
-      : await ctx.db.query("windows").collect();
+      : await ctx.db.query("windows").take(STUCK_PROCESS_SCAN_MAX_ROWS);
     for (const window of windowRows) {
       if (args.process_type && args.process_type !== "window") continue;
       if (window.status === "completed" || window.status === "error" || window.status === "canceled") continue;
@@ -1484,10 +1506,10 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
       });
     }
 
-    const errorRequests = await ctx.db
+    const errorRequestQuery = ctx.db
       .query("llm_requests")
-      .withIndex("by_status", (q) => q.eq("status", "error"))
-      .collect();
+      .withIndex("by_status", (q) => q.eq("status", "error"));
+    const errorRequests = await errorRequestQuery.take(AUTO_HEAL_ERROR_SCAN_MAX_ROWS);
     for (const request of errorRequests) {
       if (!requestBelongsToMembership(membership, request)) continue;
       const attempts = request.attempts ?? 0;
@@ -1505,9 +1527,11 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
       });
     }
 
+    const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
+    const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
     const [runningBatches, finalizingBatches] = await Promise.all([
-      ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running")).collect(),
-      ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing")).collect(),
+      runningBatchQuery.take(AUTO_HEAL_BATCH_SCAN_MAX_ROWS),
+      finalizingBatchQuery.take(AUTO_HEAL_BATCH_SCAN_MAX_ROWS),
     ]);
     const processPrefix = `${args.process_type}:${args.process_id}:`;
     const staleBatches = [...runningBatches, ...finalizingBatches].filter((batch) => {
