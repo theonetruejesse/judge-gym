@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A1_001",
+  "areaOfAnalysisID": "A1_prompt_design",
+  "statement": "A fidelity-first L2/L3 prompt design with explicit non-expansion constraints will reduce verbosity drift on long survey-heavy evidence without introducing major factual omissions.",
+  "confidence": 0.58,
+  "rationale": "Judges converged on D-style hybrid prompts as best balance; falsifier still flags omission risk requiring gated validation.",
+  "keyAssumptions": [
+    "Conditional long-survey mode does not over-compress distinct datapoints.",
+    "L3 one-to-one mapping preserves modality/attribution markers."
+  ],
+  "validationCriteria": [
+    "Entity/date/number retention >= 0.95 on canary set.",
+    "L3 length <= L2 length for all canary examples.",
+    "No stage completion regressions in window orchestration telemetry."
+  ],
+  "critiquePoints": [
+    "Current evidence set includes only 2 QA examples.",
+    "Judge disagreement existed in round 1 for L2 strategy."
+  ],
+  "questions": [
+    "What is acceptable compression ratio for survey-heavy cases before fidelity degradation?"
+  ]
+}
