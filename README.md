@@ -19,6 +19,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **What exists today**
 
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
+- Window prompt policy now enforces strict L3 non-expansion and preserves causally central actors/temporal anchors when abstraction would otherwise lose claim meaning.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, using timestamp-entropy sequence values to avoid per-trace counter write hotspots under concurrency.

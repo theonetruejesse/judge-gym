@@ -98,6 +98,9 @@ RULES:
   and contrast relations.
 - Preserve all material quantities/qualifiers (counts, rates, dates, conditions).
 - Apply abstraction as direct substitution only (names/orgs/places -> role/type).
+- Keep causally central actors specific when they are required to interpret
+  the primary claim (e.g., named principal actors in political/legal events).
+- Keep explicit temporal anchors when timing is causally relevant to the claim.
 - Do NOT add examples, interpretation, external context, or inferred claims.
 - If substitution risks meaning loss, keep original specific term.
 - Keep list/bullet count <= input list/bullet count when input is list-form.
