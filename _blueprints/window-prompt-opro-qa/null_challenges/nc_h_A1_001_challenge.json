@@ -1,0 +1,32 @@
+{
+  "challengeID": "nc_h_A1_001",
+  "microHypothesisID": "h_A1_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Factual omission risk in long-survey compression mode",
+      "falsificationQueries": [
+        "Can compression caps induce omission of methodology caveats?",
+        "Can dense table evidence lose subgroup details under anti-verbosity rules?"
+      ],
+      "falsificationEvidenceFound": [
+        "rounds/round2_candidates.md",
+        "rounds/round2_judging.md"
+      ],
+      "falsificationAnalysis": "High omission pressure exists for aggressive bullet/word caps; mitigated but not eliminated in final hybrid.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "L3 drift despite non-expansion",
+      "falsificationQueries": [
+        "Can abstraction substitutions drop modality/attribution semantics?",
+        "Can one-to-one structure still under-cover implicit links?"
+      ],
+      "falsificationEvidenceFound": [
+        "rounds/round3_final.md"
+      ],
+      "falsificationAnalysis": "Residual risk remains; requires quantitative retention audit in canary.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}
