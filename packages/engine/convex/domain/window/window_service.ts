@@ -281,54 +281,37 @@ async function hasActiveWindowTransportWork(
   stage: SemanticLevel,
 ): Promise<boolean> {
   const processKey = processKeyForWindowStage(windowId, stage);
-
-  const hasQueuedBatch = (
-    await ctx.db
+  const batchStatuses: Array<Doc<"llm_batches">["status"]> = [
+    "queued",
+    "running",
+    "finalizing",
+  ];
+  for (const status of batchStatuses) {
+    const row = await ctx.db
       .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "queued"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  if (hasQueuedBatch) return true;
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", status),
+      )
+      .first();
+    if (row) return true;
+  }
 
-  const hasRunningBatch = (
-    await ctx.db
-      .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  if (hasRunningBatch) return true;
-
-  const hasFinalizingBatch = (
-    await ctx.db
-      .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  if (hasFinalizingBatch) return true;
-
-  const hasQueuedJob = (
-    await ctx.db
+  const jobStatuses: Array<Doc<"llm_jobs">["status"]> = [
+    "queued",
+    "running",
+    "finalizing",
+  ];
+  for (const status of jobStatuses) {
+    const row = await ctx.db
       .query("llm_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "queued"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  if (hasQueuedJob) return true;
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", status),
+      )
+      .first();
+    if (row) return true;
+  }
 
-  const hasRunningJob = (
-    await ctx.db
-      .query("llm_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  if (hasRunningJob) return true;
-
-  const hasFinalizingJob = (
-    await ctx.db
-      .query("llm_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
-      .collect()
-  ).some((row) => row.custom_key === processKey);
-  return hasFinalizingJob;
+  return false;
 }
 
 function nextStageFor(stage: SemanticLevel): SemanticLevel | null {

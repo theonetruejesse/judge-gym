@@ -1,7 +1,7 @@
 import z from "zod";
 import { zInternalMutation } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
-import type { DataModel, Doc, Id } from "../../_generated/dataModel";
+import type { DataModel, Doc } from "../../_generated/dataModel";
 
 const tableNames = [
     "llm_batches",
@@ -210,68 +210,38 @@ export const deleteRunData = zInternalMutation({
             .query("samples")
             .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
             .collect();
-        const sampleIds = new Set(samples.map((s) => s._id));
 
         const scoreUnits = await ctx.db
             .query("sample_evidence_scores")
             .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
             .collect();
-        const scoreUnitIds = new Set(scoreUnits.map((u) => u._id));
-
-        const rubrics: Doc<"rubrics">[] = [];
-        const rubricCritics: Doc<"rubric_critics">[] = [];
-        const scores: Doc<"scores">[] = [];
-        const scoreCritics: Doc<"score_critics">[] = [];
-        for (const sample of samples) {
-            const sampleRubrics = await ctx.db
-                .query("rubrics")
-                .withIndex("by_sample", (q) => q.eq("sample_id", sample._id))
-                .collect();
-            rubrics.push(...sampleRubrics);
-
-            const sampleRubricCritics = await ctx.db
-                .query("rubric_critics")
-                .withIndex("by_sample", (q) => q.eq("sample_id", sample._id))
-                .collect();
-            rubricCritics.push(...sampleRubricCritics);
-
-            const sampleScores = await ctx.db
-                .query("scores")
-                .withIndex("by_sample", (q) => q.eq("sample_id", sample._id))
-                .collect();
-            scores.push(...sampleScores);
-
-            const sampleScoreCritics = await ctx.db
-                .query("score_critics")
-                .withIndex("by_sample", (q) => q.eq("sample_id", sample._id))
-                .collect();
-            scoreCritics.push(...sampleScoreCritics);
-        }
+        const rubrics = await ctx.db
+            .query("rubrics")
+            .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+            .collect();
+        const rubricCritics = await ctx.db
+            .query("rubric_critics")
+            .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+            .collect();
+        const scores = await ctx.db
+            .query("scores")
+            .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+            .collect();
+        const scoreCritics = await ctx.db
+            .query("score_critics")
+            .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+            .collect();
 
         const allBatches = await ctx.db.query("llm_batches").collect();
         const runBatches = allBatches.filter((b) => b.custom_key.startsWith(`${traceId}:`));
-        const runBatchIds = new Set(runBatches.map((b) => b._id));
 
         const allJobs = await ctx.db.query("llm_jobs").collect();
         const runJobs = allJobs.filter((j) => j.custom_key.startsWith(`${traceId}:`));
-        const runJobIds = new Set(runJobs.map((j) => j._id));
 
-        const allRequests = await ctx.db.query("llm_requests").collect();
-        const runRequests = allRequests.filter((req) => {
-            if (req.batch_id && runBatchIds.has(req.batch_id)) return true;
-            if (req.job_id && runJobIds.has(req.job_id)) return true;
-
-            const parts = req.custom_key.split(":");
-            const targetType = parts[0];
-            const targetId = parts[1];
-            if (targetType === "sample" && targetId) {
-                return sampleIds.has(targetId as Id<"samples">);
-            }
-            if (targetType === "sample_evidence" && targetId) {
-                return scoreUnitIds.has(targetId as Id<"sample_evidence_scores">);
-            }
-            return false;
-        });
+        const runRequests = await ctx.db
+            .query("llm_requests")
+            .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+            .collect();
         const runTargetStateRows = await ctx.db
             .query("process_request_targets")
             .withIndex("by_process", (q) =>

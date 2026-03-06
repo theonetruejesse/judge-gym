@@ -20,6 +20,7 @@ export const RubricStageSchema = z.object({
 });
 
 export const RubricsTableSchema = z.object({
+    run_id: zid("runs"),
     sample_id: zid("samples"),
     model: modelTypeSchema,
     concept: z.string(),
@@ -36,6 +37,7 @@ export const RubricQualityStatsSchema = z.object({
 });
 
 export const RubricCriticsTableSchema = z.object({
+    run_id: zid("runs"),
     sample_id: zid("samples"),
     model: modelTypeSchema,
     llm_request_id: zid("llm_requests"),
@@ -44,6 +46,7 @@ export const RubricCriticsTableSchema = z.object({
 });
 
 export const ScoresTableSchema = z.object({
+    run_id: zid("runs"),
     sample_id: zid("samples"),
     model: modelTypeSchema,
     evidence_id: zid("evidences"),
@@ -53,6 +56,7 @@ export const ScoresTableSchema = z.object({
 });
 
 export const ScoreCriticsTableSchema = z.object({
+    run_id: zid("runs"),
     sample_id: zid("samples"),
     model: modelTypeSchema,
     llm_request_id: zid("llm_requests"),

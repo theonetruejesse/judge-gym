@@ -108,6 +108,8 @@ Per-config totals:
 
 ### Preflight
 
+- [ ] Confirm index hardening is deployed (`llm_requests.by_run`, artifact `by_run`, transport `by_custom_key_status`).
+- [ ] Reset run/LLM operational tables before fresh W1 validation (keep windows/evidence).
 - [ ] Confirm windows `W1-W12` exist with expected counts.
 - [ ] Confirm default experiment settings (subset scoring + default randomizations).
 - [ ] Run one tiny canary (`target_count=1`) and verify full stage completion.

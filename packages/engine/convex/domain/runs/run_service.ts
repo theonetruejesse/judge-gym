@@ -197,6 +197,7 @@ export const applyRequestResult = zInternalMutation({
         );
 
         const rubric_id = await ctx.db.insert("rubrics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: experiment.rubric_config.model,
           concept: experiment.rubric_config.concept,
@@ -217,6 +218,7 @@ export const applyRequestResult = zInternalMutation({
 
         const parsed = parseQualityResponse(args.output);
         const rubric_critic_id = await ctx.db.insert("rubric_critics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: rubric.model,
           llm_request_id: args.request_id,
@@ -268,6 +270,7 @@ export const applyRequestResult = zInternalMutation({
 
         const decodedScores = verdict.decodedScores ?? [];
         const score_id = await ctx.db.insert("scores", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: sample.model,
           evidence_id: evidence._id,
@@ -288,6 +291,7 @@ export const applyRequestResult = zInternalMutation({
         if (!score_id) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
         const score_critic_id = await ctx.db.insert("score_critics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: sample.model,
           llm_request_id: args.request_id,
