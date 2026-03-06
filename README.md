@@ -36,6 +36,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace lifecycle and failure signals for recent runs.
 - The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
+- Run diagnostics now read run-scoped artifacts and requests via direct `run_id` indexes (`rubrics`, `rubric_critics`, `scores`, `score_critics`, `llm_requests`) instead of full-table artifact scans.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
 - Telemetry diagnostics treat sequence values as timestamp-entropy IDs (non-contiguous by design), so `missing_seq_count` in codex analysis is reported as `0` and duplicate detection is the meaningful sequence integrity signal.
 - Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
@@ -117,7 +118,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- | --- |
 | `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date` |
 | `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
-| `llm_requests` | Individual LLM calls | `status`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
+| `llm_requests` | Individual LLM calls | `status`, `run_id`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
 | `process_request_targets` | Derived per-target request state snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `has_pending`, `max_attempts`, `latest_error_class` |
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |

@@ -30,11 +30,14 @@ import {
 
 export default defineSchema({
   llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema))
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_custom_key_status", ["custom_key", "status"]),
   llm_jobs: defineTable(zodOutputToConvex(LlmJobsTableSchema))
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_custom_key_status", ["custom_key", "status"]),
   llm_requests: defineTable(zodOutputToConvex(LlmRequestsTableSchema))
     .index("by_status", ["status"])
+    .index("by_run", ["run_id"])
     .index("by_batch_id", ["batch_id"])
     .index("by_job_id", ["job_id"])
     .index("by_orphaned", ["status", "batch_id", "job_id"])
@@ -67,10 +70,18 @@ export default defineSchema({
     .index("by_rubric_critic_id", ["rubric_critic_id"])
     .index("by_score_id", ["score_id"])
     .index("by_score_critic_id", ["score_critic_id"]),
-  rubrics: defineTable(zodOutputToConvex(RubricsTableSchema)).index("by_sample", ["sample_id"]),
-  rubric_critics: defineTable(zodOutputToConvex(RubricCriticsTableSchema)).index("by_sample", ["sample_id"]),
-  scores: defineTable(zodOutputToConvex(ScoresTableSchema)).index("by_sample", ["sample_id"]),
-  score_critics: defineTable(zodOutputToConvex(ScoreCriticsTableSchema)).index("by_sample", ["sample_id"]),
+  rubrics: defineTable(zodOutputToConvex(RubricsTableSchema))
+    .index("by_sample", ["sample_id"])
+    .index("by_run", ["run_id"]),
+  rubric_critics: defineTable(zodOutputToConvex(RubricCriticsTableSchema))
+    .index("by_sample", ["sample_id"])
+    .index("by_run", ["run_id"]),
+  scores: defineTable(zodOutputToConvex(ScoresTableSchema))
+    .index("by_sample", ["sample_id"])
+    .index("by_run", ["run_id"]),
+  score_critics: defineTable(zodOutputToConvex(ScoreCriticsTableSchema))
+    .index("by_sample", ["sample_id"])
+    .index("by_run", ["run_id"]),
   sample_evidence_scores: defineTable(zodOutputToConvex(SampleEvidenceScoresTableSchema))
     .index("by_run", ["run_id"])
     .index("by_sample", ["sample_id"])

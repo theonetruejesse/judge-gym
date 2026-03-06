@@ -83,6 +83,17 @@ async function resolveProcessForTarget(
   };
 }
 
+async function resolveRunIdForCustomKey(
+  ctx: MutationCtx,
+  customKey: string,
+): Promise<Id<"runs"> | null> {
+  const parsed = parseRequestCustomKey(customKey);
+  if (!parsed) return null;
+  const processRef = await resolveProcessForTarget(ctx, parsed);
+  if (!processRef || processRef.process_type !== "run") return null;
+  return processRef.process_id as Id<"runs">;
+}
+
 async function refreshProcessRequestTargetState(
   ctx: MutationCtx,
   customKey: string,
@@ -178,8 +189,10 @@ export const createLlmRequest = zInternalMutation({
   args: CreateLlmRequestArgsSchema,
   returns: zid("llm_requests"),
   handler: async (ctx, args) => {
+    const run_id = await resolveRunIdForCustomKey(ctx, args.custom_key);
     const requestId = await ctx.db.insert("llm_requests", {
       ...args,
+      run_id,
       job_id: null,
       batch_id: null,
       status: "pending",
@@ -221,13 +234,18 @@ export const patchRequest = zInternalMutation({
   handler: async (ctx, args) => {
     const request = await ctx.db.get(args.request_id);
     if (!request) throw new Error("Request not found");
-    const patchEntries = Object.entries(args.patch);
+    const patch = { ...args.patch } as Partial<Doc<"llm_requests">>;
+    if (patch.custom_key !== undefined) {
+      patch.run_id = await resolveRunIdForCustomKey(ctx, patch.custom_key);
+    }
+
+    const patchEntries = Object.entries(patch);
     const changedEntries = patchEntries.filter(([key, value]) =>
       (request as Record<string, unknown>)[key] !== value,
     );
     if (changedEntries.length === 0) return;
 
-    await ctx.db.patch(args.request_id, args.patch);
+    await ctx.db.patch(args.request_id, patch);
 
     const changedKeys = new Set(changedEntries.map(([key]) => key));
     const snapshotRelevant = changedKeys.has("status")
@@ -237,7 +255,7 @@ export const patchRequest = zInternalMutation({
     if (!snapshotRelevant) return;
 
     const oldCustomKey = request.custom_key;
-    const nextCustomKey = (args.patch.custom_key as string | undefined) ?? oldCustomKey;
+    const nextCustomKey = (patch.custom_key as string | undefined) ?? oldCustomKey;
     await refreshProcessRequestTargetState(ctx, oldCustomKey);
     if (nextCustomKey !== oldCustomKey) {
       await refreshProcessRequestTargetState(ctx, nextCustomKey);

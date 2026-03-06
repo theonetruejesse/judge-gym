@@ -419,40 +419,10 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
-    const scoreUnits = await ctx.db
-      .query("sample_evidence_scores")
+    const requestRows = await ctx.db
+      .query("llm_requests")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
-
-    const requestRows: Array<Doc<"llm_requests">> = [];
-    for (const sample of samples) {
-      const stageKeys = [
-        `sample:${sample._id}:rubric_gen`,
-        `sample:${sample._id}:rubric_critic`,
-        `sample:${sample._id}:score_gen`,
-        `sample:${sample._id}:score_critic`,
-      ];
-      for (const key of stageKeys) {
-        const rows = await ctx.db
-          .query("llm_requests")
-          .withIndex("by_custom_key", (q) => q.eq("custom_key", key))
-          .collect();
-        requestRows.push(...rows);
-      }
-    }
-    for (const unit of scoreUnits) {
-      const stageKeys = [
-        `sample_evidence:${unit._id}:score_gen`,
-        `sample_evidence:${unit._id}:score_critic`,
-      ];
-      for (const key of stageKeys) {
-        const rows = await ctx.db
-          .query("llm_requests")
-          .withIndex("by_custom_key", (q) => q.eq("custom_key", key))
-          .collect();
-        requestRows.push(...rows);
-      }
-    }
 
     const stageRollup = {
       rubric_gen: { pending: 0, success: 0, error: 0 },
@@ -492,15 +462,23 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     }
 
     const [rubrics, rubric_critics, scores, score_critics] = await Promise.all([
-      ctx.db.query("rubrics").collect(),
-      ctx.db.query("rubric_critics").collect(),
-      ctx.db.query("scores").collect(),
-      ctx.db.query("score_critics").collect(),
+      ctx.db
+        .query("rubrics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("rubric_critics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("scores")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("score_critics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
     ]);
-    const sampleIds = new Set(samples.map((sample) => String(sample._id)));
-
-    const ownedByRun = <T extends { sample_id: Id<"samples"> }>(rows: T[]) =>
-      rows.filter((row) => sampleIds.has(String(row.sample_id))).length;
 
     return {
       run_id: run._id,
@@ -515,10 +493,10 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       failed_requests,
       artifact_counts: {
         samples: samples.length,
-        rubrics: ownedByRun(rubrics),
-        rubric_critics: ownedByRun(rubric_critics),
-        scores: ownedByRun(scores),
-        score_critics: ownedByRun(score_critics),
+        rubrics: rubrics.length,
+        rubric_critics: rubric_critics.length,
+        scores: scores.length,
+        score_critics: score_critics.length,
       },
       trace_id: `run:${run._id}`,
     };
