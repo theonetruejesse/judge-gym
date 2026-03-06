@@ -66,32 +66,34 @@ Max with both add-ons: **36 configs**.
 ## API Request Breakdown
 
 Assumptions per config (`target_count=30`):
+
 - `rubric_gen = 30`
 - `rubric_critic = 30`
 - `score_gen = 30 × pool_size`
 - `score_critic = 30 × pool_size`
 
 Per-config totals:
+
 - Pool size `20` (`P1`, `P3`): `1260`
 - Pool size `10` (`P2`): `660`
 
 ### Required baseline (28 configs)
 
-| Tier | Configs | Pool Size | Rubric Gen | Rubric Critic | Score Gen | Score Critic | Total |
-| :-- | --: | --: | --: | --: | --: | --: | --: |
-| A1 | 16 | 20 | 480 | 480 | 9600 | 9600 | 20160 |
-| A2 | 4 | 20 | 120 | 120 | 2400 | 2400 | 5040 |
-| B | 4 | 20 | 120 | 120 | 2400 | 2400 | 5040 |
-| Swap | 4 | 20 | 120 | 120 | 2400 | 2400 | 5040 |
-| **Baseline Total** | **28** |  | **840** | **840** | **16800** | **16800** | **35280** |
+| Tier               | Configs | Pool Size | Rubric Gen | Rubric Critic | Score Gen | Score Critic |     Total |
+| :----------------- | ------: | --------: | ---------: | ------------: | --------: | -----------: | --------: |
+| A1                 |      16 |        20 |        480 |           480 |      9600 |         9600 |     20160 |
+| A2                 |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
+| B                  |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
+| Swap               |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
+| **Baseline Total** |  **28** |           |    **840** |       **840** | **16800** |    **16800** | **35280** |
 
 ### Optional add-ons
 
-| Tier | Configs | Pool Size | Rubric Gen | Rubric Critic | Score Gen | Score Critic | Total |
-| :-- | --: | --: | --: | --: | --: | --: | --: |
-| Synthetic check | 4 | 10 | 120 | 120 | 1200 | 1200 | 2640 |
-| Control check | 4 | 20 | 120 | 120 | 2400 | 2400 | 5040 |
-| **Optional Total** | **8** |  | **240** | **240** | **3600** | **3600** | **7680** |
+| Tier               | Configs | Pool Size | Rubric Gen | Rubric Critic | Score Gen | Score Critic |    Total |
+| :----------------- | ------: | --------: | ---------: | ------------: | --------: | -----------: | -------: |
+| Synthetic check    |       4 |        10 |        120 |           120 |      1200 |         1200 |     2640 |
+| Control check      |       4 |        20 |        120 |           120 |      2400 |         2400 |     5040 |
+| **Optional Total** |   **8** |           |    **240** |       **240** |  **3600** |     **3600** | **7680** |
 
 ### Max plan (36 configs)
 
