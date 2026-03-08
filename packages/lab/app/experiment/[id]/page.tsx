@@ -50,6 +50,7 @@ type ExperimentSummary = {
     current_stage: string;
     target_count: number;
     created_at: number;
+    has_failures: boolean;
   };
   counts: {
     samples: number;
@@ -73,6 +74,8 @@ type RunSummary = {
   status: string;
   current_stage: string;
   target_count: number;
+  has_failures: boolean;
+  failed_stage_count: number;
   stages: Array<{
     stage: string;
     status: string;

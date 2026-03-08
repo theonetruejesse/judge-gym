@@ -52,6 +52,7 @@ type ExperimentListItem = {
     current_stage: string;
     target_count: number;
     created_at: number;
+    has_failures: boolean;
   };
 };
 

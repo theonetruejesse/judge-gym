@@ -23,7 +23,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
 - The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 10-item Norway election-reporting control pool for P3, exact window-creation payloads, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
-- The first live V3 experiments now running are the two `D1` control-pool configs on the frozen Norway election-reporting `P3` trial pool.
+- The first live V3 experiments on the frozen Norway election-reporting `P3` trial pool are the two `D1` control-pool configs plus a completed `gpt-4.1` 3-sample make-up run for the initial rubric-generation misses.
+- Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
+- `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - The engine now exports full window/run/batch/job/request/scheduler telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
@@ -170,7 +172,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and sets `current_stage` to `rubric_gen`.
+2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
 4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every pool evidence item.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.

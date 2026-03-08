@@ -39,6 +39,22 @@ export const startRunFlow = zInternalMutation({
     );
 
     const orchestrator = new RunOrchestrator(ctx);
+    await ctx.db.patch(run_id, {
+      status: "running",
+      current_stage: "rubric_gen",
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${run_id}`,
+      entity_type: "run",
+      entity_id: String(run_id),
+      event_name: "run_stage_started",
+      stage: "rubric_gen",
+      status: "running",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+      }),
+    });
     await orchestrator.enqueueStage(run_id, "rubric_gen");
     await emitTraceEvent(ctx, {
       trace_id: `run:${run_id}`,
@@ -522,7 +538,10 @@ async function maybeAdvanceRunStage(
   }
 
   if (run.current_stage !== stage) return;
-  await ctx.db.patch(runId, { current_stage: nextStage });
+  await ctx.db.patch(runId, {
+    current_stage: nextStage,
+    status: "running",
+  });
   await emitTraceEvent(ctx, {
     trace_id: `run:${runId}`,
     entity_type: "run",

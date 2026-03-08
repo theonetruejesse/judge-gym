@@ -14,6 +14,7 @@ import {
 } from "./run_strategies";
 import { type RunStage } from "../../models/experiments";
 import { ENGINE_SETTINGS } from "../../settings";
+import { getRunStageProgress } from "./run_progress";
 
 type EvidenceDoc = Doc<"evidences">;
 type SampleDoc = Doc<"samples">;
@@ -45,6 +46,19 @@ type ParsedRequestKey = {
 export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   constructor(ctx: MutationCtx) {
     super(ctx);
+  }
+
+  public async getStageProgress(
+    runId: Id<"runs">,
+    stage: RunStage,
+  ): Promise<{ completed: number; failed: number; hasPending: boolean } | null> {
+    const progress = await getRunStageProgress(this.ctx, runId, stage);
+    if (!progress) return null;
+    return {
+      completed: progress.completed,
+      failed: progress.failed,
+      hasPending: progress.hasPending,
+    };
   }
 
   public nextStageFor(stage: RunStage): RunStage | null {
@@ -105,64 +119,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     }
 
     return { pendingKeys, maxAttemptsByKey };
-  }
-
-  public async getStageProgress(
-    runId: Id<"runs">,
-    stage: RunStage,
-  ): Promise<{ completed: number; failed: number; hasPending: boolean } | null> {
-    if (!SCORE_STAGES.includes(stage)) {
-      return this.getSampleStageProgress(runId, stage);
-    }
-
-    const scoreUnits = await this.listScoreUnitsForRun(runId);
-    if (scoreUnits.length === 0) {
-      // Backward compatibility for runs created before sample_evidence_scores.
-      return this.getSampleStageProgress(runId, stage);
-    }
-
-    const sampleById = await this.mapSamplesByRun(runId);
-    let completed = 0;
-    let failed = 0;
-    let hasPending = false;
-
-    const candidateKeys = new Set<string>();
-    for (const unit of scoreUnits) {
-      const sample = sampleById.get(String(unit.sample_id));
-      if (!sample) continue;
-      const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
-      if (outputId || this.isScoreUnitStageBlocked(unit, sample, stage)) continue;
-      candidateKeys.add(this.makeRequestKey(unit._id, stage));
-    }
-    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
-
-    for (const unit of scoreUnits) {
-      const sample = sampleById.get(String(unit.sample_id));
-      if (!sample) {
-        failed += 1;
-        continue;
-      }
-
-      const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
-      if (outputId) {
-        completed += 1;
-        continue;
-      }
-      if (this.isScoreUnitStageBlocked(unit, sample, stage)) {
-        failed += 1;
-        continue;
-      }
-
-      const customKey = this.makeRequestKey(unit._id, stage);
-      const state = this.classifyRequestState(requestStateIndex, customKey);
-      if (state === "pending" || state === "none" || state === "retryable") {
-        hasPending = true;
-        continue;
-      }
-      failed += 1;
-    }
-
-    return { completed, failed, hasPending };
   }
 
   protected async listPendingTargets(runId: Id<"runs">, stage: RunStage) {
