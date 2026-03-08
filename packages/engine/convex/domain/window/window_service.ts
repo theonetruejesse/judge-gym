@@ -283,6 +283,7 @@ async function hasActiveWindowTransportWork(
   const processKey = processKeyForWindowStage(windowId, stage);
   const batchStatuses: Array<Doc<"llm_batches">["status"]> = [
     "queued",
+    "submitting",
     "running",
     "finalizing",
   ];

@@ -39,23 +39,32 @@ export type ActiveBatchesResult = {
 };
 
 export const listActiveBatches = zInternalQuery({
-  args: z.object({}),
-  handler: async (ctx): Promise<ActiveBatchesResult> => {
-    const queued = await ctx.db
+  args: z.object({
+    queued_limit: z.number().int().positive().optional(),
+    running_limit: z.number().int().positive().optional(),
+  }),
+  handler: async (ctx, args): Promise<ActiveBatchesResult> => {
+    const queuedQuery = ctx.db
       .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "queued"))
-      .collect();
-    const running = await ctx.db
+      .withIndex("by_status", (q) => q.eq("status", "queued"));
+    const runningQuery = ctx.db
       .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .collect();
-    const finalizing = await ctx.db
+      .withIndex("by_status", (q) => q.eq("status", "running"));
+    const submittingQuery = ctx.db
       .query("llm_batches")
-      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
-      .collect();
+      .withIndex("by_status", (q) => q.eq("status", "submitting"));
+    const finalizingQuery = ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "finalizing"));
+    const [queued, running, submitting, finalizing] = await Promise.all([
+      args.queued_limit ? queuedQuery.take(args.queued_limit) : queuedQuery.collect(),
+      args.running_limit ? runningQuery.take(args.running_limit) : runningQuery.collect(),
+      args.running_limit ? submittingQuery.take(args.running_limit) : submittingQuery.collect(),
+      args.running_limit ? finalizingQuery.take(args.running_limit) : finalizingQuery.collect(),
+    ]);
     return {
       queued_batches: queued,
-      running_batches: running.concat(finalizing),
+      running_batches: running.concat(submitting, finalizing),
     };
   },
 });
@@ -100,7 +109,11 @@ export const claimRunningBatchForPoll = zInternalMutation({
   handler: async (ctx, args) => {
     const batch = await ctx.db.get(args.batch_id);
     if (!batch) return { claimed: false };
-    if (batch.status !== "running" && batch.status !== "finalizing") {
+    if (
+      batch.status !== "submitting"
+      && batch.status !== "running"
+      && batch.status !== "finalizing"
+    ) {
       return { claimed: false };
     }
 
@@ -120,6 +133,36 @@ export const claimRunningBatchForPoll = zInternalMutation({
     });
 
     return { claimed: true };
+  },
+});
+
+export const markBatchSubmitting = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().min(1),
+    submission_id: z.string(),
+  }),
+  returns: z.object({
+    ok: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { ok: false };
+    if (batch.status !== "queued" && batch.status !== "submitting") {
+      return { ok: false };
+    }
+    if (batch.poll_claim_owner !== args.owner) return { ok: false };
+    await ctx.db.patch(args.batch_id, {
+      status: "submitting",
+      submission_id: batch.submission_id ?? args.submission_id,
+      submitting_at: batch.submitting_at ?? args.now,
+      next_poll_at: args.now,
+      poll_claim_owner: args.owner,
+      poll_claim_expires_at: args.now + args.lease_ms,
+    });
+    return { ok: true };
   },
 });
 
@@ -202,6 +245,34 @@ export const releaseBatchPollClaim = zInternalMutation({
   },
 });
 
+export const renewBatchPollClaim = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().positive(),
+  }),
+  returns: z.object({
+    renewed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch || batch.poll_claim_owner !== args.owner) return { renewed: false };
+    if (
+      batch.status !== "queued"
+      && batch.status !== "submitting"
+      && batch.status !== "running"
+      && batch.status !== "finalizing"
+    ) {
+      return { renewed: false };
+    }
+    await ctx.db.patch(args.batch_id, {
+      poll_claim_expires_at: args.now + args.lease_ms,
+    });
+    return { renewed: true };
+  },
+});
+
 export const releaseExpiredBatchPollClaim = zInternalMutation({
   args: z.object({
     batch_id: zid("llm_batches"),
@@ -237,7 +308,11 @@ export const nudgeBatchPollNow = zInternalMutation({
   handler: async (ctx, args) => {
     const batch = await ctx.db.get(args.batch_id);
     if (!batch) return { nudged: false };
-    if (batch.status !== "running" && batch.status !== "finalizing") {
+    if (
+      batch.status !== "submitting"
+      && batch.status !== "running"
+      && batch.status !== "finalizing"
+    ) {
       return { nudged: false };
     }
     await ctx.db.patch(args.batch_id, { next_poll_at: args.now });

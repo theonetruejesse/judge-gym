@@ -8,8 +8,20 @@ type BatchRequestInput = {
   max_tokens?: number;
 };
 
+type BatchMetadata = {
+  engine_batch_id: string;
+  engine_submission_id: string;
+};
+
 type BatchSubmitResult = {
   batch_ref: string;
+  input_file_id: string;
+};
+
+type BatchLookupResult = {
+  batch_ref: string;
+  input_file_id?: string;
+  status: string;
 };
 
 type BatchPollResult =
@@ -28,6 +40,39 @@ type BatchPollResult =
       error?: string;
     }>;
   };
+
+const OPENAI_BATCH_RUNNING_STATUSES = new Set([
+  "validating",
+  "in_progress",
+  "finalizing",
+  "cancelling",
+]);
+
+const OPENAI_BATCH_ERROR_STATUSES = new Set([
+  "failed",
+  "expired",
+  "cancelled",
+]);
+
+export function normalizeOpenAiBatchStatus(rawStatus: unknown): BatchPollResult {
+  const status = String(rawStatus ?? "").toLowerCase();
+  if (status === "completed") {
+    throw new Error("normalizeOpenAiBatchStatus cannot normalize completed status");
+  }
+  if (OPENAI_BATCH_RUNNING_STATUSES.has(status)) {
+    return { status: "running" };
+  }
+  if (OPENAI_BATCH_ERROR_STATUSES.has(status)) {
+    return {
+      status: "error",
+      error: `batch_${status}`,
+    };
+  }
+  return {
+    status: "error",
+    error: status ? `batch_unknown_status:${status}` : "batch_missing_status",
+  };
+}
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
@@ -175,6 +220,7 @@ function parseBatchRows(
 
 export async function submitOpenAiBatch(
   requests: BatchRequestInput[],
+  metadata: BatchMetadata,
 ): Promise<BatchSubmitResult> {
   const apiKey = requireKey();
   const jsonl = toJsonl(requests);
@@ -206,10 +252,46 @@ export async function submitOpenAiBatch(
       input_file_id: fileId,
       endpoint: "/v1/chat/completions",
       completion_window: "24h",
+      metadata,
     }),
   });
 
-  return { batch_ref: batchResp.id as string };
+  return {
+    batch_ref: batchResp.id as string,
+    input_file_id: fileId,
+  };
+}
+
+export async function findOpenAiBatchByMetadata(
+  metadata: BatchMetadata,
+  limit = 100,
+): Promise<BatchLookupResult | null> {
+  const apiKey = requireKey();
+  const query = new URLSearchParams({ limit: String(limit) });
+  const payload = await fetchJson(`${OPENAI_BASE_URL}/batches?${query.toString()}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+
+  const rows: Array<Record<string, unknown>> = Array.isArray(payload.data)
+    ? payload.data as Array<Record<string, unknown>>
+    : [];
+  const matched = rows.find((row) => {
+    const rowMetadata = typeof row.metadata === "object" && row.metadata !== null
+      ? row.metadata as Record<string, unknown>
+      : {};
+    return rowMetadata.engine_batch_id === metadata.engine_batch_id
+      && rowMetadata.engine_submission_id === metadata.engine_submission_id;
+  });
+
+  if (!matched) return null;
+  return {
+    batch_ref: String(matched.id),
+    input_file_id: typeof matched.input_file_id === "string" ? matched.input_file_id : undefined,
+    status: String(matched.status ?? "unknown"),
+  };
 }
 
 export async function pollOpenAiBatch(
@@ -225,10 +307,7 @@ export async function pollOpenAiBatch(
 
   const status = String(batch.status ?? "").toLowerCase();
   if (status !== "completed") {
-    return {
-      status: status === "failed" ? "error" : "running",
-      error: status === "failed" ? "batch_failed" : undefined,
-    } as BatchPollResult;
+    return normalizeOpenAiBatchStatus(status);
   }
 
   const outputFileId = batch.output_file_id as string | undefined;

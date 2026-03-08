@@ -41,16 +41,21 @@ export type ActiveJobsResult = {
 };
 
 export const listActiveJobs = zInternalQuery({
-  args: z.object({}),
-  handler: async (ctx): Promise<ActiveJobsResult> => {
-    const queued = await ctx.db
+  args: z.object({
+    queued_limit: z.number().int().positive().optional(),
+    running_limit: z.number().int().positive().optional(),
+  }),
+  handler: async (ctx, args): Promise<ActiveJobsResult> => {
+    const queuedQuery = ctx.db
       .query("llm_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "queued"))
-      .collect();
-    const running = await ctx.db
+      .withIndex("by_status", (q) => q.eq("status", "queued"));
+    const runningQuery = ctx.db
       .query("llm_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "running"))
-      .collect();
+      .withIndex("by_status", (q) => q.eq("status", "running"));
+    const [queued, running] = await Promise.all([
+      args.queued_limit ? queuedQuery.take(args.queued_limit) : queuedQuery.collect(),
+      args.running_limit ? runningQuery.take(args.running_limit) : runningQuery.collect(),
+    ]);
     return {
       queued_jobs: queued,
       running_jobs: running,
@@ -158,6 +163,29 @@ export const releaseJobRunClaim = zInternalMutation({
       run_claim_expires_at: null,
     });
     return { released: true };
+  },
+});
+
+export const renewJobRunClaim = zInternalMutation({
+  args: z.object({
+    job_id: zid("llm_jobs"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().positive(),
+  }),
+  returns: z.object({
+    renewed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.job_id);
+    if (!job || job.run_claim_owner !== args.owner) return { renewed: false };
+    if (job.status !== "queued" && job.status !== "running") {
+      return { renewed: false };
+    }
+    await ctx.db.patch(args.job_id, {
+      run_claim_expires_at: args.now + args.lease_ms,
+    });
+    return { renewed: true };
   },
 });
 

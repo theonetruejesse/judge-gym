@@ -22,12 +22,16 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
-- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (fixed control slices, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
+- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including four Norway-only control windows for P3, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, using timestamp-entropy sequence values to avoid per-trace counter write hotspots under concurrency.
 - Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
+- Batch submit now uses a durable `submitting` phase with provider metadata lookup recovery, so unknown-outcome submit failures can recover the provider batch reference without blindly re-submitting.
 - Scheduler/workflow batch polling now skips running batches that already have an active poll lease, reducing duplicate workflow starts and `batch_poll_claim_denied` churn during finalization.
+- Scheduler ticks now auto-requeue due orphaned requests, so pending work without a job/batch owner no longer requires manual heal in the common case.
+- Batch/job workflow leases now renew through long-running submit/run/apply sections, reducing duplicate execution after claim expiry on slow provider calls.
+- OpenAI batch polling now treats terminal provider states such as `expired` and `cancelled` as errors instead of re-polling them forever.
 - Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
 - Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
 - Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
@@ -241,10 +245,11 @@ Custom keys are how LLM results route back into domain handlers.
 - `startScheduler` is idempotent; it only schedules a single `runScheduler` if one is not already pending.
 - `runScheduler` loads queued/running batches and jobs, schedules bounded internal handlers when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
 - If there are no queued/running batches or jobs (and no orphaned requests), `runScheduler` exits without rescheduling.
+- During each tick, due orphaned requests are requeued through the target registry before the scheduler sleeps again.
 
 **Important detail**
 
-- Orphaned requests are detected but not automatically requeued by the scheduler in the current code.
+- Orphaned requests are detected and due requests are automatically requeued by the scheduler.
 
 ---
 

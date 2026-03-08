@@ -17,6 +17,8 @@ const MAX_QUEUED_BATCHES_PER_TICK = 10;
 const MAX_RUNNING_BATCHES_PER_TICK = 20;
 const MAX_QUEUED_JOBS_PER_TICK = 20;
 const MAX_RUNNING_JOBS_PER_TICK = 30;
+const MAX_ORPHANED_REQUESTS_PER_TICK = 30;
+const SCHEDULER_SCAN_MULTIPLIER = 3;
 const SCHEDULED_SCAN_MAX_ROWS = 2_000;
 
 export const requeueRequest = zInternalMutation({
@@ -152,17 +154,23 @@ export const runScheduler = zInternalMutation({
     try {
       const { queued_batches, running_batches } = (await ctx.runQuery(
         internal.domain.llm_calls.llm_batch_repo.listActiveBatches,
-        {},
+        {
+          queued_limit: MAX_QUEUED_BATCHES_PER_TICK * SCHEDULER_SCAN_MULTIPLIER,
+          running_limit: MAX_RUNNING_BATCHES_PER_TICK * SCHEDULER_SCAN_MULTIPLIER,
+        },
       )) as ActiveBatchesResult;
 
       const { queued_jobs, running_jobs } = (await ctx.runQuery(
         internal.domain.llm_calls.llm_job_repo.listActiveJobs,
-        {},
+        {
+          queued_limit: MAX_QUEUED_JOBS_PER_TICK * SCHEDULER_SCAN_MULTIPLIER,
+          running_limit: MAX_RUNNING_JOBS_PER_TICK * SCHEDULER_SCAN_MULTIPLIER,
+        },
       )) as ActiveJobsResult;
 
       const orphanedRequests = (await ctx.runQuery(
         internal.domain.llm_calls.llm_request_repo.listOrphanedRequests,
-        {},
+        { limit: MAX_ORPHANED_REQUESTS_PER_TICK * SCHEDULER_SCAN_MULTIPLIER },
       )) as Doc<"llm_requests">[];
 
       if (
@@ -183,6 +191,7 @@ export const runScheduler = zInternalMutation({
       for (const batch of queued_batches) {
         if (processedQueuedBatches >= MAX_QUEUED_BATCHES_PER_TICK) break;
         if (!shouldRunAt(batch.next_poll_at, now)) continue;
+        if (hasActiveBatchPollLease(batch, now)) continue;
         await ctx.scheduler.runAfter(
           0,
           internal.domain.orchestrator.process_workflows.processQueuedBatchWorkflow,
@@ -227,6 +236,16 @@ export const runScheduler = zInternalMutation({
         processedRunningJobs += 1;
       }
 
+      let requeuedOrphanedRequests = 0;
+      for (const request of orphanedRequests) {
+        if (requeuedOrphanedRequests >= MAX_ORPHANED_REQUESTS_PER_TICK) break;
+        if (!shouldRunAt(request.next_attempt_at, now)) continue;
+        await ctx.runMutation(internal.domain.orchestrator.scheduler.requeueRequest, {
+          request_id: request._id,
+        });
+        requeuedOrphanedRequests += 1;
+      }
+
       await ctx.scheduler.runAfter(
         ENGINE_SETTINGS.run_policy.poll_interval_ms,
         internal.domain.orchestrator.scheduler.runScheduler,
@@ -243,6 +262,7 @@ export const runScheduler = zInternalMutation({
         processed_running_batches: processedRunningBatches,
         processed_queued_jobs: processedQueuedJobs,
         processed_running_jobs: processedRunningJobs,
+        requeued_orphaned_requests: requeuedOrphanedRequests,
       };
 
       await emitTraceEvent(ctx, {

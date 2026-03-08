@@ -34,7 +34,7 @@
 | :-------- | :--- | :----------------------- | :------------------------------------- | ----------------: |
 | W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2 | 2 each (20 total) |
 | W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)   |                10 |
-| W12       | P3   | 2026-01-01 to 2026-01-31 | 4 control slices; fetch 10; keep 5     |                20 |
+| W12-W15   | P3   | 2026-01-01 to 2026-01-07 | one Norway-only control query per window; fetch 10; keep 5 | 5 each (20 total) |
 
 ### W1-W10 query plan (P1)
 
@@ -51,14 +51,14 @@
 | W9     | immigration enforcement due process United States             |
 | W10    | foreign policy military authorization oversight United States |
 
-### W12 control slice plan (P3)
+### W12-W15 control window plan (P3)
 
-| Slice | Query template (run across Norway, Sweden, Denmark, Finland, Netherlands) |
-| :---- | :------------------------------------------------------------------------- |
-| Q1    | election administration process updates                                    |
-| Q2    | parliamentary committee procedure and legislative process                  |
-| Q3    | court procedural ruling and statutory interpretation                       |
-| Q4    | executive agency policy implementation and civil service operations        |
+| Window | Country  | Query |
+| :----- | :------- | :---- |
+| W12    | Norway   | election administration OR electoral authority OR voting procedure updates |
+| W13    | Norway   | parliamentary committee procedure OR legislative process OR bill procedure |
+| W14    | Norway   | court procedural ruling OR statutory interpretation OR appeals procedure |
+| W15    | Norway   | executive agency policy implementation OR ministry guidance OR civil service operations |
 
 ## Pools
 
@@ -66,20 +66,20 @@
 | :------ | :--------------------------------------------------------- | :-------------------------------- | ---: |
 | P1      | W1-W10 (real news)                                         | Primary contested pool            |   20 |
 | P2      | W11 synthetic ladder (S1..S10)                             | Required grounding check pool     |   10 |
-| P3      | W12 low-contestation control (Q1-Q4, multi-country slices) | Required low-contestation control |   20 |
+| P3      | W12-W15 low-contestation control (Norway-only windows) | Required low-contestation control |   20 |
 
 ## Pool Construction SOP (Source of Truth)
 
 ### Canonical workflow (all pools)
 
-1. Create the planned window or slice.
+1. Create the planned window.
 2. Fetch candidates with `evidence_limit=10`.
 3. Rank by:
    - concept relevance to the intended pool purpose,
    - institutional observability (actions, policies, institutional responses),
    - text completeness (sufficient article body for scoring).
 4. De-duplicate by normalized URL and near-duplicate title.
-5. Keep fixed cardinality for that window/slice.
+5. Keep fixed cardinality for that window.
 6. Create pool from selected evidence IDs and freeze membership:
    - set stable `pool_tag`,
    - do not swap evidence after first experiment is initialized from the pool.
@@ -93,11 +93,11 @@
 
 ### P3 SOP (20 total)
 
-- Inputs: W12 Q1-Q4 control slices above; run each slice against the country set `Norway`, `Sweden`, `Denmark`, `Finland`, `Netherlands`.
-- Keep rule: exactly 5 evidence items per slice after ranking and dedupe.
+- Inputs: W12-W15 Norway-only control windows above.
+- Keep rule: exactly 5 evidence items per window after ranking and dedupe.
 - Include: routine democratic process coverage (election admin, normal legislative procedure, ordinary judicial process, standard policy implementation).
 - Exclude: election-overturn attempts, emergency-rule expansion, coup/insurrection framing, systematic rights suppression, explicit fascism/authoritarian labeling.
-- Invariant: `4 slices × 5 = 20` evidence rows in P3.
+- Invariant: `4 windows × 5 = 20` evidence rows in P3.
 
 ## Experiments (Source of Truth)
 

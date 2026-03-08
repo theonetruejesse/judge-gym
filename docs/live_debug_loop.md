@@ -7,6 +7,8 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Scheduler is the only orchestrator loop.
 - The run/window hot path does not use `@convex-dev/workflow` workpool execution.
 - Scheduler dispatch is bounded per tick; large backlogs are drained over multiple ticks.
+- Scheduler auto-requeues due orphaned requests during normal ticks.
+- Batch/job leases are renewed through long-running submit/run/apply sections to reduce duplicate execution after lease expiry.
 - Batch poll leases are used to avoid duplicate concurrent poll/apply handlers.
 
 ## Interfaces
@@ -68,6 +70,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - `requeue_retryable_request`
 - `release_expired_batch_claim`
 - `nudge_batch_poll_now`
+- `submitting` batches are included in poll nudges and stale-batch detection; an unknown submit outcome should surface as recoverable `batch_missing_ref` work before any manual re-submit.
 
 ## Failure Playbook
 
@@ -86,8 +89,9 @@ This runbook standardizes live debugging for run and window orchestration in Con
 ### Pending orphan request
 
 - Symptom: `pending_request_no_owner`
-- Action: dry-run/apply `debug:heal`.
-- Expected: request requeued through target registry handler.
+- Expected steady-state: scheduler requeues due orphaned requests automatically.
+- Action if still stuck: dry-run/apply `debug:heal`.
+- Expected after heal: request requeued through target registry handler.
 
 ### Scheduler dead while work exists
 

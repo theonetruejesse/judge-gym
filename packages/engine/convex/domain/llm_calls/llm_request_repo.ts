@@ -213,16 +213,18 @@ export const getLlmRequest = zInternalQuery({
 });
 
 export const listOrphanedRequests = zInternalQuery({
-  args: z.object({}),
-  handler: async (ctx): Promise<Doc<"llm_requests">[]> => {
-    return ctx.db
+  args: z.object({
+    limit: z.number().int().positive().optional(),
+  }),
+  handler: async (ctx, args): Promise<Doc<"llm_requests">[]> => {
+    const query = ctx.db
       .query("llm_requests")
       .withIndex("by_orphaned", (q) =>
         q.eq("status", "pending")
           .eq("batch_id", null)
           .eq("job_id", null),
-      )
-      .collect();
+      );
+    return args.limit ? query.take(args.limit) : query.collect();
   },
 });
 

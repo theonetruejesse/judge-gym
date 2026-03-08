@@ -1,7 +1,7 @@
 import z from "zod";
 import { zInternalAction } from "../../utils/custom_fns";
 import { modelTypeSchema } from "./provider_types";
-import { pollOpenAiBatch, submitOpenAiBatch } from "./openai_batch";
+import { findOpenAiBatchByMetadata, pollOpenAiBatch, submitOpenAiBatch } from "./openai_batch";
 import { runAiChat } from "./ai_chat";
 
 const BatchRequestSchema = z.object({
@@ -14,13 +14,51 @@ const BatchRequestSchema = z.object({
 
 const BatchSubmitResultSchema = z.object({
   batch_ref: z.string(),
+  input_file_id: z.string(),
 });
 
 export const submitOpenAiBatchAction = zInternalAction({
-  args: z.object({ requests: z.array(BatchRequestSchema) }),
+  args: z.object({
+    requests: z.array(BatchRequestSchema),
+    metadata: z.object({
+      engine_batch_id: z.string(),
+      engine_submission_id: z.string(),
+    }),
+  }),
   returns: BatchSubmitResultSchema,
   handler: async (_ctx, args) => {
-    return submitOpenAiBatch(args.requests);
+    return submitOpenAiBatch(args.requests, args.metadata);
+  },
+});
+
+const BatchLookupResultSchema = z.union([
+  z.object({
+    found: z.literal(false),
+  }),
+  z.object({
+    found: z.literal(true),
+    batch_ref: z.string(),
+    input_file_id: z.string().optional(),
+    status: z.string(),
+  }),
+]);
+
+export const findOpenAiBatchByMetadataAction = zInternalAction({
+  args: z.object({
+    metadata: z.object({
+      engine_batch_id: z.string(),
+      engine_submission_id: z.string(),
+    }),
+    limit: z.number().int().positive().optional(),
+  }),
+  returns: BatchLookupResultSchema,
+  handler: async (_ctx, args) => {
+    const result = await findOpenAiBatchByMetadata(args.metadata, args.limit ?? 100);
+    if (!result) return { found: false as const };
+    return {
+      found: true as const,
+      ...result,
+    };
   },
 });
 

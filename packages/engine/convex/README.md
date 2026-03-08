@@ -7,6 +7,7 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Scheduler-driven orchestration for run/window flows.
 - Internal actions process queued/running batches and jobs.
 - Internal mutations own state transitions and durable table writes.
+- Scheduler auto-requeues due orphaned requests on normal ticks.
 - `process_request_targets` provides snapshot-backed process health rollups.
 - `analyzeProcessTelemetry` provides bounded, paginated trace analysis for route usage and duplicate-event churn.
 - Telemetry is written to:
@@ -33,6 +34,9 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 
 - The run/window hot path does not depend on `@convex-dev/workflow`.
 - Scheduler dispatch is bounded per tick to avoid fanout explosions.
+- Scheduler requeues due orphaned requests before they require manual heal actions.
+- Batch/job lease claims are renewed during long-running workflow sections to reduce duplicate execution after lease expiry.
+- Batch submit uses a durable `submitting` state plus provider metadata lookup recovery for unknown-outcome submit failures.
 - Batch poll lease claims prevent duplicate concurrent polls.
 - Job request execution is bounded-parallel per job tick via `run_policy.job_request_concurrency`.
 - Retry behavior is class-aware:
