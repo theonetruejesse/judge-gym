@@ -4,6 +4,7 @@ import { modelTypeSchema, providerTypeSchema } from "../platform/providers/provi
 
 export const ProcessStatusSchema = z.enum([
   "queued",
+  "submitting",
   "running",
   "finalizing",
   "success",
@@ -15,6 +16,9 @@ export const LlmBatchesTableSchema = z.object({
   model: modelTypeSchema,
   status: ProcessStatusSchema,
   batch_ref: z.string().optional(),
+  input_file_id: z.string().optional(),
+  submission_id: z.string().optional(),
+  submitting_at: z.number().optional(),
   attempts: z.number().int().min(0).optional(),
   next_poll_at: z.number().optional(),
   last_error: z.string().optional(),

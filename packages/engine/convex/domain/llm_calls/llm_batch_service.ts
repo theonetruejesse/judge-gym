@@ -58,9 +58,10 @@ interface MarkBatchRunningArgs {
   ctx: MutationRunner;
   batch: Doc<"llm_batches">;
   batch_ref: string;
+  input_file_id?: string;
 }
 export async function markBatchRunning(args: MarkBatchRunningArgs) {
-  const { ctx, batch, batch_ref } = args;
+  const { ctx, batch, batch_ref, input_file_id } = args;
   const attempts = (batch.attempts ?? 0) + 1;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
@@ -69,11 +70,34 @@ export async function markBatchRunning(args: MarkBatchRunningArgs) {
       patch: {
         status: "running",
         batch_ref,
+        input_file_id,
         next_poll_at: getNextRunAt(Date.now()),
         attempts,
         poll_claim_owner: null,
         poll_claim_expires_at: null,
       },
+    },
+  );
+}
+
+interface MarkBatchSubmittingArgs {
+  ctx: MutationRunner;
+  batch_id: Id<"llm_batches">;
+  owner: string;
+  now: number;
+  lease_ms: number;
+  submission_id: string;
+}
+export async function markBatchSubmitting(args: MarkBatchSubmittingArgs) {
+  const { ctx, batch_id, owner, now, lease_ms, submission_id } = args;
+  return ctx.runMutation(
+    internal.domain.llm_calls.llm_batch_repo.markBatchSubmitting,
+    {
+      batch_id,
+      owner,
+      now,
+      lease_ms,
+      submission_id,
     },
   );
 }
@@ -139,6 +163,9 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
         patch: {
           status: "queued",
           batch_ref: undefined,
+          input_file_id: undefined,
+          submission_id: undefined,
+          submitting_at: undefined,
           attempts,
           last_error: error,
           next_poll_at: getNextRunAt(Date.now()),
@@ -233,6 +260,7 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
       patch: {
         status: "error",
         last_error: error,
+        input_file_id: undefined,
         poll_claim_owner: null,
         poll_claim_expires_at: null,
       },
@@ -265,9 +293,11 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
 interface SubmitBatchArgs {
   ctx: ActionRunner;
   requests: Doc<"llm_requests">[];
+  batch_id: Id<"llm_batches">;
+  submission_id: string;
 }
 export async function submitBatch(args: SubmitBatchArgs) {
-  const { ctx, requests } = args;
+  const { ctx, requests, batch_id, submission_id } = args;
   const payload = requests.map((req) => ({
     custom_key: req.custom_key,
     model: req.model,
@@ -277,9 +307,33 @@ export async function submitBatch(args: SubmitBatchArgs) {
   }))
   const result = await ctx.runAction(
     internal.platform.providers.provider_services.submitOpenAiBatchAction,
-    { requests: payload },
+    {
+      requests: payload,
+      metadata: {
+        engine_batch_id: String(batch_id),
+        engine_submission_id: submission_id,
+      },
+    },
   );
   return result;
+}
+
+interface RecoverSubmittedBatchArgs {
+  ctx: ActionRunner;
+  batch_id: Id<"llm_batches">;
+  submission_id: string;
+}
+export async function recoverSubmittedBatch(args: RecoverSubmittedBatchArgs) {
+  const { ctx, batch_id, submission_id } = args;
+  return ctx.runAction(
+    internal.platform.providers.provider_services.findOpenAiBatchByMetadataAction,
+    {
+      metadata: {
+        engine_batch_id: String(batch_id),
+        engine_submission_id: submission_id,
+      },
+    },
+  );
 }
 
 
@@ -315,9 +369,10 @@ interface ApplyBatchResultsArgs {
   requests: Doc<"llm_requests">[];
   results: Array<BatchResult>;
   now: number;
+  heartbeat?: () => Promise<void>;
 }
 export async function applyBatchResults(args: ApplyBatchResultsArgs) {
-  const { ctx, requests, results, now } = args;
+  const { ctx, requests, results, now, heartbeat } = args;
   const resultRowsByKey = new Map<string, BatchResult[]>();
   for (const row of results) {
     const current = resultRowsByKey.get(row.custom_key) ?? [];
@@ -328,8 +383,13 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
   let totalInput = 0;
   let totalOutput = 0;
   let missingResultCount = 0;
+  let processedCount = 0;
 
   for (const req of requests) {
+    if (processedCount % 10 === 0) {
+      await heartbeat?.();
+    }
+    processedCount += 1;
     if (req.status !== "pending") continue;
     const matchingRows = resultRowsByKey.get(req.custom_key) ?? [];
     const row = matchingRows.shift();

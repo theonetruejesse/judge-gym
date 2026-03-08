@@ -7,7 +7,9 @@ import {
   checkBatchRateLimit,
   handleBatchError,
   markBatchEmpty,
+  markBatchSubmitting,
   markBatchRunning,
+  recoverSubmittedBatch,
   markBatchSuccess,
   scheduleBatchPoll,
   submitBatch,
@@ -25,8 +27,41 @@ import { internal } from "../../_generated/api";
 import { zInternalAction } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
 
-const BATCH_POLL_LEASE_MS = 30_000;
-const JOB_RUN_LEASE_MS = 30_000;
+const BATCH_POLL_LEASE_MS = 300_000;
+const JOB_RUN_LEASE_MS = 300_000;
+const ORPHAN_REQUEUE_SCAN_MULTIPLIER = 3;
+
+async function renewJobRunLease(
+  step: WorkflowStep,
+  jobId: Id<"llm_jobs">,
+  owner: string,
+) {
+  await step.runMutation(
+    internal.domain.llm_calls.llm_job_repo.renewJobRunClaim,
+    {
+      job_id: jobId,
+      owner,
+      now: Date.now(),
+      lease_ms: JOB_RUN_LEASE_MS,
+    },
+  );
+}
+
+async function renewBatchPollLease(
+  step: WorkflowStep,
+  batchId: Id<"llm_batches">,
+  owner: string,
+) {
+  await step.runMutation(
+    internal.domain.llm_calls.llm_batch_repo.renewBatchPollClaim,
+    {
+      batch_id: batchId,
+      owner,
+      now: Date.now(),
+      lease_ms: BATCH_POLL_LEASE_MS,
+    },
+  );
+}
 
 type WorkflowStep = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
 
@@ -93,6 +128,10 @@ function isTerminalApplyError(error: unknown): boolean {
   return cls === "parse_error" || cls === "orchestrator_error";
 }
 
+function buildBatchSubmissionId(batchId: Id<"llm_batches">, now: number): string {
+  return `${String(batchId)}:${now}`;
+}
+
 export async function handleQueuedJobWorkflow(
   step: WorkflowStep,
   args: { job_id: Id<"llm_jobs"> },
@@ -151,6 +190,7 @@ export async function handleQueuedJobWorkflow(
       ctx: step,
       requests,
       now,
+      heartbeat: async () => renewJobRunLease(step, job._id, owner),
     });
 
     if (anyPending) {
@@ -258,6 +298,7 @@ export async function handleRunningJobWorkflow(
       ctx: step,
       requests,
       now,
+      heartbeat: async () => renewJobRunLease(step, job._id, owner),
     });
 
     if (anyPending) {
@@ -313,12 +354,19 @@ export async function handleQueuedBatchWorkflow(
   args: { batch_id: Id<"llm_batches"> },
 ) {
   const now = Date.now();
-  const { batch, requests } = (await step.runQuery(
+    const { batch, requests } = (await step.runQuery(
     internal.domain.llm_calls.llm_batch_repo.getBatchWithRequests,
     { batch_id: args.batch_id },
   )) as BatchWithRequestsResult;
 
   if (batch.status !== "queued") return;
+  if (
+    batch.poll_claim_owner != null
+    && batch.poll_claim_expires_at != null
+    && batch.poll_claim_expires_at > now
+  ) {
+    return;
+  }
   const owner = `${batch._id}:${now}:${Math.random().toString(36).slice(2)}`;
   const claim = await step.runMutation(
     internal.domain.llm_calls.llm_batch_repo.claimQueuedBatchForSubmit,
@@ -400,8 +448,41 @@ export async function handleQueuedBatchWorkflow(
       return;
     }
 
-    const result = await submitBatch({ ctx: step, requests });
-    await markBatchRunning({ ctx: step, batch, batch_ref: result.batch_ref });
+    const submissionId = batch.submission_id ?? buildBatchSubmissionId(batch._id, now);
+    const markedSubmitting = await markBatchSubmitting({
+      ctx: step,
+      batch_id: batch._id,
+      owner,
+      now: Date.now(),
+      lease_ms: BATCH_POLL_LEASE_MS,
+      submission_id: submissionId,
+    });
+    if (!markedSubmitting.ok) return;
+
+    await emitTraceEvent(step, {
+      trace_id: traceIdForCustomKey(batch.custom_key),
+      entity_type: "batch",
+      entity_id: String(batch._id),
+      event_name: "batch_submitting",
+      status: "submitting",
+      custom_key: batch.custom_key,
+      stage: batch.custom_key.split(":")[2] ?? null,
+      payload_json: JSON.stringify({ submission_id: submissionId }),
+    });
+
+    await renewBatchPollLease(step, batch._id, owner);
+    const result = await submitBatch({
+      ctx: step,
+      requests,
+      batch_id: batch._id,
+      submission_id: submissionId,
+    });
+    await markBatchRunning({
+      ctx: step,
+      batch,
+      batch_ref: result.batch_ref,
+      input_file_id: result.input_file_id,
+    });
     await emitTraceEvent(step, {
       trace_id: traceIdForCustomKey(batch.custom_key),
       entity_type: "batch",
@@ -410,7 +491,11 @@ export async function handleQueuedBatchWorkflow(
       status: "running",
       custom_key: batch.custom_key,
       stage: batch.custom_key.split(":")[2] ?? null,
-      payload_json: JSON.stringify({ batch_ref: result.batch_ref }),
+      payload_json: JSON.stringify({
+        batch_ref: result.batch_ref,
+        input_file_id: result.input_file_id,
+        submission_id: submissionId,
+      }),
     });
   } finally {
     await step.runMutation(
@@ -437,9 +522,67 @@ export async function handleRunningBatchWorkflow(
     { batch_id: args.batch_id },
   )) as BatchWithRequestsResult;
 
-  if (batch.status !== "running" && batch.status !== "finalizing") return;
+  if (
+    batch.status !== "submitting"
+    && batch.status !== "running"
+    && batch.status !== "finalizing"
+  ) {
+    return;
+  }
   if (!shouldRunAt(batch.next_poll_at, now)) return;
   if (!batch.batch_ref) {
+    if (batch.status === "submitting" && batch.submission_id) {
+      const recovered = await recoverSubmittedBatch({
+        ctx: step,
+        batch_id: batch._id,
+        submission_id: batch.submission_id,
+      });
+      if (recovered.found) {
+        await step.runMutation(
+          internal.domain.llm_calls.llm_batch_repo.patchBatch,
+          {
+            batch_id: batch._id,
+            patch: {
+              status: "running",
+              batch_ref: recovered.batch_ref,
+              input_file_id: recovered.input_file_id,
+              next_poll_at: now,
+            },
+          },
+        );
+        await emitTraceEvent(step, {
+          trace_id: traceIdForCustomKey(batch.custom_key),
+          entity_type: "batch",
+          entity_id: String(batch._id),
+          event_name: "batch_submission_recovered",
+          status: "running",
+          custom_key: batch.custom_key,
+          stage: batch.custom_key.split(":")[2] ?? null,
+          payload_json: JSON.stringify({
+            batch_ref: recovered.batch_ref,
+            input_file_id: recovered.input_file_id ?? null,
+            provider_status: recovered.status,
+          }),
+        });
+        return;
+      }
+      await scheduleBatchPoll({
+        ctx: step,
+        batch_id: batch._id,
+        next_poll_at: getNextRunAt(now),
+      });
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(batch.custom_key),
+        entity_type: "batch",
+        entity_id: String(batch._id),
+        event_name: "batch_submission_lookup_miss",
+        status: "submitting",
+        custom_key: batch.custom_key,
+        stage: batch.custom_key.split(":")[2] ?? null,
+        payload_json: JSON.stringify({ submission_id: batch.submission_id }),
+      });
+      return;
+    }
     await emitTraceEvent(step, {
       trace_id: traceIdForCustomKey(batch.custom_key),
       entity_type: "batch",
@@ -565,11 +708,13 @@ export async function handleRunningBatchWorkflow(
     });
 
     try {
+      await renewBatchPollLease(step, batch._id, owner);
       const counters = await applyBatchResults({
         ctx: step,
         requests,
         results: result.results,
         now: Date.now(),
+        heartbeat: async () => renewBatchPollLease(step, batch._id, owner),
       });
       await applyBatchRateLimitUsage({
         ctx: step,

@@ -34,7 +34,10 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - The engine uses native Convex scheduler + internal actions/mutations.
 - `@convex-dev/workflow` / workpool is not used in the run/window hot path.
 - Scheduler dispatch is bounded per tick to prevent runaway queue growth.
+- Scheduler now auto-requeues due orphaned requests during normal ticks.
+- Batch/job leases are renewed through long-running submit/run/apply sections to reduce duplicate work after lease expiry.
 - Batch poll leases are still used to prevent concurrent duplicate poll/apply.
+- Batch submit now has a durable `submitting` state; unknown-outcome submit failures should recover via provider metadata lookup before any re-submit path.
 
 ### Preflight
 
@@ -66,6 +69,7 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 
 - Default to dry-run for first pass.
 - Only use codex safe actions (`start_scheduler_if_idle`, request requeue, expired lease release, poll nudge).
+- `submitting` batches are pollable/debuggable the same as `running`/`finalizing` batches; a missing `batch_ref` during `submitting` should be treated as recoverable first, not immediately terminal.
 - If a process remains stalled after safe actions, inspect `getProcessHealth` and trace events before any manual data mutation.
 - `domain/maintenance/danger:deleteRunData` uses `isDryRun` (not `dry_run`) and blocks active runs unless `allow_active=true`.
 

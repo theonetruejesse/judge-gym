@@ -802,7 +802,7 @@ async function executeDebugAction(
   }
 
   const batch = await ctx.db.get(action.batch_id);
-  if (!batch || (batch.status !== "running" && batch.status !== "finalizing")) {
+  if (!batch || (batch.status !== "submitting" && batch.status !== "running" && batch.status !== "finalizing")) {
     return {
       action: action.action,
       entity_id: String(action.batch_id),
@@ -1074,12 +1074,14 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     const cutoff = now - args.older_than_ms;
     const items: Array<z.infer<typeof StuckWorkSchema>> = [];
 
+    const submittingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "submitting"));
     const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
     const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
     const runQuery = ctx.db.query("runs");
     const runningWindowQuery = ctx.db.query("windows").withIndex("by_status", (q) => q.eq("status", "running"));
 
     const [
+      submittingBatches,
       runningBatches,
       finalizingBatches,
       orphaned,
@@ -1087,6 +1089,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       windows,
       schedulerScheduled,
     ] = await Promise.all([
+      submittingBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       runningBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       finalizingBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       ctx.runQuery(internal.domain.llm_calls.llm_request_repo.listOrphanedRequests, {}),
@@ -1104,7 +1107,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       return customKey.startsWith(`${args.process_type}:`);
     };
 
-    for (const batch of runningBatches) {
+    for (const batch of [...submittingBatches, ...runningBatches]) {
       if (!isAllowedProcess(batch.custom_key)) continue;
       if (batch.batch_ref) continue;
       const ageMs = Math.max(0, now - batch._creationTime);
@@ -1119,7 +1122,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         entity_id: String(batch._id),
         custom_key: batch.custom_key,
         age_ms: ageMs,
-        details: "Batch is running/finalizing without provider batch_ref",
+        details: "Batch is submitting/running/finalizing without provider batch_ref",
       });
     }
 
@@ -1184,7 +1187,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     }
 
     if (!schedulerScheduled) {
-      const hasBacklog = runningBatches.length > 0 || finalizingBatches.length > 0 || orphaned.length > 0;
+      const hasBacklog = submittingBatches.length > 0 || runningBatches.length > 0 || finalizingBatches.length > 0 || orphaned.length > 0;
       if (hasBacklog) {
         const processType = args.process_type ?? "run";
         const processId = args.process_type === "window" ? String(windows[0]?._id ?? "unknown") : String(runs[0]?._id ?? "unknown");
@@ -1522,14 +1525,16 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
       });
     }
 
+    const submittingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "submitting"));
     const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
     const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
-    const [runningBatches, finalizingBatches] = await Promise.all([
+    const [submittingBatches, runningBatches, finalizingBatches] = await Promise.all([
+      submittingBatchQuery.take(AUTO_HEAL_BATCH_SCAN_MAX_ROWS),
       runningBatchQuery.take(AUTO_HEAL_BATCH_SCAN_MAX_ROWS),
       finalizingBatchQuery.take(AUTO_HEAL_BATCH_SCAN_MAX_ROWS),
     ]);
     const processPrefix = `${args.process_type}:${args.process_id}:`;
-    const staleBatches = [...runningBatches, ...finalizingBatches].filter((batch) => {
+    const staleBatches = [...submittingBatches, ...runningBatches, ...finalizingBatches].filter((batch) => {
       if (!batch.custom_key.startsWith(processPrefix)) return false;
       const leaseExpired = batch.poll_claim_expires_at != null && batch.poll_claim_expires_at <= now;
       const stalePoll = (batch.next_poll_at ?? 0) <= cutoff;

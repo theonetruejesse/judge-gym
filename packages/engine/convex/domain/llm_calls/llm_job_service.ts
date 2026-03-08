@@ -11,6 +11,26 @@ import {
 
 type MutationRunner = Pick<ActionCtx, "runMutation">;
 type JobRunner = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
+type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
+
+interface ApplyJobRateLimitUsageArgs {
+  ctx: RateLimitRunner;
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+async function applyJobRateLimitUsage(args: ApplyJobRateLimitUsageArgs) {
+  const { ctx, model, inputTokens, outputTokens } = args;
+  const keys = getRateLimitKeysForModel(model, "job");
+  if (!keys) return;
+  if ((inputTokens ?? 0) > 0) {
+    await rateLimiter.limit(ctx, keys.inputKey, { count: inputTokens });
+  }
+  if ((outputTokens ?? 0) > 0) {
+    await rateLimiter.limit(ctx, keys.outputKey, { count: outputTokens });
+  }
+}
 
 interface MarkJobRunningArgs {
   ctx: MutationRunner;
@@ -184,9 +204,10 @@ interface RunJobRequestsArgs {
   ctx: JobRunner;
   requests: Doc<"llm_requests">[];
   now: number;
+  heartbeat?: () => Promise<void>;
 }
 export async function runJobRequests(args: RunJobRequestsArgs) {
-  const { ctx, requests, now } = args;
+  const { ctx, requests, now, heartbeat } = args;
   let anyPending = false;
   let anyErrors = false;
   const runnable: Doc<"llm_requests">[] = [];
@@ -234,6 +255,7 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
 
   const processRequest = async (req: Doc<"llm_requests">) => {
     try {
+      await heartbeat?.();
       const output = await ctx.runAction(
         internal.platform.providers.provider_services.openAiChatAction,
         {
@@ -244,7 +266,15 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
         },
       );
 
+      await applyJobRateLimitUsage({
+        ctx,
+        model: req.model,
+        inputTokens: output.input_tokens,
+        outputTokens: output.output_tokens,
+      });
+
       await applyRequestSuccess({ ctx, req, output });
+      await heartbeat?.();
     } catch (error: any) {
       const attempts = (req.attempts ?? 0) + 1;
       const didRetry = await applyRequestError({
@@ -259,6 +289,7 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
       } else {
         anyErrors = true;
       }
+      await heartbeat?.();
     }
   };
 
