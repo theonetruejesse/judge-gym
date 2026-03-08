@@ -30,11 +30,11 @@
 
 ## Windows
 
-| Window ID | Pool | Date Range               | Build Procedure                        |            Output |
-| :-------- | :--- | :----------------------- | :------------------------------------- | ----------------: |
-| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2 | 2 each (20 total) |
-| W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)   |                10 |
-| W12-W15   | P3   | 2026-01-01 to 2026-01-07 | one Norway-only control query per window; fetch 10; keep 5 | 5 each (20 total) |
+| Window ID | Pool | Date Range               | Build Procedure                                            |            Output |
+| :-------- | :--- | :----------------------- | :--------------------------------------------------------- | ----------------: |
+| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2                     | 2 each (20 total) |
+| W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)                       |                10 |
+| W12-W15   | P3   | 2025-09-08 to 2025-09-12 | Norway election-reporting queries; fetch 10 per window; dedupe and keep 10 total |                10 |
 
 ### W1-W10 query plan (P1)
 
@@ -51,22 +51,22 @@
 | W9     | immigration enforcement due process United States             |
 | W10    | foreign policy military authorization oversight United States |
 
-### W12-W15 control window plan (P3)
+### W12-W15 control window plan (P3 current pass)
 
-| Window | Country  | Query |
-| :----- | :------- | :---- |
-| W12    | Norway   | election administration OR electoral authority OR voting procedure updates |
-| W13    | Norway   | parliamentary committee procedure OR legislative process OR bill procedure |
-| W14    | Norway   | court procedural ruling OR statutory interpretation OR appeals procedure |
-| W15    | Norway   | executive agency policy implementation OR ministry guidance OR civil service operations |
+| Window | Country | Query |
+| :----- | :------ | :---- |
+| W12    | Norway  | Norway parliamentary election results reporting |
+| W13    | Norway  | Norway election turnout count official reporting |
+| W14    | Norway  | Norway election authorities official results reporting |
+| W15    | Norway  | Norway election reporting Storting seats results |
 
 ## Pools
 
-| Pool ID | Source                                                     | Purpose                           | Size |
-| :------ | :--------------------------------------------------------- | :-------------------------------- | ---: |
-| P1      | W1-W10 (real news)                                         | Primary contested pool            |   20 |
-| P2      | W11 synthetic ladder (S1..S10)                             | Required grounding check pool     |   10 |
-| P3      | W12-W15 low-contestation control (Norway-only windows) | Required low-contestation control |   20 |
+| Pool ID | Source                                                 | Purpose                           | Size |
+| :------ | :----------------------------------------------------- | :-------------------------------- | ---: |
+| P1      | W1-W10 (real news)                                     | Primary contested pool            |   20 |
+| P2      | W11 synthetic ladder (S1..S10)                         | Required grounding check pool     |   10 |
+| P3      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 |
 
 ## Pool Construction SOP (Source of Truth)
 
@@ -91,27 +91,70 @@
 - Exclude: duplicates, pure opinion/editorials, and non-governance tangents.
 - Invariant: `10 windows × 2 = 20` evidence rows in P1.
 
-### P3 SOP (20 total)
+### P3 SOP (10 total, current pass)
 
-- Inputs: W12-W15 Norway-only control windows above.
-- Keep rule: exactly 5 evidence items per window after ranking and dedupe.
-- Include: routine democratic process coverage (election admin, normal legislative procedure, ordinary judicial process, standard policy implementation).
-- Exclude: election-overturn attempts, emergency-rule expansion, coup/insurrection framing, systematic rights suppression, explicit fascism/authoritarian labeling.
-- Invariant: `4 windows × 5 = 20` evidence rows in P3.
+- Inputs: W12-W15 Norway election-reporting windows above.
+- Keep rule: de-duplicate across all four windows and keep exactly `10` evidence items total.
+- Include: routine election result reporting, turnout/count reporting, official results coverage, seat allocation, and coalition formation reporting immediately after the vote.
+- Exclude: campaign-issue explainers, opinion/editorials, conflict-first framing not centered on results reporting, and items with explicit fascism/authoritarian labeling.
+- Invariant: `10` de-duplicated evidence rows in P3.
+
+### P3 Operational Build (Current Active Pool)
+
+- Window model: `gpt-4.1-mini` for all four evidence windows.
+- Date range: `2025-09-08` to `2025-09-12` for every P3 window.
+- Country: `Norway` for every P3 window in the current pass.
+- Evidence limit: `10` candidates per window.
+- Active pool tag: `p3_norway_election_reporting_trial_2025_09_08`.
+- Active pool id: `ms7df5bwnh74ydh5v6rqm1r36d82ge8a`.
+
+#### Exact `createWindowForm` payloads
+
+| Window | Payload |
+| :----- | :------ |
+| W12 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway parliamentary election results reporting" }, evidence_limit: 10 }` |
+| W13 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election turnout count official reporting" }, evidence_limit: 10 }` |
+| W14 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election authorities official results reporting" }, evidence_limit: 10 }` |
+| W15 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election reporting Storting seats results" }, evidence_limit: 10 }` |
+
+#### P3 selection procedure
+
+1. Create `W12`, `W13`, `W14`, and `W15` with the exact payloads above.
+2. Wait until candidate evidence has non-empty `l2_neutralized_content` before final selection.
+3. Review fetched candidates and apply hard exclusions first:
+   - opinion/editorials,
+   - pre-election issue explainers not centered on results reporting,
+   - conflict-first campaign framing,
+   - explicit authoritarian/fascism labeling,
+   - low-body or incomplete articles.
+4. De-duplicate by normalized URL and near-duplicate title across all four windows.
+5. Prefer the cleanest election-night / official-results reporting pieces first, then keep the strongest `10` distinct items total.
+6. Create `P3` from the resulting evidence IDs and freeze membership immediately under the active pool tag above.
+
+#### P3 active freeze set
+
+- Pool size: `10` evidence items.
+- Pool composition: de-duplicated Norway parliamentary election reporting from September 8-9, 2025.
+- Intended use: current `D1` control trial only.
 
 ## Experiments (Source of Truth)
 
-| Tier                              | Pool | Models                     | Concept                  | Ablations                                                     | Config Count |
-| :-------------------------------- | :--- | :------------------------- | :----------------------- | :------------------------------------------------------------ | -----------: |
-| A1 (primary baseline + abstain)   | P1   | gpt-4.1, gpt-5.2           | fascism                  | abstain (2), semantic=`l2`, scale=`4`                         |            4 |
-| A2 (primary semantic ablation)    | P1   | gpt-4.1, gpt-5.2           | fascism                  | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 |
-| A3 (primary scale ablation)       | P1   | gpt-4.1, gpt-5.2           | fascism                  | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 |
-| A4 (primary swap mechanism)       | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                  | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 |
-| B1 (secondary baseline + abstain) | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                  | abstain (2), semantic=`l2`, scale=`4`                         |            4 |
-| C1 (synthetic grounding check)    | P2   | gpt-4.1, gpt-5.2           | synthetic ladder         | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 |
-| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool)   | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 |
+| Tier                              | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done |
+| :-------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :--- |
+| A1 (primary baseline + abstain)   | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
+| A2 (primary semantic ablation)    | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 | false |
+| A3 (primary scale ablation)       | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 | false |
+| A4 (primary swap mechanism)       | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 | false |
+| B1 (secondary baseline + abstain) | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
+| C1 (synthetic grounding check)    | P2   | gpt-4.1, gpt-5.2           | synthetic ladder       | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
+| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | true |
 
 Required total: **18 configs**.
+
+- `Done` means the tier has been initialized and started for the current pass, not that all runs have completed.
+- Active `D1` experiment/run pairs:
+  - `gpt-4.1`: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh7avay0pw0jdc15svq9jpz5p182gwjw`.
+  - `gpt-5.2`: experiment `j97ep0yj8sme9pg5mryq9kw2v982g2xj`, run `kh77e0h2fp5pmr9geaf5q9myh982gecn`.
 
 ## Model Use Semantics (Source of Truth)
 
@@ -135,8 +178,8 @@ Assumptions per config (`target_count=30`):
 
 Per-config totals:
 
-- Pool size `20` (`P1`, `P3`): `1260`
-- Pool size `10` (`P2`): `660`
+- Pool size `20` (`P1`): `1260`
+- Pool size `10` (`P2`, `P3` current pass): `660`
 
 ### Required plan (18 configs)
 
@@ -148,17 +191,17 @@ Per-config totals:
 | A4             |       2 |        20 |         60 |            60 |      1200 |         1200 |      2520 |
 | B1             |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
 | C1             |       2 |        10 |         60 |            60 |       600 |          600 |      1320 |
-| D1             |       2 |        20 |         60 |            60 |      1200 |         1200 |      2520 |
-| **Plan Total** |  **18** |           |    **540** |       **540** | **10200** |    **10200** | **21480** |
+| D1             |       2 |        10 |         60 |            60 |       600 |          600 |      1320 |
+| **Plan Total** |  **18** |           |    **540** |       **540** |  **9600** |     **9600** | **20280** |
 
 ### Plan totals
 
-- Total requests: **21480**
+- Total requests: **20280**
 - Stage totals:
   - `rubric_gen`: **540**
   - `rubric_critic`: **540**
-  - `score_gen`: **10200**
-  - `score_critic`: **10200**
+  - `score_gen`: **9600**
+  - `score_critic`: **9600**
 
 ## Execution Checklist (Source of Truth TODO)
 
@@ -176,7 +219,7 @@ Per-config totals:
 ### Pool QA Gate (must pass before required runs)
 
 - [ ] `P1` cardinality invariant passes (`10 × 2 = 20`).
-- [ ] `P3` cardinality invariant passes (`4 × 5 = 20`).
+- [ ] `P3` cardinality invariant passes (`10` de-duplicated election-reporting items).
 - [ ] All selected P1/P3 evidence has non-empty `l2_neutralized_content`.
 - [ ] `P3` selected evidence passes exclusion rules (no crisis/overturn/authoritarian framing artifacts).
 
