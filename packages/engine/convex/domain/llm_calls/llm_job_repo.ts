@@ -17,6 +17,8 @@ export const createLlmJob = zInternalMutation({
     return ctx.db.insert("llm_jobs", {
       ...args,
       status: "queued",
+      run_claim_owner: null,
+      run_claim_expires_at: null,
     });
   },
 });
@@ -78,5 +80,112 @@ export const patchJob = zInternalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.job_id, args.patch);
     return null;
+  },
+});
+
+export const claimQueuedJobForRun = zInternalMutation({
+  args: z.object({
+    job_id: zid("llm_jobs"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().positive(),
+  }),
+  returns: z.object({
+    claimed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.job_id);
+    if (!job || job.status !== "queued") return { claimed: false };
+
+    const hasActiveClaim = job.run_claim_owner != null
+      && job.run_claim_expires_at != null
+      && job.run_claim_expires_at > args.now;
+    if (hasActiveClaim && job.run_claim_owner !== args.owner) {
+      return { claimed: false };
+    }
+
+    await ctx.db.patch(args.job_id, {
+      run_claim_owner: args.owner,
+      run_claim_expires_at: args.now + args.lease_ms,
+    });
+    return { claimed: true };
+  },
+});
+
+export const claimRunningJobForRun = zInternalMutation({
+  args: z.object({
+    job_id: zid("llm_jobs"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().positive(),
+  }),
+  returns: z.object({
+    claimed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.job_id);
+    if (!job || job.status !== "running") return { claimed: false };
+
+    const hasActiveClaim = job.run_claim_owner != null
+      && job.run_claim_expires_at != null
+      && job.run_claim_expires_at > args.now;
+    if (hasActiveClaim && job.run_claim_owner !== args.owner) {
+      return { claimed: false };
+    }
+
+    await ctx.db.patch(args.job_id, {
+      run_claim_owner: args.owner,
+      run_claim_expires_at: args.now + args.lease_ms,
+    });
+    return { claimed: true };
+  },
+});
+
+export const releaseJobRunClaim = zInternalMutation({
+  args: z.object({
+    job_id: zid("llm_jobs"),
+    owner: z.string(),
+  }),
+  returns: z.object({
+    released: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.job_id);
+    if (!job) return { released: false };
+    if (job.run_claim_owner !== args.owner) return { released: false };
+    await ctx.db.patch(args.job_id, {
+      run_claim_owner: null,
+      run_claim_expires_at: null,
+    });
+    return { released: true };
+  },
+});
+
+export const finalizeJobIfClaimedAndRunning = zInternalMutation({
+  args: z.object({
+    job_id: zid("llm_jobs"),
+    owner: z.string(),
+    any_errors: z.boolean(),
+    now: z.number(),
+  }),
+  returns: z.object({
+    finalized: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.job_id);
+    if (!job || job.status !== "running") return { finalized: false };
+
+    const hasValidClaim = job.run_claim_owner === args.owner
+      && job.run_claim_expires_at != null
+      && job.run_claim_expires_at > args.now;
+    if (!hasValidClaim) return { finalized: false };
+
+    await ctx.db.patch(args.job_id, {
+      status: args.any_errors ? "error" : "success",
+      next_run_at: undefined,
+      run_claim_owner: null,
+      run_claim_expires_at: null,
+    });
+    return { finalized: true };
   },
 });

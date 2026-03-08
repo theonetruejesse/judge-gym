@@ -29,6 +29,19 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * Generate `count` deterministic pseudo-random seeds from a base seed.
+ * Uses mulberry32; each seed is a 32-bit integer suitable for downstream PRNG use.
+ */
+export function generateSeeds(baseSeed: number, count: number): number[] {
+  const rng = mulberry32(baseSeed | 0);
+  const seeds: number[] = [];
+  for (let i = 0; i < count; i++) {
+    seeds.push((rng() * 0xffffffff) | 0);
+  }
+  return seeds;
+}
+
 export function shuffleWithSeed<T>(items: T[], seed?: number): T[] {
   const rng = seed === undefined ? Math.random : mulberry32(seed);
   const copy = [...items];

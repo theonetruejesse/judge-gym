@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A4_003",
+  "areaOfAnalysisID": "A4",
+  "statement": "A staged canary rollout with strict guardrails is sufficient to run v3 safely in the current Convex-native orchestration setup.",
+  "confidence": 0.81,
+  "rationale": "Current runbook and tooling provide bounded diagnostics, safe recovery, and clear scheduling constraints.",
+  "keyAssumptions": [
+    "Scheduler bounded dispatch and process-health snapshots remain stable under concurrent experiments.",
+    "Operators follow dry-run-first recovery protocol."
+  ],
+  "validationCriteria": [
+    "Run canary gates pass without runaway loops or unbounded telemetry growth.",
+    "No persistent stuck targets after auto-heal safe actions."
+  ],
+  "critiquePoints": [
+    "Prior incidents showed hidden failure modes at higher scale and concurrency.",
+    "Retry caps may reduce completion rates if provider quality degrades."
+  ],
+  "questions": [
+    "What telemetry thresholds should hard-stop a live run?"
+  ]
+}

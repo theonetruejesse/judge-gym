@@ -75,7 +75,6 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
   protected decideRoute(model: ModelType, count: number): "batch" | "job" {
     if (!isBatchableModel(model)) return "job";
     if (count < this.policy.min_batch_size) return "job";
-    if (count <= this.policy.job_fallback_count) return "job";
     return "batch";
   }
 
@@ -87,21 +86,25 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
     requestIds: Id<"llm_requests">[],
   ): Promise<void> {
     const provider = getProviderForModel(model);
-    const batchId = (await this.ctx.runMutation(
-      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
-      {
-        provider,
-        model,
-        custom_key: this.makeProcessKey(processId, stage),
-      },
-    )) as Id<"llm_batches">;
-    await this.ctx.runMutation(
-      internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
-      {
-        request_ids: requestIds,
-        batch_id: batchId,
-      },
-    );
+    const maxBatchSize = Math.max(1, this.policy.max_batch_size);
+    for (let i = 0; i < requestIds.length; i += maxBatchSize) {
+      const chunk = requestIds.slice(i, i + maxBatchSize);
+      const batchId = (await this.ctx.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+        {
+          provider,
+          model,
+          custom_key: this.makeProcessKey(processId, stage),
+        },
+      )) as Id<"llm_batches">;
+      await this.ctx.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
+        {
+          request_ids: chunk,
+          batch_id: batchId,
+        },
+      );
+    }
   }
 
   /** Create a job and assign all requests to it. */

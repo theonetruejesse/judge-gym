@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove sufficiency of 1->4 target ladder alone.",
+      "falsificationQueries": [
+        "Is there evidence that larger fanout has unique behavior?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/scripts/synthetic_matrix.ts:81",
+        "packages/engine/convex/tests/codex_debug.test.ts:249"
+      ],
+      "falsificationAnalysis": "Failed under challenge: additional intermediate scale gate is advisable before full matrix.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

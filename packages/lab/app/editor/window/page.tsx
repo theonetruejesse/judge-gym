@@ -5,11 +5,16 @@ import {
 } from "./_utils/window-form-schema";
 
 interface WindowFormPageProps {
-  searchParams: WindowFormSearchParams;
+  searchParams?: Promise<WindowFormSearchParams>;
 }
 
-export default function WindowFormPage({ searchParams }: WindowFormPageProps) {
-  const defaultValues = getWindowFormDefaultsFromSearchParams(searchParams);
+export default async function WindowFormPage({
+  searchParams,
+}: WindowFormPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const defaultValues = getWindowFormDefaultsFromSearchParams(
+    resolvedSearchParams,
+  );
   return (
     <div className="mx-auto max-w-2xl py-10 px-4">
       <WindowForm defaultValues={defaultValues} />

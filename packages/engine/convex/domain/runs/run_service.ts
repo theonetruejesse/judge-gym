@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation } from "../../utils/custom_fns";
-import { RunOrchestrator } from "./run_orchestrator";
+import { RunOrchestrator, type RunRequestTargetType } from "./run_orchestrator";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
@@ -21,6 +21,8 @@ import {
   type ExperimentConfig,
 } from "./run_strategies";
 import { generateLabelMapping } from "../../utils/randomize";
+import { emitTraceEvent } from "../telemetry/emit";
+import { getNextAttemptAt } from "../../utils/scheduling";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -29,115 +31,29 @@ export const startRunFlow = zInternalMutation({
   }),
   returns: z.object({
     run_id: zid("runs"),
-    samples_created: z.number(),
   }),
   handler: async (ctx, args) => {
-    const experiment = await ctx.db.get(args.experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-
-    const run_id = await ctx.db.insert("runs", {
-      experiment_id: experiment._id,
-      target_count: args.target_count,
-      status: "start",
-      current_stage: "rubric_gen",
-    });
-
-    let samples_created = 0;
-    for (let i = 0; i < args.target_count; i++) {
-      const seed = i + 1;
-      await ctx.db.insert("samples", {
-        run_id,
-        experiment_id: experiment._id,
-        model: experiment.scoring_config.model,
-        seed,
-        rubric_id: null,
-        rubric_critic_id: null,
-        score_id: null,
-        score_critic_id: null,
-      });
-      samples_created += 1;
-    }
-
-    await ctx.db.patch(run_id, {
-      status: "running",
-      current_stage: "rubric_gen",
-    });
+    const run_id: Id<"runs"> = await ctx.runMutation(
+      internal.domain.runs.run_repo.createRun,
+      args,
+    );
 
     const orchestrator = new RunOrchestrator(ctx);
     await orchestrator.enqueueStage(run_id, "rubric_gen");
-
-    return { run_id, samples_created };
-  },
-});
-
-export const seedRunSamples = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-  }),
-  returns: z.number(),
-  handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.run_id);
-    if (!run) throw new Error("Run not found");
-    const experiment = await ctx.db.get(run.experiment_id);
-    if (!experiment) throw new Error("Experiment not found");
-
-    const existing = await ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
-    if (existing.length >= run.target_count) return 0;
-
-    let created = 0;
-    for (let i = existing.length; i < run.target_count; i++) {
-      const seed = i + 1;
-      await ctx.db.insert("samples", {
-        run_id: run._id,
-        experiment_id: experiment._id,
-        model: experiment.scoring_config.model,
-        seed,
-        rubric_id: null,
-        rubric_critic_id: null,
-        score_id: null,
-        score_critic_id: null,
-      });
-      created += 1;
-    }
-    return created;
-  },
-});
-
-export const startRunOrchestration = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-  }),
-  handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.run_id);
-    if (!run) throw new Error("Run not found");
-    if (
-      run.status === "completed" ||
-      run.status === "canceled" ||
-      run.status === "error"
-    )
-      return;
-
-    await ctx.db.patch(args.run_id, {
-      status: "running",
-      current_stage: "rubric_gen",
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${run_id}`,
+      entity_type: "run",
+      entity_id: String(run_id),
+      event_name: "run_stage_enqueued",
+      stage: "rubric_gen",
+      status: "queued",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+      }),
     });
 
-    const orchestrator = new RunOrchestrator(ctx);
-    await orchestrator.enqueueStage(args.run_id, "rubric_gen");
-  },
-});
-
-export const enqueueRunStage = zInternalMutation({
-  args: z.object({
-    run_id: zid("runs"),
-    stage: RunStageSchema,
-  }),
-  handler: async (ctx, args) => {
-    const orchestrator = new RunOrchestrator(ctx);
-    await orchestrator.enqueueStage(args.run_id, args.stage);
+    return { run_id };
   },
 });
 
@@ -151,12 +67,107 @@ export const applyRequestResult = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
-    const sampleId = targetId as Id<"samples">;
-    const sample = await ctx.db.get(sampleId);
-    if (!sample) throw new Error("Sample not found");
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
+    const target = await resolveRunTarget(ctx, targetType, targetId);
+    const sample = target.sample;
+    const sampleId = sample._id;
+    const scoreUnit = target.scoreUnit;
+    const request = await ctx.runQuery(
+      internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+      { request_id: args.request_id },
+    );
 
     try {
+      if (
+        (stage === "rubric_gen" || stage === "rubric_critic") &&
+        targetType !== "sample"
+      ) {
+        throw new Error(`Unexpected target type for stage ${stage}: ${targetType}`);
+      }
+      if (stage === "rubric_gen" && sample.rubric_id) {
+        if (request.status === "success") return;
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        }, { defer: true });
+        return;
+      }
+      if (stage === "rubric_critic" && sample.rubric_critic_id) {
+        if (request.status === "success") return;
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        }, { defer: true });
+        return;
+      }
+      if (stage === "score_gen" && (scoreUnit?.score_id ?? sample.score_id)) {
+        if (request.status === "success") return;
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        }, { defer: true });
+        return;
+      }
+      if (
+        stage === "score_critic" &&
+        (scoreUnit?.score_critic_id ?? sample.score_critic_id)
+      ) {
+        if (request.status === "success") return;
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: args.request_id,
+            patch: { status: "success" },
+          },
+        );
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${sample.run_id}`,
+          entity_type: "request",
+          entity_id: String(args.request_id),
+          event_name: "request_apply_duplicate_success",
+          stage,
+          status: "success",
+          custom_key: args.custom_key,
+        }, { defer: true });
+        return;
+      }
+
       if (stage === "rubric_gen") {
         const experiment = await ctx.db.get(sample.experiment_id);
         if (!experiment) throw new Error("Experiment not found");
@@ -186,6 +197,7 @@ export const applyRequestResult = zInternalMutation({
         );
 
         const rubric_id = await ctx.db.insert("rubrics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: experiment.rubric_config.model,
           concept: experiment.rubric_config.concept,
@@ -206,6 +218,7 @@ export const applyRequestResult = zInternalMutation({
 
         const parsed = parseQualityResponse(args.output);
         const rubric_critic_id = await ctx.db.insert("rubric_critics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: rubric.model,
           llm_request_id: args.request_id,
@@ -226,11 +239,13 @@ export const applyRequestResult = zInternalMutation({
         const rubric = await ctx.db.get(sample.rubric_id);
         if (!rubric) throw new Error("Rubric not found");
 
-        const evidence = await resolveEvidenceForSample(
-          ctx,
-          sample,
-          experiment,
-        );
+        const evidence = scoreUnit
+          ? await ctx.db.get(scoreUnit.evidence_id)
+          : await resolveEvidenceForSample(
+              ctx,
+              sample,
+              experiment,
+            );
         if (!evidence) throw new Error("Evidence not found for sample");
 
         const config: ExperimentConfig = {
@@ -255,6 +270,7 @@ export const applyRequestResult = zInternalMutation({
 
         const decodedScores = verdict.decodedScores ?? [];
         const score_id = await ctx.db.insert("scores", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: sample.model,
           evidence_id: evidence._id,
@@ -263,13 +279,19 @@ export const applyRequestResult = zInternalMutation({
           decoded_scores: decodedScores,
         });
 
-        await ctx.db.patch(sampleId, { score_id });
+        if (scoreUnit) {
+          await ctx.db.patch(scoreUnit._id, { score_id });
+        } else {
+          await ctx.db.patch(sampleId, { score_id });
+        }
       }
 
       if (stage === "score_critic") {
-        if (!sample.score_id) throw new Error("Score missing for sample");
+        const score_id = scoreUnit?.score_id ?? sample.score_id;
+        if (!score_id) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
         const score_critic_id = await ctx.db.insert("score_critics", {
+          run_id: sample.run_id,
           sample_id: sampleId,
           model: sample.model,
           llm_request_id: args.request_id,
@@ -277,11 +299,26 @@ export const applyRequestResult = zInternalMutation({
           expert_agreement_prob: parsed.expertAgreementProb,
         });
 
-        await ctx.db.patch(sampleId, { score_critic_id });
+        if (scoreUnit) {
+          await ctx.db.patch(scoreUnit._id, { score_critic_id });
+        } else {
+          await ctx.db.patch(sampleId, { score_critic_id });
+        }
       }
     } catch (error) {
       await markRequestParseFailure(ctx, args.request_id, error);
-      await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${sample.run_id}`,
+        entity_type: "request",
+        entity_id: String(args.request_id),
+        event_name: "request_parse_error",
+        stage,
+        status: "error",
+        custom_key: args.custom_key,
+        payload_json: JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      }, { defer: true });
       return;
     }
 
@@ -298,7 +335,15 @@ export const applyRequestResult = zInternalMutation({
       },
     );
 
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_applied",
+      stage,
+      status: "success",
+      custom_key: args.custom_key,
+    }, { defer: true });
   },
 });
 
@@ -309,10 +354,17 @@ export const handleRequestError = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
-    const sample = await ctx.db.get(targetId as Id<"samples">);
-    if (!sample) throw new Error("Sample not found");
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
+    const { sample } = await resolveRunTarget(ctx, targetType, targetId);
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_error",
+      stage,
+      status: "error",
+      custom_key: args.custom_key,
+    }, { defer: true });
   },
 });
 
@@ -327,12 +379,8 @@ export const requeueRunRequest = zInternalMutation({
     );
 
     const orchestrator = new RunOrchestrator(ctx);
-    const { targetId, stage } = orchestrator.parseRequestKey(request.custom_key);
-
-    const sample = await ctx.db.get(targetId as Id<"samples">);
-    if (!sample) {
-      throw new Error(`Sample not found for retry: ${targetId}`);
-    }
+    const { targetType, targetId, stage } = orchestrator.parseRequestKey(request.custom_key);
+    const { sample } = await resolveRunTarget(ctx, targetType, targetId);
 
     const provider = getProviderForModel(request.model);
     const jobId = (await ctx.runMutation(
@@ -354,8 +402,63 @@ export const requeueRunRequest = zInternalMutation({
         },
       },
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${sample.run_id}`,
+      entity_type: "request",
+      entity_id: String(request._id),
+      event_name: "request_requeued_to_job",
+      stage,
+      status: "queued",
+      custom_key: request.custom_key,
+      payload_json: JSON.stringify({
+        job_id: jobId,
+      }),
+    }, { defer: true });
   },
 });
+
+export const reconcileRunStage = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageSchema,
+  }),
+  handler: async (ctx, args) => {
+    await maybeAdvanceRunStage(ctx, args.run_id, args.stage);
+  },
+});
+
+async function resolveRunTarget(
+  ctx: MutationCtx,
+  targetType: RunRequestTargetType,
+  targetId: string,
+): Promise<{
+  sample: Doc<"samples">;
+  scoreUnit: Doc<"sample_evidence_scores"> | null;
+}> {
+  if (targetType === "sample") {
+    const sample = await ctx.db.get(targetId as Id<"samples">);
+    if (!sample) {
+      throw new Error(`Sample not found for request target: ${targetId}`);
+    }
+    return { sample, scoreUnit: null };
+  }
+
+  const scoreUnit = await ctx.db.get(
+    targetId as Id<"sample_evidence_scores">,
+  );
+  if (!scoreUnit) {
+    throw new Error(`Sample-evidence score unit not found: ${targetId}`);
+  }
+
+  const sample = await ctx.db.get(scoreUnit.sample_id);
+  if (!sample) {
+    throw new Error(
+      `Sample not found for score unit ${targetId}: ${scoreUnit.sample_id}`,
+    );
+  }
+
+  return { sample, scoreUnit };
+}
 
 async function maybeAdvanceRunStage(
   ctx: MutationCtx,
@@ -382,6 +485,18 @@ async function maybeAdvanceRunStage(
       status: "error",
       current_stage: stage,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${runId}`,
+      entity_type: "run",
+      entity_id: String(runId),
+      event_name: "run_terminal_error",
+      stage,
+      status: "error",
+      payload_json: JSON.stringify({
+        completed: progress.completed,
+        failed: progress.failed,
+      }),
+    });
     return;
   }
 
@@ -391,11 +506,36 @@ async function maybeAdvanceRunStage(
       status: "completed",
       current_stage: stage,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${runId}`,
+      entity_type: "run",
+      entity_id: String(runId),
+      event_name: "run_completed",
+      stage,
+      status: "completed",
+      payload_json: JSON.stringify({
+        completed: progress.completed,
+        failed: progress.failed,
+      }),
+    });
     return;
   }
 
   if (run.current_stage !== stage) return;
   await ctx.db.patch(runId, { current_stage: nextStage });
+  await emitTraceEvent(ctx, {
+    trace_id: `run:${runId}`,
+    entity_type: "run",
+    entity_id: String(runId),
+    event_name: "run_stage_advanced",
+    stage: nextStage,
+    status: "running",
+    payload_json: JSON.stringify({
+      from_stage: stage,
+      completed: progress.completed,
+      failed: progress.failed,
+    }),
+  });
   await orchestrator.enqueueStage(runId, nextStage);
 }
 
@@ -404,17 +544,53 @@ async function markRequestParseFailure(
   requestId: Id<"llm_requests">,
   error: unknown,
 ) {
+  const request = await ctx.runQuery(
+    internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+    { request_id: requestId },
+  );
   const message = error instanceof Error ? error.message : String(error);
+  const attempts = (request.attempts ?? 0) + 1;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
     {
       request_id: requestId,
       patch: {
         status: "error",
-        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        attempts,
         last_error: message,
       },
     },
+  );
+
+  if (attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    return;
+  }
+
+  const nextAttempt = attempts + 1;
+  const retryRequestId = await ctx.runMutation(
+    internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+    {
+      model: request.model,
+      system_prompt: request.system_prompt ?? undefined,
+      user_prompt: request.user_prompt,
+      custom_key: request.custom_key,
+      attempts: nextAttempt,
+    },
+  );
+
+  await ctx.runMutation(
+    internal.domain.llm_calls.llm_request_repo.patchRequest,
+    {
+      request_id: retryRequestId,
+      patch: {
+        next_attempt_at: getNextAttemptAt(Date.now()),
+      },
+    },
+  );
+
+  await ctx.runMutation(
+    internal.domain.orchestrator.scheduler.requeueRequest,
+    { request_id: retryRequestId },
   );
 }
 
@@ -441,8 +617,8 @@ async function resolveEvidenceForSample(
   experiment: Doc<"experiments">,
 ) {
   const links = await ctx.db
-    .query("experiment_evidence")
-    .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+    .query("pool_evidence")
+    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
     .collect();
 
   const ordered = links

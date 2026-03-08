@@ -1,7 +1,6 @@
 import z from "zod";
 import { WindowsTableSchema } from "../../models/window";
 import { zInternalAction, zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
-import { buildRandomTag } from "../../utils/tags";
 import { zid } from "convex-helpers/server/zod4";
 import { internal } from "../../_generated/api";
 import { Doc, Id } from "../../_generated/dataModel";
@@ -17,23 +16,19 @@ const CreateWindowArgsSchema = WindowsTableSchema.pick({
 
 export type CreateWindowResult = {
     window_id: Id<"windows">,
-    window_tag: string,
 };
 export const createWindow = zInternalMutation({
     args: CreateWindowArgsSchema,
     returns: z.object({
         window_id: zid("windows"),
-        window_tag: z.string(),
     }),
     handler: async (ctx, args): Promise<CreateWindowResult> => {
-        const window_tag = buildRandomTag();
         const window_id = await ctx.db.insert("windows", {
             ...args,
-            window_tag,
             status: "start",
             current_stage: "l0_raw",
         });
-        return { window_id, window_tag };
+        return { window_id };
     },
 });
 

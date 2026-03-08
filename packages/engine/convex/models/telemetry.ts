@@ -1,0 +1,38 @@
+import z from "zod";
+
+export const TelemetryEntityTypeSchema = z.enum([
+  "window",
+  "run",
+  "batch",
+  "job",
+  "request",
+  "scheduler",
+]);
+
+export const TelemetryEventsTableSchema = z.object({
+  trace_id: z.string(),
+  seq: z.number().int().min(1),
+  entity_type: TelemetryEntityTypeSchema,
+  entity_id: z.string(),
+  event_name: z.string(),
+  stage: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  custom_key: z.string().nullable().optional(),
+  attempt: z.number().int().min(0).nullable().optional(),
+  ts_ms: z.number(),
+  payload_json: z.string().nullable().optional(),
+});
+
+export const TelemetryEntityStateTableSchema = z.object({
+  entity_type: TelemetryEntityTypeSchema,
+  entity_id: z.string(),
+  trace_id: z.string(),
+  last_seq: z.number().int().min(1),
+  last_event_name: z.string(),
+  last_stage: z.string().nullable().optional(),
+  last_status: z.string().nullable().optional(),
+  last_custom_key: z.string().nullable().optional(),
+  last_attempt: z.number().int().min(0).nullable().optional(),
+  last_ts_ms: z.number(),
+  last_payload_json: z.string().nullable().optional(),
+});

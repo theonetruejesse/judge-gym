@@ -49,9 +49,13 @@ export const listActiveBatches = zInternalQuery({
       .query("llm_batches")
       .withIndex("by_status", (q) => q.eq("status", "running"))
       .collect();
+    const finalizing = await ctx.db
+      .query("llm_batches")
+      .withIndex("by_status", (q) => q.eq("status", "finalizing"))
+      .collect();
     return {
       queued_batches: queued,
-      running_batches: running,
+      running_batches: running.concat(finalizing),
     };
   },
 });
@@ -80,5 +84,163 @@ export const patchBatch = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.batch_id, args.patch);
+  },
+});
+
+export const claimRunningBatchForPoll = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().min(1),
+  }),
+  returns: z.object({
+    claimed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { claimed: false };
+    if (batch.status !== "running" && batch.status !== "finalizing") {
+      return { claimed: false };
+    }
+
+    const claimOwner = batch.poll_claim_owner ?? null;
+    const claimExpiresAt = batch.poll_claim_expires_at ?? null;
+    const claimActive = claimOwner !== null
+      && claimExpiresAt !== null
+      && claimExpiresAt > args.now;
+
+    if (claimActive && claimOwner !== args.owner) {
+      return { claimed: false };
+    }
+
+    await ctx.db.patch(args.batch_id, {
+      poll_claim_owner: args.owner,
+      poll_claim_expires_at: args.now + args.lease_ms,
+    });
+
+    return { claimed: true };
+  },
+});
+
+export const claimQueuedBatchForSubmit = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().min(1),
+  }),
+  returns: z.object({
+    claimed: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { claimed: false };
+    if (batch.status !== "queued") return { claimed: false };
+
+    const claimOwner = batch.poll_claim_owner ?? null;
+    const claimExpiresAt = batch.poll_claim_expires_at ?? null;
+    const claimActive = claimOwner !== null
+      && claimExpiresAt !== null
+      && claimExpiresAt > args.now;
+
+    if (claimActive && claimOwner !== args.owner) {
+      return { claimed: false };
+    }
+
+    await ctx.db.patch(args.batch_id, {
+      poll_claim_owner: args.owner,
+      poll_claim_expires_at: args.now + args.lease_ms,
+    });
+
+    return { claimed: true };
+  },
+});
+
+export const markBatchFinalizing = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+    now: z.number(),
+    lease_ms: z.number().int().min(1),
+  }),
+  returns: z.object({
+    ok: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { ok: false };
+    if (batch.status !== "running" && batch.status !== "finalizing") {
+      return { ok: false };
+    }
+    if (batch.poll_claim_owner !== args.owner) return { ok: false };
+
+    await ctx.db.patch(args.batch_id, {
+      status: "finalizing",
+      poll_claim_owner: args.owner,
+      poll_claim_expires_at: args.now + args.lease_ms,
+      next_poll_at: args.now,
+    });
+
+    return { ok: true };
+  },
+});
+
+export const releaseBatchPollClaim = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    owner: z.string(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return;
+    if (batch.poll_claim_owner !== args.owner) return;
+    await ctx.db.patch(args.batch_id, {
+      poll_claim_owner: null,
+      poll_claim_expires_at: null,
+    });
+  },
+});
+
+export const releaseExpiredBatchPollClaim = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    now: z.number(),
+  }),
+  returns: z.object({
+    released: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { released: false };
+    const claimOwner = batch.poll_claim_owner ?? null;
+    const claimExpiresAt = batch.poll_claim_expires_at ?? null;
+    if (claimOwner == null || claimExpiresAt == null) return { released: false };
+    if (claimExpiresAt > args.now) return { released: false };
+
+    await ctx.db.patch(args.batch_id, {
+      poll_claim_owner: null,
+      poll_claim_expires_at: null,
+    });
+    return { released: true };
+  },
+});
+
+export const nudgeBatchPollNow = zInternalMutation({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    now: z.number(),
+  }),
+  returns: z.object({
+    nudged: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batch = await ctx.db.get(args.batch_id);
+    if (!batch) return { nudged: false };
+    if (batch.status !== "running" && batch.status !== "finalizing") {
+      return { nudged: false };
+    }
+    await ctx.db.patch(args.batch_id, { next_poll_at: args.now });
+    return { nudged: true };
   },
 });

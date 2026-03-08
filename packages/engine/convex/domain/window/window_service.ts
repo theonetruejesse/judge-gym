@@ -8,20 +8,19 @@ import { internal } from "../../_generated/api";
 import { getProviderForModel } from "../../platform/providers/provider_types";
 import type { MutationCtx } from "../../_generated/server";
 import { ENGINE_SETTINGS } from "../../settings";
-
-const DEFAULT_EVIDENCE_LIMIT = 15;
+import { emitTraceEvent } from "../telemetry/emit";
 
 export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
-    limit: z.number().optional(),
+    limit: z.number()
   }),
   returns: z.object({
     inserted: z.number(),
     total: z.number(),
   }),
   handler: async (ctx, args) => {
-    const limit = args.limit ?? DEFAULT_EVIDENCE_LIMIT;
+    const limit = args.limit;
     const results = await ctx.runAction(
       internal.domain.window.window_repo.runWindowSearch,
       {
@@ -37,6 +36,14 @@ export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zIntern
         evidences: results,
       },
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${args.window_id}`,
+      entity_type: "window",
+      entity_id: String(args.window_id),
+      event_name: "window_evidence_collected",
+      status: "running",
+      payload_json: JSON.stringify(insertResult),
+    });
 
     return insertResult;
   },
@@ -61,6 +68,14 @@ export const startWindowOrchestration = zInternalMutation({
       status: "running",
       current_stage: "l1_cleaned",
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${args.window_id}`,
+      entity_type: "window",
+      entity_id: String(args.window_id),
+      event_name: "window_stage_started",
+      stage: "l1_cleaned",
+      status: "running",
+    });
 
     const orchestrator = new WindowOrchestrator(ctx);
     await orchestrator.enqueueStage(args.window_id, "l1_cleaned");
@@ -75,6 +90,16 @@ export const enqueueWindowStage = zInternalMutation({
   handler: async (ctx, args) => {
     const orchestrator = new WindowOrchestrator(ctx);
     await orchestrator.enqueueStage(args.window_id, args.stage);
+  },
+});
+
+export const reconcileWindowStage = zInternalMutation({
+  args: z.object({
+    window_id: zid("windows"),
+    stage: SemanticLevelSchema,
+  }),
+  handler: async (ctx, args) => {
+    await maybeAdvanceWindowStage(ctx, args.window_id, args.stage);
   },
 });
 
@@ -95,6 +120,39 @@ export const applyRequestResult = zInternalMutation({
     const evidence = await ctx.db.get(evidenceId);
     if (!evidence) throw new Error("Evidence not found");
 
+    if (evidence[config.outputField]) {
+      const request = await ctx.runQuery(
+        internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+        { request_id: args.request_id },
+      );
+      if (request.status === "success") {
+        return;
+      }
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.patchRequest,
+        {
+          request_id: args.request_id,
+          patch: {
+            status: "success",
+            assistant_output: args.output,
+            input_tokens: args.input_tokens,
+            output_tokens: args.output_tokens,
+          },
+        },
+      );
+      await emitTraceEvent(ctx, {
+        trace_id: `window:${evidence.window_id}`,
+        entity_type: "request",
+        entity_id: String(args.request_id),
+        event_name: "request_apply_duplicate_success",
+        stage,
+        status: "success",
+        custom_key: args.custom_key,
+      }, { defer: true });
+      await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
+      return;
+    }
+
     await ctx.db.patch(evidenceId, {
       [config.outputField]: args.output,
       [config.requestIdField]: args.request_id,
@@ -113,6 +171,15 @@ export const applyRequestResult = zInternalMutation({
       },
     );
 
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${evidence.window_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_applied",
+      stage,
+      status: "success",
+      custom_key: args.custom_key,
+    }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },
 });
@@ -127,6 +194,15 @@ export const handleRequestError = zInternalMutation({
     const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
     const evidence = await ctx.db.get(targetId as Id<"evidences">);
     if (!evidence) throw new Error("Evidence not found");
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${evidence.window_id}`,
+      entity_type: "request",
+      entity_id: String(args.request_id),
+      event_name: "request_error",
+      stage,
+      status: "error",
+      custom_key: args.custom_key,
+    }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },
 });
@@ -171,6 +247,18 @@ export const requeueWindowRequest = zInternalMutation({
         },
       },
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${evidence.window_id}`,
+      entity_type: "request",
+      entity_id: String(request._id),
+      event_name: "request_requeued_to_job",
+      stage,
+      status: "queued",
+      custom_key: request.custom_key,
+      payload_json: JSON.stringify({
+        job_id: jobId,
+      }),
+    });
   },
 });
 
@@ -179,6 +267,52 @@ const STAGE_ORDER: SemanticLevel[] = [
   "l2_neutralized",
   "l3_abstracted",
 ];
+
+function processKeyForWindowStage(
+  windowId: Id<"windows">,
+  stage: SemanticLevel,
+): string {
+  return `window:${String(windowId)}:${stage}`;
+}
+
+async function hasActiveWindowTransportWork(
+  ctx: MutationCtx,
+  windowId: Id<"windows">,
+  stage: SemanticLevel,
+): Promise<boolean> {
+  const processKey = processKeyForWindowStage(windowId, stage);
+  const batchStatuses: Array<Doc<"llm_batches">["status"]> = [
+    "queued",
+    "running",
+    "finalizing",
+  ];
+  for (const status of batchStatuses) {
+    const row = await ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", status),
+      )
+      .first();
+    if (row) return true;
+  }
+
+  const jobStatuses: Array<Doc<"llm_jobs">["status"]> = [
+    "queued",
+    "running",
+    "finalizing",
+  ];
+  for (const status of jobStatuses) {
+    const row = await ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", status),
+      )
+      .first();
+    if (row) return true;
+  }
+
+  return false;
+}
 
 function nextStageFor(stage: SemanticLevel): SemanticLevel | null {
   const idx = STAGE_ORDER.indexOf(stage);
@@ -218,6 +352,12 @@ async function maybeAdvanceWindowStage(
     const output = evidence[config.outputField];
     if (output !== null) {
       completed += 1;
+      continue;
+    }
+    const input = evidence[config.inputField];
+    if (input === null) {
+      // This stage was never eligible for this target because upstream output
+      // did not exist (for example, upstream terminal failure).
       continue;
     }
 
@@ -261,20 +401,48 @@ async function maybeAdvanceWindowStage(
       status: "error",
       current_stage: stage,
     });
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${windowId}`,
+      entity_type: "window",
+      entity_id: String(windowId),
+      event_name: "window_terminal_error",
+      stage,
+      status: "error",
+      payload_json: JSON.stringify({ completed, failed }),
+    });
     return;
   }
 
   const nextStage = nextStageFor(stage);
   if (!nextStage) {
+    if (await hasActiveWindowTransportWork(ctx, windowId, stage)) return;
     await ctx.db.patch(windowId, {
       status: "completed",
       current_stage: stage,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${windowId}`,
+      entity_type: "window",
+      entity_id: String(windowId),
+      event_name: "window_completed",
+      stage,
+      status: "completed",
+      payload_json: JSON.stringify({ completed, failed }),
     });
     return;
   }
 
   if (window.current_stage !== stage) return;
   await ctx.db.patch(windowId, { current_stage: nextStage });
+  await emitTraceEvent(ctx, {
+    trace_id: `window:${windowId}`,
+    entity_type: "window",
+    entity_id: String(windowId),
+    event_name: "window_stage_advanced",
+    stage: nextStage,
+    status: "running",
+    payload_json: JSON.stringify({ from_stage: stage, completed, failed }),
+  });
   await ctx.runMutation(
     internal.domain.window.window_service.enqueueWindowStage,
     { window_id: windowId, stage: nextStage },

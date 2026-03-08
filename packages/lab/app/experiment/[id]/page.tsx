@@ -25,24 +25,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LabNavbar from "@/components/lab_navbar";
 
-type ExperimentListItem = {
-  experiment_id: string;
-  experiment_tag?: string;
-  rubric_config: {
-    model: string;
-    scale_size: number;
-    concept: string;
-  };
-  scoring_config: {
-    model: string;
-    method: string;
-    randomizations: string[];
-    evidence_view: string;
-    abstain_enabled: boolean;
-  };
-  status: string;
-};
-
 type ExperimentSummary = {
   experiment_id: string;
   experiment_tag?: string;
@@ -84,7 +66,6 @@ type EvidenceItem = {
   title: string;
   url: string;
   created_at: number;
-  window_tag?: string;
 };
 
 type RunSummary = {
@@ -134,26 +115,16 @@ export default function ExperimentDetailPage({
       setResolvedParams(params as unknown as { id: string });
     }
   }, [params]);
-
-  const experiments = useQuery(
-    api.packages.lab.listExperiments,
-    {},
-  ) as ExperimentListItem[] | undefined;
-  const experimentsLoading = experiments === undefined;
-  const experimentRows = experiments ?? [];
-
-  const selected =
-    experimentRows.find((e) => e.experiment_id === resolvedParams?.id) ??
-    experimentRows[0];
+  const experimentId = resolvedParams?.id;
 
   const summary = useQuery(
     api.packages.lab.getExperimentSummary,
-    selected ? { experiment_id: selected.experiment_id } : "skip",
+    experimentId ? { experiment_id: experimentId } : "skip",
   ) as ExperimentSummary | undefined;
 
   const evidenceItems = useQuery(
     api.packages.lab.listExperimentEvidence,
-    selected ? { experiment_id: selected.experiment_id } : "skip",
+    experimentId ? { experiment_id: experimentId } : "skip",
   ) as EvidenceItem[] | undefined;
 
   const runSummary = useQuery(
@@ -163,7 +134,7 @@ export default function ExperimentDetailPage({
       : "skip",
   ) as RunSummary | undefined;
 
-  const startExperiment = useMutation(api.packages.lab.startExperiment);
+  const startExperimentRun = useMutation(api.packages.lab.startExperimentRun);
 
   useEffect(() => {
     if (!summary?.latest_run?.target_count) return;
@@ -185,7 +156,7 @@ export default function ExperimentDetailPage({
   }, [runSummary?.stages]);
 
   const handleStart = async () => {
-    if (!selected) return;
+    if (!experimentId) return;
     setActionMessage(null);
     const sampleCount = Number(runSampleCount);
     if (!Number.isFinite(sampleCount) || sampleCount < 1) {
@@ -193,8 +164,8 @@ export default function ExperimentDetailPage({
       return;
     }
     try {
-      await startExperiment({
-        experiment_id: selected.experiment_id,
+      await startExperimentRun({
+        experiment_id: experimentId,
         target_count: sampleCount,
       });
       setActionMessage("Run started.");
@@ -205,23 +176,23 @@ export default function ExperimentDetailPage({
     }
   };
 
-  if (experimentsLoading) {
+  if (!resolvedParams) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <LabNavbar />
         <div className="px-6 py-12">
-          <p className="text-sm">Loading experiments...</p>
+          <p className="text-sm">Loading experiment...</p>
         </div>
       </div>
     );
   }
 
-  if (!selected) {
+  if (!summary) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <LabNavbar />
         <div className="px-6 py-12">
-          <p className="text-sm">No experiments found.</p>
+          <p className="text-sm">Loading experiment...</p>
         </div>
       </div>
     );
@@ -245,23 +216,26 @@ export default function ExperimentDetailPage({
                 className="text-xl font-bold tracking-tight text-foreground"
                 style={{ fontFamily: "var(--font-1-serif)" }}
               >
-                {selected.experiment_tag ?? selected.experiment_id}
+                {summaryData.experiment_tag ?? summaryData.experiment_id}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {selected.experiment_id} · {summaryData?.window_count ?? 0} windows
+                {summaryData.experiment_id} · {summaryData.window_count}{" "}
+                windows
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
                 style={{
-                  backgroundColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}20`,
+                  backgroundColor: `${STATUS_COLORS[summaryData.status as keyof typeof STATUS_COLORS]}20`,
                   color:
-                    STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS],
-                  borderColor: `${STATUS_COLORS[selected.status as keyof typeof STATUS_COLORS]}40`,
+                    STATUS_COLORS[
+                      summaryData.status as keyof typeof STATUS_COLORS
+                    ],
+                  borderColor: `${STATUS_COLORS[summaryData.status as keyof typeof STATUS_COLORS]}40`,
                 }}
               >
-                {selected.status}
+                {summaryData.status}
               </Badge>
               <div className="flex items-center gap-2">
                 <Input
@@ -288,7 +262,10 @@ export default function ExperimentDetailPage({
             </div>
           )}
 
-          <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as typeof tab)}
+          >
             <TabsList className="bg-card/80">
               <TabsTrigger value="config">Configuration</TabsTrigger>
               <TabsTrigger value="runs">
@@ -314,7 +291,7 @@ export default function ExperimentDetailPage({
 
       <footer className="flex h-7 flex-shrink-0 items-center justify-between border-t border-border bg-card/80 px-4 text-[10px] text-muted-foreground">
         <span>
-          {experimentRows.length} experiments · {evidenceItemsData.length} evidence items
+          {evidenceItemsData.length} evidence items
         </span>
         <span>Convex live · Last sync: just now</span>
       </footer>
@@ -349,10 +326,7 @@ function ConfigPanel({ summary }: { summary: ExperimentSummary | undefined }) {
       SCORING_METHOD_LABELS[summary.scoring_config.method] ??
         summary.scoring_config.method,
     ],
-    [
-      "Abstain Enabled",
-      summary.scoring_config.abstain_enabled ? "Yes" : "No",
-    ],
+    ["Abstain Enabled", summary.scoring_config.abstain_enabled ? "Yes" : "No"],
     ["Randomizations", randomizations],
   ];
 
@@ -434,7 +408,10 @@ function RunsPanel({
             <div className="w-32">
               <Progress value={runProgress} />
             </div>
-            <span className="text-[11px] font-medium" style={{ color: "#ff6b35" }}>
+            <span
+              className="text-[11px] font-medium"
+              style={{ color: "#ff6b35" }}
+            >
               {runProgress}%
             </span>
           </div>
@@ -499,7 +476,7 @@ function EvidencePanel({ evidenceItems }: { evidenceItems: EvidenceItem[] }) {
                 <div className="text-[10px] opacity-50">{item.url}</div>
               </TableCell>
               <TableCell className="text-xs opacity-70">
-                {item.window_tag ?? item.window_id}
+                {item.window_id}
               </TableCell>
               <TableCell className="text-right text-xs opacity-60">
                 {new Date(item.created_at).toLocaleDateString()}

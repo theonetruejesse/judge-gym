@@ -5,26 +5,61 @@ An open-source LLM-as-Judge design space engine. judge-gym focuses on how rubric
 This README documents the **current implementation in `judge-gym/` only** and is intentionally self-contained. It does not assume features that exist only in `v0-old/` or `v1-target/`.
 
 **Prerequisites**
+
 - Node.js `>=22.12.0`
 - Bun `>=1.1.27`
 
 **Node version management (nvm)**
 This repo pins Node via `.nvmrc` to keep all packages on the same version.
+
 1. `nvm install 22.12.0`
 2. `nvm use 22.12.0`
 3. `nvm alias default 22.12.0`
 
 **What exists today**
+
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
+- Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
+- Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
+- The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
+- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (fixed control slices, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
-- Experiment initialization now freezes evidence selections via `experiment_evidence`.
+- The engine now emits append-only telemetry events (`telemetry_events`) for window/run/batch/job/request/scheduler transitions, using timestamp-entropy sequence values to avoid per-trace counter write hotspots under concurrency.
+- Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
+- Scheduler/workflow batch polling now skips running batches that already have an active poll lease, reducing duplicate workflow starts and `batch_poll_claim_denied` churn during finalization.
+- Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
+- Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
+- Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
+- Run trace ordering now emits request/job terminal events before `run_completed`, so terminal telemetry no longer includes post-terminal transport events.
+- Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
+- Engine maintenance helpers now include targeted run cleanup (`deleteRunData`), telemetry truncation after an anchor event (`deleteTelemetryAfterEvent`), and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
+- Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
+- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to validate trace lifecycle and failure signals for recent runs.
+- The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, stuck-work detection, trace tailing, and safe auto-heal actions for run/window flows.
+- `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
+- Run diagnostics now read run-scoped artifacts and requests via direct `run_id` indexes (`rubrics`, `rubric_critics`, `scores`, `score_critics`, `llm_requests`) instead of full-table artifact scans.
+- Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
+- Telemetry diagnostics treat sequence values as timestamp-entropy IDs (non-contiguous by design), so `missing_seq_count` in codex analysis is reported as `0` and duplicate detection is the meaningful sequence integrity signal.
+- Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
+- The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
+- The engine includes Bun process telemetry analysis in `packages/engine`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
+- The engine includes a synthetic matrix runner in `packages/engine`: `bun run debug:matrix` (nuke-per-scenario, synthetic window/run setup, telemetry report output).
+- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine/docs/`.
+- Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
+- A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
+- Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidence`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
 - Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
+- Lab experiment editor uses TanStack Form with server-parsed defaults and debounced URL param sync.
+- Lab App Router editor pages resolve promise-based `searchParams` before deriving form defaults (Next 15 compatible typing).
+- Lab experiment detail now fetches by route id directly (no list-first experiment fetch).
+- `listEvidenceWindows` now aggregates evidence in one query pass instead of per-window lookups.
 
 **What does not exist yet (in this repo)**
+
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
 - A runtime override layer for `ENGINE_SETTINGS`.
 
@@ -45,7 +80,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- |
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
 | `domain/llm_calls/` | Batch/job/request repos + services |
-| `domain/runs/` | Experiment creation + evidence binding + run orchestration |
+| `domain/runs/` | Experiment creation + pool binding + run orchestration |
 | `domain/window/` | Evidence window orchestration + search |
 | `models/` | Zod schemas for tables and shared enums |
 | `platform/` | Providers, rate limiter, run policy |
@@ -62,11 +97,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/orchestrator/target_registry.ts` | Custom key routing to domain handlers |
 | `domain/llm_calls/*_repo.ts` | Batch/job/request storage mutations and queries |
 | `domain/llm_calls/*_service.ts` | Rate limit checks, retries, apply results |
-| `domain/runs/experiments_services.ts` | Experiment creation + evidence binding |
-| `domain/runs/experiments_repo.ts` | Experiment storage + evidence queries |
+| `domain/runs/experiments_services.ts` | Experiment creation + pool binding |
+| `domain/runs/experiments_repo.ts` | Experiment/pool storage + pool evidence binding |
 | `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
-| `domain/runs/run_repo.ts` | Run/sample + rubric/score persistence |
+| `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
 | `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
 | `domain/window/window_service.ts` | Window lifecycle, apply results, stage advancement |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
@@ -83,21 +118,28 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Orchestration tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date`, `window_tag` |
+| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date` |
 | `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
-| `llm_requests` | Individual LLM calls | `status`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
+| `llm_requests` | Individual LLM calls | `status`, `run_id`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
+| `process_request_targets` | Derived per-target request state snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `has_pending`, `max_attempts`, `latest_error_class` |
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
+| `telemetry_events` | Ordered event log for traces | `trace_id`, `seq`, `entity_type`, `entity_id`, `event_name`, `stage`, `status`, `payload_json` |
+| `telemetry_entity_state` | Latest event snapshot per entity | `entity_type`, `entity_id`, `trace_id`, `last_*` |
 
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `experiments` | Experiment configs | `experiment_tag`, `rubric_config`, `scoring_config` |
+| `pools` | Reusable evidence pools | `pool_tag` |
+| `pool_evidence` | Evidence membership for pools | `pool_id`, `evidence_id` |
+| `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count` |
-| `samples` | Run samples | `run_id`, `rubric_id`, `score_id`, critic IDs |
+| `samples` | Run samples (rubric scope) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed` |
+| `sample_evidence_scores` | Run score units (sample × evidence) | `run_id`, `sample_id`, `evidence_id`, `score_id`, `score_critic_id` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
 **Indexes that drive orchestration**
+
 - `evidences.by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending` gate per-stage work.
 - `llm_requests.by_orphaned` identifies pending requests without a batch or job.
 - `llm_batches.by_status`, `llm_jobs.by_status` allow scheduler polling by status.
@@ -107,6 +149,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 ## Orchestration Flow (End-to-End)
 
 **High-level path**
+
 1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
 2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`.
 3. `startWindowOrchestration` sets the window to `running`, sets `current_stage` to `l1_cleaned`, and calls `WindowOrchestrator.enqueueStage`.
@@ -120,13 +163,16 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 11. `maybeAdvanceWindowStage` advances to the next stage or completes the window if all evidence items are done.
 
 **Run flow (experiment)**
-1. `initExperiment` creates an experiment and freezes selected evidence in `experiment_evidence`.
-2. `startRunFlow` creates a run, seeds `samples`, and sets `current_stage` to `rubric_gen`.
+
+1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
+2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and sets `current_stage` to `rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
-4. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
-5. `maybeAdvanceRunStage` advances stages when every sample is either completed or terminally failed.
+4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every pool evidence item.
+5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
+6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages).
 
 **Architecture overview**
+
 ```mermaid
 flowchart TD
   Lab[Convex lab API] --> WindowService[window_service]
@@ -151,16 +197,18 @@ flowchart TD
 ## Decision Tree: Batch vs Job
 
 **Where the decision is made**
+
 - `BaseOrchestrator.decideRoute` chooses between batch and job.
 
 **Decision logic**
+
 1. If the model is not batchable → **job**.
 2. If request count `< min_batch_size` → **job**.
-3. If request count `<= job_fallback_count` → **job**.
-4. Otherwise → **batch**.
+3. Otherwise → **batch**.
 
 **Policy sources**
-- `ENGINE_SETTINGS.run_policy` defines `min_batch_size`, `job_fallback_count`, and other limits.
+
+- `ENGINE_SETTINGS.run_policy` defines `min_batch_size` and other limits.
 
 ---
 
@@ -169,31 +217,33 @@ flowchart TD
 Custom keys are how LLM results route back into domain handlers.
 
 **Request keys**
+
 - `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
-- `RunOrchestrator.makeRequestKey` formats request keys as `sample:<sample_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats rubric-stage request keys as `sample:<sample_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_evidence:<sample_evidence_score_id>:<stage>`.
 
 **Process keys**
+
 - `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
 - `RunOrchestrator.makeProcessKey` formats batch/job keys as `run:<run_id>:<stage>`.
 
 **Routing**
+
 - `target_registry` maps custom key prefixes to handlers.
-- `evidence` routes are window-specific, and `sample` routes map run-stage results back to samples.
+- `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_evidence` targets.
 
 ---
 
-## Scheduler and Workflow Mechanics
+## Scheduler Mechanics
 
 **Scheduler**
+
 - `startScheduler` is idempotent; it only schedules a single `runScheduler` if one is not already pending.
-- `runScheduler` loads queued/running batches and jobs, starts workflows when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
+- `runScheduler` loads queued/running batches and jobs, schedules bounded internal handlers when `next_*` timestamps are due, and reschedules itself after `poll_interval_ms`.
 - If there are no queued/running batches or jobs (and no orphaned requests), `runScheduler` exits without rescheduling.
 
-**Workflow manager**
-- `process_workflows` defines `processQueuedBatchWorkflow`, `processRunningBatchWorkflow`, `processQueuedJobWorkflow`, and `processRunningJobWorkflow`.
-- Workflow retries use the default retry policy defined in `WorkflowManager`.
-
 **Important detail**
+
 - Orphaned requests are detected but not automatically requeued by the scheduler in the current code.
 
 ---
@@ -201,22 +251,26 @@ Custom keys are how LLM results route back into domain handlers.
 ## Rate Limiting, Retries, and Backoff
 
 **Rate limiting**
+
 - Implemented with `@convex-dev/rate-limiter` using token buckets.
 - Rate-limit tiers are defined per model in `platform/rate_limiter/provider_tiers.ts`.
 - Batch and job rate-limit keys share the same config, with `batch_*` keys generated automatically.
 
 **Batch flow**
+
 1. `checkBatchRateLimit` checks the batch requests key for the model.
 2. If rate limited, `next_poll_at` is pushed to the `retryAfter` time.
 3. On completion, `applyBatchRateLimitUsage` charges input/output token buckets.
 4. `handleBatchError` retries a batch up to `max_batch_retries`, then marks requests as error and triggers error handlers.
 
 **Job flow**
-1. `runJobRequests` checks request-level rate limits.
+
+1. `runJobRequests` processes due pending requests with bounded in-job concurrency (`run_policy.job_request_concurrency`) and checks request-level rate limits per request.
 2. If rate limited, `next_attempt_at` is set to the limiter’s `retryAfter`.
 3. Errors are retried up to `max_request_attempts`; beyond that, the request is marked error and routed to the error handler.
 
 **Retry and backoff**
+
 - `max_request_attempts` and `retry_backoff_ms` are enforced in both batch and job paths.
 - `getNextAttemptAt` and `getNextRunAt` derive from `ENGINE_SETTINGS.run_policy`.
 
@@ -226,22 +280,23 @@ Custom keys are how LLM results route back into domain handlers.
 
 `ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine/convex/settings.ts`.
 
-| Policy field | Default | Meaning | Enforced in |
-| --- | --- | --- | --- |
-| `poll_interval_ms` | `5000` | Minimum time between scheduler polls | `scheduler.ts`, `utils/scheduling.ts` |
-| `max_batch_size` | `500` | Maximum batch size (defined, not enforced in current code) | `settings.ts` only |
-| `min_batch_size` | `10` | Minimum requests needed to batch | `BaseOrchestrator.decideRoute` |
-| `job_fallback_count` | `5` | Job fallback threshold | `BaseOrchestrator.decideRoute` |
-| `max_tokens` | `5000` | Hard cap per request | `llm_batch_service`, `llm_job_service` |
-| `max_batch_retries` | `2` | Batch re-poll/retry cap | `llm_batch_service` |
-| `max_request_attempts` | `2` | Request retry cap | `llm_batch_service`, `llm_job_service` |
-| `retry_backoff_ms` | `60000` | Backoff before retry | `utils/scheduling.ts` |
+| Policy field           | Default | Meaning                                                    | Enforced in                            |
+| ---------------------- | ------- | ---------------------------------------------------------- | -------------------------------------- |
+| `poll_interval_ms`     | `20000` | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
+| `max_batch_size`       | `100`   | Maximum requests per provider batch chunk                  | `BaseOrchestrator.createBatch`         |
+| `min_batch_size`       | `25`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
+| `max_tokens`           | `8000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
+| `max_batch_retries`    | `2`     | Batch re-poll/retry cap                                    | `llm_batch_service`                    |
+| `max_request_attempts` | `2`     | Request retry cap                                          | `llm_batch_service`, `llm_job_service` |
+| `retry_backoff_ms`     | `60000` | Backoff before retry                                       | `utils/scheduling.ts`                  |
+| `job_request_concurrency` | `8`  | Max concurrent request executions per job processing tick  | `llm_job_service`                      |
 
 ---
 
 ## State Machines
 
 **Window lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> start
@@ -251,6 +306,7 @@ stateDiagram-v2
 ```
 
 **LLM request lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> pending
@@ -260,6 +316,7 @@ stateDiagram-v2
 ```
 
 **Batch lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> queued
@@ -270,6 +327,7 @@ stateDiagram-v2
 ```
 
 **Job lifecycle**
+
 ```mermaid
 stateDiagram-v2
   [*] --> queued
@@ -284,11 +342,13 @@ stateDiagram-v2
 ## Provider Layer
 
 **Provider actions**
+
 - `submitOpenAiBatchAction` uploads a JSONL file and creates an OpenAI batch.
-- `pollOpenAiBatchAction` polls the batch status and parses JSONL results.
+- `pollOpenAiBatchAction` polls the batch status and parses both output and error JSONL files.
 - `openAiChatAction` uses the `ai` SDK to call OpenAI chat for job-mode requests.
 
 **Provider configuration**
+
 - `provider_types.ts` defines providers and model IDs.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
@@ -301,6 +361,7 @@ stateDiagram-v2
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
 - Orphaned `llm_requests` are counted but not automatically requeued.
+- Batch completion now treats missing per-request result rows as request errors/retries, preventing silent `pending` stalls.
 
 ---
 
