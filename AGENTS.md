@@ -48,15 +48,15 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 
 - Run process: `bun run debug:watch --run <run_id>`
 - Window process: `bun run debug:watch --window <window_id>`
-- Trace tail: `bun run debug:tail --trace run:<run_id>`
+- Trace tail: `bun run debug:tail --trace run:<run_id>` (reads capped local recent events + Axiom trace ref)
 - Synthetic matrix runner: `bun run debug:matrix` (nukes between scenarios, runs low-sample synthetic window/run cases, writes markdown report)
-- Process telemetry analysis: `bun run debug:analyze --run <run_id>` or `bun run debug:analyze --window <window_id>`
+- Process telemetry analysis: `bun run debug:analyze --run <run_id>` or `bun run debug:analyze --window <window_id>` (summarizes the capped local recent-events mirror)
 
 ### Diagnose
 
 - List stuck work globally: `bun run debug:stuck --older-ms 120000`
 - List stuck work for runs only: `bun run debug:stuck --older-ms 120000 --run <run_id>`
-- Deep trace diagnostics (bounded pagination): `bun run debug:analyze --window <window_id> --max-events 10000`
+- Deep trace diagnostics: use the `external_trace_ref` from `getProcessHealth` / `debug:tail` / `debug:analyze` to pivot into Axiom.
 
 ### Recover (safe automation)
 
@@ -70,12 +70,14 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Default to dry-run for first pass.
 - Only use codex safe actions (`start_scheduler_if_idle`, request requeue, expired lease release, poll nudge).
 - `submitting` batches are pollable/debuggable the same as `running`/`finalizing` batches; a missing `batch_ref` during `submitting` should be treated as recoverable first, not immediately terminal.
-- If a process remains stalled after safe actions, inspect `getProcessHealth` and trace events before any manual data mutation.
+- If a process remains stalled after safe actions, inspect `getProcessHealth`, local recent events, and the Axiom trace before any manual data mutation.
 - `domain/maintenance/danger:deleteRunData` uses `isDryRun` (not `dry_run`) and blocks active runs unless `allow_active=true`.
 
 ### Telemetry Notes
 
-- `telemetry_events.seq` is timestamp-entropy based (not contiguous per-trace counters).
+- Full telemetry is exported best-effort to Axiom via Convex actions using `AXIOM_TOKEN` + `AXIOM_DATASET`.
+- Convex keeps only a small `process_observability` mirror for the live loop plus `scheduler_locks` for the scheduler heartbeat/lock.
+- `bun run telemetry:check` runs a real Axiom ingest smoke test through `packages/codex:testAxiomIngest`.
 - `domain/maintenance/danger:deleteRunData` now refuses active runs (`start|queued|running|paused`) unless `allow_active=true` is explicitly passed.
 
 ### Synthetic Matrix Notes
@@ -120,11 +122,11 @@ Use this when a new Codex instance has zero prior context.
   - Safe fallback:
     1. call `domain/runs/run_service:startRunFlow` with same args,
     2. call `domain/orchestrator/scheduler:startScheduler`,
-    3. optionally emit `run_started` via `domain/telemetry/events:emitEvent` for trace consistency.
+    3. optionally emit `run_started` via the normal workflow path; trace export is automatic and best-effort.
 - Monitor:
   - `mcp__convex__run` -> `packages/lab:getRunSummary`
   - `mcp__convex__run` -> `packages/lab:getRunDiagnostics`
-  - `mcp__convex__run` -> `packages/lab:getTraceEvents`
+  - `mcp__convex__run` -> `packages/lab:getTraceEvents` (local recent-events mirror only)
   - Optional CLI: `bun run debug:watch --run <run_id>`
 
 ### 4. Stall diagnosis and safe recovery
@@ -142,10 +144,8 @@ Use this when a new Codex instance has zero prior context.
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
-- `packages/codex:analyzeProcessTelemetry` treats `seq` as timestamp-entropy IDs; `missing_seq_count` is intentionally `0` (non-contiguous sequence is expected), while duplicate-seq and terminal ordering checks remain meaningful.
-- Legacy caveat:
-  - For older runs/windows created before snapshots existed, the query falls back to a bounded recent `llm_requests` scan.
-  - If legacy history is very large, non-active-stage error rollups may be approximate; pair with `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` when you need full historical forensics.
+- `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
+- `packages/codex:analyzeProcessTelemetry` and `packages/lab:getTraceEvents` summarize the capped local recent-events mirror only; use the returned `external_trace_ref` for full Axiom history.
 
 ### 6. Retry semantics (current expectation)
 

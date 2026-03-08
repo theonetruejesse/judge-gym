@@ -145,8 +145,11 @@ function requireProcess(args: Args) {
 
 function printHealth(data: any) {
   const stage = data.stage_progress.find((row: any) => row.stage === data.current_stage);
-  console.log(`\\n[${new Date().toISOString()}] ${data.process_type}:${data.process_id}`);
-  console.log(`status=${data.status} stage=${data.current_stage}`);
+  console.log(`\n[${new Date().toISOString()}] ${data.process_type}:${data.process_id}`);
+  console.log(`status=${data.status} stage=${data.current_stage} backend=${data.telemetry_backend}`);
+  if (data.external_trace_ref) {
+    console.log(`trace_ref=${data.external_trace_ref}`);
+  }
   if (stage) {
     console.log(
       `stage_progress total=${stage.target_total} completed=${stage.completed} pending=${stage.pending} failed=${stage.failed}`,
@@ -234,6 +237,10 @@ function runAnalyze(args: Args) {
 
   console.log(`process=${result.process_type}:${result.process_id}`);
   console.log(`trace=${result.trace_id}`);
+  console.log(`backend=${result.telemetry_backend}`);
+  if (result.external_trace_ref) {
+    console.log(`trace_ref=${result.external_trace_ref}`);
+  }
   console.log(`sampled_events=${result.sampled_events} reached_end=${result.reached_end_of_trace}`);
   console.log(
     `seq_range=${result.seq_min ?? "null"}..${result.seq_max ?? "null"} missing=${result.missing_seq_count} dup=${result.duplicate_seq_count}`,

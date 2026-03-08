@@ -78,31 +78,24 @@ async function tryAcquireSchedulerLock(
   now: number,
 ): Promise<{ acquired: boolean; lock_id: string }> {
   const existing = await ctx.db
-    .query("telemetry_entity_state")
-    .withIndex("by_entity", (q) => q.eq("entity_type", "scheduler").eq("entity_id", SCHEDULER_LOCK_ENTITY_ID))
+    .query("scheduler_locks")
+    .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
     .first();
 
   const payload = {
-    entity_type: "scheduler" as const,
-    entity_id: SCHEDULER_LOCK_ENTITY_ID,
-    trace_id: "scheduler:global",
-    last_seq: (existing?.last_seq ?? 0) + 1,
-    last_event_name: "scheduler_lock_heartbeat",
-    last_stage: null,
-    last_status: "running",
-    last_custom_key: "scheduler:global",
-    last_attempt: null,
-    last_ts_ms: now,
-    last_payload_json: JSON.stringify({ ttl_ms: SCHEDULER_LOCK_TTL_MS }),
+    lock_key: SCHEDULER_LOCK_ENTITY_ID,
+    status: "running" as const,
+    heartbeat_ts_ms: now,
+    expires_at_ms: now + SCHEDULER_LOCK_TTL_MS,
   };
 
   if (!existing) {
-    const lockId = await ctx.db.insert("telemetry_entity_state", payload);
+    const lockId = await ctx.db.insert("scheduler_locks", payload);
     return { acquired: true, lock_id: String(lockId) };
   }
 
-  const isLocked = (existing.last_status ?? null) === "running"
-    && existing.last_ts_ms > now - SCHEDULER_LOCK_TTL_MS;
+  const isLocked = existing.status === "running"
+    && existing.expires_at_ms > now;
   if (isLocked) {
     return { acquired: false, lock_id: String(existing._id) };
   }
@@ -116,16 +109,14 @@ async function releaseSchedulerLock(
   now: number,
 ): Promise<void> {
   const existing = await ctx.db
-    .query("telemetry_entity_state")
-    .withIndex("by_entity", (q) => q.eq("entity_type", "scheduler").eq("entity_id", SCHEDULER_LOCK_ENTITY_ID))
+    .query("scheduler_locks")
+    .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
     .first();
   if (!existing) return;
   await ctx.db.patch(existing._id, {
-    last_seq: existing.last_seq + 1,
-    last_event_name: "scheduler_lock_released",
-    last_status: "idle",
-    last_ts_ms: now,
-    last_payload_json: JSON.stringify({ released: true }),
+    status: "idle",
+    heartbeat_ts_ms: now,
+    expires_at_ms: now,
   });
 }
 

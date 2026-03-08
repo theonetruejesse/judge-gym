@@ -10,6 +10,8 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Scheduler auto-requeues due orphaned requests during normal ticks.
 - Batch/job leases are renewed through long-running submit/run/apply sections to reduce duplicate execution after lease expiry.
 - Batch poll leases are used to avoid duplicate concurrent poll/apply handlers.
+- Full trace history is exported best-effort to Axiom.
+- Convex keeps only lightweight local observability for the live loop.
 
 ## Interfaces
 
@@ -20,16 +22,15 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - `packages/codex:tailTrace`
   - `packages/codex:runDebugActions`
   - `packages/codex:autoHealProcess`
+  - `packages/codex:testAxiomIngest`
 - Bun wrapper in `packages/engine/scripts/live_debug.ts`
   - `bun run debug:watch`
   - `bun run debug:stuck`
   - `bun run debug:heal`
   - `bun run debug:tail`
   - `bun run debug:analyze`
-- Synthetic matrix runner in `packages/engine/scripts/synthetic_matrix.ts`
-  - `bun run debug:matrix`
-  - runs low-sample synthetic window/run scenarios
-  - captures per-scenario telemetry summaries to `docs/synthetic_matrix_report_2026-03-03.md`
+- Telemetry smoke test in `packages/engine/scripts/check_telemetry.ts`
+  - `bun run telemetry:check`
 
 ## Typical Flow
 
@@ -42,26 +43,31 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - `bun run debug:stuck --older-ms 120000`
 
-3. Analyze trace behavior (route + duplicate churn)
+3. Inspect local recent milestones
+
+- Run: `bun run debug:tail --run <run_id>`
+- Window: `bun run debug:tail --window <window_id>`
+
+4. View local telemetry summary
 
 - Run: `bun run debug:analyze --run <run_id>`
 - Window: `bun run debug:analyze --window <window_id>`
-- Increase sample depth for dense traces: `--max-events 10000`
+- Note: this summarizes the capped local recent-events mirror, not the full external trace.
 
-4. Dry-run remediation
+5. Dry-run remediation
 
 - Run: `bun run debug:heal --run <run_id>`
 - Window: `bun run debug:heal --window <window_id>`
 
-5. Apply remediation
+6. Apply remediation
 
 - Run: `bun run debug:heal --run <run_id> --apply`
 - Window: `bun run debug:heal --window <window_id> --apply`
 
-6. Verify progress
+7. Verify progress
 
 - Continue watch loop and confirm stage pending count decreases.
-- Tail trace if needed: `bun run debug:tail --trace run:<run_id>`
+- Use the `external_trace_ref` from health/tail/analyze to pivot into Axiom for deep forensics.
 
 ## Safe Actions
 
@@ -115,22 +121,13 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Symptom: parse-related failure at apply stage.
 - Expected behavior: terminal failure for that request (no infinite retry loop).
-- Verify via `getProcessHealth` error summary and trace events.
+- Verify via `getProcessHealth` error summary and Axiom trace history.
 
 ## Notes
 
 - Start with dry-run in production-like runs.
-- If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and trace events before doing maintenance mutations.
-- Telemetry sequence values are timestamp-entropy based; do not assume contiguous `seq` values for a trace.
-- In `analyzeProcessTelemetry`, `missing_seq_count` is intentionally `0` under timestamp-entropy sequence mode; use duplicate-seq and terminal ordering signals for integrity checks.
+- If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and local recent events before doing maintenance mutations.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
-- `packages/lab:getRunDiagnostics` now uses run-scoped indexes (`llm_requests.by_run`, artifact `by_run`) instead of global artifact scans, so ad-hoc run diagnostics are safer during active debugging.
-- Codex debug queries now use bounded scans (`take` caps) for table/system checks (including scheduler scheduled-function checks), so large historical deployments do not hard-fail on unbounded read counts.
-- `packages/codex:analyzeProcessTelemetry` paginates trace reads and summarizes:
-  - per-stage route usage (`job`/`batch`/`mixed`)
-  - request duplicate-apply churn
-  - repeated job finalization
-  - events emitted after terminal completion
-- Run terminal ordering expectation:
-  - `run_completed` should be the final run-trace event (no trailing request/job events).
-- Legacy caveat: if a process predates snapshots, bounded fallback reconstruction can make non-active-stage error rollups approximate. Use `packages/lab:getRunDiagnostics` + `packages/lab:getTraceEvents` for full historical forensics.
+- `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
+- The local mirror is intentionally small and milestone-oriented; it is not a full event log.
+- Use `bun run telemetry:check` after changing Axiom credentials or ingest wiring.

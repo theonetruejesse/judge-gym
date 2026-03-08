@@ -5,4 +5,5 @@ export {
   getStuckWork,
   runDebugActions,
   tailTrace,
+  testAxiomIngest,
 } from "../domain/maintenance/codex";

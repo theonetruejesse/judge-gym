@@ -1,6 +1,6 @@
 # Engine Convex Backend
 
-Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
+Convex backend for judge-gym orchestration, lightweight local observability, and lab control APIs.
 
 ## Current Architecture
 
@@ -9,10 +9,10 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Internal mutations own state transitions and durable table writes.
 - Scheduler auto-requeues due orphaned requests on normal ticks.
 - `process_request_targets` provides snapshot-backed process health rollups.
-- `analyzeProcessTelemetry` provides bounded, paginated trace analysis for route usage and duplicate-event churn.
-- Telemetry is written to:
-  - `telemetry_events`
-  - `telemetry_entity_state`
+- High-volume telemetry is exported best-effort to Axiom from Convex actions.
+- Convex keeps only lightweight local observability in:
+  - `process_observability`
+  - `scheduler_locks`
 
 ## Key Modules
 
@@ -27,6 +27,9 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Process domains:
   - `domain/runs/*`
   - `domain/window/*`
+- Telemetry / observability:
+  - `domain/telemetry/events.ts`
+  - `domain/telemetry/emit.ts`
 - Debug/ops package API:
   - `packages/codex.ts`
 
@@ -42,7 +45,8 @@ Convex backend for judge-gym orchestration, telemetry, and lab control APIs.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
-- Synthetic matrix testing is supported via external scripts/reports; runtime fault-injection hooks are not enabled in production code paths.
+- Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
+- `bun run telemetry:check` now performs an Axiom ingest smoke test through Convex.
 
 ## Validation
 
