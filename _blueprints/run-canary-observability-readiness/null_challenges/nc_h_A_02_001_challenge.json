@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_02_001",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that residual risk is primarily scale/read-pressure/backlog.",
+      "falsificationQueries": [
+        "Does duplicate-apply coverage include high-concurrency fanout?",
+        "Do canaries include matrix-like scale?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine/convex/tests/orchestrator_idempotency.test.ts:454",
+        "packages/engine/scripts/synthetic_matrix.ts:78",
+        "packages/engine/convex/tests/codex_debug.test.ts:236"
+      ],
+      "falsificationAnalysis": "Counterevidence lowered confidence: current canary scale is smaller than matrix-scale risk surface.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}

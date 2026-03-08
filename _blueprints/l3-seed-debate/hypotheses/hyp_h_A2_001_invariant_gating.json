@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A2_001",
+  "areaOfAnalysisID": "A2",
+  "statement": "L3 should be treated as valid for baseline use only when hard invariants pass: non-expansion, quantity/date retention, central-actor retention, and structural parity.",
+  "confidence": 0.85,
+  "rationale": "Prompt intent alone is insufficient; validity requires measurable guarantees under realistic article types.",
+  "keyAssumptions": [
+    "Automated checks can detect material violations with acceptable false positives.",
+    "Invariant pass rates generalize from canaries to larger runs."
+  ],
+  "validationCriteria": [
+    "L3 <= L2 for >=99% and no critical violations on causal actor/date retention in gate set.",
+    "No duplicate-apply transport artifacts in stage telemetry."
+  ],
+  "critiquePoints": [
+    "Rule-based checks may miss subtle semantic drift without manual adjudication."
+  ],
+  "questions": [
+    "What threshold of non-critical misses is acceptable for pilot descriptive claims?"
+  ]
+}

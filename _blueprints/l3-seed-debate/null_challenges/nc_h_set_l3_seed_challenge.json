@@ -1,0 +1,46 @@
+{
+  "challengeID": "nc_h_set_l3_seed",
+  "microHypothesisID": "h_A_set",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "h_A1_001 identity-preserving L3 as default",
+      "falsificationQueries": [
+        "Does canary evidence show central actor loss under current L3?",
+        "Are post-patch validations completed?"
+      ],
+      "falsificationEvidenceFound": [
+        "docs/window_prompt_canary_2026-03-05.md",
+        "docs/window_full_article_comparison.md"
+      ],
+      "falsificationAnalysis": "Canary documents unresolved over-abstraction of central political actors and only records expected effect from patch, not validated pass.",
+      "outcome": "Failed"
+    },
+    {
+      "targetDescription": "h_A2_001 hard invariants are sufficient gate",
+      "falsificationQueries": [
+        "Do current artifacts show perfect retention/invariant behavior?",
+        "Is broader calibration complete enough to rely only on automated gates?"
+      ],
+      "falsificationEvidenceFound": [
+        "docs/window_prompt_canary_2026-03-05.md",
+        "docs/pilots/v2_engine_prototype_testing.md"
+      ],
+      "falsificationAnalysis": "Observed minor retention misses and unresolved calibration caveats weaken confidence but do not invalidate invariant-gating as a core policy.",
+      "outcome": "Weakened"
+    },
+    {
+      "targetDescription": "h_A3_001 L3 default gate policy condition currently met",
+      "falsificationQueries": [
+        "Are A1/A2/B/Swap gate checks fully completed and logged?",
+        "Does v3 checklist indicate gate completion?"
+      ],
+      "falsificationEvidenceFound": [
+        "docs/pilots/v3_specs.md",
+        "docs/pilots/v2_engine_prototype_testing.md"
+      ],
+      "falsificationAnalysis": "Gate conditions remain planned/TODO in specs, so conditional claim is not yet supported in current state.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Mixed (1 weakened, 2 failed in current state)"
+}

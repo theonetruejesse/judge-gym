@@ -3,10 +3,11 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
-import type { Doc } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
+import { emitTraceEvent } from "../domain/telemetry/emit";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -19,31 +20,61 @@ const EvidenceWindowInputSchema = WindowsTableSchema.pick({
 export const createWindowForm = zMutation({
   args: z.object({
     evidence_window: EvidenceWindowInputSchema,
-    evidence_limit: z.number(),
+    evidence_limit: z.number().int().min(1),
   }),
   handler: async (ctx, args): Promise<CreateWindowResult> => {
     const { evidence_window, evidence_limit } = args;
+    const startDate = new Date(evidence_window.start_date);
+    const endDate = new Date(evidence_window.end_date);
+    if (
+      Number.isNaN(startDate.getTime()) ||
+      Number.isNaN(endDate.getTime()) ||
+      endDate < startDate
+    ) {
+      throw new Error("Invalid window dates");
+    }
 
-    const { window_id, window_tag } = await ctx.runMutation(
+    const { window_id } = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
       evidence_window,
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "window",
+      entity_id: String(window_id),
+      event_name: "window_created",
+      status: "start",
+      stage: "l0_raw",
+      payload_json: JSON.stringify({
+        country: evidence_window.country,
+        query: evidence_window.query,
+      }),
+    });
 
     await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowFlow,
       { window_id, evidence_limit }
     );
 
-    return { window_id, window_tag };
+    return { window_id };
   },
 });
 
 export const startWindowFlow = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
-    evidence_limit: z.number(),
+    evidence_limit: z.number().int().min(1),
   }),
   handler: async (ctx, args) => {
     const { window_id, evidence_limit } = args;
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "window",
+      entity_id: String(window_id),
+      event_name: "window_flow_started",
+      payload_json: JSON.stringify({
+        evidence_limit,
+      }),
+    });
 
     await ctx.runAction(
       internal.domain.window.window_service.collectWindowEvidence,
@@ -62,12 +93,20 @@ export const startWindowFlow = zInternalAction({
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_id}`,
+      entity_type: "scheduler",
+      entity_id: "scheduler",
+      event_name: "scheduler_kickoff_for_window",
+      payload_json: JSON.stringify({
+        window_id,
+      }),
+    });
   },
 });
 
 
-// todo, clean up this file
-
+// todo, clean up the list functions
 
 type EvidenceStatus =
   | "scraping"
@@ -87,7 +126,6 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: z.string(),
       query: z.string(),
       model: modelTypeSchema,
-      window_tag: z.string(),
       evidence_count: z.number(),
       evidence_status: z.enum([
         "scraping",
@@ -103,6 +141,14 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       internal.domain.window.window_repo.listWindows,
       {},
     );
+    const evidenceRows = await ctx.db.query("evidences").collect();
+    const evidencesByWindow = new Map<string, Array<Doc<"evidences">>>();
+    for (const evidence of evidenceRows) {
+      const current = evidencesByWindow.get(evidence.window_id) ?? [];
+      current.push(evidence);
+      evidencesByWindow.set(evidence.window_id, current);
+    }
+
     const results = [] as Array<{
       window_id: string;
       start_date: string;
@@ -110,16 +156,12 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       country: string;
       query: string;
       model: ModelType;
-      window_tag: string;
       evidence_count: number;
       evidence_status: EvidenceStatus;
     }>;
 
     for (const window of windows) {
-      const evidences = await ctx.runQuery(
-        internal.domain.window.window_repo.listEvidenceByWindow,
-        { window_id: window._id },
-      );
+      const evidences = evidencesByWindow.get(window._id) ?? [];
       const evidence_status = deriveEvidenceStatus(evidences);
       results.push({
         window_id: window._id,
@@ -128,13 +170,12 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
         country: window.country,
         query: window.query,
         model: window.model,
-        window_tag: window.window_tag,
         evidence_count: evidences.length,
         evidence_status,
       });
     }
 
-    results.sort((a, b) => a.window_tag.localeCompare(b.window_tag));
+    results.sort((a, b) => a.query.localeCompare(b.query));
     return results;
   },
 });
@@ -172,25 +213,61 @@ const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
   scoring_config: true,
 });
 
-
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_config: ExperimentConfigInputSchema,
-    evidence_ids: z.array(zid("evidences")).min(1),
+    pool_id: zid("pools"),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const experiment_id = await ctx.runMutation(
-      internal.domain.runs.experiments_services.initExperiment,
-      args,
+    const { experiment_config, pool_id } = args;
+
+    const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
+      {
+        ...experiment_config,
+        pool_id,
+      }
     );
+    const poolLinks = await ctx.runQuery(
+      internal.domain.runs.experiments_repo.listPoolEvidenceLinks,
+      { pool_id },
+    );
+    await emitTraceEvent(ctx, {
+      trace_id: `experiment:${experiment_id}`,
+      entity_type: "run",
+      entity_id: String(experiment_id),
+      event_name: "experiment_initialized",
+      status: "start",
+      payload_json: JSON.stringify({
+        evidence_count: poolLinks.length,
+        scoring_model: experiment_config.scoring_config.model,
+      }),
+    });
+
     return { experiment_id };
   },
 });
 
-export const startExperiment: ReturnType<typeof zMutation> = zMutation({
+export const createPool: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    evidence_ids: z.array(zid("evidences")).min(1),
+    pool_tag: z.string().optional(),
+  }),
+  returns: z.object({
+    pool_id: zid("pools"),
+  }),
+  handler: async (ctx, args) => {
+    const pool_id = await ctx.runMutation(
+      internal.domain.runs.experiments_repo.createPool,
+      args,
+    );
+    return { pool_id };
+  },
+});
+
+export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
     target_count: z.number().int().min(1),
@@ -204,13 +281,30 @@ export const startExperiment: ReturnType<typeof zMutation> = zMutation({
       internal.domain.runs.run_service.startRunFlow,
       args,
     );
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${result.run_id}`,
+      entity_type: "run",
+      entity_id: String(result.run_id),
+      event_name: "run_started",
+      stage: "rubric_gen",
+      status: "queued",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+      }),
+    });
     await ctx.runMutation(
       internal.domain.orchestrator.scheduler.startScheduler,
       {},
     );
-    return result;
+    return {
+      run_id: result.run_id,
+      samples_created: args.target_count,
+    };
   },
 });
+
+// todo, clean up the list functions
 
 export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   args: z.object({}),
@@ -261,7 +355,6 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
       title: z.string(),
       url: z.string(),
       created_at: z.number(),
-      window_tag: z.string().optional(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -279,6 +372,145 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.experiments_data.getRunSummary,
       args,
     );
+  },
+});
+
+export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ window_id: zid("windows") }),
+  handler: async (ctx, { window_id }) => {
+    const window = await ctx.runQuery(
+      internal.domain.window.window_repo.getWindow,
+      { window_id },
+    );
+    const evidences = (await ctx.runQuery(
+      internal.domain.window.window_repo.listEvidenceByWindow,
+      { window_id },
+    )) as Array<Doc<"evidences">>;
+
+    let l1_completed = 0;
+    let l2_completed = 0;
+    let l3_completed = 0;
+    for (const evidence of evidences) {
+      if (evidence.l1_cleaned_content) l1_completed += 1;
+      if (evidence.l2_neutralized_content) l2_completed += 1;
+      if (evidence.l3_abstracted_content) l3_completed += 1;
+    }
+
+    return {
+      window_id: window._id,
+      status: window.status,
+      current_stage: window.current_stage,
+      evidence_total: evidences.length,
+      l1_completed,
+      l2_completed,
+      l3_completed,
+      trace_id: `window:${window._id}`,
+    };
+  },
+});
+
+export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ run_id: zid("runs") }),
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.runQuery(internal.domain.runs.run_repo.getRun, {
+      run_id,
+    });
+    const samples = await ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+    const requestRows = await ctx.db
+      .query("llm_requests")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+
+    const stageRollup = {
+      rubric_gen: { pending: 0, success: 0, error: 0 },
+      rubric_critic: { pending: 0, success: 0, error: 0 },
+      score_gen: { pending: 0, success: 0, error: 0 },
+      score_critic: { pending: 0, success: 0, error: 0 },
+    };
+    const failed_requests = [] as Array<{
+      request_id: Id<"llm_requests">;
+      custom_key: string;
+      attempts: number | null;
+      last_error: string | null;
+      status: "pending" | "success" | "error";
+    }>;
+
+    for (const request of requestRows) {
+      const parts = request.custom_key.split(":");
+      const stage = parts[2];
+      if (
+        stage !== "rubric_gen" &&
+        stage !== "rubric_critic" &&
+        stage !== "score_gen" &&
+        stage !== "score_critic"
+      ) {
+        continue;
+      }
+      stageRollup[stage][request.status] += 1;
+      if (request.status === "error") {
+        failed_requests.push({
+          request_id: request._id,
+          custom_key: request.custom_key,
+          attempts: request.attempts ?? null,
+          last_error: request.last_error ?? null,
+          status: request.status,
+        });
+      }
+    }
+
+    const [rubrics, rubric_critics, scores, score_critics] = await Promise.all([
+      ctx.db
+        .query("rubrics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("rubric_critics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("scores")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+      ctx.db
+        .query("score_critics")
+        .withIndex("by_run", (q) => q.eq("run_id", run_id))
+        .collect(),
+    ]);
+
+    return {
+      run_id: run._id,
+      status: run.status,
+      current_stage: run.current_stage,
+      target_count: run.target_count,
+      request_counts: {
+        total: requestRows.length,
+        error: failed_requests.length,
+      },
+      stage_rollup: stageRollup,
+      failed_requests,
+      artifact_counts: {
+        samples: samples.length,
+        rubrics: rubrics.length,
+        rubric_critics: rubric_critics.length,
+        scores: scores.length,
+        score_critics: score_critics.length,
+      },
+      trace_id: `run:${run._id}`,
+    };
+  },
+});
+
+export const getTraceEvents: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    trace_id: z.string(),
+    cursor_seq: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runQuery(internal.domain.telemetry.events.listByTrace, args);
   },
 });
 
@@ -315,55 +547,6 @@ export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
   },
 });
 
-export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ window_id: zid("windows") }),
-  returns: z
-    .object({
-      window_id: zid("windows"),
-      status: z.string(),
-      current_stage: z.string(),
-      window_tag: z.string(),
-      model: modelTypeSchema,
-      query: z.string(),
-      country: z.string(),
-      start_date: z.string(),
-      end_date: z.string(),
-    })
-    .nullable(),
-  handler: async (ctx, { window_id }) => {
-    let window: {
-      _id: string;
-      status: string;
-      current_stage: string;
-      window_tag: string;
-      model: ModelType;
-      query: string;
-      country: string;
-      start_date: string;
-      end_date: string;
-    } | null = null;
-    try {
-      window = await ctx.runQuery(
-        internal.domain.window.window_repo.getWindow,
-        { window_id },
-      );
-    } catch (error) {
-      return null;
-    }
-    if (!window) return null;
-    return {
-      window_id: window._id,
-      status: window.status,
-      current_stage: window.current_stage,
-      window_tag: window.window_tag,
-      model: window.model,
-      query: window.query,
-      country: window.country,
-      start_date: window.start_date,
-      end_date: window.end_date,
-    };
-  },
-});
 // change this to handle the permanent failure cases
 function deriveEvidenceStatus(
   evidences: Array<{

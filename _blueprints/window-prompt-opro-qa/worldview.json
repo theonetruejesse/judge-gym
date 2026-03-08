@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "originalQuestion": "Run a 3-round in-context OPRO critic loop for window prompts L1/L2/L3 using W1 outputs, with fidelity-first judging, and produce prompt recommendations before code edits.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/window-prompt-opro-qa",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main-agent",
+    "researchers": [
+      { "id": "019cbadd-2261-7ca2-82c5-c729f048746c", "role": "round1_proposer_A" },
+      { "id": "019cbadd-227b-7331-8c2a-ec5179f04a4e", "role": "round1_proposer_B" },
+      { "id": "019cbadd-22b8-7b61-b1cd-2d03f5ea321c", "role": "round1_proposer_C" },
+      { "id": "019cbadf-133a-74e1-b7b0-0ee38da0efc4", "role": "round2_proposer_D" },
+      { "id": "019cbadf-5475-7c01-9114-86a6a9a6065e", "role": "round2_proposer_E" },
+      { "id": "019cbae0-9e19-7d10-99b6-a65f04d3cf0b", "role": "round3_final_proposer" }
+    ],
+    "falsifier": "019cbae1-91d4-7572-bda7-29311703d93d",
+    "certaintyScorer": "019cbae1-91ec-7532-9af9-1208163a794d",
+    "synthesizer": "main-agent"
+  },
+  "areasOfAnalysis": [
+    {
+      "id": "A1_prompt_design",
+      "name": "Prompt revision strategy for L1/L2/L3",
+      "evidence": ["k_001_baseline_prompts", "k_002_w1_eval_dataset"]
+    },
+    {
+      "id": "A2_judging",
+      "name": "Round-based judge decisions and convergence",
+      "evidence": ["round1_candidates", "round1_judging", "round2_candidates", "round2_judging", "round3_final"]
+    }
+  ],
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A1_prompt_design",
+      "task": "Generate and refine candidate prompt packs under fidelity-first objective."
+    },
+    {
+      "areaOfAnalysisID": "A2_judging",
+      "task": "Score candidates and choose winners with falsification and certainty checks."
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_baseline_prompts.md",
+      "knowledge/k_002_w1_eval_dataset.md"
+    ]
+  },
+  "microHypotheses": [
+    {
+      "id": "h_A1_001",
+      "statement": "Hybrid D-style prompts with conditional long-survey compression improve L2/L3 verbosity while maintaining fidelity.",
+      "confidence": 0.58,
+      "status": "partially_supported"
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesis": "h_A1_001",
+      "conflict": "Compression controls can omit secondary but material survey details unless retention gates are enforced."
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      { "id": "broad_rollout_readiness", "score": 0.40 },
+      { "id": "gated_canary_readiness", "score": 0.78 }
+    ]
+  },
+  "synthesisOutput": "blueprint.md"
+}

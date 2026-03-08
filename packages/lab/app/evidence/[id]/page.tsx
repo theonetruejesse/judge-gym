@@ -23,7 +23,6 @@ type EvidenceWindowItem = {
   country: string;
   query: string;
   model: string;
-  window_tag?: string;
   evidence_count: number;
 };
 
@@ -145,8 +144,7 @@ export default function EvidenceWindowPage({
             className="text-lg font-semibold"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
-            {(selectedWindow?.window_tag ??
-              selectedWindow?.query ??
+            {(selectedWindow?.query ??
               "Evidence Window") + ` (${selectedWindow?.evidence_count ?? 0})`}
           </h1>
           <p className="text-[11px] opacity-50">

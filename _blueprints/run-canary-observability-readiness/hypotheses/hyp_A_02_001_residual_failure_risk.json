@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "The highest residual run risk is not duplicate apply but scale-driven read pressure and scheduler backlog under fanout.",
+  "confidence": 0.73,
+  "rationale": "Idempotency/lease guards are mature and tested; prior incidents concentrated around large-volume scans and queue/scheduler behavior.",
+  "keyAssumptions": [
+    "duplicate apply tests reflect production code paths",
+    "run-scale fanout remains the dominant load amplifier"
+  ],
+  "validationCriteria": [
+    "duplicate_apply_success_total remains zero in canaries",
+    "no read-limit errors during medium fanout canaries"
+  ],
+  "critiquePoints": [
+    "Partial-stage semantics can hide quality degradation"
+  ],
+  "questions": [
+    "Do we need stage-specific SLA limits before full matrix?"
+  ]
+}

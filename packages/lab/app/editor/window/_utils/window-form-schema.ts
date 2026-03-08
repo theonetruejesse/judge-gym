@@ -12,7 +12,7 @@ export const windowFormSchema = z
     end_date: z.string().min(1, "End date is required."),
     model: z.enum(modelOptions),
     evidence_limit: z.coerce
-      .number({ required_error: "Starting count is required." })
+      .number()
       .int("Starting count must be a whole number.")
       .min(1, "Starting count must be at least 1."),
   })

@@ -62,7 +62,6 @@ type EvidenceWindowItem = {
   country: string;
   query: string;
   model: string;
-  window_tag?: string;
   evidence_count: number;
   evidence_status:
     | "scraping"
@@ -74,16 +73,14 @@ type EvidenceWindowItem = {
 
 export default function EvidenceHomePage() {
   const router = useRouter();
-  const startExperiment = useMutation(api.packages.lab.startExperiment);
+  const startExperimentRun = useMutation(api.packages.lab.startExperimentRun);
 
-  const experiments = useQuery(
-    api.packages.lab.listExperiments,
-    {},
-  ) as ExperimentListItem[] | undefined;
-  const windows = useQuery(
-    api.packages.lab.listEvidenceWindows,
-    {},
-  ) as EvidenceWindowItem[] | undefined;
+  const experiments = useQuery(api.packages.lab.listExperiments, {}) as
+    | ExperimentListItem[]
+    | undefined;
+  const windows = useQuery(api.packages.lab.listEvidenceWindows, {}) as
+    | EvidenceWindowItem[]
+    | undefined;
 
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
@@ -138,7 +135,7 @@ export default function EvidenceHomePage() {
     try {
       const target_count = promptForTargetCount();
       if (!target_count) return;
-      await startExperiment({ experiment_id: experimentId, target_count });
+      await startExperimentRun({ experiment_id: experimentId, target_count });
     } catch (error) {
       console.error("Failed to start experiment", error);
     }
@@ -175,10 +172,12 @@ export default function EvidenceHomePage() {
             {statuses.map((status) => {
               const active = statusFilter.includes(status);
               const activeColor =
-                STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
-              const mutedColor =
-                STATUS_COLORS_MUTED[status as keyof typeof STATUS_COLORS_MUTED] ??
+                STATUS_COLORS[status as keyof typeof STATUS_COLORS] ??
                 "#6b7280";
+              const mutedColor =
+                STATUS_COLORS_MUTED[
+                  status as keyof typeof STATUS_COLORS_MUTED
+                ] ?? "#6b7280";
               return (
                 <Button
                   key={status}
@@ -304,9 +303,7 @@ export default function EvidenceHomePage() {
               <p className="text-[10px] uppercase tracking-widest opacity-50">
                 Evidence Windows
               </p>
-              <p className="text-xs opacity-60">
-                {windowRows.length} windows
-              </p>
+              <p className="text-xs opacity-60">{windowRows.length} windows</p>
             </div>
             <Button
               asChild
@@ -352,14 +349,12 @@ export default function EvidenceHomePage() {
                     onClick={() => router.push(`/evidence/${window.window_id}`)}
                   >
                     <TableCell className="font-medium text-foreground">
-                      {window.window_tag ?? "—"}
+                      {window.query ?? "—"}
                     </TableCell>
                     <TableCell className="opacity-70">
                       {window.country}
                     </TableCell>
-                    <TableCell className="opacity-70">
-                      {window.model}
-                    </TableCell>
+                    <TableCell className="opacity-70">{window.model}</TableCell>
                     <TableCell className="opacity-70">
                       {`${window.start_date} -> ${window.end_date}`}
                     </TableCell>

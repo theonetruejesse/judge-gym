@@ -2,14 +2,8 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { RunsTableSchema } from "../../models/experiments";
-import {
-  RubricCriticsTableSchema,
-  RubricsTableSchema,
-  SamplesTableSchema,
-  ScoreCriticsTableSchema,
-  ScoresTableSchema,
-} from "../../models/samples";
-import type { Doc } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
+import { generateSeeds } from "../../utils/randomize";
 
 const CreateRunArgsSchema = RunsTableSchema.pick({
   experiment_id: true,
@@ -20,12 +14,57 @@ export const createRun = zInternalMutation({
   args: CreateRunArgsSchema,
   returns: zid("runs"),
   handler: async (ctx, args) => {
-    return ctx.db.insert("runs", {
-      experiment_id: args.experiment_id,
-      target_count: args.target_count,
+    const { experiment_id, target_count } = args;
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
+
+    const run_id = await ctx.db.insert("runs", {
+      experiment_id,
+      target_count,
       status: "start",
       current_stage: "rubric_gen",
     });
+
+    const baseSeed = (Math.random() * 0xffffffff) | 0;
+    const seeds = generateSeeds(baseSeed, args.target_count);
+    const sampleIds: Id<"samples">[] = [];
+    for (let i = 0; i < args.target_count; i++) {
+      const seed = seeds[i];
+      const sample_id = await ctx.db.insert("samples", {
+        run_id,
+        experiment_id: experiment._id,
+        model: experiment.scoring_config.model,
+        seed,
+        rubric_id: null,
+        rubric_critic_id: null,
+        score_id: null,
+        score_critic_id: null,
+      });
+      sampleIds.push(sample_id);
+    }
+
+    const evidenceLinks = await ctx.db
+      .query("pool_evidence")
+      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
+      .collect();
+    const evidenceIds = evidenceLinks
+      .slice()
+      .sort((a, b) => a._creationTime - b._creationTime)
+      .map((link) => link.evidence_id);
+
+    for (const sample_id of sampleIds) {
+      for (const evidence_id of evidenceIds) {
+        await ctx.db.insert("sample_evidence_scores", {
+          run_id,
+          sample_id,
+          evidence_id,
+          score_id: null,
+          score_critic_id: null,
+        });
+      }
+    }
+
+    return run_id;
   },
 });
 
@@ -35,81 +74,5 @@ export const getRun = zInternalQuery({
     const run = await ctx.db.get(args.run_id);
     if (!run) throw new Error("Run not found");
     return run;
-  },
-});
-
-const CreateSampleArgsSchema = SamplesTableSchema.pick({
-  run_id: true,
-  experiment_id: true,
-  model: true,
-  seed: true,
-});
-
-export const createSample = zInternalMutation({
-  args: CreateSampleArgsSchema,
-  returns: zid("samples"),
-  handler: async (ctx, args) => {
-    return ctx.db.insert("samples", {
-      run_id: args.run_id,
-      experiment_id: args.experiment_id,
-      model: args.model,
-      seed: args.seed,
-      rubric_id: null,
-      rubric_critic_id: null,
-      score_id: null,
-      score_critic_id: null,
-    });
-  },
-});
-
-export const listSamplesByRun = zInternalQuery({
-  args: z.object({ run_id: zid("runs") }),
-  handler: async (ctx, args): Promise<Doc<"samples">[]> => {
-    return ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
-      .collect();
-  },
-});
-
-export const patchSample = zInternalMutation({
-  args: z.object({
-    sample_id: zid("samples"),
-    patch: SamplesTableSchema.partial(),
-  }),
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.sample_id, args.patch);
-  },
-});
-
-export const createRubric = zInternalMutation({
-  args: RubricsTableSchema,
-  returns: zid("rubrics"),
-  handler: async (ctx, args) => {
-    return ctx.db.insert("rubrics", args);
-  },
-});
-
-export const createRubricCritic = zInternalMutation({
-  args: RubricCriticsTableSchema,
-  returns: zid("rubric_critics"),
-  handler: async (ctx, args) => {
-    return ctx.db.insert("rubric_critics", args);
-  },
-});
-
-export const createScore = zInternalMutation({
-  args: ScoresTableSchema,
-  returns: zid("scores"),
-  handler: async (ctx, args) => {
-    return ctx.db.insert("scores", args);
-  },
-});
-
-export const createScoreCritic = zInternalMutation({
-  args: ScoreCriticsTableSchema,
-  returns: zid("score_critics"),
-  handler: async (ctx, args) => {
-    return ctx.db.insert("score_critics", args);
   },
 });

@@ -1,0 +1,46 @@
+{
+  "challengeID": "nc_v3_core_hypotheses_001",
+  "microHypothesisID": "h_A2_001|h_A3_002|h_A4_003",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Hypothetical framing materially reduces compression",
+      "falsificationQueries": [
+        "Is there direct measured evidence of compression metric change after hypothetical framing in local pilots?",
+        "Are existing results only refusal-related?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_pilot_v2_evidence.md",
+        "/Users/jesselee/dev/research/jg/judge-gym/pilots/v3_openai_comprehensive.md"
+      ],
+      "falsificationAnalysis": "Local evidence shows framing support is ad-hoc and not yet tied to predeclared compression effect sizes.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Rubric swap is already established as explanatory",
+      "falsificationQueries": [
+        "Was rubric swap completed and analyzed in v2?",
+        "Does current corpus contain direct evidence for mechanism attribution?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_pilot_v2_evidence.md",
+        "knowledge/k_003_paper_method_evidence.md"
+      ],
+      "falsificationAnalysis": "Rubric analysis and swap ablations are listed as pending, so mechanism claims remain unproven.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Forced-choice inflation is already demonstrated in this engine",
+      "falsificationQueries": [
+        "Do existing pilots show robust subset-verdict vs point-verdict comparison?",
+        "Could abstention dominance explain weak subset evidence?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_pilot_v2_evidence.md",
+        "knowledge/k_003_paper_method_evidence.md"
+      ],
+      "falsificationAnalysis": "Subset-verdict evidence is currently weak and entangled with abstention behavior; this remains a necessary ablation, not a settled result.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

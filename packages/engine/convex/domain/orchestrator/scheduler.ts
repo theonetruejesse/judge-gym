@@ -1,14 +1,23 @@
 import z from "zod";
 import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
+import type { MutationCtx } from "../../_generated/server";
 import { zInternalMutation } from "../../utils/custom_fns";
 import { ENGINE_SETTINGS } from "../../settings";
 import { shouldRunAt } from "../../utils/scheduling";
-import { processWorkflow } from "./process_workflows";
-import { ActiveBatchesResult } from "../llm_calls/llm_batch_repo";
-import { ActiveJobsResult } from "../llm_calls/llm_job_repo";
+import type { ActiveBatchesResult } from "../llm_calls/llm_batch_repo";
+import type { ActiveJobsResult } from "../llm_calls/llm_job_repo";
 import { zid } from "convex-helpers/server/zod4";
 import { resolveRequeueHandler } from "./target_registry";
+import { emitTraceEvent } from "../telemetry/emit";
+
+const SCHEDULER_LOCK_ENTITY_ID = "scheduler_lock";
+const SCHEDULER_LOCK_TTL_MS = 20_000;
+const MAX_QUEUED_BATCHES_PER_TICK = 10;
+const MAX_RUNNING_BATCHES_PER_TICK = 20;
+const MAX_QUEUED_JOBS_PER_TICK = 20;
+const MAX_RUNNING_JOBS_PER_TICK = 30;
+const SCHEDULED_SCAN_MAX_ROWS = 2_000;
 
 export const requeueRequest = zInternalMutation({
   args: z.object({
@@ -34,15 +43,94 @@ function isSchedulerRun(name: string): boolean {
   );
 }
 
+function hasActiveBatchPollLease(
+  batch: ActiveBatchesResult["running_batches"][number],
+  now: number,
+): boolean {
+  return batch.poll_claim_owner != null
+    && batch.poll_claim_expires_at != null
+    && batch.poll_claim_expires_at > now;
+}
+
+function hasActiveJobRunLease(
+  job: ActiveJobsResult["running_jobs"][number] | ActiveJobsResult["queued_jobs"][number],
+  now: number,
+): boolean {
+  return job.run_claim_owner != null
+    && job.run_claim_expires_at != null
+    && job.run_claim_expires_at > now;
+}
+
+async function isSchedulerScheduled(ctx: MutationCtx): Promise<boolean> {
+  const scheduled = await ctx.db.system
+    .query("_scheduled_functions")
+    .order("desc")
+    .take(SCHEDULED_SCAN_MAX_ROWS);
+  return scheduled.some(
+    (row) => isSchedulerRun(row.name) && row.completedTime == null,
+  );
+}
+
+async function tryAcquireSchedulerLock(
+  ctx: MutationCtx,
+  now: number,
+): Promise<{ acquired: boolean; lock_id: string }> {
+  const existing = await ctx.db
+    .query("telemetry_entity_state")
+    .withIndex("by_entity", (q) => q.eq("entity_type", "scheduler").eq("entity_id", SCHEDULER_LOCK_ENTITY_ID))
+    .first();
+
+  const payload = {
+    entity_type: "scheduler" as const,
+    entity_id: SCHEDULER_LOCK_ENTITY_ID,
+    trace_id: "scheduler:global",
+    last_seq: (existing?.last_seq ?? 0) + 1,
+    last_event_name: "scheduler_lock_heartbeat",
+    last_stage: null,
+    last_status: "running",
+    last_custom_key: "scheduler:global",
+    last_attempt: null,
+    last_ts_ms: now,
+    last_payload_json: JSON.stringify({ ttl_ms: SCHEDULER_LOCK_TTL_MS }),
+  };
+
+  if (!existing) {
+    const lockId = await ctx.db.insert("telemetry_entity_state", payload);
+    return { acquired: true, lock_id: String(lockId) };
+  }
+
+  const isLocked = (existing.last_status ?? null) === "running"
+    && existing.last_ts_ms > now - SCHEDULER_LOCK_TTL_MS;
+  if (isLocked) {
+    return { acquired: false, lock_id: String(existing._id) };
+  }
+
+  await ctx.db.patch(existing._id, payload);
+  return { acquired: true, lock_id: String(existing._id) };
+}
+
+async function releaseSchedulerLock(
+  ctx: MutationCtx,
+  now: number,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("telemetry_entity_state")
+    .withIndex("by_entity", (q) => q.eq("entity_type", "scheduler").eq("entity_id", SCHEDULER_LOCK_ENTITY_ID))
+    .first();
+  if (!existing) return;
+  await ctx.db.patch(existing._id, {
+    last_seq: existing.last_seq + 1,
+    last_event_name: "scheduler_lock_released",
+    last_status: "idle",
+    last_ts_ms: now,
+    last_payload_json: JSON.stringify({ released: true }),
+  });
+}
+
 export const startScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
-    const scheduled = await ctx.db.system
-      .query("_scheduled_functions")
-      .collect();
-    const hasScheduled = scheduled.some(
-      (row) => isSchedulerRun(row.name) && row.completedTime == null,
-    );
+    const hasScheduled = await isSchedulerScheduled(ctx);
     if (hasScheduled) return;
     await ctx.scheduler.runAfter(
       0,
@@ -56,85 +144,119 @@ export const runScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
     const now = Date.now();
-
-    const { queued_batches, running_batches } = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_batch_repo.listActiveBatches,
-      {},
-    )) as ActiveBatchesResult;
-
-    const { queued_jobs, running_jobs } = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_job_repo.listActiveJobs,
-      {},
-    )) as ActiveJobsResult;
-
-    const orphanedRequests = (await ctx.runQuery(
-      internal.domain.llm_calls.llm_request_repo.listOrphanedRequests,
-      {},
-    )) as Doc<"llm_requests">[];
-
-    if (
-      queued_batches.length === 0 &&
-      running_batches.length === 0 &&
-      queued_jobs.length === 0 &&
-      running_jobs.length === 0 &&
-      orphanedRequests.length === 0
-    ) return;
-
-    for (const batch of queued_batches) {
-      if (!shouldRunAt(batch.next_poll_at, now)) continue;
-      await processWorkflow.start(
-        ctx,
-        internal.domain.orchestrator.process_workflows.processQueuedBatchWorkflow,
-        { batch_id: batch._id },
-        { startAsync: true },
-      );
+    const lock = await tryAcquireSchedulerLock(ctx, now);
+    if (!lock.acquired) {
+      return { skipped: true, reason: "lock_not_acquired" };
     }
 
-    for (const batch of running_batches) {
-      if (!shouldRunAt(batch.next_poll_at, now)) continue;
-      await processWorkflow.start(
-        ctx,
-        internal.domain.orchestrator.process_workflows.processRunningBatchWorkflow,
-        { batch_id: batch._id },
-        { startAsync: true },
+    try {
+      const { queued_batches, running_batches } = (await ctx.runQuery(
+        internal.domain.llm_calls.llm_batch_repo.listActiveBatches,
+        {},
+      )) as ActiveBatchesResult;
+
+      const { queued_jobs, running_jobs } = (await ctx.runQuery(
+        internal.domain.llm_calls.llm_job_repo.listActiveJobs,
+        {},
+      )) as ActiveJobsResult;
+
+      const orphanedRequests = (await ctx.runQuery(
+        internal.domain.llm_calls.llm_request_repo.listOrphanedRequests,
+        {},
+      )) as Doc<"llm_requests">[];
+
+      if (
+        queued_batches.length === 0 &&
+        running_batches.length === 0 &&
+        queued_jobs.length === 0 &&
+        running_jobs.length === 0 &&
+        orphanedRequests.length === 0
+      ) {
+        return { done: true };
+      }
+
+      let processedQueuedBatches = 0;
+      let processedRunningBatches = 0;
+      let processedQueuedJobs = 0;
+      let processedRunningJobs = 0;
+
+      for (const batch of queued_batches) {
+        if (processedQueuedBatches >= MAX_QUEUED_BATCHES_PER_TICK) break;
+        if (!shouldRunAt(batch.next_poll_at, now)) continue;
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domain.orchestrator.process_workflows.processQueuedBatchWorkflow,
+          { batch_id: batch._id },
+        );
+        processedQueuedBatches += 1;
+      }
+
+      for (const batch of running_batches) {
+        if (processedRunningBatches >= MAX_RUNNING_BATCHES_PER_TICK) break;
+        if (!shouldRunAt(batch.next_poll_at, now)) continue;
+        if (hasActiveBatchPollLease(batch, now)) continue;
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domain.orchestrator.process_workflows.processRunningBatchWorkflow,
+          { batch_id: batch._id },
+        );
+        processedRunningBatches += 1;
+      }
+
+      for (const job of queued_jobs) {
+        if (processedQueuedJobs >= MAX_QUEUED_JOBS_PER_TICK) break;
+        if (!shouldRunAt(job.next_run_at, now)) continue;
+        if (hasActiveJobRunLease(job, now)) continue;
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domain.orchestrator.process_workflows.processQueuedJobWorkflow,
+          { job_id: job._id },
+        );
+        processedQueuedJobs += 1;
+      }
+
+      for (const job of running_jobs) {
+        if (processedRunningJobs >= MAX_RUNNING_JOBS_PER_TICK) break;
+        if (!shouldRunAt(job.next_run_at, now)) continue;
+        if (hasActiveJobRunLease(job, now)) continue;
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domain.orchestrator.process_workflows.processRunningJobWorkflow,
+          { job_id: job._id },
+        );
+        processedRunningJobs += 1;
+      }
+
+      await ctx.scheduler.runAfter(
+        ENGINE_SETTINGS.run_policy.poll_interval_ms,
+        internal.domain.orchestrator.scheduler.runScheduler,
+        {},
       );
+
+      const result = {
+        queued_batches: queued_batches.length,
+        running_batches: running_batches.length,
+        queued_jobs: queued_jobs.length,
+        running_jobs: running_jobs.length,
+        orphaned_requests: orphanedRequests.length,
+        processed_queued_batches: processedQueuedBatches,
+        processed_running_batches: processedRunningBatches,
+        processed_queued_jobs: processedQueuedJobs,
+        processed_running_jobs: processedRunningJobs,
+      };
+
+      await emitTraceEvent(ctx, {
+        trace_id: "scheduler:global",
+        entity_type: "scheduler",
+        entity_id: "scheduler",
+        event_name: "scheduler_tick",
+        status: "running",
+        payload_json: JSON.stringify(result),
+      });
+
+      return result;
+    } finally {
+      await releaseSchedulerLock(ctx, Date.now());
     }
-
-    for (const job of queued_jobs) {
-      if (!shouldRunAt(job.next_run_at, now)) continue;
-      await processWorkflow.start(
-        ctx,
-        internal.domain.orchestrator.process_workflows.processQueuedJobWorkflow,
-        { job_id: job._id },
-        { startAsync: true },
-      );
-    }
-
-    for (const job of running_jobs) {
-      if (!shouldRunAt(job.next_run_at, now)) continue;
-      await processWorkflow.start(
-        ctx,
-        internal.domain.orchestrator.process_workflows.processRunningJobWorkflow,
-        { job_id: job._id },
-        { startAsync: true },
-      );
-    }
-
-    await ctx.scheduler.runAfter(
-      ENGINE_SETTINGS.run_policy.poll_interval_ms,
-      internal.domain.orchestrator.scheduler.runScheduler,
-      {},
-    );
-
-    const result = {
-      queued_batches: queued_batches.length,
-      running_batches: running_batches.length,
-      queued_jobs: queued_jobs.length,
-      running_jobs: running_jobs.length,
-      orphaned_requests: orphanedRequests.length,
-    };
-    console.info(result);
-    return result;
   },
 });
-

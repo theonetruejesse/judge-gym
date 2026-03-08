@@ -56,6 +56,12 @@ export function buildRubricGenPrompt(args: {
   );
   lines.push(`- Exactly ${scale_size} stages, numbered 1 through ${scale_size}.`);
   lines.push(`- Stage 1 = weakest signal. Stage ${scale_size} = strongest signal.`);
+  lines.push("- Rubric must be usable on a single article excerpt with partial context.");
+  lines.push("- Treat this as signal-strength assessment, not definitive regime diagnosis.");
+  lines.push("- Criteria must rely on observable evidence cues in text (actions, policies, institutional responses, quoted claims).");
+  lines.push("- Do not require complete historical coverage or hidden intent inference to score.");
+  lines.push("- Lower and middle stages should explicitly capture weak/mixed/partial support to reduce forced abstention.");
+  lines.push("- Use neutral, descriptive, non-moralizing language.");
   if (midpoint) {
     lines.push(`- Stage ${midpoint} must be "Ambiguous / Mixed Evidence."`);
   } else {

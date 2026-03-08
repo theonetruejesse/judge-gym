@@ -34,9 +34,11 @@ async function listEvidenceLinks(
   ctx: QueryCtx,
   experimentId: Id<"experiments">,
 ) {
+  const experiment = await ctx.db.get(experimentId);
+  if (!experiment) throw new Error("Experiment not found");
   return ctx.db
-    .query("experiment_evidence")
-    .withIndex("by_experiment", (q) => q.eq("experiment_id", experimentId))
+    .query("pool_evidence")
+    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
     .collect();
 }
 
@@ -143,13 +145,22 @@ export const getExperimentSummary = zInternalQuery({
         .collect();
       samples.push(...runSamples);
     }
+    const runIdSet = new Set(runs.map((run) => String(run._id)));
+    const scoreUnits = (await ctx.db.query("sample_evidence_scores").collect()).filter(
+      (unit) => runIdSet.has(String(unit.run_id)),
+    );
+    const useScoreUnits = scoreUnits.length > 0;
 
     const counts = {
       samples: samples.length,
       rubrics: samples.filter((s) => s.rubric_id != null).length,
       rubric_critics: samples.filter((s) => s.rubric_critic_id != null).length,
-      scores: samples.filter((s) => s.score_id != null).length,
-      score_critics: samples.filter((s) => s.score_critic_id != null).length,
+      scores: useScoreUnits
+        ? scoreUnits.filter((unit) => unit.score_id != null).length
+        : samples.filter((s) => s.score_id != null).length,
+      score_critics: useScoreUnits
+        ? scoreUnits.filter((unit) => unit.score_critic_id != null).length
+        : samples.filter((s) => s.score_critic_id != null).length,
     };
 
     const latest = latestRun(runs);
@@ -188,22 +199,11 @@ export const listExperimentEvidence = zInternalQuery({
       title: string;
       url: string;
       created_at: number;
-      window_tag?: string;
     }> = [];
-
-    const windowCache = new Map<Id<"windows">, Doc<"windows">>();
 
     for (const link of links) {
       const evidence = await ctx.db.get(link.evidence_id);
       if (!evidence) continue;
-      let window = windowCache.get(evidence.window_id);
-      if (!window) {
-        const fetched = await ctx.db.get(evidence.window_id);
-        if (fetched) {
-          window = fetched;
-          windowCache.set(evidence.window_id, fetched);
-        }
-      }
 
       evidenceRows.push({
         evidence_id: evidence._id,
@@ -211,7 +211,6 @@ export const listExperimentEvidence = zInternalQuery({
         title: evidence.title,
         url: evidence.url,
         created_at: evidence._creationTime,
-        window_tag: window?.window_tag,
       });
     }
 
@@ -229,17 +228,32 @@ export const getRunSummary = zInternalQuery({
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .collect();
+    const scoreUnits = await ctx.db
+      .query("sample_evidence_scores")
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
+      .collect();
+    const useScoreUnits = scoreUnits.length > 0;
 
     const stages = RunStageSchema.options.map((stage) => {
       let completed = 0;
-      for (const sample of samples) {
-        if (stage === "rubric_gen" && sample.rubric_id) completed += 1;
-        if (stage === "rubric_critic" && sample.rubric_critic_id)
-          completed += 1;
-        if (stage === "score_gen" && sample.score_id) completed += 1;
-        if (stage === "score_critic" && sample.score_critic_id) completed += 1;
+      if ((stage === "score_gen" || stage === "score_critic") && useScoreUnits) {
+        for (const unit of scoreUnits) {
+          if (stage === "score_gen" && unit.score_id) completed += 1;
+          if (stage === "score_critic" && unit.score_critic_id) completed += 1;
+        }
+      } else {
+        for (const sample of samples) {
+          if (stage === "rubric_gen" && sample.rubric_id) completed += 1;
+          if (stage === "rubric_critic" && sample.rubric_critic_id)
+            completed += 1;
+          if (stage === "score_gen" && sample.score_id) completed += 1;
+          if (stage === "score_critic" && sample.score_critic_id) completed += 1;
+        }
       }
-      const total = run.target_count;
+      const total =
+        (stage === "score_gen" || stage === "score_critic") && useScoreUnits
+          ? scoreUnits.length
+          : run.target_count;
       const status =
         completed === 0
           ? "queued"
