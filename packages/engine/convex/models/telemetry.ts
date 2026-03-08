@@ -9,7 +9,12 @@ export const TelemetryEntityTypeSchema = z.enum([
   "scheduler",
 ]);
 
-export const TelemetryEventsTableSchema = z.object({
+export const ProcessTelemetryTypeSchema = z.enum([
+  "window",
+  "run",
+]);
+
+export const LocalTraceEventSchema = z.object({
   trace_id: z.string(),
   seq: z.number().int().min(1),
   entity_type: TelemetryEntityTypeSchema,
@@ -23,16 +28,24 @@ export const TelemetryEventsTableSchema = z.object({
   payload_json: z.string().nullable().optional(),
 });
 
-export const TelemetryEntityStateTableSchema = z.object({
-  entity_type: TelemetryEntityTypeSchema,
-  entity_id: z.string(),
+export const ProcessObservabilityTableSchema = z.object({
+  process_type: ProcessTelemetryTypeSchema,
+  process_id: z.string(),
   trace_id: z.string(),
-  last_seq: z.number().int().min(1),
+  telemetry_backend: z.literal("axiom"),
+  external_trace_ref: z.string().nullable(),
+  last_milestone_at_ms: z.number(),
   last_event_name: z.string(),
   last_stage: z.string().nullable().optional(),
   last_status: z.string().nullable().optional(),
-  last_custom_key: z.string().nullable().optional(),
-  last_attempt: z.number().int().min(0).nullable().optional(),
-  last_ts_ms: z.number(),
-  last_payload_json: z.string().nullable().optional(),
+  recent_events: z.array(LocalTraceEventSchema),
+  last_error_summary: z.string().nullable().optional(),
+  updated_at_ms: z.number(),
+});
+
+export const SchedulerLockTableSchema = z.object({
+  lock_key: z.string(),
+  status: z.enum(["idle", "running"]),
+  heartbeat_ts_ms: z.number(),
+  expires_at_ms: z.number(),
 });

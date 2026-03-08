@@ -241,7 +241,7 @@ async function tableCounts(t: ReturnType<typeof convexTest>) {
       "scores",
       "score_critics",
       "sample_evidence_scores",
-      "telemetry_events",
+      "process_observability",
     ] as const;
     const pairs = await Promise.all(
       tables.map(async (table) => {

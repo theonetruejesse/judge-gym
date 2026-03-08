@@ -4,9 +4,10 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx, MutationCtx } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
-import { zMutation, zQuery } from "../../utils/custom_fns";
+import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
 import { SemanticLevelSchema } from "../../models/_shared";
+import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
@@ -31,6 +32,8 @@ const HealthSummarySchema = z.object({
   process_type: ProcessTypeSchema,
   process_id: z.string(),
   trace_id: z.string(),
+  telemetry_backend: z.literal("axiom"),
+  external_trace_ref: z.string().nullable(),
   status: z.string(),
   current_stage: z.string(),
   stage_progress: z.array(StageProgressSchema),
@@ -132,6 +135,8 @@ const ProcessTelemetryAnalysisSchema = z.object({
   process_type: ProcessTypeSchema,
   process_id: z.string(),
   trace_id: z.string(),
+  telemetry_backend: z.literal("axiom"),
+  external_trace_ref: z.string().nullable(),
   sampled_events: z.number(),
   reached_end_of_trace: z.boolean(),
   seq_min: z.number().nullable(),
@@ -333,7 +338,7 @@ function requestBelongsToMembership(
 async function listProcessRequestTargetStates(
   ctx: QueryCtx | MutationCtx,
   membership: ProcessMembership,
-): Promise<{ rows: RequestTargetState[]; approximate: boolean }> {
+): Promise<{ rows: RequestTargetState[]; approximate: boolean; latest_updated_at_ms: number | null }> {
   const snapshotRows = await ctx.db
     .query("process_request_targets")
     .withIndex("by_process", (q) =>
@@ -437,6 +442,9 @@ async function listProcessRequestTargetStates(
       ||
       pendingRows.length === perStatusLimit
       || errorRows.length === perStatusLimit,
+    latest_updated_at_ms: snapshotRows.length > 0
+      ? Math.max(...snapshotRows.map((row) => row.updated_at_ms))
+      : null,
   };
 }
 
@@ -868,15 +876,20 @@ async function collectProcessHealth(
     ? await buildRunStageProgress(ctx, membership.process_id as Id<"runs">, stateByCustomKey)
     : await buildWindowStageProgress(ctx, membership.process_id as Id<"windows">, stateByCustomKey);
 
-  const noProgressSince = await ctx.db
-    .query("telemetry_entity_state")
-    .withIndex("by_entity", (q) =>
-      q.eq("entity_type", membership.process_type).eq("entity_id", membership.process_id),
-    )
-    .first();
+  const observability = await ctx.runQuery(
+    internal.domain.telemetry.events.getProcessObservability,
+    {
+      process_type: membership.process_type,
+      process_id: membership.process_id,
+    },
+  );
 
-  const noProgressForMs = noProgressSince
-    ? Math.max(0, Date.now() - noProgressSince.last_ts_ms)
+  const latestProgressTs = Math.max(
+    observability?.updated_at_ms ?? 0,
+    stateRowsResult.latest_updated_at_ms ?? 0,
+  );
+  const noProgressForMs = latestProgressTs > 0
+    ? Math.max(0, Date.now() - latestProgressTs)
     : null;
 
   const oldestPendingRequestAgeMs = stageSummary.oldestPendingTs == null
@@ -889,21 +902,16 @@ async function collectProcessHealth(
   }
 
   const recentLimit = args.include_recent_events ?? 50;
-  const recentRows = await ctx.db
-    .query("telemetry_events")
-    .withIndex("by_trace_seq", (q) => q.eq("trace_id", membership.trace_id))
-    .order("desc")
-    .take(recentLimit);
-
-  const traceEntityRows = await ctx.db
-    .query("telemetry_entity_state")
-    .withIndex("by_trace_entity", (q) => q.eq("trace_id", membership.trace_id))
-    .take(200);
+  const recentRows = recentLimit <= 0
+    ? []
+    : (observability?.recent_events ?? []).slice(-recentLimit);
 
   return {
     process_type: membership.process_type,
     process_id: membership.process_id,
     trace_id: membership.trace_id,
+    telemetry_backend: "axiom" as const,
+    external_trace_ref: observability?.external_trace_ref ?? buildExternalTraceRef(membership.trace_id),
     status: membership.status,
     current_stage: membership.current_stage,
     stage_progress: stageSummary.progress,
@@ -922,26 +930,16 @@ async function collectProcessHealth(
     error_summary: [...errorCounts.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([errorClass, count]) => ({ class: errorClass, count })),
-    recent_events: recentRows
-      .slice()
-      .reverse()
-      .map((event) => ({
-        seq: event.seq,
-        ts_ms: event.ts_ms,
-        event_name: event.event_name,
-        stage: event.stage ?? null,
-        status: event.status ?? null,
-        entity_type: event.entity_type,
-        entity_id: event.entity_id,
-      })),
-    entity_states: traceEntityRows.map((state) => ({
-      entity_type: state.entity_type,
-      entity_id: state.entity_id,
-      last_event_name: state.last_event_name,
-      last_status: state.last_status ?? null,
-      last_stage: state.last_stage ?? null,
-      last_ts_ms: state.last_ts_ms,
+    recent_events: recentRows.map((event) => ({
+      seq: event.seq,
+      ts_ms: event.ts_ms,
+      event_name: event.event_name,
+      stage: event.stage ?? null,
+      status: event.status ?? null,
+      entity_type: event.entity_type,
+      entity_id: event.entity_id,
     })),
+    entity_states: [],
   };
 }
 
@@ -1043,6 +1041,8 @@ export const tailTrace: ReturnType<typeof zQuery> = zQuery({
       }),
     ),
     next_cursor_seq: z.number().nullable(),
+    telemetry_backend: z.literal("axiom"),
+    external_trace_ref: z.string().nullable(),
   }),
   handler: async (ctx, args) => {
     return ctx.runQuery(internal.domain.telemetry.events.listByTrace, args);
@@ -1384,12 +1384,22 @@ export const analyzeProcessTelemetry: ReturnType<typeof zQuery> = zQuery({
     const duplicateValues = [...requestDuplicateByRequest.values()];
     const jobFinalizeValues = [...jobFinalizedByJob.values()];
 
+    const observability = await ctx.runQuery(
+      internal.domain.telemetry.events.getProcessObservability,
+      {
+        process_type: args.process_type,
+        process_id: args.process_id,
+      },
+    );
+
     return {
       process_type: args.process_type,
       process_id: args.process_id,
       trace_id: membership.trace_id,
+      telemetry_backend: "axiom" as const,
+      external_trace_ref: observability?.external_trace_ref ?? buildExternalTraceRef(membership.trace_id),
       sampled_events: events.length,
-      reached_end_of_trace: traceScan.reached_end_of_trace,
+      reached_end_of_trace: false,
       seq_min: seqDiagnostics.seq_min,
       seq_max: seqDiagnostics.seq_max,
       missing_seq_count: seqDiagnostics.missing_seq_count,
@@ -1431,6 +1441,35 @@ export const analyzeProcessTelemetry: ReturnType<typeof zQuery> = zQuery({
           : events.filter((event) => event.seq > terminalSeq).length,
       },
     };
+  },
+});
+
+export const testAxiomIngest: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    trace_id: z.string().optional(),
+    event_name: z.string().default("axiom_smoke_test"),
+  }),
+  returns: z.object({
+    ok: z.boolean(),
+    status: z.number(),
+    dataset: z.string(),
+    trace_id: z.string(),
+    response_text: z.string().optional(),
+  }),
+  handler: async (ctx, args) => {
+    const trace_id = args.trace_id ?? `smoke:${Date.now()}`;
+    const event = buildAxiomEventEnvelope({
+      trace_id,
+      entity_type: "scheduler",
+      entity_id: "smoke_test",
+      event_name: args.event_name,
+      status: "ok",
+      payload_json: JSON.stringify({ source: "codex", smoke_test: true }),
+      ts_ms: Date.now(),
+    });
+    return ctx.runAction(internal.domain.telemetry.events.exportEvent, {
+      event,
+    });
   },
 });
 

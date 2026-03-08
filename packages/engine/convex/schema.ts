@@ -24,8 +24,8 @@ import {
   SampleEvidenceScoresTableSchema,
 } from "./models/samples";
 import {
-  TelemetryEntityStateTableSchema,
-  TelemetryEventsTableSchema,
+  ProcessObservabilityTableSchema,
+  SchedulerLockTableSchema,
 } from "./models/telemetry";
 
 export default defineSchema({
@@ -89,11 +89,11 @@ export default defineSchema({
     .index("by_score_id", ["score_id"])
     .index("by_score_critic_id", ["score_critic_id"])
     .index("by_sample_evidence", ["sample_id", "evidence_id"]),
-  telemetry_events: defineTable(zodOutputToConvex(TelemetryEventsTableSchema))
-    .index("by_trace_seq", ["trace_id", "seq"])
-    .index("by_entity_ts", ["entity_type", "entity_id", "ts_ms"]),
-  telemetry_entity_state: defineTable(zodOutputToConvex(TelemetryEntityStateTableSchema))
-    .index("by_entity", ["entity_type", "entity_id"])
-    .index("by_trace_entity", ["trace_id", "entity_type", "entity_id"])
-    .index("by_last_ts", ["last_ts_ms"]),
+  process_observability: defineTable(zodOutputToConvex(ProcessObservabilityTableSchema))
+    .index("by_process", ["process_type", "process_id"])
+    .index("by_trace", ["trace_id"])
+    .index("by_updated_at", ["updated_at_ms"]),
+  scheduler_locks: defineTable(zodOutputToConvex(SchedulerLockTableSchema))
+    .index("by_lock_key", ["lock_key"])
+    .index("by_expires_at", ["expires_at_ms"]),
 });
