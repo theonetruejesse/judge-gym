@@ -22,7 +22,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
-- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including four Norway-only control windows for P3, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
+- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 10-item Norway election-reporting control pool for P3, exact window-creation payloads, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
+- The first live V3 experiments now running are the two `D1` control-pool configs on the frozen Norway election-reporting `P3` trial pool.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
 - The engine now exports full window/run/batch/job/request/scheduler telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
