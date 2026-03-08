@@ -34,7 +34,7 @@
 | :-------- | :--- | :----------------------- | :------------------------------------- | ----------------: |
 | W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2 | 2 each (20 total) |
 | W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)   |                10 |
-| W12       | P3   | TBD                      | low-contestation control collection    |                20 |
+| W12       | P3   | 2026-01-01 to 2026-01-31 | 4 control slices; fetch 10; keep 5     |                20 |
 
 ### W1-W10 query plan (P1)
 
@@ -51,13 +51,53 @@
 | W9     | immigration enforcement due process United States             |
 | W10    | foreign policy military authorization oversight United States |
 
+### W12 control slice plan (P3)
+
+| Slice | Query template (run across Norway, Sweden, Denmark, Finland, Netherlands) |
+| :---- | :------------------------------------------------------------------------- |
+| Q1    | election administration process updates                                    |
+| Q2    | parliamentary committee procedure and legislative process                  |
+| Q3    | court procedural ruling and statutory interpretation                       |
+| Q4    | executive agency policy implementation and civil service operations        |
+
 ## Pools
 
-| Pool ID | Source                                                | Purpose                           | Size |
-| :------ | :---------------------------------------------------- | :-------------------------------- | ---: |
-| P1      | W1-W10 (real news)                                    | Primary contested pool            |   20 |
-| P2      | W11 synthetic ladder (S1..S10)                        | Required grounding check pool     |   10 |
-| P3      | W12 low-contestation control (e.g., Norway democracy) | Required low-contestation control |   20 |
+| Pool ID | Source                                                     | Purpose                           | Size |
+| :------ | :--------------------------------------------------------- | :-------------------------------- | ---: |
+| P1      | W1-W10 (real news)                                         | Primary contested pool            |   20 |
+| P2      | W11 synthetic ladder (S1..S10)                             | Required grounding check pool     |   10 |
+| P3      | W12 low-contestation control (Q1-Q4, multi-country slices) | Required low-contestation control |   20 |
+
+## Pool Construction SOP (Source of Truth)
+
+### Canonical workflow (all pools)
+
+1. Create the planned window or slice.
+2. Fetch candidates with `evidence_limit=10`.
+3. Rank by:
+   - concept relevance to the intended pool purpose,
+   - institutional observability (actions, policies, institutional responses),
+   - text completeness (sufficient article body for scoring).
+4. De-duplicate by normalized URL and near-duplicate title.
+5. Keep fixed cardinality for that window/slice.
+6. Create pool from selected evidence IDs and freeze membership:
+   - set stable `pool_tag`,
+   - do not swap evidence after first experiment is initialized from the pool.
+
+### P1 SOP (20 total)
+
+- Inputs: W1-W10 query plan above.
+- Keep rule: exactly 2 evidence items per window after ranking and dedupe.
+- Exclude: duplicates, pure opinion/editorials, and non-governance tangents.
+- Invariant: `10 windows × 2 = 20` evidence rows in P1.
+
+### P3 SOP (20 total)
+
+- Inputs: W12 Q1-Q4 control slices above; run each slice against the country set `Norway`, `Sweden`, `Denmark`, `Finland`, `Netherlands`.
+- Keep rule: exactly 5 evidence items per slice after ranking and dedupe.
+- Include: routine democratic process coverage (election admin, normal legislative procedure, ordinary judicial process, standard policy implementation).
+- Exclude: election-overturn attempts, emergency-rule expansion, coup/insurrection framing, systematic rights suppression, explicit fascism/authoritarian labeling.
+- Invariant: `4 slices × 5 = 20` evidence rows in P3.
 
 ## Experiments (Source of Truth)
 
@@ -69,9 +109,20 @@
 | A4 (primary swap mechanism)       | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                  | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 |
 | B1 (secondary baseline + abstain) | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                  | abstain (2), semantic=`l2`, scale=`4`                         |            4 |
 | C1 (synthetic grounding check)    | P2   | gpt-4.1, gpt-5.2           | synthetic ladder         | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 |
-| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | low-contestation control | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 |
+| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool)   | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 |
 
 Required total: **18 configs**.
+
+## Model Use Semantics (Source of Truth)
+
+- Primary models: `gpt-4.1`, `gpt-5.2`.
+  - Required tiers: `A1`, `A2`, `A3`, `A4`, `C1`, `D1`.
+- Secondary models: `gpt-4.1-mini`, `gpt-5.2-chat`.
+  - Required tier: `B1` only.
+- Pool-to-tier mapping:
+  - `P1` feeds `A1/A2/A3/A4/B1`.
+  - `P2` feeds `C1`.
+  - `P3` feeds `D1`.
 
 ## API Request Breakdown
 
@@ -117,8 +168,17 @@ Per-config totals:
 - [ ] Reset run/LLM operational tables before fresh validation (keep windows/evidence).
 - [ ] Confirm `P1` has expected count (20 evidence; 2 per W1-W10).
 - [ ] Confirm `P2` and `P3` are populated with expected counts.
+- [ ] Confirm P1/P3 dedupe pass is complete (normalized URL + near-duplicate title).
+- [ ] Confirm pool freeze metadata is recorded (stable `pool_tag` + fixed evidence IDs).
 - [ ] Confirm default experiment settings (subset scoring + all randomizations).
 - [ ] Run one tiny canary (`target_count=1`) and verify full stage completion.
+
+### Pool QA Gate (must pass before required runs)
+
+- [ ] `P1` cardinality invariant passes (`10 × 2 = 20`).
+- [ ] `P3` cardinality invariant passes (`4 × 5 = 20`).
+- [ ] All selected P1/P3 evidence has non-empty `l2_neutralized_content`.
+- [ ] `P3` selected evidence passes exclusion rules (no crisis/overturn/authoritarian framing artifacts).
 
 ### Required Runs
 
@@ -128,7 +188,7 @@ Per-config totals:
 - [ ] Complete A4 (2 configs): primary rubric/scoring swap mechanism check.
 - [ ] Complete B1 (4 configs): secondary-model baseline + abstain check (`gpt-4.1-mini`, `gpt-5.2-chat`).
 - [ ] Complete C1 (2 configs): synthetic grounding check on P2.
-- [ ] Complete D1 (2 configs): low-contestation control check on P3.
+- [ ] Complete D1 (2 configs): fascism-control check on P3.
 
 ### Per-run Monitoring
 
