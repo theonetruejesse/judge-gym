@@ -30,10 +30,10 @@
 
 ## Windows
 
-| Window ID | Pool | Date Range               | Build Procedure                                            |            Output |
-| :-------- | :--- | :----------------------- | :--------------------------------------------------------- | ----------------: |
-| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2                     | 2 each (20 total) |
-| W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)                       |                10 |
+| Window ID | Pool | Date Range               | Build Procedure                                                                  |            Output |
+| :-------- | :--- | :----------------------- | :------------------------------------------------------------------------------- | ----------------: |
+| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2                                           | 2 each (20 total) |
+| W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)                                             |                10 |
 | W12-W15   | P3   | 2025-09-08 to 2025-09-12 | Norway election-reporting queries; fetch 10 per window; dedupe and keep 10 total |                10 |
 
 ### W1-W10 query plan (P1)
@@ -51,22 +51,22 @@
 | W9     | immigration enforcement due process United States             |
 | W10    | foreign policy military authorization oversight United States |
 
-### W12-W15 control window plan (P3 current pass)
+### W12-W15 control window plan (P3)
 
-| Window | Country | Query |
-| :----- | :------ | :---- |
-| W12    | Norway  | Norway parliamentary election results reporting |
-| W13    | Norway  | Norway election turnout count official reporting |
+| Window | Country | Query                                                  |
+| :----- | :------ | :----------------------------------------------------- |
+| W12    | Norway  | Norway parliamentary election results reporting        |
+| W13    | Norway  | Norway election turnout count official reporting       |
 | W14    | Norway  | Norway election authorities official results reporting |
-| W15    | Norway  | Norway election reporting Storting seats results |
+| W15    | Norway  | Norway election reporting Storting seats results       |
 
 ## Pools
 
-| Pool ID | Source                                                 | Purpose                           | Size |
-| :------ | :----------------------------------------------------- | :-------------------------------- | ---: |
-| P1      | W1-W10 (real news)                                     | Primary contested pool            |   20 |
-| P2      | W11 synthetic ladder (S1..S10)                         | Required grounding check pool     |   10 |
-| P3      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 |
+| Pool ID | Source                                          | Purpose                           | Size | Done  |
+| :------ | :---------------------------------------------- | :-------------------------------- | ---: | :---- |
+| P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | false |
+| P2      | W11 synthetic ladder (S1..S10)                  | Required grounding check pool     |   10 | false |
+| P3      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 | true  |
 
 ## Pool Construction SOP (Source of Truth)
 
@@ -110,12 +110,12 @@
 
 #### Exact `createWindowForm` payloads
 
-| Window | Payload |
-| :----- | :------ |
-| W12 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway parliamentary election results reporting" }, evidence_limit: 10 }` |
-| W13 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election turnout count official reporting" }, evidence_limit: 10 }` |
-| W14 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election authorities official results reporting" }, evidence_limit: 10 }` |
-| W15 | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election reporting Storting seats results" }, evidence_limit: 10 }` |
+| Window | Payload                                                                                                                                                                                                    |
+| :----- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W12    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway parliamentary election results reporting" }, evidence_limit: 10 }`        |
+| W13    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election turnout count official reporting" }, evidence_limit: 10 }`       |
+| W14    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election authorities official results reporting" }, evidence_limit: 10 }` |
+| W15    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election reporting Storting seats results" }, evidence_limit: 10 }`       |
 
 #### P3 selection procedure
 
@@ -139,22 +139,23 @@
 
 ## Experiments (Source of Truth)
 
-| Tier                              | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done |
-| :-------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :--- |
+| Tier                              | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done  |
+| :-------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :---- |
 | A1 (primary baseline + abstain)   | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
 | A2 (primary semantic ablation)    | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 | false |
 | A3 (primary scale ablation)       | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 | false |
 | A4 (primary swap mechanism)       | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 | false |
 | B1 (secondary baseline + abstain) | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
 | C1 (synthetic grounding check)    | P2   | gpt-4.1, gpt-5.2           | synthetic ladder       | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
-| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | true |
+| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | true  |
 
 Required total: **18 configs**.
 
 - `Done` means the tier has been initialized and started for the current pass, not that all runs have completed.
-- Active `D1` experiment/run pairs:
-  - `gpt-4.1`: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh7avay0pw0jdc15svq9jpz5p182gwjw`.
-  - `gpt-5.2`: experiment `j97ep0yj8sme9pg5mryq9kw2v982g2xj`, run `kh77e0h2fp5pmr9geaf5q9myh982gecn`.
+- `D1` live run history:
+  - `gpt-4.1` primary run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh7avay0pw0jdc15svq9jpz5p182gwjw`, `target_count=30`, terminal summary `27/30` rubrics and `270/300` score-stage completions (`has_failures=true`).
+  - `gpt-5.2` primary run: experiment `j97ep0yj8sme9pg5mryq9kw2v982g2xj`, run `kh77e0h2fp5pmr9geaf5q9myh982gecn`, `target_count=30`, completed cleanly (`has_failures=false`).
+  - `gpt-4.1` make-up run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh77x84mrerjypcthptxbmme5s82gkwq`, `target_count=3`, completed cleanly with `3/3`, `3/3`, `30/30`, `30/30`.
 
 ## Model Use Semantics (Source of Truth)
 

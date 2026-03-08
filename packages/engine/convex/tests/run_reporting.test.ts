@@ -1,0 +1,333 @@
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { convexTest } from "convex-test";
+import schema from "../schema";
+import { buildModules } from "./test.setup";
+import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
+import { ENGINE_SETTINGS } from "../settings";
+
+type ConvexTestInstance = ReturnType<typeof convexTest>;
+
+const rateLimiterModules = import.meta.glob(
+  "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
+);
+
+function initTest(): ConvexTestInstance {
+  const t = convexTest(schema, buildModules());
+  t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
+  return t;
+}
+
+async function setupExperiment(t: ConvexTestInstance) {
+  const { window_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindow,
+    {
+      country: "USA",
+      model: "gpt-4.1-mini",
+      start_date: "2026-03-01",
+      end_date: "2026-03-02",
+      query: "run reporting test",
+    },
+  );
+
+  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
+    window_id,
+    evidences: [
+      {
+        title: "Test evidence",
+        url: "https://example.com/test-evidence",
+        raw_content: "A short evidence paragraph about institutional reporting.",
+      },
+    ],
+  });
+
+  const evidenceRows = await t.query(api.packages.lab.listEvidenceByWindow, {
+    window_id,
+  });
+
+  const pool = await t.mutation(api.packages.lab.createPool, {
+    evidence_ids: evidenceRows.map((row: { evidence_id: Id<"evidences"> }) => row.evidence_id),
+  });
+
+  const experiment = await t.mutation(api.packages.lab.initExperiment, {
+    experiment_config: {
+      rubric_config: {
+        model: "gpt-4.1-mini",
+        scale_size: 4,
+        concept: "fascism",
+      },
+      scoring_config: {
+        model: "gpt-4.1-mini",
+        method: "subset",
+        abstain_enabled: true,
+        evidence_view: "l0_raw",
+        randomizations: [],
+      },
+    },
+    pool_id: pool.pool_id,
+  });
+
+  return { experiment_id: experiment.experiment_id };
+}
+
+async function markRunArtifacts(
+  t: ConvexTestInstance,
+  run_id: Id<"runs">,
+  failedSampleCount: number,
+) {
+  await t.run(async (ctx) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) throw new Error("run_not_found");
+
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) throw new Error("experiment_not_found");
+
+    const samples = (await ctx.db.query("samples").collect()).filter((sample) => sample.run_id === run_id);
+    const scoreUnits = (await ctx.db.query("sample_evidence_scores").collect()).filter((unit) => unit.run_id === run_id);
+    const requests = (await ctx.db.query("llm_requests").collect()).filter((request) => request.run_id === run_id);
+
+    const failedIds = new Set(samples.slice(0, failedSampleCount).map((sample) => String(sample._id)));
+    const rubricRequestBySampleId = new Map(
+      requests
+        .filter((request) => request.custom_key.endsWith(":rubric_gen"))
+        .map((request) => {
+          const [, sampleId] = request.custom_key.split(":");
+          return [sampleId, request] as const;
+        }),
+    );
+
+    for (const sample of samples) {
+      const rubricRequest = rubricRequestBySampleId.get(String(sample._id));
+      if (!rubricRequest) throw new Error("rubric_request_not_found");
+
+      if (failedIds.has(String(sample._id))) {
+        await ctx.db.patch(rubricRequest._id, {
+          status: "error",
+          attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+          last_error: "synthetic rubric failure",
+        });
+        continue;
+      }
+
+      await ctx.db.patch(rubricRequest._id, {
+        status: "success",
+        attempts: 1,
+        assistant_output: "rubric output",
+      });
+      const rubricRequestId = rubricRequest._id;
+      const rubricId = await ctx.db.insert("rubrics", {
+        run_id,
+        sample_id: sample._id,
+        model: experiment.rubric_config.model,
+        concept: experiment.rubric_config.concept,
+        scale_size: experiment.rubric_config.scale_size,
+        llm_request_id: rubricRequestId,
+        justification: "ok",
+        stages: [
+          { stage_number: 1, label: "Weak", criteria: ["a", "b", "c"] },
+          { stage_number: 2, label: "Medium", criteria: ["a", "b", "c"] },
+          { stage_number: 3, label: "Strong", criteria: ["a", "b", "c"] },
+          { stage_number: 4, label: "Max", criteria: ["a", "b", "c"] },
+        ],
+        label_mapping: {},
+      });
+
+      const rubricCriticRequestId = await ctx.db.insert("llm_requests", {
+        status: "success",
+        run_id,
+        job_id: null,
+        batch_id: null,
+        model: experiment.rubric_config.model,
+        user_prompt: "rubric critic request",
+        custom_key: `sample:${sample._id}:rubric_critic`,
+        attempts: 1,
+        assistant_output: "rubric critic output",
+      });
+      const rubricCriticId = await ctx.db.insert("rubric_critics", {
+        run_id,
+        sample_id: sample._id,
+        model: experiment.rubric_config.model,
+        llm_request_id: rubricCriticRequestId,
+        justification: "ok",
+        expert_agreement_prob: {
+          observability_score: 0.9,
+          discriminability_score: 0.8,
+        },
+      });
+
+      await ctx.db.patch(sample._id, {
+        rubric_id: rubricId,
+        rubric_critic_id: rubricCriticId,
+      });
+    }
+
+    for (const unit of scoreUnits) {
+      if (failedIds.has(String(unit.sample_id))) {
+        continue;
+      }
+
+      const scoreRequestId = await ctx.db.insert("llm_requests", {
+        status: "success",
+        run_id,
+        job_id: null,
+        batch_id: null,
+        model: experiment.scoring_config.model,
+        user_prompt: "score gen request",
+        custom_key: `sample_evidence:${unit._id}:score_gen`,
+        attempts: 1,
+        assistant_output: "score output",
+      });
+      const scoreId = await ctx.db.insert("scores", {
+        run_id,
+        sample_id: unit.sample_id,
+        model: experiment.scoring_config.model,
+        evidence_id: unit.evidence_id,
+        llm_request_id: scoreRequestId,
+        justification: "ok",
+        decoded_scores: [1],
+      });
+
+      const scoreCriticRequestId = await ctx.db.insert("llm_requests", {
+        status: "success",
+        run_id,
+        job_id: null,
+        batch_id: null,
+        model: experiment.scoring_config.model,
+        user_prompt: "score critic request",
+        custom_key: `sample_evidence:${unit._id}:score_critic`,
+        attempts: 1,
+        assistant_output: "score critic output",
+      });
+      const scoreCriticId = await ctx.db.insert("score_critics", {
+        run_id,
+        sample_id: unit.sample_id,
+        model: experiment.scoring_config.model,
+        llm_request_id: scoreCriticRequestId,
+        justification: "ok",
+        expert_agreement_prob: 0.8,
+      });
+
+      await ctx.db.patch(unit._id, {
+        score_id: scoreId,
+        score_critic_id: scoreCriticId,
+      });
+    }
+
+    await ctx.db.patch(run_id, {
+      status: "completed",
+      current_stage: "score_critic",
+    });
+  });
+}
+
+describe("run reporting", () => {
+  const originalDataset = process.env.AXIOM_DATASET;
+  const originalToken = process.env.AXIOM_TOKEN;
+  const originalSkipExport = process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
+
+  beforeEach(() => {
+    process.env.AXIOM_DATASET = "judge-gym-test";
+    process.env.AXIOM_TOKEN = "test-token";
+    process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = "1";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
+  });
+
+  afterEach(() => {
+    if (originalDataset === undefined) {
+      delete process.env.AXIOM_DATASET;
+    } else {
+      process.env.AXIOM_DATASET = originalDataset;
+    }
+    if (originalToken === undefined) {
+      delete process.env.AXIOM_TOKEN;
+    } else {
+      process.env.AXIOM_TOKEN = originalToken;
+    }
+    if (originalSkipExport === undefined) {
+      delete process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
+    } else {
+      process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = originalSkipExport;
+    }
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  test("startRunFlow marks persisted runs as running", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 1,
+    });
+
+    const run = await t.query(internal.domain.runs.run_repo.getRun, {
+      run_id: started.run_id,
+    });
+    expect(run.status).toBe("running");
+    expect(run.current_stage).toBe("rubric_gen");
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.status).toBe("running");
+    expect(experiment?.latest_run?.status).toBe("running");
+    expect(experiment?.latest_run?.has_failures).toBe(false);
+  });
+
+  test("getRunSummary surfaces partial failures and listExperiments flags them", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 3,
+    });
+    await markRunArtifacts(t, started.run_id, 1);
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.status).toBe("completed");
+    expect(summary.has_failures).toBe(true);
+    expect(summary.failed_stage_count).toBe(4);
+    expect(summary.stages).toEqual([
+      { stage: "rubric_gen", status: "completed", total: 3, completed: 2, failed: 1 },
+      { stage: "rubric_critic", status: "completed", total: 3, completed: 2, failed: 1 },
+      { stage: "score_gen", status: "completed", total: 3, completed: 2, failed: 1 },
+      { stage: "score_critic", status: "completed", total: 3, completed: 2, failed: 1 },
+    ]);
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.latest_run?.has_failures).toBe(true);
+
+    const experimentSummary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id,
+    });
+    expect(experimentSummary.latest_run?.has_failures).toBe(true);
+  });
+
+  test("getRunSummary keeps clean runs failure-free", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.status).toBe("completed");
+    expect(summary.has_failures).toBe(false);
+    expect(summary.failed_stage_count).toBe(0);
+    expect(summary.stages.every((stage: { failed: number }) => stage.failed === 0)).toBe(true);
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.latest_run?.has_failures).toBe(false);
+  });
+});

@@ -324,6 +324,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
           current_stage: z.string(),
           target_count: z.number(),
           created_at: z.number(),
+          has_failures: z.boolean(),
         })
         .optional(),
     }),
@@ -338,6 +339,32 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
 
 export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ experiment_id: zid("experiments") }),
+  returns: z.object({
+    experiment_id: zid("experiments"),
+    experiment_tag: z.string(),
+    rubric_config: ExperimentsTableSchema.shape.rubric_config,
+    scoring_config: ExperimentsTableSchema.shape.scoring_config,
+    evidence_selected_count: z.number(),
+    window_count: z.number(),
+    window_ids: z.array(z.string()),
+    run_count: z.number(),
+    status: z.string(),
+    latest_run: z.object({
+      run_id: zid("runs"),
+      status: z.string(),
+      current_stage: z.string(),
+      target_count: z.number(),
+      created_at: z.number(),
+      has_failures: z.boolean(),
+    }).optional(),
+    counts: z.object({
+      samples: z.number(),
+      rubrics: z.number(),
+      rubric_critics: z.number(),
+      scores: z.number(),
+      score_critics: z.number(),
+    }),
+  }),
   handler: async (ctx, args) => {
     return ctx.runQuery(
       internal.domain.runs.experiments_data.getExperimentSummary,
@@ -367,6 +394,21 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
 
 export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ run_id: zid("runs") }),
+  returns: z.object({
+    run_id: zid("runs"),
+    status: z.string(),
+    current_stage: z.string(),
+    target_count: z.number(),
+    has_failures: z.boolean(),
+    failed_stage_count: z.number(),
+    stages: z.array(z.object({
+      stage: z.string(),
+      status: z.string(),
+      total: z.number(),
+      completed: z.number(),
+      failed: z.number(),
+    })),
+  }),
   handler: async (ctx, args) => {
     return ctx.runQuery(
       internal.domain.runs.experiments_data.getRunSummary,

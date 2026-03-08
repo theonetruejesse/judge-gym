@@ -5,6 +5,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
+import { getRunStageProgress } from "./run_progress";
 
 function deriveExperimentStatus(
   runs: Array<Doc<"runs">>,
@@ -28,6 +29,16 @@ function latestRun(runs: Array<Doc<"runs">>) {
   return runs
     .slice()
     .sort((a, b) => b._creationTime - a._creationTime)[0];
+}
+
+async function latestRunHasFailures(
+  ctx: QueryCtx,
+  runId: Id<"runs">,
+): Promise<boolean> {
+  const progresses = await Promise.all(
+    RunStageSchema.options.map((stage) => getRunStageProgress(ctx, runId, stage)),
+  );
+  return progresses.some((progress) => (progress?.failed ?? 0) > 0);
 }
 
 async function listEvidenceLinks(
@@ -63,6 +74,7 @@ export const listExperiments = zInternalQuery({
         current_stage: z.infer<typeof RunStageSchema>;
         target_count: number;
         created_at: number;
+        has_failures: boolean;
       };
     }>;
 
@@ -87,6 +99,8 @@ export const listExperiments = zInternalQuery({
       }
 
       const latest = latestRun(runs);
+      const latestHasFailures = latest ? await latestRunHasFailures(ctx, latest._id) : false;
+
       results.push({
         experiment_id: experiment._id,
         experiment_tag: experiment.experiment_tag,
@@ -102,6 +116,7 @@ export const listExperiments = zInternalQuery({
               current_stage: latest.current_stage,
               target_count: latest.target_count,
               created_at: latest._creationTime,
+              has_failures: latestHasFailures,
             }
           : undefined,
       });
@@ -164,6 +179,7 @@ export const getExperimentSummary = zInternalQuery({
     };
 
     const latest = latestRun(runs);
+    const latestHasFailures = latest ? await latestRunHasFailures(ctx, latest._id) : false;
 
     return {
       experiment_id: experiment._id,
@@ -182,6 +198,7 @@ export const getExperimentSummary = zInternalQuery({
             current_stage: latest.current_stage,
             target_count: latest.target_count,
             created_at: latest._creationTime,
+            has_failures: latestHasFailures,
           }
         : undefined,
       counts,
@@ -224,57 +241,48 @@ export const getRunSummary = zInternalQuery({
     const run = await ctx.db.get(run_id);
     if (!run) throw new Error("Run not found");
 
-    const samples = await ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
-    const scoreUnits = await ctx.db
-      .query("sample_evidence_scores")
-      .withIndex("by_run", (q) => q.eq("run_id", run._id))
-      .collect();
-    const useScoreUnits = scoreUnits.length > 0;
+    const stageResults = await Promise.all(
+      RunStageSchema.options.map(async (stage) => {
+        const progress = await getRunStageProgress(ctx, run._id, stage);
+        if (!progress) {
+          return {
+            stage,
+            status: "queued",
+            total: run.target_count,
+            completed: 0,
+            failed: 0,
+          };
+        }
+        const status = progress.hasPending ? "running" : "completed";
+        if (progress.completed === 0 && progress.failed === 0 && !progress.hasPending) {
+          return {
+            stage,
+            status: "queued",
+            total: progress.total,
+            completed: 0,
+            failed: 0,
+          };
+        }
+        return {
+          stage,
+          status,
+          total: progress.total,
+          completed: progress.completed,
+          failed: progress.failed,
+        };
+      }),
+    );
 
-    const stages = RunStageSchema.options.map((stage) => {
-      let completed = 0;
-      if ((stage === "score_gen" || stage === "score_critic") && useScoreUnits) {
-        for (const unit of scoreUnits) {
-          if (stage === "score_gen" && unit.score_id) completed += 1;
-          if (stage === "score_critic" && unit.score_critic_id) completed += 1;
-        }
-      } else {
-        for (const sample of samples) {
-          if (stage === "rubric_gen" && sample.rubric_id) completed += 1;
-          if (stage === "rubric_critic" && sample.rubric_critic_id)
-            completed += 1;
-          if (stage === "score_gen" && sample.score_id) completed += 1;
-          if (stage === "score_critic" && sample.score_critic_id) completed += 1;
-        }
-      }
-      const total =
-        (stage === "score_gen" || stage === "score_critic") && useScoreUnits
-          ? scoreUnits.length
-          : run.target_count;
-      const status =
-        completed === 0
-          ? "queued"
-          : completed >= total
-            ? "completed"
-            : "running";
-      return {
-        stage,
-        status,
-        total,
-        completed,
-        failed: 0,
-      };
-    });
+    const failed_stage_count = stageResults.filter((stage) => stage.failed > 0).length;
 
     return {
       run_id: run._id,
       status: run.status,
       current_stage: run.current_stage,
       target_count: run.target_count,
-      stages,
+      has_failures: failed_stage_count > 0,
+      failed_stage_count,
+      stages: stageResults,
     };
   },
 });

@@ -42,7 +42,7 @@ export async function emitTraceEvent(
     console.warn("telemetry_local_mirror_failed", String(error));
   }
 
-  if (!ctx.scheduler) {
+  if (!ctx.scheduler || process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT === "1") {
     return;
   }
 

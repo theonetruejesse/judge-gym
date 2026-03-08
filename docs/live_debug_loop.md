@@ -53,6 +53,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Run: `bun run debug:analyze --run <run_id>`
 - Window: `bun run debug:analyze --window <window_id>`
 - Note: this summarizes the capped local recent-events mirror, not the full external trace.
+- Pair this with `packages/lab:getRunSummary` when you need exact stage `completed` / `failed` counts or the derived `has_failures` flag.
 
 5. Dry-run remediation
 
@@ -127,6 +128,8 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and local recent events before doing maintenance mutations.
+- Treat `run.status=completed` plus `has_failures=true` as a partial-success terminal run that likely needs a supplemental follow-up pass rather than a scheduler fix.
+- Freshly started runs should move off `start` and into `running` as soon as `rubric_gen` is enqueued; if they do not, investigate lifecycle patching before debugging the scheduler.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
 - The local mirror is intentionally small and milestone-oriented; it is not a full event log.
