@@ -21,6 +21,7 @@ export const createRun = zInternalMutation({
     const run_id = await ctx.db.insert("runs", {
       experiment_id,
       target_count,
+      completed_count: 0,
       status: "start",
       current_stage: "rubric_gen",
     });
@@ -37,8 +38,8 @@ export const createRun = zInternalMutation({
         seed,
         rubric_id: null,
         rubric_critic_id: null,
-        score_id: null,
-        score_critic_id: null,
+        score_count: 0,
+        score_critic_count: 0,
       });
       sampleIds.push(sample_id);
     }

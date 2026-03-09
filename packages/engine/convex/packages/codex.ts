@@ -1,6 +1,9 @@
 export {
   analyzeProcessTelemetry,
   autoHealProcess,
+  backfillExperimentTotalCounts,
+  backfillRunCompletedCounts,
+  backfillSampleScoreCounts,
   getProcessHealth,
   getStuckWork,
   runDebugActions,

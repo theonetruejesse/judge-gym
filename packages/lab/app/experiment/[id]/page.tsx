@@ -40,6 +40,7 @@ type ExperimentSummary = {
     evidence_view: string;
     abstain_enabled: boolean;
   };
+  total_count: number;
   evidence_selected_count: number;
   window_count: number;
   run_count: number;
@@ -49,6 +50,7 @@ type ExperimentSummary = {
     status: string;
     current_stage: string;
     target_count: number;
+    completed_count: number;
     created_at: number;
     has_failures: boolean;
   };
@@ -74,6 +76,7 @@ type RunSummary = {
   status: string;
   current_stage: string;
   target_count: number;
+  completed_count: number;
   has_failures: boolean;
   failed_stage_count: number;
   stages: Array<{
@@ -342,6 +345,7 @@ function ConfigPanel({ summary }: { summary: ExperimentSummary | undefined }) {
         <div className="mt-2 flex flex-wrap gap-3">
           <span>Windows: {summary.window_count}</span>
           <span>Selected Evidence: {summary.evidence_selected_count}</span>
+          <span>Completed Samples: {summary.total_count}</span>
         </div>
       </Card>
 
@@ -404,7 +408,7 @@ function RunsPanel({
               {runSummary.current_stage ?? "no stage"}
             </span>
             <span className="text-[10px] uppercase tracking-wider opacity-40">
-              samples {runSummary.target_count}
+              done {runSummary.completed_count}/{runSummary.target_count}
             </span>
           </div>
           <div className="flex items-center gap-3">

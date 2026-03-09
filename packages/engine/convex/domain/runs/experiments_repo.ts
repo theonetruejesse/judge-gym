@@ -20,6 +20,7 @@ export const createExperiment = zInternalMutation({
       pool_id: args.pool_id,
       rubric_config: args.rubric_config,
       scoring_config: args.scoring_config,
+      total_count: 0,
     });
   },
 });

@@ -8,7 +8,9 @@ import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
 import { SemanticLevelSchema } from "../../models/_shared";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
-import { getRunStageProgress } from "../runs/run_progress";
+import { getExperimentTotalCount } from "../runs/experiment_progress";
+import { getSampleScoreCounts } from "../runs/sample_progress";
+import { getRunCompletedCount, getRunStageProgress } from "../runs/run_progress";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
@@ -1692,6 +1694,292 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
         scanned_target_states: scannedRows.length,
         scanned_batches: activeBatches.length,
       },
+    };
+  },
+});
+
+export const backfillRunCompletedCounts: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_runs: z.number().int().min(1).max(500).default(100),
+    run_ids: z.array(zid("runs")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      run_id: zid("runs"),
+      status: z.string(),
+      target_count: z.number(),
+      previous_completed_count: z.number().nullable(),
+      computed_completed_count: z.number(),
+      changed: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let runs: Array<Doc<"runs">> = [];
+
+    if (args.run_ids?.length) {
+      const loadedRuns = await Promise.all(args.run_ids.map((runId) => ctx.db.get(runId)));
+      runs = loadedRuns.filter((run): run is Doc<"runs"> => run != null);
+    } else {
+      const orderedRuns = await ctx.db
+        .query("runs")
+        .order("asc")
+        .take(cursor + args.max_runs + 1);
+      const page = orderedRuns.slice(cursor, cursor + args.max_runs + 1);
+      runs = page.slice(0, args.max_runs);
+      if (page.length > args.max_runs) {
+        nextCursor = cursor + args.max_runs;
+      }
+    }
+
+    const rows: Array<{
+      run_id: Id<"runs">;
+      status: string;
+      target_count: number;
+      previous_completed_count: number | null;
+      computed_completed_count: number;
+      changed: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const run of runs) {
+      const computedCompletedCount = await getRunCompletedCount(ctx, run._id);
+      const previousCompletedCount = typeof run.completed_count === "number"
+        ? run.completed_count
+        : null;
+      const changed = previousCompletedCount !== computedCompletedCount;
+
+      if (changed && !args.dry_run) {
+        await ctx.db.patch(run._id, {
+          completed_count: computedCompletedCount,
+        });
+      }
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        run_id: run._id,
+        status: run.status,
+        target_count: run.target_count,
+        previous_completed_count: previousCompletedCount,
+        computed_completed_count: computedCompletedCount,
+        changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: runs.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillExperimentTotalCounts: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_experiments: z.number().int().min(1).max(500).default(100),
+    experiment_ids: z.array(zid("experiments")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string(),
+      previous_total_count: z.number().nullable(),
+      computed_total_count: z.number(),
+      changed: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let experiments: Array<Doc<"experiments">> = [];
+
+    if (args.experiment_ids?.length) {
+      const loaded = await Promise.all(
+        args.experiment_ids.map((experimentId) => ctx.db.get(experimentId)),
+      );
+      experiments = loaded.filter(
+        (experiment): experiment is Doc<"experiments"> => experiment != null,
+      );
+    } else {
+      const orderedExperiments = await ctx.db
+        .query("experiments")
+        .order("asc")
+        .take(cursor + args.max_experiments + 1);
+      const page = orderedExperiments.slice(cursor, cursor + args.max_experiments + 1);
+      experiments = page.slice(0, args.max_experiments);
+      if (page.length > args.max_experiments) {
+        nextCursor = cursor + args.max_experiments;
+      }
+    }
+
+    const rows: Array<{
+      experiment_id: Id<"experiments">;
+      experiment_tag: string;
+      previous_total_count: number | null;
+      computed_total_count: number;
+      changed: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const experiment of experiments) {
+      const computedTotalCount = await getExperimentTotalCount(ctx, experiment._id);
+      const previousTotalCount = typeof experiment.total_count === "number"
+        ? experiment.total_count
+        : null;
+      const changed = previousTotalCount !== computedTotalCount;
+
+      if (changed && !args.dry_run) {
+        await ctx.db.patch(experiment._id, {
+          total_count: computedTotalCount,
+        });
+      }
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        experiment_id: experiment._id,
+        experiment_tag: experiment.experiment_tag,
+        previous_total_count: previousTotalCount,
+        computed_total_count: computedTotalCount,
+        changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: experiments.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_samples: z.number().int().min(1).max(1000).default(200),
+    sample_ids: z.array(zid("samples")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      sample_id: zid("samples"),
+      run_id: zid("runs"),
+      previous_score_count: z.number().nullable(),
+      previous_score_critic_count: z.number().nullable(),
+      computed_score_count: z.number(),
+      computed_score_critic_count: z.number(),
+      changed: z.boolean(),
+      removed_legacy_fields: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let samples: Array<Doc<"samples">> = [];
+
+    if (args.sample_ids?.length) {
+      const loaded = await Promise.all(args.sample_ids.map((sampleId) => ctx.db.get(sampleId)));
+      samples = loaded.filter((sample): sample is Doc<"samples"> => sample != null);
+    } else {
+      const orderedSamples = await ctx.db
+        .query("samples")
+        .order("asc")
+        .take(cursor + args.max_samples + 1);
+      const page = orderedSamples.slice(cursor, cursor + args.max_samples + 1);
+      samples = page.slice(0, args.max_samples);
+      if (page.length > args.max_samples) {
+        nextCursor = cursor + args.max_samples;
+      }
+    }
+
+    const rows: Array<{
+      sample_id: Id<"samples">;
+      run_id: Id<"runs">;
+      previous_score_count: number | null;
+      previous_score_critic_count: number | null;
+      computed_score_count: number;
+      computed_score_critic_count: number;
+      changed: boolean;
+      removed_legacy_fields: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const sample of samples) {
+      const rawSample = sample as Doc<"samples"> & {
+        score_id?: Id<"scores"> | null;
+        score_critic_id?: Id<"score_critics"> | null;
+      };
+      const counts = await getSampleScoreCounts(ctx, sample._id);
+      const previousScoreCount = typeof sample.score_count === "number"
+        ? sample.score_count
+        : null;
+      const previousScoreCriticCount = typeof sample.score_critic_count === "number"
+        ? sample.score_critic_count
+        : null;
+      const removedLegacyFields = "score_id" in rawSample || "score_critic_id" in rawSample;
+      const changed =
+        previousScoreCount !== counts.score_count
+        || previousScoreCriticCount !== counts.score_critic_count
+        || removedLegacyFields;
+
+      if (changed && !args.dry_run) {
+        await ctx.db.replace(sample._id, {
+          run_id: sample.run_id,
+          experiment_id: sample.experiment_id,
+          model: sample.model,
+          seed: sample.seed,
+          rubric_id: sample.rubric_id,
+          rubric_critic_id: sample.rubric_critic_id,
+          score_count: counts.score_count,
+          score_critic_count: counts.score_critic_count,
+        });
+      }
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        sample_id: sample._id,
+        run_id: sample.run_id,
+        previous_score_count: previousScoreCount,
+        previous_score_critic_count: previousScoreCriticCount,
+        computed_score_count: counts.score_count,
+        computed_score_critic_count: counts.score_critic_count,
+        changed,
+        removed_legacy_fields: removedLegacyFields,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: samples.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
     };
   },
 });

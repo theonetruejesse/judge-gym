@@ -43,6 +43,7 @@ type ExperimentListItem = {
     evidence_view: string;
     randomizations: string[];
   };
+  total_count: number;
   evidence_selected_count: number;
   window_count: number;
   status: string;
@@ -51,6 +52,7 @@ type ExperimentListItem = {
     status: string;
     current_stage: string;
     target_count: number;
+    completed_count: number;
     created_at: number;
     has_failures: boolean;
   };
@@ -211,7 +213,7 @@ export default function EvidenceHomePage() {
                   <TableHead>Rubric</TableHead>
                   <TableHead>Scoring</TableHead>
                   <TableHead>Concept</TableHead>
-                  <TableHead className="text-right">Samples</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Evidence</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -268,7 +270,7 @@ export default function EvidenceHomePage() {
                       {exp.rubric_config.concept}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
-                      {exp.latest_run?.target_count ?? "—"}
+                      {exp.total_count ?? 0}
                     </TableCell>
                     <TableCell className="text-right opacity-70">
                       {exp.evidence_selected_count ?? 0}
