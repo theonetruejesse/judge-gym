@@ -19,7 +19,7 @@
         "@ai-sdk/openai": "^3.0.24",
         "@ai-sdk/xai": "^3.0.46",
         "@convex-dev/rate-limiter": "^0.2.14",
-        "@convex-dev/workflow": "^0.3.4",
+        "@convex-dev/workflow": "^0.3.5",
         "@mendable/firecrawl-js": "^4.12.0",
         "@openrouter/ai-sdk-provider": "^2.1.1",
         "ai": "^6.0.66",
@@ -110,7 +110,7 @@
 
     "@convex-dev/rate-limiter": ["@convex-dev/rate-limiter@0.2.14", "", { "peerDependencies": { "convex": ">=1.17.0 <1.35.0", "react": "^18.2.0 || ^19.0.0" }, "optionalPeers": ["react"] }, "sha512-6dQ2ceHFcU8HVXT0QdcgWXCahasMcjne/bWvLZ6qyyk5gZDP4JtjZyidy9HflAOCo1Nc428pgrROnbQBM0QPCQ=="],
 
-    "@convex-dev/workflow": ["@convex-dev/workflow@0.3.4", "", { "dependencies": { "async-channel": "^0.2.0" }, "peerDependencies": { "@convex-dev/workpool": "^0.3.0", "convex": "^1.24.8", "convex-helpers": "^0.1.99" } }, "sha512-uX9qhEbgkgt+touvgLnyKztussT3m5q4c2XH/iBNQxzk8TlL29F1+UeoCxXA6WibWEpOQLeuFA6/QMVP4tEX1w=="],
+    "@convex-dev/workflow": ["@convex-dev/workflow@0.3.5", "", { "dependencies": { "async-channel": "^0.2.0" }, "peerDependencies": { "@convex-dev/workpool": "^0.3.0 || ^0.4.0", "convex": "^1.31.7", "convex-helpers": "^0.1.99" } }, "sha512-pJGi4VRqwfvpbYzewEFU6O7lhohBu+c1blhkcyqvKlJyFJs3bSVvJDr+e9UNCZb2/X2KYx5p0Qdf+xURNaqlpQ=="],
 
     "@convex-dev/workpool": ["@convex-dev/workpool@0.3.1", "", { "peerDependencies": { "convex": "^1.24.8", "convex-helpers": "^0.1.94" } }, "sha512-uw4Mi+irhhoYA/KwaMo5wXyYJ7BbxqeaLcCZbst3t1SxPN5488rpnR0OwBcPDCmwcdQjBVHOx+q8S4GUjq0Csg=="],
 

@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A2_001",
+  "microHypothesisID": "h_A2_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Provider transient failures are the sole dominant blocker",
+      "falsificationQueries": [
+        "Inspect convex insights for top erroring functions",
+        "Inspect llm_batches error classes"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_run_failure_modes_evidence.md"
+      ],
+      "falsificationAnalysis": "Provider unknown/timeouts exist, but insights repeatedly highlight reconcileRunStage read-limit and OCC failures in the same time window.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

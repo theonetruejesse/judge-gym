@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A3_001",
+  "areaOfAnalysisID": "A3",
+  "statement": "Operational monitoring should temporarily use getProcessHealth + direct tables + Axiom traces because Lab summaries are presently read-limit unstable.",
+  "confidence": 0.92,
+  "rationale": "Repeated read-limit failures in lab summary/list endpoints and getStuckWork contrast with stable getProcessHealth and Axiom query results.",
+  "keyAssumptions": [
+    "Current read-limit behavior persists during active experiment load"
+  ],
+  "validationCriteria": [
+    "Alternative source set continues returning consistent health state over repeated checks"
+  ],
+  "critiquePoints": [
+    "If load drops, lab endpoints may recover and become usable again"
+  ],
+  "questions": [
+    "Should we add explicit low-cost ops queries to replace expensive summary paths?"
+  ]
+}
