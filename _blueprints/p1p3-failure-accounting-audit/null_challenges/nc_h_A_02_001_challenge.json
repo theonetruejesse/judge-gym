@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_02_001",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that partial D1 missing score units were only blocked by upstream rubric failure.",
+      "falsificationQueries": [
+        "Check whether missing score units exist outside the three failed samples.",
+        "Inspect one failed sample for direct score-stage targets or requests."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_partial_d1_blocked_downstream.md"
+      ],
+      "falsificationAnalysis": "All missing score units are concentrated in exactly three fully failed samples, and a targeted missing unit has no score target or score request because the rubric target exhausted upstream.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

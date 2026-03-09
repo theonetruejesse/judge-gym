@@ -38,18 +38,18 @@
 
 ### W1-W10 query plan (P1)
 
-| Window | Query                                                         |
-| :----- | :------------------------------------------------------------ |
-| W1     | election certification disputes United States                 |
-| W2     | court rulings executive authority United States               |
-| W3     | independence of judiciary United States                       |
-| W4     | civil liberties protest restrictions United States            |
-| W5     | press freedom media intimidation United States                |
-| W6     | emergency powers executive branch United States               |
-| W7     | legislature executive conflict shutdown United States         |
-| W8     | political violence threats candidates United States           |
-| W9     | immigration enforcement due process United States             |
-| W10    | foreign policy military authorization oversight United States |
+| Window | Country       | Query                                                         |
+| :----- | :------------ | ------------------------------------------------------------- |
+| W1     | United States | election certification disputes United States                 |
+| W2     | United States | court rulings executive authority United States               |
+| W3     | United States | independence of judiciary United States                       |
+| W4     | United States | civil liberties protest restrictions United States            |
+| W5     | United States | press freedom media intimidation United States                |
+| W6     | United States | emergency powers executive branch United States               |
+| W7     | United States | legislature executive conflict shutdown United States         |
+| W8     | United States | political violence threats candidates United States           |
+| W9     | United States | immigration enforcement due process United States             |
+| W10    | United States | foreign policy military authorization oversight United States |
 
 ### W12-W15 control window plan (P3)
 
@@ -65,185 +65,23 @@
 | Pool ID | Source                                          | Purpose                           | Size | Done  |
 | :------ | :---------------------------------------------- | :-------------------------------- | ---: | :---- |
 | P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | true  |
-| P2      | W11 synthetic ladder (S1..S10)                  | Required grounding check pool     |   10 | false |
-| P3      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 | true  |
-
-## Pool Construction SOP (Source of Truth)
-
-### Canonical workflow (all pools)
-
-1. Create the planned window.
-2. Fetch candidates with `evidence_limit=10`.
-3. Rank by:
-   - concept relevance to the intended pool purpose,
-   - institutional observability (actions, policies, institutional responses),
-   - text completeness (sufficient article body for scoring).
-4. De-duplicate by normalized URL and near-duplicate title.
-5. Keep fixed cardinality for that window.
-6. Create pool from selected evidence IDs and freeze membership:
-   - set stable `pool_tag`,
-   - do not swap evidence after first experiment is initialized from the pool.
-
-### P1 SOP (20 total)
-
-- Inputs: W1-W10 query plan above.
-- Keep rule: exactly 2 evidence items per window after ranking and dedupe.
-- Exclude: duplicates, pure opinion/editorials, and non-governance tangents.
-- Invariant: `10 windows × 2 = 20` evidence rows in P1.
-
-### P1 Operational Build (Current Active Pool)
-
-- Source collection windows: `W1-W10` raw candidate packets from `2026-01-01` to `2026-01-07`.
-- Current-pass selection mode: fast U.S.-only global shortlist from the adjudicated candidate set.
-- Note: this active freeze does **not** preserve strict `2/window` balance; over-indexing across stronger windows was accepted for speed in the current pass.
-- Curated semantic-processing window id: `jx7cg9r69brkrjfy403gfbjxp982kz37`.
-- Curated window model: `gpt-4.1-mini`.
-- Active pool tag: `p1_us_contested_trial_2026_01_01`.
-- Active pool id: `ms7306g983d9pdbf8cmcvet87s82k4j0`.
-- Final size: `20` curated evidence rows with completed `l2_neutralized_content` and `l3_abstracted_content`.
-
-#### P1 active freeze notes
-
-- Jurisdiction filter: U.S.-only news/gov coverage for the active pass.
-- Excluded from freeze despite shortlist availability: the UK protest-rights fallback and duplicate/weak overlap items.
-- Intended use: baseline `P1` experiment tier launches (`A1/A2/A3/A4/B1`) in the current pass.
-
-### P3 SOP (10 total, current pass)
-
-- Inputs: W12-W15 Norway election-reporting windows above.
-- Keep rule: de-duplicate across all four windows and keep exactly `10` evidence items total.
-- Include: routine election result reporting, turnout/count reporting, official results coverage, seat allocation, and coalition formation reporting immediately after the vote.
-- Exclude: campaign-issue explainers, opinion/editorials, conflict-first framing not centered on results reporting, and items with explicit fascism/authoritarian labeling.
-- Invariant: `10` de-duplicated evidence rows in P3.
-
-### P3 Operational Build (Current Active Pool)
-
-- Window model: `gpt-4.1-mini` for all four evidence windows.
-- Date range: `2025-09-08` to `2025-09-12` for every P3 window.
-- Country: `Norway` for every P3 window in the current pass.
-- Evidence limit: `10` candidates per window.
-- Active pool tag: `p3_norway_election_reporting_trial_2025_09_08`.
-- Active pool id: `ms7df5bwnh74ydh5v6rqm1r36d82ge8a`.
-
-#### Exact `createWindowForm` payloads
-
-| Window | Payload                                                                                                                                                                                                    |
-| :----- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| W12    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway parliamentary election results reporting" }, evidence_limit: 10 }`        |
-| W13    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election turnout count official reporting" }, evidence_limit: 10 }`       |
-| W14    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election authorities official results reporting" }, evidence_limit: 10 }` |
-| W15    | `{ evidence_window: { country: "Norway", model: "gpt-4.1-mini", start_date: "2025-09-08", end_date: "2025-09-12", query: "Norway election reporting Storting seats results" }, evidence_limit: 10 }`       |
-
-#### P3 selection procedure
-
-1. Create `W12`, `W13`, `W14`, and `W15` with the exact payloads above.
-2. Wait until candidate evidence has non-empty `l2_neutralized_content` before final selection.
-3. Review fetched candidates and apply hard exclusions first:
-   - opinion/editorials,
-   - pre-election issue explainers not centered on results reporting,
-   - conflict-first campaign framing,
-   - explicit authoritarian/fascism labeling,
-   - low-body or incomplete articles.
-4. De-duplicate by normalized URL and near-duplicate title across all four windows.
-5. Prefer the cleanest election-night / official-results reporting pieces first, then keep the strongest `10` distinct items total.
-6. Create `P3` from the resulting evidence IDs and freeze membership immediately under the active pool tag above.
-
-#### P3 active freeze set
-
-- Pool size: `10` evidence items.
-- Pool composition: de-duplicated Norway parliamentary election reporting from September 8-9, 2025.
-- Intended use: current `D1` control trial only.
+| P2      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 | true  |
+| P3      | W11 synthetic ladder (S1..S10)                  | Required grounding check pool     |   10 | false |
 
 ## Experiments (Source of Truth)
 
-| Tier                              | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done  |
-| :-------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :---- |
-| A1 (primary baseline + abstain)   | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
-| A2 (primary semantic ablation)    | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 | false |
-| A3 (primary scale ablation)       | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 | false |
-| A4 (primary swap mechanism)       | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 | false |
-| B1 (secondary baseline + abstain) | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
-| C1 (synthetic grounding check)    | P2   | gpt-4.1, gpt-5.2           | synthetic ladder       | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
-| D1 (control domain check)         | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | true  |
+| Tier                               | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done  |
+| :--------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :---- |
+| A1 (primary baseline + abstain)    | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
+| A2 (primary semantic ablation)     | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 | false |
+| A3 (primary scale ablation)        | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 | false |
+| A4 (primary swap mechanism)        | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 | false |
+| A5 (concept extension baseline)    | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
+| A6 (low contested country control) | P2   | gpt-4.1, gpt-5.2           | fascism                | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
+| B1 (secondary baseline + abstain)  | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
+| C1 (control domain check)          | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
 
-Required total: **18 configs**.
-
-- `Done` means the tier has been initialized and started for the current pass, not that all runs have completed.
-- `D1` live run history:
-  - `gpt-4.1` primary run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh7avay0pw0jdc15svq9jpz5p182gwjw`, `target_count=30`, terminal summary `27/30` rubrics and `270/300` score-stage completions (`has_failures=true`).
-  - `gpt-5.2` primary run: experiment `j97ep0yj8sme9pg5mryq9kw2v982g2xj`, run `kh77e0h2fp5pmr9geaf5q9myh982gecn`, `target_count=30`, completed cleanly (`has_failures=false`).
-  - `gpt-4.1` make-up run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh77x84mrerjypcthptxbmme5s82gkwq`, `target_count=3`, completed cleanly with `3/3`, `3/3`, `30/30`, `30/30`.
-
-### P1 Prepared Experiment Configs (Initialized, Not Started)
-
-- Active `P1` pool id for all prepared configs: `ms7306g983d9pdbf8cmcvet87s82k4j0`.
-- All `14` required `A1/A2/A3/A4/B1` configs are initialized and left in `status=start` for manual launch.
-
-| Tier | Config | Experiment ID | Status |
-| :--- | :----- | :------------ | :----- |
-| A1 | `gpt-4.1`, `abstain=true`, `semantic=l2`, `scale=4` | `j9700j8fw1f0wkc7msv6nqwz2582ksk7` | `start` |
-| A1 | `gpt-4.1`, `abstain=false`, `semantic=l2`, `scale=4` | `j97adetq93498fxmthx3y5xgnn82ka9a` | `start` |
-| A1 | `gpt-5.2`, `abstain=true`, `semantic=l2`, `scale=4` | `j97b1v835gct44wxgr7jfwq52582jd7d` | `start` |
-| A1 | `gpt-5.2`, `abstain=false`, `semantic=l2`, `scale=4` | `j97d5x0ab1pbdzthy48h31z14d82k4ah` | `start` |
-| A2 | `gpt-4.1`, `abstain=true`, `semantic=l3`, `scale=4` | `j975w5rp1jb5w3zykrs9k4e0kd82jhk4` | `start` |
-| A2 | `gpt-5.2`, `abstain=true`, `semantic=l3`, `scale=4` | `j9736r85tfhbp6kyzt8v2wkfp582kk20` | `start` |
-| A3 | `gpt-4.1`, `abstain=true`, `semantic=l2`, `scale=5` | `j974rffv7tb6messke9p2m8ks982jk5n` | `start` |
-| A3 | `gpt-5.2`, `abstain=true`, `semantic=l2`, `scale=5` | `j978aw673017sctryrgaynedth82jwdt` | `start` |
-| A4 | `rubric=gpt-4.1`, `scoring=gpt-5.2`, `semantic=l2`, `scale=4` | `j97ah3tg0ba88cswmnf5rgn4jx82k1ed` | `start` |
-| A4 | `rubric=gpt-5.2`, `scoring=gpt-4.1`, `semantic=l2`, `scale=4` | `j973gb77vysksgkczasggc9td182ja4p` | `start` |
-| B1 | `gpt-4.1-mini`, `abstain=true`, `semantic=l2`, `scale=4` | `j972v32z6x130pt5q5ezb4p69d82jt23` | `start` |
-| B1 | `gpt-4.1-mini`, `abstain=false`, `semantic=l2`, `scale=4` | `j9776fbsbh9vv7phs353ky5mg982jngt` | `start` |
-| B1 | `gpt-5.2-chat`, `abstain=true`, `semantic=l2`, `scale=4` | `j975gh49g05wmf4qzfz2z8rgmn82j9pg` | `start` |
-| B1 | `gpt-5.2-chat`, `abstain=false`, `semantic=l2`, `scale=4` | `j97fsd8exyx5yf3aqpkbekk8tn82jtxx` | `start` |
-
-## Model Use Semantics (Source of Truth)
-
-- Primary models: `gpt-4.1`, `gpt-5.2`.
-  - Required tiers: `A1`, `A2`, `A3`, `A4`, `C1`, `D1`.
-- Secondary models: `gpt-4.1-mini`, `gpt-5.2-chat`.
-  - Required tier: `B1` only.
-- Pool-to-tier mapping:
-  - `P1` feeds `A1/A2/A3/A4/B1`.
-  - `P2` feeds `C1`.
-  - `P3` feeds `D1`.
-
-## API Request Breakdown
-
-Assumptions per config (`target_count=30`):
-
-- `rubric_gen = 30`
-- `rubric_critic = 30`
-- `score_gen = 30 × pool_size`
-- `score_critic = 30 × pool_size`
-
-Per-config totals:
-
-- Pool size `20` (`P1`): `1260`
-- Pool size `10` (`P2`, `P3` current pass): `660`
-
-### Required plan (18 configs)
-
-| Tier           | Configs | Pool Size | Rubric Gen | Rubric Critic | Score Gen | Score Critic |     Total |
-| :------------- | ------: | --------: | ---------: | ------------: | --------: | -----------: | --------: |
-| A1             |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
-| A2             |       2 |        20 |         60 |            60 |      1200 |         1200 |      2520 |
-| A3             |       2 |        20 |         60 |            60 |      1200 |         1200 |      2520 |
-| A4             |       2 |        20 |         60 |            60 |      1200 |         1200 |      2520 |
-| B1             |       4 |        20 |        120 |           120 |      2400 |         2400 |      5040 |
-| C1             |       2 |        10 |         60 |            60 |       600 |          600 |      1320 |
-| D1             |       2 |        10 |         60 |            60 |       600 |          600 |      1320 |
-| **Plan Total** |  **18** |           |    **540** |       **540** |  **9600** |     **9600** | **20280** |
-
-### Plan totals
-
-- Total requests: **20280**
-- Stage totals:
-  - `rubric_gen`: **540**
-  - `rubric_critic`: **540**
-  - `score_gen`: **9600**
-  - `score_critic`: **9600**
-
-## Execution Checklist (Source of Truth TODO)
+Required total (current live finish pass): **20 configs**.
 
 ### Preflight
 
@@ -298,4 +136,3 @@ Per-config totals:
 ## Deferred Scope (Intentionally Out of Current V3)
 
 - `scale_size=7` full-factorial sweep
-- concept extension (`illiberal democracy`) as primary tier

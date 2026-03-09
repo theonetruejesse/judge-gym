@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "originalQuestion": "Audit historical run failure accounting across samples, sample_evidence_scores, scores, score_critics, process_request_targets, and telemetry surfaces. Determine which null fields are expected schema semantics vs true failures, whether partial-failure runs were correctly accounted for, whether there are additional latent bugs before launching the final illiberal-democracy plus make-up batch, and what exact pre-launch checks we should require. Use Convex data, code semantics, and telemetry/observability evidence.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/p1p3-failure-accounting-audit",
+    "finalPlanPath": "_blueprints/p1p3-failure-accounting-audit/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "agentId": "019cd411-3f7f-7462-b232-09b294dcc8aa",
+        "nickname": "Peirce",
+        "role": "Researcher",
+        "areaId": "A_01"
+      },
+      {
+        "agentId": "lead:local_convex_audit",
+        "nickname": "Lead-Local",
+        "role": "Researcher",
+        "areaId": "A_02"
+      },
+      {
+        "agentId": "019cd411-4677-7fd2-b77d-d23aff44da09",
+        "nickname": "Sartre",
+        "role": "Researcher",
+        "areaId": "A_03"
+      },
+      {
+        "agentId": "019cd412-d09c-7093-8b00-50b3ab99be8c",
+        "nickname": "Bacon",
+        "role": "Researcher",
+        "areaId": "A_04"
+      }
+    ],
+    "falsifier": "019cd41a-bf9b-7142-bd20-24efc2b3edc8",
+    "certaintyScorer": "019cd41e-6a66-7301-b805-6a8e0d60a8e2",
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaId": "A_01",
+      "title": "Schema and artifact semantics",
+      "question": "Which null fields in samples and sample_evidence_scores are expected schema semantics versus true failures, and what code paths control them?",
+      "assignedAgentId": "self:researcher_code_semantics"
+    },
+    {
+      "areaId": "A_02",
+      "title": "Historical Convex table audit",
+      "question": "For representative clean and partial runs, do table counts and nulls align with expected failure accounting?",
+      "assignedAgentId": "lead:local_convex_audit"
+    },
+    {
+      "areaId": "A_03",
+      "title": "Telemetry and observability alignment",
+      "question": "Were failures reflected consistently across summaries, diagnostics, request targets, and Convex insights?",
+      "assignedAgentId": "019cd411-4677-7fd2-b77d-d23aff44da09"
+    },
+    {
+      "areaId": "A_04",
+      "title": "Axiom telemetry audit",
+      "question": "Which Axiom datasets and events reflect historical failures, and what blind spots remain versus Convex-side observability?",
+      "assignedAgentId": "019cd412-d09c-7093-8b00-50b3ab99be8c"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_subset_score_semantics.md",
+      "knowledge/k_002_clean_d1_table_truth.md",
+      "knowledge/k_003_partial_d1_failure_shape.md",
+      "knowledge/k_004_partial_p1_parse_dominance.md",
+      "knowledge/k_005_observability_alignment_gaps.md"
+    ]
+  },
+  "evidenceReviews": [
+    {
+      "areaId": "A_01",
+      "evidenceIds": [
+        "k_001"
+      ]
+    },
+    {
+      "areaId": "A_02",
+      "evidenceIds": [
+        "k_002",
+        "k_003",
+        "k_004"
+      ]
+    },
+    {
+      "areaId": "A_03",
+      "evidenceIds": [
+        "k_005"
+      ]
+    },
+    {
+      "areaId": "A_04",
+      "evidenceIds": [
+        "k_005"
+      ]
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "target": "k_001",
+        "score": 0.95
+      },
+      {
+        "target": "k_002",
+        "score": 0.93
+      },
+      {
+        "target": "k_003",
+        "score": 0.91
+      },
+      {
+        "target": "k_004",
+        "score": 0.88
+      },
+      {
+        "target": "k_005",
+        "score": 0.85
+      },
+      {
+        "target": "h_A_01_001",
+        "score": 0.96
+      },
+      {
+        "target": "h_A_02_001",
+        "score": 0.88
+      },
+      {
+        "target": "h_A_03_001",
+        "score": 0.9
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaId": "A_01",
+      "scope": "Schema, models, orchestration paths, and reporting semantics for sample and score artifacts"
+    },
+    {
+      "areaId": "A_02",
+      "scope": "Historical table-level evidence for clean and partial runs on the dev deployment"
+    },
+    {
+      "areaId": "A_03",
+      "scope": "Cross-surface observability alignment and latent monitoring gaps before relaunch"
+    },
+    {
+      "areaId": "A_04",
+      "scope": "Axiom dataset and event-level audit for externally exported telemetry"
+    }
+  ],
+  "microHypotheses": [
+    {
+      "id": "h_A_01_001",
+      "statement": "For current subset-scoring runs, null `samples.score_id` and `samples.score_critic_id` are expected and should not be interpreted as failure indicators; canonical completion lives on `sample_evidence_scores`.",
+      "confidence": 0.96
+    },
+    {
+      "id": "h_A_02_001",
+      "statement": "Historical partial runs were mostly accounted for correctly at terminal artifact counts, but operator telemetry surfaces still over-report historical retries and non-terminal errors as if they were active or terminal failures.",
+      "confidence": 0.88
+    },
+    {
+      "id": "h_A_03_001",
+      "statement": "The dominant remaining pre-launch execution risk in the reviewed historical failures is parser/output fragility in score generation, with telemetry/OCC contention as a meaningful but secondary risk.",
+      "confidence": 0.9
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "between": [
+        "h_A_01_001",
+        "legacy_sample_level_score_path"
+      ],
+      "status": "resolved_by_scope",
+      "note": "Legacy runs without `sample_evidence_scores` still use sample-level score fields, but representative live runs all contain score-unit rows."
+    },
+    {
+      "between": [
+        "h_A_02_001",
+        "telemetry_stage_payload_truth"
+      ],
+      "status": "partially_unresolved",
+      "note": "Terminal artifact truth is well supported, but not every telemetry-stage payload was traced back to exact mutation-time semantics."
+    }
+  ],
+  "synthesisOutput": "_blueprints/p1p3-failure-accounting-audit/blueprint.md"
+}

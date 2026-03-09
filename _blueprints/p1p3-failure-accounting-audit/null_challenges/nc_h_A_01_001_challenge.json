@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that sample-level score fields are legacy or non-canonical for current subset runs.",
+      "falsificationQueries": [
+        "Inspect run creation and score apply code paths for current runs.",
+        "Check a fully clean subset-scoring run for non-null `samples.score_id` and `samples.score_critic_id`."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_subset_score_semantics.md",
+        "knowledge/k_002_clean_d1_counts.md"
+      ],
+      "falsificationAnalysis": "The code creates score units for every current run and writes score completion to those units. The clean D1 run confirms full success with zero sample-level score ids present.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

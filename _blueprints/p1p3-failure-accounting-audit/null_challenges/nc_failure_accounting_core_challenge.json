@@ -1,0 +1,47 @@
+{
+  "challengeID": "nc_failure_accounting_core",
+  "microHypothesisID": "h_A_01_001|h_A_02_001|h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that sample-level score nulls are expected on modern subset runs.",
+      "falsificationQueries": [
+        "Inspect score-stage apply paths and run orchestrator target selection.",
+        "Compare clean-run sample rows to unit-level score rows."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_subset_score_semantics.md",
+        "knowledge/k_002_clean_d1_table_truth.md"
+      ],
+      "falsificationAnalysis": "Modern runs target and patch `sample_evidence_scores` for scoring. Clean D1 data shows full unit-level score completion with null sample-level score fields.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Disprove that terminal artifact-derived accounting is mostly correct on representative partial runs.",
+      "falsificationQueries": [
+        "Compare `getRunSummary` against artifact table counts on partial D1 and partial P1 runs.",
+        "Compare exhausted target counts to downstream blocked-stage misses."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_partial_d1_failure_shape.md",
+        "knowledge/k_004_partial_p1_parse_dominance.md",
+        "knowledge/k_005_observability_alignment_gaps.md"
+      ],
+      "falsificationAnalysis": "Terminal summaries largely match artifact truth, but telemetry semantics drift in some surfaces and event payloads. This weakens an over-broad version of the claim but not the core artifact-accounting conclusion.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Disprove that parser/output fragility is the dominant remaining pre-launch risk in the reviewed failures.",
+      "falsificationQueries": [
+        "Inspect failed request distributions and top error messages on the bad P1 run.",
+        "Check whether representative failed runs ended on exhausted requests rather than scheduler inactivity."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_partial_p1_parse_dominance.md",
+        "knowledge/k_005_observability_alignment_gaps.md"
+      ],
+      "falsificationAnalysis": "Parse failures dominate the bad P1 run and appear in D1 too, but telemetry/OCC noise remains a secondary operational risk. The hypothesis survives in weakened form.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}
