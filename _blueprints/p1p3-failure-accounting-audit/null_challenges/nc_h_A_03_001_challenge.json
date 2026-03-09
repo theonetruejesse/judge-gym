@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Disprove that the partial P1 run contains genuine score-generation target failures rather than only reporting noise.",
+      "falsificationQueries": [
+        "Check whether missing score units have exhausted `score_gen` targets.",
+        "Check whether artifacts and summaries still show full score completion."
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_partial_p1_score_gen_exhaustion.md",
+        "knowledge/k_005_operator_surface_mismatch.md"
+      ],
+      "falsificationAnalysis": "Missing units do have exhausted score-generation targets and no downstream score-critic targets. Diagnostics clearly overcount failures relative to terminal targets, but the raw unit tables still show 300 genuine missing score rows.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

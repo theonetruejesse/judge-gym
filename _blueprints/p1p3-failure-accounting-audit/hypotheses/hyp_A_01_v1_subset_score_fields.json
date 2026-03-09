@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "For current subset-scoring runs, null `samples.score_id` and `samples.score_critic_id` are expected and should not be interpreted as failure indicators; canonical score completion lives on `sample_evidence_scores`.",
+  "confidence": 0.93,
+  "rationale": "Current run creation always inserts score-unit rows, and modern scoring writes to those rows rather than to the sample row.",
+  "keyAssumptions": [
+    "Representative live runs all contain `sample_evidence_scores` rows.",
+    "The legacy sample-level score path is not the active path for current subset runs."
+  ],
+  "validationCriteria": [
+    "A clean subset run shows sample score fields null while score units and score tables are fully populated.",
+    "Code paths patch score units when `scoreUnit` exists and only patch sample rows in the legacy path."
+  ],
+  "critiquePoints": [
+    "Legacy runs without `sample_evidence_scores` still use sample-level score fields.",
+    "Any downstream tooling that still inspects `samples.score_id` could misclassify modern runs."
+  ],
+  "questions": [
+    "Should sample-level score fields be documented as legacy-only for subset mode?"
+  ]
+}

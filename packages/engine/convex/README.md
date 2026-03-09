@@ -7,6 +7,8 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Scheduler-driven orchestration for run/window flows.
 - Internal actions process queued/running batches and jobs.
 - Internal mutations own state transitions and durable table writes.
+- Runs persist both requested samples (`target_count`) and fully finished samples (`completed_count`).
+- Experiments persist `total_count`, the aggregate sum of run `completed_count` values for that experiment.
 - Scheduler auto-requeues due orphaned requests on normal ticks.
 - `process_request_targets` provides snapshot-backed process health rollups.
 - High-volume telemetry is exported best-effort to Axiom from Convex actions.
@@ -46,6 +48,8 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
 - Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
+- One-off run metadata repairs go through `packages/codex:backfillRunCompletedCounts` with `dry_run`, `cursor`, and `max_runs`.
+- One-off experiment aggregate repairs go through `packages/codex:backfillExperimentTotalCounts` with `dry_run`, `cursor`, and `max_experiments`.
 - `bun run telemetry:check` now performs an Axiom ingest smoke test through Convex.
 
 ## Validation

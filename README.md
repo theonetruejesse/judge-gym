@@ -25,6 +25,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 20-item U.S.-only contested `P1` pool and the active 10-item Norway election-reporting control `P3` pool, freeze metadata, and model-to-tier mapping) to keep agentic run setup reproducible.
 - The first live V3 experiments on the frozen Norway election-reporting `P3` trial pool are the two `D1` control-pool configs plus a completed `gpt-4.1` 3-sample make-up run for the initial rubric-generation misses.
 - The active 20-item U.S.-only contested `P1` pool now has all `14` required `A1/A2/A3/A4/B1` experiment configs initialized and ready to launch.
+- The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
 - Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.

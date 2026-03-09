@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "process_observability is the dominant live telemetry hot row, and most related OCC hotspots are downstream effects of mirroring too many events into that row.",
+  "confidence": 0.92,
+  "rationale": "Convex Insights show recordProcessObservability as the largest recurring OCC source, and code inspection shows most process, batch, job, scheduler, and error events are mirrored into one row per process.",
+  "keyAssumptions": [
+    "The hot-row pattern, not just random load, explains the recurring OCC cluster."
+  ],
+  "validationCriteria": [
+    "Reducing mirror frequency or moving recent events off the hot row materially reduces process_observability OCC in future load tests."
+  ],
+  "critiquePoints": [
+    "Some contention may remain unavoidable because multiple writers still need the same process milestone fields."
+  ],
+  "questions": [
+    "Should milestone fields and recent-event logs be separated into different storage paths?"
+  ]
+}

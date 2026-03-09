@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Current operator surfaces conflate historical failed attempts with terminal target failure and are insufficient for post-hoc parse forensics.",
+  "confidence": 0.96,
+  "rationale": "Clean completed runs still show failed requests and error summaries, while failed parse requests usually lack raw output on durable request rows and local mirrored telemetry drops payload_json.",
+  "keyAssumptions": [
+    "Operators need both terminal truth and historical attempt history, but they need them separated."
+  ],
+  "validationCriteria": [
+    "A clean completed run should be representable as terminally clean while still exposing historical attempts separately.",
+    "A failed parse request should retain enough durable payload to reconstruct the failure without relying solely on Axiom."
+  ],
+  "critiquePoints": [
+    "Some historical-failure visibility may be intentional for forensic uses.",
+    "Retention limits may constrain how much local payload can be preserved."
+  ],
+  "questions": [
+    "Which surface should own terminal truth vs historical-attempt visibility?"
+  ]
+}
