@@ -20,6 +20,8 @@ packages/analysis/scripts/output/
 
 # IDE
 .idea/
+.cursor/
+.codex/
 *.swp
 *.swo
 
