@@ -67,9 +67,7 @@ export default defineSchema({
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))
     .index("by_run", ["run_id"])
     .index("by_rubric_id", ["rubric_id"])
-    .index("by_rubric_critic_id", ["rubric_critic_id"])
-    .index("by_score_id", ["score_id"])
-    .index("by_score_critic_id", ["score_critic_id"]),
+    .index("by_rubric_critic_id", ["rubric_critic_id"]),
   rubrics: defineTable(zodOutputToConvex(RubricsTableSchema))
     .index("by_sample", ["sample_id"])
     .index("by_run", ["run_id"]),

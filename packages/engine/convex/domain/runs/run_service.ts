@@ -20,10 +20,12 @@ import {
   resolveScoringStrategy,
   type ExperimentConfig,
 } from "./run_strategies";
+import { syncExperimentTotalCount } from "./experiment_progress";
+import { syncSampleScoreCounts } from "./sample_progress";
 import { generateLabelMapping } from "../../utils/randomize";
 import { emitTraceEvent } from "../telemetry/emit";
 import { getNextAttemptAt } from "../../utils/scheduling";
-import { getRunStageProgress } from "./run_progress";
+import { getRunCompletedCount, getRunStageProgress } from "./run_progress";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -141,7 +143,7 @@ export const applyRequestResult = zInternalMutation({
         }, { defer: true });
         return;
       }
-      if (stage === "score_gen" && (scoreUnit?.score_id ?? sample.score_id)) {
+      if (stage === "score_gen" && scoreUnit?.score_id) {
         if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
@@ -163,7 +165,7 @@ export const applyRequestResult = zInternalMutation({
       }
       if (
         stage === "score_critic" &&
-        (scoreUnit?.score_critic_id ?? sample.score_critic_id)
+        scoreUnit?.score_critic_id
       ) {
         if (request.status === "success") return;
         await ctx.runMutation(
@@ -298,13 +300,14 @@ export const applyRequestResult = zInternalMutation({
 
         if (scoreUnit) {
           await ctx.db.patch(scoreUnit._id, { score_id });
+          await syncSampleScoreCounts(ctx, sampleId);
         } else {
-          await ctx.db.patch(sampleId, { score_id });
+          throw new Error("Score stage requires sample_evidence target");
         }
       }
 
       if (stage === "score_critic") {
-        const score_id = scoreUnit?.score_id ?? sample.score_id;
+        const score_id = scoreUnit?.score_id;
         if (!score_id) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
         const score_critic_id = await ctx.db.insert("score_critics", {
@@ -318,8 +321,10 @@ export const applyRequestResult = zInternalMutation({
 
         if (scoreUnit) {
           await ctx.db.patch(scoreUnit._id, { score_critic_id });
+          await syncSampleScoreCounts(ctx, sampleId);
+          await incrementRunCompletedCountForScoreUnit(ctx, sample.run_id, sampleId);
         } else {
-          await ctx.db.patch(sampleId, { score_critic_id });
+          throw new Error("Score critic stage requires sample_evidence target");
         }
       }
     } catch (error) {
@@ -657,10 +662,13 @@ async function maybeAdvanceRunStage(
         failed: progress.failed,
       };
     }
+    const completedCount = await getRunCompletedCount(ctx, runId);
     await ctx.db.patch(runId, {
       status: "completed",
       current_stage: stage,
+      completed_count: completedCount,
     });
+    await syncExperimentTotalCount(ctx, run.experiment_id);
     await emitTraceEvent(ctx, {
       trace_id: `run:${runId}`,
       entity_type: "run",
@@ -710,6 +718,45 @@ async function maybeAdvanceRunStage(
     completed: progress.completed,
     failed: progress.failed,
   };
+}
+
+async function incrementRunCompletedCountForCompletedSample(
+  ctx: MutationCtx,
+  runId: Id<"runs">,
+) {
+  const run = await ctx.db.get(runId);
+  if (!run) return;
+
+  if (typeof run.completed_count !== "number") {
+    const completedCount = await getRunCompletedCount(ctx, runId);
+    await ctx.db.patch(runId, {
+      completed_count: completedCount,
+    });
+    await syncExperimentTotalCount(ctx, run.experiment_id);
+    return;
+  }
+
+  const nextCompletedCount = Math.min(run.target_count, run.completed_count + 1);
+  await ctx.db.patch(runId, {
+    completed_count: nextCompletedCount,
+  });
+  await syncExperimentTotalCount(ctx, run.experiment_id);
+}
+
+async function incrementRunCompletedCountForScoreUnit(
+  ctx: MutationCtx,
+  runId: Id<"runs">,
+  sampleId: Id<"samples">,
+) {
+  const scoreUnits = await ctx.db
+    .query("sample_evidence_scores")
+    .withIndex("by_sample", (q) => q.eq("sample_id", sampleId))
+    .collect();
+
+  if (scoreUnits.length === 0) return;
+  if (!scoreUnits.every((unit) => unit.score_critic_id != null)) return;
+
+  await incrementRunCompletedCountForCompletedSample(ctx, runId);
 }
 
 async function hasActiveRunTransportWork(

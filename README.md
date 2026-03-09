@@ -26,7 +26,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The first live V3 experiments on the frozen Norway election-reporting `P3` trial pool are the two `D1` control-pool configs plus a completed `gpt-4.1` 3-sample make-up run for the initial rubric-generation misses.
 - The active 20-item U.S.-only contested `P1` pool now has all `14` required `A1/A2/A3/A4/B1` experiment configs initialized and ready to launch.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
+- Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
+- Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
+- Samples now persist `score_count` and `score_critic_count` instead of legacy sample-level `score_id` / `score_critic_id`, so sample aggregation reflects the actual number of completed `sample_evidence_scores`.
 - `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
+- Ops now include a one-off `packages/codex:backfillRunCompletedCounts` mutation with dry-run + paging support to repair historical runs after the `completed_count` addition.
+- Ops now also include `packages/codex:backfillExperimentTotalCounts` to repair historical experiment aggregates after the `total_count` addition.
+- Ops now also include `packages/codex:backfillSampleScoreCounts` to repair historical sample score aggregates and strip legacy sample score ID fields before their final schema removal.
 - Run-stage reconcile now emits explicit reconcile outcomes (`run_stage_reconciled`) and can fail-safe pause a run (`status=paused`) when reconcile fails with no active transport left.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.
 - Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
@@ -144,9 +150,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- | --- |
 | `pools` | Reusable evidence pools | `pool_tag` |
 | `pool_evidence` | Evidence membership for pools | `pool_id`, `evidence_id` |
-| `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config` |
-| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count` |
-| `samples` | Run samples (rubric scope) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed` |
+| `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
+| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count`, `completed_count` |
+| `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count` |
 | `sample_evidence_scores` | Run score units (sample × evidence) | `run_id`, `sample_id`, `evidence_id`, `score_id`, `score_critic_id` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
@@ -177,11 +183,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
+2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
 4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every pool evidence item.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
-6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages).
+6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages), while sample `score_count` / `score_critic_count`, run `completed_count`, and experiment `total_count` persist as score work finishes.
 
 **Architecture overview**
 

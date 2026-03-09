@@ -238,9 +238,30 @@ async function markRunArtifacts(
       });
     }
 
+    for (const sample of samples) {
+      const sampleUnits = scoreUnits.filter((unit) => unit.sample_id === sample._id);
+      const successfulUnits = sampleUnits.filter((unit) => !failedIds.has(String(unit.sample_id)));
+      await ctx.db.patch(sample._id, {
+        score_count: successfulUnits.length,
+        score_critic_count: successfulUnits.length,
+      });
+    }
+
     await ctx.db.patch(run_id, {
       status: "completed",
       current_stage: "score_critic",
+      completed_count: Math.max(0, samples.length - failedSampleCount),
+    });
+
+    const experimentRuns = (await ctx.db.query("runs").collect()).filter(
+      (row) => row.experiment_id === experiment._id,
+    );
+    const total_count = experimentRuns.reduce(
+      (sum, row) => sum + (row.completed_count ?? 0),
+      0,
+    );
+    await ctx.db.patch(experiment._id, {
+      total_count,
     });
   });
 }
@@ -291,11 +312,14 @@ describe("run reporting", () => {
     });
     expect(run.status).toBe("running");
     expect(run.current_stage).toBe("rubric_gen");
+    expect(run.completed_count).toBe(0);
 
     const experiments = await t.query(api.packages.lab.listExperiments, {});
     const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
     expect(experiment?.status).toBe("running");
+    expect(experiment?.total_count).toBe(0);
     expect(experiment?.latest_run?.status).toBe("running");
+    expect(experiment?.latest_run?.completed_count).toBe(0);
     expect(experiment?.latest_run?.has_failures).toBe(false);
   });
 
@@ -313,6 +337,7 @@ describe("run reporting", () => {
       run_id: started.run_id,
     });
     expect(summary.status).toBe("completed");
+    expect(summary.completed_count).toBe(2);
     expect(summary.has_failures).toBe(true);
     expect(summary.failed_stage_count).toBe(4);
     expect(summary.stages).toEqual([
@@ -324,11 +349,15 @@ describe("run reporting", () => {
 
     const experiments = await t.query(api.packages.lab.listExperiments, {});
     const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.total_count).toBe(2);
+    expect(experiment?.latest_run?.completed_count).toBe(2);
     expect(experiment?.latest_run?.has_failures).toBe(true);
 
     const experimentSummary = await t.query(api.packages.lab.getExperimentSummary, {
       experiment_id,
     });
+    expect(experimentSummary.total_count).toBe(2);
+    expect(experimentSummary.latest_run?.completed_count).toBe(2);
     expect(experimentSummary.latest_run?.has_failures).toBe(true);
   });
 
@@ -346,12 +375,168 @@ describe("run reporting", () => {
       run_id: started.run_id,
     });
     expect(summary.status).toBe("completed");
+    expect(summary.completed_count).toBe(2);
     expect(summary.has_failures).toBe(false);
     expect(summary.failed_stage_count).toBe(0);
     expect(summary.stages.every((stage: { failed: number }) => stage.failed === 0)).toBe(true);
 
     const experiments = await t.query(api.packages.lab.listExperiments, {});
     const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.total_count).toBe(2);
+    expect(experiment?.latest_run?.completed_count).toBe(2);
     expect(experiment?.latest_run?.has_failures).toBe(false);
+  });
+
+  test("experiment total_count aggregates completed_count across runs", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const first = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 3,
+    });
+    await markRunArtifacts(t, first.run_id, 1);
+
+    const second = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, second.run_id, 0);
+
+    const experimentSummary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id,
+    });
+    expect(experimentSummary.total_count).toBe(4);
+    expect(experimentSummary.latest_run?.completed_count).toBe(2);
+  });
+
+  test("backfillRunCompletedCounts repairs stale run completed_count values", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(started.run_id, {
+        completed_count: 0,
+      });
+    });
+
+    const dryRun = await t.mutation(api.packages.codex.backfillRunCompletedCounts, {
+      dry_run: true,
+      run_ids: [started.run_id],
+    });
+    expect(dryRun.updated).toBe(1);
+    expect(dryRun.rows).toEqual([
+      expect.objectContaining({
+        run_id: started.run_id,
+        previous_completed_count: 0,
+        computed_completed_count: 2,
+        changed: true,
+      }),
+    ]);
+
+    const applied = await t.mutation(api.packages.codex.backfillRunCompletedCounts, {
+      dry_run: false,
+      run_ids: [started.run_id],
+    });
+    expect(applied.updated).toBe(1);
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.completed_count).toBe(2);
+  });
+
+  test("backfillExperimentTotalCounts repairs stale experiment total_count values", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(experiment_id, {
+        total_count: 0,
+      });
+    });
+
+    const dryRun = await t.mutation(api.packages.codex.backfillExperimentTotalCounts, {
+      dry_run: true,
+      experiment_ids: [experiment_id],
+    });
+    expect(dryRun.updated).toBe(1);
+    expect(dryRun.rows).toEqual([
+      expect.objectContaining({
+        experiment_id,
+        previous_total_count: 0,
+        computed_total_count: 2,
+        changed: true,
+      }),
+    ]);
+
+    const applied = await t.mutation(api.packages.codex.backfillExperimentTotalCounts, {
+      dry_run: false,
+      experiment_ids: [experiment_id],
+    });
+    expect(applied.updated).toBe(1);
+
+    const experimentSummary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id,
+    });
+    expect(experimentSummary.total_count).toBe(2);
+  });
+
+  test("backfillSampleScoreCounts repairs sample score aggregation fields", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    const samples = await t.run(async (ctx) =>
+      ctx.db.query("samples").collect(),
+    );
+    const targetSamples = samples.filter((sample) => sample.run_id === started.run_id);
+
+    await t.run(async (ctx) => {
+      for (const sample of targetSamples) {
+        await ctx.db.patch(sample._id, {
+          score_count: 0,
+          score_critic_count: 0,
+        });
+      }
+    });
+
+    const dryRun = await t.mutation(api.packages.codex.backfillSampleScoreCounts, {
+      dry_run: true,
+      sample_ids: targetSamples.map((sample) => sample._id),
+    });
+    expect(dryRun.updated).toBe(2);
+    expect(dryRun.rows.every((row: typeof dryRun.rows[number]) => row.computed_score_count === 1)).toBe(true);
+    expect(dryRun.rows.every((row: typeof dryRun.rows[number]) => row.computed_score_critic_count === 1)).toBe(true);
+
+    const applied = await t.mutation(api.packages.codex.backfillSampleScoreCounts, {
+      dry_run: false,
+      sample_ids: targetSamples.map((sample) => sample._id),
+    });
+    expect(applied.updated).toBe(2);
+
+    const refreshedSamples = await t.run(async (ctx) =>
+      ctx.db.query("samples").collect(),
+    );
+    const refreshedTargets = refreshedSamples.filter((sample) => sample.run_id === started.run_id);
+    expect(refreshedTargets.every((sample) => sample.score_count === 1)).toBe(true);
+    expect(refreshedTargets.every((sample) => sample.score_critic_count === 1)).toBe(true);
   });
 });

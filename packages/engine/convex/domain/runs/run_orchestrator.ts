@@ -16,9 +16,9 @@ import { type RunStage } from "../../models/experiments";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getRunStageProgress } from "./run_progress";
 
-type EvidenceDoc = Doc<"evidences">;
 type SampleDoc = Doc<"samples">;
 type SampleEvidenceScoreDoc = Doc<"sample_evidence_scores">;
+type SampleStage = Exclude<RunStage, "score_gen" | "score_critic">;
 
 type RequestState = "pending" | "none" | "retryable" | "exhausted";
 type RequestStateIndex = {
@@ -133,15 +133,10 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     };
 
     if (!SCORE_STAGES.includes(stage)) {
-      return this.listPendingSampleTargets(runId, stage, config);
+      return this.listPendingSampleTargets(runId, stage as SampleStage, config);
     }
 
     const scoreUnits = await this.listScoreUnitsForRun(runId);
-    if (scoreUnits.length === 0) {
-      // Backward compatibility for runs created before sample_evidence_scores.
-      return this.listPendingLegacySampleScoreTargets(runId, stage, config);
-    }
-
     return this.listPendingSampleEvidenceTargets(scoreUnits, stage, config, runId);
   }
 
@@ -237,7 +232,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
 
   private async getSampleStageProgress(
     runId: Id<"runs">,
-    stage: RunStage,
+    stage: SampleStage,
   ): Promise<{ completed: number; failed: number; hasPending: boolean } | null> {
     const samples = await this.ctx.db
       .query("samples")
@@ -288,18 +283,20 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     return { completed, failed, hasPending };
   }
 
-  private getSampleOutputId(sample: SampleDoc, stage: RunStage) {
+  private getSampleOutputId(
+    sample: SampleDoc,
+    stage: SampleStage,
+  ) {
     if (stage === "rubric_gen") return sample.rubric_id;
-    if (stage === "rubric_critic") return sample.rubric_critic_id;
-    if (stage === "score_gen") return sample.score_id;
-    return sample.score_critic_id;
+    return sample.rubric_critic_id;
   }
 
-  private isSampleStageBlocked(sample: SampleDoc, stage: RunStage): boolean {
+  private isSampleStageBlocked(
+    sample: SampleDoc,
+    stage: SampleStage,
+  ): boolean {
     if (stage === "rubric_gen") return false;
-    if (stage === "rubric_critic") return sample.rubric_id == null;
-    if (stage === "score_gen") return sample.rubric_id == null;
-    return sample.score_id == null;
+    return sample.rubric_id == null;
   }
 
   private isScoreUnitStageBlocked(
@@ -315,7 +312,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
 
   private async listPendingSampleTargets(
     runId: Id<"runs">,
-    stage: RunStage,
+    stage: SampleStage,
     config: ExperimentConfig,
   ) {
     const pending: Array<{ targetId: string; input: string }> = [];
@@ -345,58 +342,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       if (state === "pending" || state === "exhausted") continue;
 
       const inputPayload = await this.buildRubricPayload(stage, sample, config);
-      if (!inputPayload) continue;
-
-      pending.push({
-        targetId: sample._id,
-        input: JSON.stringify(inputPayload),
-      });
-    }
-
-    return pending;
-  }
-
-  private async listPendingLegacySampleScoreTargets(
-    runId: Id<"runs">,
-    stage: RunStage,
-    config: ExperimentConfig,
-  ) {
-    const pending: Array<{ targetId: string; input: string }> = [];
-    const samples = await this.ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect();
-
-    const run = await this.ctx.db.get(runId);
-    if (!run) throw new Error("Run not found");
-    const evidenceList = await this.listEvidenceForExperiment(run.experiment_id);
-
-    const candidateKeys = new Set<string>();
-    for (const sample of samples) {
-      if (this.getSampleOutputId(sample, stage)) continue;
-      if (this.isSampleStageBlocked(sample, stage)) continue;
-      candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
-    }
-    const requestStateIndex = await this.buildRequestStateIndex(
-      runId,
-      candidateKeys,
-      stage,
-    );
-
-    for (const sample of samples) {
-      if (this.getSampleOutputId(sample, stage)) continue;
-      if (this.isSampleStageBlocked(sample, stage)) continue;
-
-      const customKey = this.makeRequestKeyForTarget("sample", sample._id, stage);
-      const state = this.classifyRequestState(requestStateIndex, customKey);
-      if (state === "pending" || state === "exhausted") continue;
-
-      const inputPayload = await this.buildLegacyScorePayload(
-        stage,
-        sample,
-        config,
-        evidenceList,
-      );
       if (!inputPayload) continue;
 
       pending.push({
@@ -484,61 +429,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
         rubric: {
           stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
         },
-      };
-    }
-
-    return null;
-  }
-
-  private async buildLegacyScorePayload(
-    stage: RunStage,
-    sample: SampleDoc,
-    config: ExperimentConfig,
-    evidenceList: EvidenceDoc[],
-  ): Promise<unknown | null> {
-    if (stage === "score_gen") {
-      if (!sample.rubric_id) return null;
-      const rubric = await this.ctx.db.get(sample.rubric_id);
-      if (!rubric) return null;
-      const evidence = this.pickEvidenceForSample(sample.seed, evidenceList);
-      if (!evidence) return null;
-      return {
-        config,
-        evidence: {
-          l0_raw_content: evidence.l0_raw_content,
-          l1_cleaned_content: evidence.l1_cleaned_content,
-          l2_neutralized_content: evidence.l2_neutralized_content,
-          l3_abstracted_content: evidence.l3_abstracted_content,
-        },
-        rubric: {
-          stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
-        },
-        sample: {
-          label_mapping: rubric.label_mapping,
-          display_seed: sample.seed,
-        },
-      };
-    }
-
-    if (stage === "score_critic") {
-      if (!sample.score_id || !sample.rubric_id) return null;
-      const score = await this.ctx.db.get(sample.score_id);
-      const rubric = await this.ctx.db.get(sample.rubric_id);
-      if (!score || !rubric) return null;
-      const evidence = await this.ctx.db.get(score.evidence_id);
-      if (!evidence) return null;
-      const evidenceStrategy = resolveEvidenceStrategy(config);
-      const evidenceText =
-        evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
-      const verdict = this.buildVerdictLabel(
-        score.decoded_scores,
-        rubric.label_mapping,
-        config.rubric_config.scale_size,
-      );
-      return {
-        evidence: evidenceText,
-        rubric: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
-        verdict,
       };
     }
 
@@ -674,35 +564,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       );
     }
     return scoreByUnitId;
-  }
-
-  private async listEvidenceForExperiment(
-    experimentId: Id<"experiments">,
-  ): Promise<EvidenceDoc[]> {
-    const experiment = await this.ctx.db.get(experimentId);
-    if (!experiment) return [];
-
-    const links = await this.ctx.db
-      .query("pool_evidence")
-      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
-      .collect();
-
-    const ordered = links
-      .slice()
-      .sort((a, b) => a._creationTime - b._creationTime);
-
-    const evidences: EvidenceDoc[] = [];
-    for (const link of ordered) {
-      const evidence = await this.ctx.db.get(link.evidence_id);
-      if (evidence) evidences.push(evidence);
-    }
-    return evidences;
-  }
-
-  private pickEvidenceForSample(seed: number, evidences: EvidenceDoc[]): EvidenceDoc | null {
-    if (evidences.length === 0) return null;
-    const idx = Math.abs(seed) % evidences.length;
-    return evidences[idx] ?? null;
   }
 
   private async listScoreUnitsForRun(

@@ -8,6 +8,7 @@ export const ExperimentsTableSchema = z.object({
     pool_id: zid("pools"),
     rubric_config: RubricStageConfigSchema,
     scoring_config: ScoringStageConfigSchema,
+    total_count: z.number(),
 });
 
 export const RunStageSchema = z.enum([
@@ -23,4 +24,5 @@ export const RunsTableSchema = z.object({
     experiment_id: zid("experiments"),
     current_stage: RunStageSchema,
     target_count: z.number(),
+    completed_count: z.number(),
 });

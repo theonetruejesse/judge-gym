@@ -22,6 +22,9 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - `packages/codex:tailTrace`
   - `packages/codex:runDebugActions`
   - `packages/codex:autoHealProcess`
+  - `packages/codex:backfillExperimentTotalCounts`
+  - `packages/codex:backfillRunCompletedCounts`
+  - `packages/codex:backfillSampleScoreCounts`
   - `packages/codex:testAxiomIngest`
 - Bun wrapper in `packages/engine/scripts/live_debug.ts`
   - `bun run debug:watch`
@@ -73,6 +76,24 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Continue watch loop and confirm stage pending count decreases.
 - Use the `external_trace_ref` from health/tail/analyze to pivot into Axiom for deep forensics.
+
+8. Repair historical run progress counts
+
+- Dry-run `packages/codex:backfillRunCompletedCounts` with `{ "dry_run": true, "cursor": 0, "max_runs": 100 }`.
+- Inspect `rows[].changed`, `previous_completed_count`, and `computed_completed_count`.
+- Apply with `dry_run: false` and continue while `next_cursor` is non-null.
+
+9. Repair historical experiment aggregate counts
+
+- Dry-run `packages/codex:backfillExperimentTotalCounts` with `{ "dry_run": true, "cursor": 0, "max_experiments": 100 }`.
+- Inspect `rows[].changed`, `previous_total_count`, and `computed_total_count`.
+- Apply with `dry_run: false` and continue while `next_cursor` is non-null.
+
+10. Repair historical sample score aggregates
+
+- Dry-run `packages/codex:backfillSampleScoreCounts` with `{ "dry_run": true, "cursor": 0, "max_samples": 100 }`.
+- Inspect `rows[].changed`, `previous_score_count`, `previous_score_critic_count`, `computed_score_count`, and `computed_score_critic_count`.
+- Apply with `dry_run: false` and continue while `next_cursor` is non-null.
 
 ## Safe Actions
 
@@ -137,6 +158,9 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Freshly started runs should move off `start` and into `running` as soon as `rubric_gen` is enqueued; if they do not, investigate lifecycle patching before debugging the scheduler.
 - Reconcile failures now emit `run_stage_reconciled` outcomes and can fail-safe pause runs (`status=paused`) when no active transport remains; treat paused runs as explicit operator-attention signals.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
+- `packages/lab:getRunSummary` now includes persisted `completed_count`, which is the sample-level done count backing the lab run table.
+- `packages/lab:listExperiments` and `packages/lab:getExperimentSummary` now include persisted `total_count`, which is the experiment-level aggregate of run completions.
+- `samples` now persist `score_count` / `score_critic_count` as the sample-level score aggregation surface; legacy sample `score_id` / `score_critic_id` are no longer part of the schema.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
 - The local mirror is intentionally small and milestone-oriented; it is not a full event log.
 - Use `bun run telemetry:check` after changing Axiom credentials or ingest wiring.

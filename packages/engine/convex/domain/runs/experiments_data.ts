@@ -6,7 +6,12 @@ import type { QueryCtx } from "../../_generated/server";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
 import { ENGINE_SETTINGS } from "../../settings";
-import { getRunProgressSnapshot } from "./run_progress";
+import { getExperimentTotalCount } from "./experiment_progress";
+import {
+  countCompletedSamples,
+  getRunCompletedCount,
+  getRunProgressSnapshot,
+} from "./run_progress";
 
 function deriveExperimentStatus(
   runs: Array<Doc<"runs">>,
@@ -32,11 +37,23 @@ function latestRun(runs: Array<Doc<"runs">>) {
     .sort((a, b) => b._creationTime - a._creationTime)[0];
 }
 
+function sumSampleScoreCount(
+  samples: Array<Doc<"samples">>,
+  scoreUnits: Array<Doc<"sample_evidence_scores">>,
+  field: "score_count" | "score_critic_count",
+  unitField: "score_id" | "score_critic_id",
+) {
+  if (scoreUnits.length > 0) {
+    return scoreUnits.filter((unit) => unit[unitField] != null).length;
+  }
+  return samples.reduce((sum, sample) => sum + (sample[field] ?? 0), 0);
+}
+
 async function latestRunHasFailures(
   ctx: QueryCtx,
   run: Doc<"runs">,
   evidenceCount: number,
-): Promise<boolean> {
+): Promise<{ hasFailures: boolean; completedCount: number }> {
   if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
     const [samples, scoreUnits] = await Promise.all([
       ctx.db
@@ -48,23 +65,36 @@ async function latestRunHasFailures(
         .withIndex("by_run", (q) => q.eq("run_id", run._id))
         .collect(),
     ]);
+    const completedCount = typeof run.completed_count === "number"
+      ? run.completed_count
+      : countCompletedSamples(samples, scoreUnits);
 
-    if (samples.length < run.target_count) return true;
+    if (samples.length < run.target_count) {
+      return { hasFailures: true, completedCount };
+    }
     if (samples.some((sample) => sample.rubric_id == null || sample.rubric_critic_id == null)) {
-      return true;
+      return { hasFailures: true, completedCount };
     }
 
     if (scoreUnits.length > 0) {
       const expectedScoreUnits = samples.length * evidenceCount;
-      if (scoreUnits.length < expectedScoreUnits) return true;
-      return scoreUnits.some(
-        (unit) => unit.score_id == null || unit.score_critic_id == null,
-      );
+      if (scoreUnits.length < expectedScoreUnits) {
+        return { hasFailures: true, completedCount };
+      }
+      return {
+        hasFailures: scoreUnits.some(
+          (unit) => unit.score_id == null || unit.score_critic_id == null,
+        ),
+        completedCount,
+      };
     }
 
-    return samples.some(
-      (sample) => sample.score_id == null || sample.score_critic_id == null,
-    );
+    return {
+      hasFailures: samples.some(
+        (sample) => (sample.score_count ?? 0) === 0 || (sample.score_critic_count ?? 0) === 0,
+      ),
+      completedCount,
+    };
   }
 
   const targetStates = await ctx.db
@@ -74,10 +104,15 @@ async function latestRunHasFailures(
     )
     .collect();
 
-  return targetStates.some((state) =>
-    !state.has_pending &&
-    state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
-  );
+  return {
+    hasFailures: targetStates.some((state) =>
+      !state.has_pending &&
+      state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
+    ),
+    completedCount: typeof run.completed_count === "number"
+      ? run.completed_count
+      : await getRunCompletedCount(ctx, run._id),
+  };
 }
 
 async function listEvidenceLinks(
@@ -129,6 +164,7 @@ export const listExperiments = zInternalQuery({
       experiment_tag: string;
       rubric_config: Doc<"experiments">["rubric_config"];
       scoring_config: Doc<"experiments">["scoring_config"];
+      total_count: number;
       evidence_selected_count: number;
       window_count: number;
       status: z.infer<typeof StateStatusSchema>;
@@ -137,6 +173,7 @@ export const listExperiments = zInternalQuery({
         status: string;
         current_stage: z.infer<typeof RunStageSchema>;
         target_count: number;
+        completed_count: number;
         created_at: number;
         has_failures: boolean;
       };
@@ -147,27 +184,32 @@ export const listExperiments = zInternalQuery({
       const links = await listEvidenceLinks(ctx, experiment.pool_id);
       const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
       const latest = latestRun(experimentRuns);
-      const latestHasFailures = latest
+      const totalCount = typeof experiment.total_count === "number"
+        ? experiment.total_count
+        : await getExperimentTotalCount(ctx, experiment._id);
+      const latestRunState = latest
         ? await latestRunHasFailures(ctx, latest, links.length)
-        : false;
+        : { hasFailures: false, completedCount: 0 };
 
       results.push({
         experiment_id: experiment._id,
         experiment_tag: experiment.experiment_tag,
         rubric_config: experiment.rubric_config,
         scoring_config: experiment.scoring_config,
+        total_count: totalCount,
         evidence_selected_count: links.length,
         window_count: windowIds.size,
         status: deriveExperimentStatus(experimentRuns),
         latest_run: latest
           ? {
-              run_id: latest._id,
-              status: latest.status,
-              current_stage: latest.current_stage,
-              target_count: latest.target_count,
-              created_at: latest._creationTime,
-              has_failures: latestHasFailures,
-            }
+            run_id: latest._id,
+            status: latest.status,
+            current_stage: latest.current_stage,
+            target_count: latest.target_count,
+            completed_count: latestRunState.completedCount,
+            created_at: latest._creationTime,
+            has_failures: latestRunState.hasFailures,
+          }
           : undefined,
       });
     }
@@ -217,29 +259,37 @@ export const getExperimentSummary = zInternalQuery({
         0,
       ),
       scores: runArtifacts.reduce((sum, artifact) => {
-        if (artifact.scoreUnits.length > 0) {
-          return sum + artifact.scoreUnits.filter((unit) => unit.score_id != null).length;
-        }
-        return sum + artifact.samples.filter((sample) => sample.score_id != null).length;
+        return sum + sumSampleScoreCount(
+          artifact.samples,
+          artifact.scoreUnits,
+          "score_count",
+          "score_id",
+        );
       }, 0),
       score_critics: runArtifacts.reduce((sum, artifact) => {
-        if (artifact.scoreUnits.length > 0) {
-          return sum + artifact.scoreUnits.filter((unit) => unit.score_critic_id != null).length;
-        }
-        return sum + artifact.samples.filter((sample) => sample.score_critic_id != null).length;
+        return sum + sumSampleScoreCount(
+          artifact.samples,
+          artifact.scoreUnits,
+          "score_critic_count",
+          "score_critic_id",
+        );
       }, 0),
     };
 
     const latest = latestRun(runs);
-    const latestHasFailures = latest
+    const totalCount = typeof experiment.total_count === "number"
+      ? experiment.total_count
+      : await getExperimentTotalCount(ctx, experiment._id);
+    const latestRunState = latest
       ? await latestRunHasFailures(ctx, latest, links.length)
-      : false;
+      : { hasFailures: false, completedCount: 0 };
 
     return {
       experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
       rubric_config: experiment.rubric_config,
       scoring_config: experiment.scoring_config,
+      total_count: totalCount,
       evidence_selected_count: links.length,
       window_count: windowIds.size,
       window_ids: Array.from(windowIds),
@@ -251,8 +301,9 @@ export const getExperimentSummary = zInternalQuery({
             status: latest.status,
             current_stage: latest.current_stage,
             target_count: latest.target_count,
+            completed_count: latestRunState.completedCount,
             created_at: latest._creationTime,
-            has_failures: latestHasFailures,
+            has_failures: latestRunState.hasFailures,
           }
         : undefined,
       counts,
@@ -297,6 +348,9 @@ export const getRunSummary = zInternalQuery({
     const run = await ctx.db.get(run_id);
     if (!run) throw new Error("Run not found");
     const snapshot = await getRunProgressSnapshot(ctx, run._id);
+    const completedCount = typeof run.completed_count === "number"
+      ? run.completed_count
+      : await getRunCompletedCount(ctx, run._id);
     const stageResults = RunStageSchema.options.map((stage) => {
       const progress = snapshot?.byStage[stage];
       if (!progress) {
@@ -333,6 +387,7 @@ export const getRunSummary = zInternalQuery({
       status: run.status,
       current_stage: run.current_stage,
       target_count: run.target_count,
+      completed_count: completedCount,
       has_failures: snapshot?.hasFailures ?? false,
       failed_stage_count,
       stages: stageResults,

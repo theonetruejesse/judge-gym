@@ -24,6 +24,36 @@ export type RunProgressSnapshot = {
   failedStageCount: number;
 };
 
+export function countCompletedSamples(
+  samples: SampleDoc[],
+  scoreUnits: SampleEvidenceScoreDoc[],
+): number {
+  if (samples.length === 0) return 0;
+
+  if (scoreUnits.length === 0) {
+    return samples.filter((sample) => (sample.score_critic_count ?? 0) > 0).length;
+  }
+
+  const scoreUnitsBySampleId = new Map<string, SampleEvidenceScoreDoc[]>();
+  for (const unit of scoreUnits) {
+    const sampleId = String(unit.sample_id);
+    const current = scoreUnitsBySampleId.get(sampleId) ?? [];
+    current.push(unit);
+    scoreUnitsBySampleId.set(sampleId, current);
+  }
+
+  let completed = 0;
+  for (const sample of samples) {
+    const sampleUnits = scoreUnitsBySampleId.get(String(sample._id)) ?? [];
+    if (sampleUnits.length === 0) continue;
+    if (sampleUnits.every((unit) => unit.score_critic_id != null)) {
+      completed += 1;
+    }
+  }
+
+  return completed;
+}
+
 const RUN_STAGES: RunStage[] = [
   "rubric_gen",
   "rubric_critic",
@@ -77,11 +107,12 @@ function buildTargetStateIndex(
   return index;
 }
 
-function getSampleOutputId(sample: SampleDoc, stage: RunStage) {
+function getSampleOutputId(
+  sample: SampleDoc,
+  stage: Exclude<RunStage, "score_gen" | "score_critic">,
+) {
   if (stage === "rubric_gen") return sample.rubric_id;
-  if (stage === "rubric_critic") return sample.rubric_critic_id;
-  if (stage === "score_gen") return sample.score_id;
-  return sample.score_critic_id;
+  return sample.rubric_critic_id;
 }
 
 function buildSampleStageProgress(
@@ -133,64 +164,13 @@ function buildSampleStageProgress(
   };
 }
 
-function buildLegacyScoreStageProgress(
-  samples: SampleDoc[],
-  statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
-  stage: "score_gen" | "score_critic",
-): RunStageProgress | null {
-  if (samples.length === 0) return null;
-
-  let completed = 0;
-  let failed = 0;
-  let hasPending = false;
-
-  for (const sample of samples) {
-    const sampleId = String(sample._id);
-    const outputId = getSampleOutputId(sample, stage);
-    if (outputId) {
-      completed += 1;
-      continue;
-    }
-
-    if (!sample.rubric_id) {
-      const blockedState = statesByStage.rubric_gen.get(
-        makeRequestKeyForTarget("sample", sampleId, "rubric_gen"),
-      );
-      if (resolveBlockedFromTargetState(blockedState) === "failed") {
-        failed += 1;
-      } else {
-        hasPending = true;
-      }
-      continue;
-    }
-
-    const currentState = statesByStage[stage].get(
-      makeRequestKeyForTarget("sample", sampleId, stage),
-    );
-    if (classifyTargetState(currentState) === "exhausted") {
-      failed += 1;
-    } else {
-      hasPending = true;
-    }
-  }
-
-  return {
-    completed,
-    failed,
-    hasPending,
-    total: samples.length,
-  };
-}
-
 function buildScoreStageProgress(
   samples: SampleDoc[],
   scoreUnits: SampleEvidenceScoreDoc[],
   statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
   stage: "score_gen" | "score_critic",
 ): RunStageProgress | null {
-  if (scoreUnits.length === 0) {
-    return buildLegacyScoreStageProgress(samples, statesByStage, stage);
-  }
+  if (scoreUnits.length === 0) return null;
 
   const sampleById = new Map(samples.map((sample) => [String(sample._id), sample]));
   let completed = 0;
@@ -295,6 +275,24 @@ export async function getRunProgressSnapshot(
     hasFailures: failedStageCount > 0,
     failedStageCount,
   };
+}
+
+export async function getRunCompletedCount(
+  ctx: RunProgressCtx,
+  runId: Id<"runs">,
+): Promise<number> {
+  const [samples, scoreUnits] = await Promise.all([
+    ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect(),
+    ctx.db
+      .query("sample_evidence_scores")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect(),
+  ]);
+
+  return countCompletedSamples(samples, scoreUnits);
 }
 
 export async function getRunStageProgress(

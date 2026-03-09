@@ -67,6 +67,8 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Apply auto-heal window: `bun run debug:heal --window <window_id> --apply`
 - Heal CLI supports paging flags: `--cursor <n>` and `--max-actions <n>`.
 - For large backlogs, page heal actions with `packages/codex:autoHealProcess` args `cursor` + `max_actions` and continue until `meta.next_cursor` is `null`.
+- Run-count backfill: dry-run `packages/codex:backfillRunCompletedCounts` with `{ "dry_run": true, "cursor": 0, "max_runs": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
+- Experiment-total backfill: dry-run `packages/codex:backfillExperimentTotalCounts` with `{ "dry_run": true, "cursor": 0, "max_experiments": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
 
 ### Recovery Guardrails
 
@@ -156,6 +158,20 @@ Use this when a new Codex instance has zero prior context.
 - Parse/orchestrator-side apply failures are treated as terminal request failures.
 - Provider/network/rate-limit classes remain retryable up to policy caps.
 - Every retry is represented as a new `llm_requests` row; failed attempts remain persisted for forensic analysis.
+
+### 7. One-off run count repair
+
+- `runs` now persist both `target_count` and `completed_count`.
+- `experiments` now persist `total_count`, defined as the sum of `completed_count` across their runs.
+- `samples` now persist `score_count` and `score_critic_count`, and legacy sample-level `score_id` / `score_critic_id` fields have been removed after backfill.
+- Historical rows can be repaired with `mcp__convex__run` -> `packages/codex:backfillRunCompletedCounts`.
+- Recommended flow:
+  1. dry-run a page with `{ "dry_run": true, "cursor": 0, "max_runs": 100 }`,
+  2. inspect `rows[].changed`,
+  3. rerun with `dry_run: false`,
+  4. continue while `next_cursor` is non-null.
+- Experiment aggregates use the same paging flow with `packages/codex:backfillExperimentTotalCounts` and `max_experiments`.
+- Sample score aggregates use the same paging flow with `packages/codex:backfillSampleScoreCounts` and `max_samples`; this mutation also strips legacy sample score ID fields from old rows before final schema removal.
 
 ## Agentic Recursion Contract
 
