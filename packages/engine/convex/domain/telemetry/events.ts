@@ -11,6 +11,17 @@ import {
 } from "../../models/telemetry";
 
 const MAX_LOCAL_RECENT_EVENTS = 32;
+const BATCH_MILESTONE_EVENTS = new Set([
+  "batch_submitting",
+  "batch_submitted",
+  "batch_finalizing_started",
+  "batch_success",
+  "batch_apply_error",
+]);
+const JOB_MILESTONE_EVENTS = new Set([
+  "job_queued_handler_started",
+  "job_finalized",
+]);
 
 export const EmitTelemetryEventArgsSchema = z.object({
   trace_id: z.string(),
@@ -133,11 +144,29 @@ export function shouldMirrorLocally(
 ): boolean {
   const processRef = parseProcessRefFromTraceId(trace_event.trace_id);
   if (!processRef) return false;
-  if (trace_event.status === "error" || trace_event.status === "failed") return true;
   if (trace_event.entity_type === processRef.process_type) return true;
-  return trace_event.entity_type === "batch"
-    || trace_event.entity_type === "job"
-    || trace_event.entity_type === "scheduler";
+  if (trace_event.status === "error" || trace_event.status === "failed") return true;
+  if (trace_event.entity_type === "batch") {
+    return BATCH_MILESTONE_EVENTS.has(trace_event.event_name);
+  }
+  if (trace_event.entity_type === "job") {
+    return JOB_MILESTONE_EVENTS.has(trace_event.event_name);
+  }
+  return false;
+}
+
+function appendRecentEvent(
+  current: z.infer<typeof LocalTraceEventSchema>[],
+  nextEvent: z.infer<typeof LocalTraceEventSchema>,
+) {
+  if (current.length === 0) return [nextEvent];
+  const last = current[current.length - 1];
+  if ((last?.seq ?? 0) <= nextEvent.seq) {
+    return [...current, nextEvent].slice(-MAX_LOCAL_RECENT_EVENTS);
+  }
+  return [...current, nextEvent]
+    .sort((a, b) => a.seq - b.seq)
+    .slice(-MAX_LOCAL_RECENT_EVENTS);
 }
 
 export function buildAxiomEventEnvelope(
@@ -178,12 +207,7 @@ export const recordProcessObservability = zInternalMutation({
       )
       .first();
 
-    const recent_events = [
-      ...(existing?.recent_events ?? []),
-      args.trace_event,
-    ]
-      .sort((a, b) => a.seq - b.seq)
-      .slice(-MAX_LOCAL_RECENT_EVENTS);
+    const recent_events = appendRecentEvent(existing?.recent_events ?? [], args.trace_event);
 
     const patch = {
       trace_id: args.trace_event.trace_id,

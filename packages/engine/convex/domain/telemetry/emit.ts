@@ -2,6 +2,7 @@ import { internal } from "../../_generated/api";
 import type { ActionCtx, MutationCtx } from "../../_generated/server";
 import {
   buildAxiomEventEnvelope,
+  buildExternalTraceRef,
   buildLocalTraceEvent,
   parseProcessRefFromTraceId,
   shouldMirrorLocally,
@@ -13,6 +14,13 @@ type TelemetryCtx = Pick<ActionCtx | MutationCtx, "runMutation"> & {
 };
 
 type EmitTraceEventArgs = EmitTelemetryEventArgs;
+const MAX_LOCAL_PAYLOAD_CHARS = 1600;
+
+function truncatePayload(payload_json: string | null | undefined): string | null {
+  if (!payload_json) return null;
+  if (payload_json.length <= MAX_LOCAL_PAYLOAD_CHARS) return payload_json;
+  return `${payload_json.slice(0, MAX_LOCAL_PAYLOAD_CHARS)}…`;
+}
 
 export async function emitTraceEvent(
   ctx: TelemetryCtx,
@@ -29,9 +37,9 @@ export async function emitTraceEvent(
         process_id: processRef.process_id,
         trace_event: {
           ...trace_event,
-          payload_json: null,
+          payload_json: truncatePayload(trace_event.payload_json),
         },
-        external_trace_ref: null,
+        external_trace_ref: buildExternalTraceRef(trace_event.trace_id),
         last_error_summary:
           trace_event.status === "error" || trace_event.status === "failed"
             ? trace_event.event_name

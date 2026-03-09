@@ -40,7 +40,7 @@ function parseRequestCustomKey(customKey: string): ParsedRequestCustomKey | null
   };
 }
 
-function classifyError(error: string | null | undefined): string {
+export function classifyRequestError(error: string | null | undefined): string {
   const value = String(error ?? "").toLowerCase();
   if (!value) return "unknown";
   if (value.includes("parse")) return "parse_error";
@@ -136,7 +136,7 @@ async function refreshProcessRequestTargetState(
     ) {
       latestErrorAttempts = attempts;
       latestErrorTs = row._creationTime;
-      latestErrorClass = classifyError(row.last_error);
+      latestErrorClass = classifyRequestError(row.last_error);
       latestErrorMessage = row.last_error ?? null;
     }
   }

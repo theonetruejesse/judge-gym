@@ -114,6 +114,28 @@ describe("reliability guarantees", () => {
     }
   });
 
+  test("startScheduler debounces repeated kickoff requests", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-09T12:00:00.000Z"));
+      const t = initTest();
+
+      await t.mutation(internal.domain.orchestrator.scheduler.startScheduler, {});
+      await t.mutation(internal.domain.orchestrator.scheduler.startScheduler, {});
+
+      const locks = await t.run(async (ctx) => {
+        const rows = await ctx.db.query("scheduler_locks").collect();
+        return rows.filter((row) => row.lock_key === "scheduler_lock");
+      });
+
+      expect(locks).toHaveLength(1);
+      expect(locks[0]?.status).toBe("idle");
+      expect(locks[0]?.heartbeat_ts_ms).toBe(Date.parse("2026-03-09T12:00:00.000Z"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
 
   test("recovers submitting batches after unknown submit outcome", async () => {
     __resetMockProviders();

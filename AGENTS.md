@@ -149,9 +149,11 @@ Use this when a new Codex instance has zero prior context.
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
+- `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
-- `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded.
+- `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded, and splits terminal failure classes (`error_summary`) from historical attempt noise (`historical_error_summary`).
 - `packages/codex:analyzeProcessTelemetry` and `packages/lab:getTraceEvents` summarize the capped local recent-events mirror only; use the returned `external_trace_ref` for full Axiom history.
+- `startScheduler` now debounces manual/redundant kickoff requests through `scheduler_locks` before falling back to the bounded scheduled-function scan.
 
 ### 6. Retry semantics (current expectation)
 
