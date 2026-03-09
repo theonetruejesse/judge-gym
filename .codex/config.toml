@@ -12,7 +12,7 @@ args = [
 ]
 
 [mcp_servers.convex.env]
-CONVEX_DEPLOYMENT = "dev:rightful-grouse-57"
+CONVEX_DEPLOYMENT = "dev:first-perch-454"
 
 [mcp_servers.axiom]
 command = "/bin/zsh"
