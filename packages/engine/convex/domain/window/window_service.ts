@@ -9,6 +9,7 @@ import { getProviderForModel } from "../../platform/providers/provider_types";
 import type { MutationCtx } from "../../_generated/server";
 import { ENGINE_SETTINGS } from "../../settings";
 import { emitTraceEvent } from "../telemetry/emit";
+import { classifyRequestError } from "../llm_calls/llm_request_repo";
 
 export const collectWindowEvidence: ReturnType<typeof zInternalAction> = zInternalAction({
   args: z.object({
@@ -194,6 +195,10 @@ export const handleRequestError = zInternalMutation({
     const { targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
     const evidence = await ctx.db.get(targetId as Id<"evidences">);
     if (!evidence) throw new Error("Evidence not found");
+    const request = await ctx.runQuery(
+      internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+      { request_id: args.request_id },
+    );
     await emitTraceEvent(ctx, {
       trace_id: `window:${evidence.window_id}`,
       entity_type: "request",
@@ -202,6 +207,11 @@ export const handleRequestError = zInternalMutation({
       stage,
       status: "error",
       custom_key: args.custom_key,
+      payload_json: JSON.stringify({
+        class: classifyRequestError(request.last_error),
+        error: request.last_error ?? null,
+        attempts: request.attempts ?? null,
+      }),
     }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
   },

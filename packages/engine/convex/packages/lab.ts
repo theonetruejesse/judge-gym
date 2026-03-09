@@ -8,6 +8,7 @@ import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
+import { ENGINE_SETTINGS } from "../settings";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -470,6 +471,16 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       .query("llm_requests")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
+    const targetStates = await ctx.db
+      .query("process_request_targets")
+      .withIndex("by_process", (q) =>
+        q.eq("process_type", "run").eq("process_id", run_id),
+      )
+      .collect();
+    const runSummary = await ctx.runQuery(
+      internal.domain.runs.experiments_data.getRunSummary,
+      { run_id },
+    );
 
     const stageRollup = {
       rubric_gen: { pending: 0, success: 0, error: 0 },
@@ -483,6 +494,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       attempts: number | null;
       last_error: string | null;
       status: "pending" | "success" | "error";
+      assistant_output_preview: string | null;
     }>;
 
     for (const request of requestRows) {
@@ -504,9 +516,25 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
           attempts: request.attempts ?? null,
           last_error: request.last_error ?? null,
           status: request.status,
+          assistant_output_preview: request.assistant_output?.slice(0, 400) ?? null,
         });
       }
     }
+
+    const terminal_failed_targets = targetStates
+      .filter((state) =>
+        !state.has_pending
+        && state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
+      )
+      .map((state) => ({
+        target_type: state.target_type,
+        target_id: state.target_id,
+        stage: state.stage,
+        custom_key: state.custom_key,
+        attempts: state.max_attempts,
+        error_class: state.latest_error_class,
+        error_message: state.latest_error_message,
+      }));
 
     const [rubrics, rubric_critics, scores, score_critics] = await Promise.all([
       ctx.db
@@ -535,9 +563,22 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       request_counts: {
         total: requestRows.length,
         error: failed_requests.length,
+        historical_error: failed_requests.length,
+        terminal_failed_targets: terminal_failed_targets.length,
       },
       stage_rollup: stageRollup,
       failed_requests,
+      terminal_failed_targets,
+      terminal_stage_rollup: Object.fromEntries(
+        runSummary.stages.map((stage) => [
+          stage.stage,
+          {
+            completed: stage.completed,
+            failed: stage.failed,
+            pending: Math.max(0, stage.total - stage.completed - stage.failed),
+          },
+        ]),
+      ),
       artifact_counts: {
         samples: samples.length,
         rubrics: rubrics.length,

@@ -65,6 +65,12 @@ const HealthSummarySchema = z.object({
       count: z.number(),
     }),
   ),
+  historical_error_summary: z.array(
+    z.object({
+      class: z.string(),
+      count: z.number(),
+    }),
+  ),
   recent_events: z.array(
     z.object({
       seq: z.number(),
@@ -74,6 +80,8 @@ const HealthSummarySchema = z.object({
       status: z.string().nullable().optional(),
       entity_type: z.string(),
       entity_id: z.string(),
+      custom_key: z.string().nullable().optional(),
+      payload_json: z.string().nullable().optional(),
     }),
   ),
   entity_states: z.array(
@@ -220,7 +228,8 @@ type TraceEvent = {
 
 type StageProgressSummary = {
   progress: Array<z.infer<typeof StageProgressSchema>>;
-  errorClasses: string[];
+  terminalErrorClasses: string[];
+  historicalErrorClasses: string[];
   oldestPendingTs: number | null;
 };
 
@@ -497,10 +506,14 @@ async function buildRunStageProgress(
   targetStates: Map<string, RequestTargetState>,
 ): Promise<StageProgressSummary> {
   const pendingTimes: number[] = [];
-  const errorClasses: string[] = [];
+  const terminalErrorClasses: string[] = [];
+  const historicalErrorClasses: string[] = [];
   for (const state of targetStates.values()) {
     considerOldestPending(state, pendingTimes);
-    appendErrorClass(state, errorClasses);
+    appendErrorClass(state, historicalErrorClasses);
+    if (isTargetFailed(state)) {
+      appendErrorClass(state, terminalErrorClasses);
+    }
   }
 
   const stageRows = await Promise.all(
@@ -522,7 +535,8 @@ async function buildRunStageProgress(
 
   return {
     progress: stageRows,
-    errorClasses,
+    terminalErrorClasses,
+    historicalErrorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
   };
 }
@@ -538,7 +552,8 @@ async function buildWindowStageProgress(
     .take(STAGE_ARTIFACT_SCAN_MAX_ROWS);
 
   const pendingTimes: number[] = [];
-  const errorClasses: string[] = [];
+  const terminalErrorClasses: string[] = [];
+  const historicalErrorClasses: string[] = [];
   const progress = [] as Array<z.infer<typeof StageProgressSchema>>;
 
   for (const stage of WINDOW_STAGES) {
@@ -558,7 +573,10 @@ async function buildWindowStageProgress(
       if (stageCompleted) completed += 1;
       if (!stageCompleted && isTargetFailed(state)) failed += 1;
       considerOldestPending(state, pendingTimes);
-      appendErrorClass(state, errorClasses);
+      appendErrorClass(state, historicalErrorClasses);
+      if (!stageCompleted && isTargetFailed(state)) {
+        appendErrorClass(state, terminalErrorClasses);
+      }
     }
 
     const pending = Math.max(0, total - completed - failed);
@@ -573,7 +591,8 @@ async function buildWindowStageProgress(
 
   return {
     progress,
-    errorClasses,
+    terminalErrorClasses,
+    historicalErrorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
   };
 }
@@ -860,8 +879,16 @@ async function collectProcessHealth(
     : Math.max(0, Date.now() - stageSummary.oldestPendingTs);
 
   const errorCounts = new Map<string, number>();
-  for (const errorClass of stageSummary.errorClasses) {
+  for (const errorClass of stageSummary.terminalErrorClasses) {
     errorCounts.set(errorClass, (errorCounts.get(errorClass) ?? 0) + 1);
+  }
+
+  const historicalErrorCounts = new Map<string, number>();
+  for (const errorClass of stageSummary.historicalErrorClasses) {
+    historicalErrorCounts.set(
+      errorClass,
+      (historicalErrorCounts.get(errorClass) ?? 0) + 1,
+    );
   }
 
   const recentLimit = args.include_recent_events ?? 50;
@@ -898,6 +925,9 @@ async function collectProcessHealth(
     error_summary: [...errorCounts.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([errorClass, count]) => ({ class: errorClass, count })),
+    historical_error_summary: [...historicalErrorCounts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([errorClass, count]) => ({ class: errorClass, count })),
     recent_events: recentRows.map((event) => ({
       seq: event.seq,
       ts_ms: event.ts_ms,
@@ -906,6 +936,8 @@ async function collectProcessHealth(
       status: event.status ?? null,
       entity_type: event.entity_type,
       entity_id: event.entity_id,
+      custom_key: event.custom_key ?? null,
+      payload_json: event.payload_json ?? null,
     })),
     entity_states: [],
   };

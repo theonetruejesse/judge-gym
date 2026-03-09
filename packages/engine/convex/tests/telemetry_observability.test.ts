@@ -1,9 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import schema from "../schema";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { buildModules } from "./test.setup";
+import { emitTraceEvent } from "../domain/telemetry/emit";
 
 const rateLimiterModules = import.meta.glob(
   "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
@@ -61,5 +63,55 @@ describe("telemetry observability", () => {
     expect(page.events[0]?.event_name).toBe("event_3");
     expect(page.events.at(-1)?.event_name).toBe("event_34");
     expect(page.next_cursor_seq).toBeNull();
+  });
+
+  test("stores truncated payloads and external trace refs in the local mirror", async () => {
+    const t = initTest();
+    const schedulerRunAfter = vi.fn(async () => "scheduled_fn_test" as Id<"_scheduled_functions">);
+    const originalDataset = process.env.AXIOM_DATASET;
+    process.env.AXIOM_DATASET = "judge-gym-test";
+
+    try {
+      await t.run(async (ctx) => {
+        await emitTraceEvent(
+          {
+            runMutation: ctx.runMutation,
+            scheduler: { runAfter: schedulerRunAfter },
+          },
+          {
+            trace_id: "run:run_payload_test",
+            entity_type: "run",
+            entity_id: "run_payload_test",
+            event_name: "run_parse_failed",
+            status: "error",
+            payload_json: JSON.stringify({
+              class: "parse_error",
+              output_preview: "x".repeat(4000),
+            }),
+          },
+        );
+      });
+
+      const observability = await t.query(
+        internal.domain.telemetry.events.getProcessObservability,
+        {
+          process_type: "run",
+          process_id: "run_payload_test",
+        },
+      );
+
+      expect(observability?.external_trace_ref).toBe(
+        "axiom dataset=judge-gym-test trace_id=run:run_payload_test",
+      );
+      expect(observability?.recent_events).toHaveLength(1);
+      expect(observability?.recent_events[0]?.payload_json).toContain("\"class\":\"parse_error\"");
+      expect(observability?.recent_events[0]?.payload_json?.length).toBeLessThanOrEqual(1601);
+    } finally {
+      if (originalDataset === undefined) {
+        delete process.env.AXIOM_DATASET;
+      } else {
+        process.env.AXIOM_DATASET = originalDataset;
+      }
+    }
   });
 });

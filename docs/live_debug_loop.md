@@ -154,13 +154,15 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and local recent events before doing maintenance mutations.
 - `getProcessHealth.request_state_meta.approximate=true` means the request-state view is bounded; use the Axiom trace + direct run/window diagnostics for deeper confirmation.
+- `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` when you need attempt/retry noise rather than settled-failure truth.
 - Treat `run.status=completed` plus `has_failures=true` as a partial-success terminal run that likely needs a supplemental follow-up pass rather than a scheduler fix.
 - Freshly started runs should move off `start` and into `running` as soon as `rubric_gen` is enqueued; if they do not, investigate lifecycle patching before debugging the scheduler.
 - Reconcile failures now emit `run_stage_reconciled` outcomes and can fail-safe pause runs (`status=paused`) when no active transport remains; treat paused runs as explicit operator-attention signals.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - `packages/lab:getRunSummary` now includes persisted `completed_count`, which is the sample-level done count backing the lab run table.
+- `packages/lab:getRunDiagnostics` now splits historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when available.
 - `packages/lab:listExperiments` and `packages/lab:getExperimentSummary` now include persisted `total_count`, which is the experiment-level aggregate of run completions.
 - `samples` now persist `score_count` / `score_critic_count` as the sample-level score aggregation surface; legacy sample `score_id` / `score_critic_id` are no longer part of the schema.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
-- The local mirror is intentionally small and milestone-oriented; it is not a full event log.
+- The local mirror is intentionally small and milestone-oriented; it now keeps `external_trace_ref` and truncated payloads for local triage, but it is still not a full event log.
 - Use `bun run telemetry:check` after changing Axiom credentials or ingest wiring.

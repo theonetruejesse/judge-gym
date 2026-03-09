@@ -26,6 +26,7 @@ import { generateLabelMapping } from "../../utils/randomize";
 import { emitTraceEvent } from "../telemetry/emit";
 import { getNextAttemptAt } from "../../utils/scheduling";
 import { getRunCompletedCount, getRunStageProgress } from "./run_progress";
+import { classifyRequestError } from "../llm_calls/llm_request_repo";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -328,7 +329,14 @@ export const applyRequestResult = zInternalMutation({
         }
       }
     } catch (error) {
-      await markRequestParseFailure(ctx, args.request_id, error);
+      await markRequestParseFailure(
+        ctx,
+        args.request_id,
+        error,
+        args.output,
+        args.input_tokens,
+        args.output_tokens,
+      );
       await emitTraceEvent(ctx, {
         trace_id: `run:${sample.run_id}`,
         entity_type: "request",
@@ -338,7 +346,11 @@ export const applyRequestResult = zInternalMutation({
         status: "error",
         custom_key: args.custom_key,
         payload_json: JSON.stringify({
+          class: "parse_error",
           error: error instanceof Error ? error.message : String(error),
+          output_preview: args.output.slice(0, 1200),
+          input_tokens: args.input_tokens ?? null,
+          output_tokens: args.output_tokens ?? null,
         }),
       }, { defer: true });
       return;
@@ -378,6 +390,10 @@ export const handleRequestError = zInternalMutation({
     const orchestrator = new RunOrchestrator(ctx);
     const { targetType, targetId, stage } = orchestrator.parseRequestKey(args.custom_key);
     const { sample } = await resolveRunTarget(ctx, targetType, targetId);
+    const request = await ctx.runQuery(
+      internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+      { request_id: args.request_id },
+    );
     await emitTraceEvent(ctx, {
       trace_id: `run:${sample.run_id}`,
       entity_type: "request",
@@ -386,6 +402,11 @@ export const handleRequestError = zInternalMutation({
       stage,
       status: "error",
       custom_key: args.custom_key,
+      payload_json: JSON.stringify({
+        class: classifyRequestError(request.last_error),
+        error: request.last_error ?? null,
+        attempts: request.attempts ?? null,
+      }),
     }, { defer: true });
   },
 });
@@ -825,6 +846,9 @@ async function markRequestParseFailure(
   ctx: MutationCtx,
   requestId: Id<"llm_requests">,
   error: unknown,
+  output: string,
+  inputTokens?: number,
+  outputTokens?: number,
 ) {
   const request = await ctx.runQuery(
     internal.domain.llm_calls.llm_request_repo.getLlmRequest,
@@ -832,6 +856,12 @@ async function markRequestParseFailure(
   );
   const message = error instanceof Error ? error.message : String(error);
   const attempts = (request.attempts ?? 0) + 1;
+  let reasoning: string | undefined;
+  try {
+    reasoning = extractReasoningBeforeVerdict(output);
+  } catch {
+    reasoning = undefined;
+  }
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
     {
@@ -840,6 +870,10 @@ async function markRequestParseFailure(
         status: "error",
         attempts,
         last_error: message,
+        assistant_output: output,
+        assistant_reasoning: reasoning,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
       },
     },
   );

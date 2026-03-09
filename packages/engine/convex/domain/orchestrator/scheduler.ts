@@ -13,6 +13,7 @@ import { emitTraceEvent } from "../telemetry/emit";
 
 const SCHEDULER_LOCK_ENTITY_ID = "scheduler_lock";
 const SCHEDULER_LOCK_TTL_MS = 20_000;
+const SCHEDULER_START_DEBOUNCE_MS = 5_000;
 const MAX_QUEUED_BATCHES_PER_TICK = 10;
 const MAX_RUNNING_BATCHES_PER_TICK = 20;
 const MAX_QUEUED_JOBS_PER_TICK = 20;
@@ -73,14 +74,21 @@ async function isSchedulerScheduled(ctx: MutationCtx): Promise<boolean> {
   );
 }
 
+async function listSchedulerLocks(
+  ctx: MutationCtx,
+): Promise<Doc<"scheduler_locks">[]> {
+  const rows = await ctx.db
+    .query("scheduler_locks")
+    .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
+    .take(8);
+  return rows.sort((left, right) => left._creationTime - right._creationTime);
+}
+
 async function tryAcquireSchedulerLock(
   ctx: MutationCtx,
   now: number,
 ): Promise<{ acquired: boolean; lock_id: string }> {
-  const existing = await ctx.db
-    .query("scheduler_locks")
-    .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
-    .first();
+  const [existing, ...duplicates] = await listSchedulerLocks(ctx);
 
   const payload = {
     lock_key: SCHEDULER_LOCK_ENTITY_ID,
@@ -92,6 +100,14 @@ async function tryAcquireSchedulerLock(
   if (!existing) {
     const lockId = await ctx.db.insert("scheduler_locks", payload);
     return { acquired: true, lock_id: String(lockId) };
+  }
+
+  for (const duplicate of duplicates) {
+    await ctx.db.patch(duplicate._id, {
+      status: "idle",
+      heartbeat_ts_ms: now,
+      expires_at_ms: now,
+    });
   }
 
   const isLocked = existing.status === "running"
@@ -108,23 +124,62 @@ async function releaseSchedulerLock(
   ctx: MutationCtx,
   now: number,
 ): Promise<void> {
-  const existing = await ctx.db
-    .query("scheduler_locks")
-    .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
-    .first();
+  const [existing, ...duplicates] = await listSchedulerLocks(ctx);
   if (!existing) return;
   await ctx.db.patch(existing._id, {
     status: "idle",
     heartbeat_ts_ms: now,
     expires_at_ms: now,
   });
+  for (const duplicate of duplicates) {
+    await ctx.db.patch(duplicate._id, {
+      status: "idle",
+      heartbeat_ts_ms: now,
+      expires_at_ms: now,
+    });
+  }
 }
 
 export const startScheduler = zInternalMutation({
   args: z.object({}),
   handler: async (ctx) => {
+    const now = Date.now();
+    const [existing, ...duplicates] = await listSchedulerLocks(ctx);
+
+    for (const duplicate of duplicates) {
+      await ctx.db.patch(duplicate._id, {
+        status: "idle",
+        heartbeat_ts_ms: now,
+        expires_at_ms: now,
+      });
+    }
+
+    const lockActive = existing?.status === "running"
+      && existing.expires_at_ms > now;
+    if (lockActive) return;
+
+    const recentlyKickedOff = existing != null
+      && existing.heartbeat_ts_ms >= now - SCHEDULER_START_DEBOUNCE_MS;
+    if (recentlyKickedOff) return;
+
     const hasScheduled = await isSchedulerScheduled(ctx);
     if (hasScheduled) return;
+
+    if (!existing) {
+      await ctx.db.insert("scheduler_locks", {
+        lock_key: SCHEDULER_LOCK_ENTITY_ID,
+        status: "idle",
+        heartbeat_ts_ms: now,
+        expires_at_ms: now,
+      });
+    } else {
+      await ctx.db.patch(existing._id, {
+        status: "idle",
+        heartbeat_ts_ms: now,
+        expires_at_ms: now,
+      });
+    }
+
     await ctx.scheduler.runAfter(
       0,
       internal.domain.orchestrator.scheduler.runScheduler,

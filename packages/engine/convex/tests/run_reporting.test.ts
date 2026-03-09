@@ -359,6 +359,32 @@ describe("run reporting", () => {
     expect(experimentSummary.total_count).toBe(2);
     expect(experimentSummary.latest_run?.completed_count).toBe(2);
     expect(experimentSummary.latest_run?.has_failures).toBe(true);
+
+    const diagnostics = await t.query(api.packages.lab.getRunDiagnostics, {
+      run_id: started.run_id,
+    });
+    expect(diagnostics.request_counts.error).toBe(1);
+    expect(diagnostics.request_counts.historical_error).toBe(1);
+    expect(diagnostics.request_counts.terminal_failed_targets).toBe(1);
+    expect(diagnostics.failed_requests).toEqual([
+      expect.objectContaining({
+        custom_key: expect.stringContaining(":rubric_gen"),
+        last_error: "synthetic rubric failure",
+      }),
+    ]);
+    expect(diagnostics.terminal_failed_targets).toEqual([
+      expect.objectContaining({
+        stage: "rubric_gen",
+        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        error_message: "synthetic rubric failure",
+      }),
+    ]);
+    expect(diagnostics.terminal_stage_rollup).toEqual({
+      rubric_gen: { completed: 2, failed: 1, pending: 0 },
+      rubric_critic: { completed: 2, failed: 1, pending: 0 },
+      score_gen: { completed: 2, failed: 1, pending: 0 },
+      score_critic: { completed: 2, failed: 1, pending: 0 },
+    });
   });
 
   test("getRunSummary keeps clean runs failure-free", async () => {
