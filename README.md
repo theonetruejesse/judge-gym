@@ -67,7 +67,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
-- Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidence`.
+- Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
@@ -150,7 +150,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `pools` | Reusable evidence pools | `pool_tag` |
-| `pool_evidence` | Evidence membership for pools | `pool_id`, `evidence_id` |
+| `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
 | `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count`, `completed_count` |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count` |
@@ -300,16 +300,16 @@ Custom keys are how LLM results route back into domain handlers.
 
 `ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine/convex/settings.ts`.
 
-| Policy field           | Default | Meaning                                                    | Enforced in                            |
-| ---------------------- | ------- | ---------------------------------------------------------- | -------------------------------------- |
-| `poll_interval_ms`     | `20000` | Minimum time between scheduler polls                       | `scheduler.ts`, `utils/scheduling.ts`  |
-| `max_batch_size`       | `100`   | Maximum requests per provider batch chunk                  | `BaseOrchestrator.createBatch`         |
-| `min_batch_size`       | `25`    | Minimum requests needed to batch                           | `BaseOrchestrator.decideRoute`         |
-| `max_tokens`           | `8000`  | Hard cap per request                                       | `llm_batch_service`, `llm_job_service` |
-| `max_batch_retries`    | `2`     | Batch re-poll/retry cap                                    | `llm_batch_service`                    |
-| `max_request_attempts` | `2`     | Request retry cap                                          | `llm_batch_service`, `llm_job_service` |
-| `retry_backoff_ms`     | `60000` | Backoff before retry                                       | `utils/scheduling.ts`                  |
-| `job_request_concurrency` | `8`  | Max concurrent request executions per job processing tick  | `llm_job_service`                      |
+| Policy field              | Default | Meaning                                                   | Enforced in                            |
+| ------------------------- | ------- | --------------------------------------------------------- | -------------------------------------- |
+| `poll_interval_ms`        | `20000` | Minimum time between scheduler polls                      | `scheduler.ts`, `utils/scheduling.ts`  |
+| `max_batch_size`          | `100`   | Maximum requests per provider batch chunk                 | `BaseOrchestrator.createBatch`         |
+| `min_batch_size`          | `25`    | Minimum requests needed to batch                          | `BaseOrchestrator.decideRoute`         |
+| `max_tokens`              | `8000`  | Hard cap per request                                      | `llm_batch_service`, `llm_job_service` |
+| `max_batch_retries`       | `2`     | Batch re-poll/retry cap                                   | `llm_batch_service`                    |
+| `max_request_attempts`    | `2`     | Request retry cap                                         | `llm_batch_service`, `llm_job_service` |
+| `retry_backoff_ms`        | `60000` | Backoff before retry                                      | `utils/scheduling.ts`                  |
+| `job_request_concurrency` | `8`     | Max concurrent request executions per job processing tick | `llm_job_service`                      |
 
 ---
 

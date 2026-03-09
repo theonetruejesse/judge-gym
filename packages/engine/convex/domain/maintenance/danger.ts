@@ -13,7 +13,7 @@ const tableNames = [
   "windows",
   "evidences",
   "pools",
-  "pool_evidence",
+  "pool_evidences",
   "experiments",
   "runs",
   "samples",

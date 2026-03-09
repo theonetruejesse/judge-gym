@@ -46,7 +46,7 @@ export const createPool = zInternalMutation({
     const insertIds = new Set<Id<"evidences">>(args.evidence_ids);
 
     for (const evidence_id of insertIds) {
-      await ctx.db.insert("pool_evidence", {
+      await ctx.db.insert("pool_evidences", {
         pool_id,
         evidence_id,
       });
@@ -80,7 +80,7 @@ export const listPoolEvidenceLinks = zInternalQuery({
   }),
   handler: async (ctx, args) => {
     return ctx.db
-      .query("pool_evidence")
+      .query("pool_evidences")
       .withIndex("by_pool", (q) => q.eq("pool_id", args.pool_id))
       .collect();
   },
