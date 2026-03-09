@@ -370,10 +370,9 @@ stateDiagram-v2
 
 ## Known Gaps and Caveats
 
-- Run-level experiment orchestration is not implemented in this repo.
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
-- Orphaned `llm_requests` are counted but not automatically requeued.
+- For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
 - Batch completion now treats missing per-request result rows as request errors/retries, preventing silent `pending` stalls.
 
 ---

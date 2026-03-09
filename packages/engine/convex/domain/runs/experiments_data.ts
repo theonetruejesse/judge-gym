@@ -5,7 +5,8 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
-import { getRunStageProgress } from "./run_progress";
+import { ENGINE_SETTINGS } from "../../settings";
+import { getRunProgressSnapshot } from "./run_progress";
 
 function deriveExperimentStatus(
   runs: Array<Doc<"runs">>,
@@ -33,33 +34,96 @@ function latestRun(runs: Array<Doc<"runs">>) {
 
 async function latestRunHasFailures(
   ctx: QueryCtx,
-  runId: Id<"runs">,
+  run: Doc<"runs">,
+  evidenceCount: number,
 ): Promise<boolean> {
-  const progresses = await Promise.all(
-    RunStageSchema.options.map((stage) => getRunStageProgress(ctx, runId, stage)),
+  if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
+    const [samples, scoreUnits] = await Promise.all([
+      ctx.db
+        .query("samples")
+        .withIndex("by_run", (q) => q.eq("run_id", run._id))
+        .collect(),
+      ctx.db
+        .query("sample_evidence_scores")
+        .withIndex("by_run", (q) => q.eq("run_id", run._id))
+        .collect(),
+    ]);
+
+    if (samples.length < run.target_count) return true;
+    if (samples.some((sample) => sample.rubric_id == null || sample.rubric_critic_id == null)) {
+      return true;
+    }
+
+    if (scoreUnits.length > 0) {
+      const expectedScoreUnits = samples.length * evidenceCount;
+      if (scoreUnits.length < expectedScoreUnits) return true;
+      return scoreUnits.some(
+        (unit) => unit.score_id == null || unit.score_critic_id == null,
+      );
+    }
+
+    return samples.some(
+      (sample) => sample.score_id == null || sample.score_critic_id == null,
+    );
+  }
+
+  const targetStates = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_process", (q) =>
+      q.eq("process_type", "run").eq("process_id", run._id),
+    )
+    .collect();
+
+  return targetStates.some((state) =>
+    !state.has_pending &&
+    state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
   );
-  return progresses.some((progress) => (progress?.failed ?? 0) > 0);
 }
 
 async function listEvidenceLinks(
   ctx: QueryCtx,
-  experimentId: Id<"experiments">,
+  poolId: Id<"pools">,
 ) {
-  const experiment = await ctx.db.get(experimentId);
-  if (!experiment) throw new Error("Experiment not found");
   return ctx.db
     .query("pool_evidence")
-    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
+    .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
     .collect();
+}
+
+async function collectWindowIdsForLinks(
+  ctx: QueryCtx,
+  links: Doc<"pool_evidence">[],
+  evidenceCache: Map<Id<"evidences">, Doc<"evidences">>,
+) {
+  const windowIds = new Set<string>();
+  for (const link of links) {
+    let evidence = evidenceCache.get(link.evidence_id);
+    if (!evidence) {
+      const fetched = await ctx.db.get(link.evidence_id);
+      if (fetched) {
+        evidence = fetched;
+        evidenceCache.set(link.evidence_id, fetched);
+      }
+    }
+    if (evidence) windowIds.add(String(evidence.window_id));
+  }
+  return windowIds;
 }
 
 export const listExperiments = zInternalQuery({
   args: z.object({}),
   handler: async (ctx) => {
     const experiments = await ctx.db.query("experiments").collect();
+    const runs = await ctx.db.query("runs").collect();
     experiments.sort((a, b) => a.experiment_tag.localeCompare(b.experiment_tag));
 
     const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
+    const runsByExperiment = new Map<Id<"experiments">, Doc<"runs">[]>();
+    for (const run of runs) {
+      const current = runsByExperiment.get(run.experiment_id) ?? [];
+      current.push(run);
+      runsByExperiment.set(run.experiment_id, current);
+    }
     const results = [] as Array<{
       experiment_id: Id<"experiments">;
       experiment_tag: string;
@@ -79,27 +143,13 @@ export const listExperiments = zInternalQuery({
     }>;
 
     for (const experiment of experiments) {
-      const runs = await ctx.db
-        .query("runs")
-        .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
-        .collect();
-
-      const links = await listEvidenceLinks(ctx, experiment._id);
-      const windowIds = new Set<string>();
-      for (const link of links) {
-        let evidence = evidenceCache.get(link.evidence_id);
-        if (!evidence) {
-          const fetched = await ctx.db.get(link.evidence_id);
-          if (fetched) {
-            evidence = fetched;
-            evidenceCache.set(link.evidence_id, fetched);
-          }
-        }
-        if (evidence) windowIds.add(String(evidence.window_id));
-      }
-
-      const latest = latestRun(runs);
-      const latestHasFailures = latest ? await latestRunHasFailures(ctx, latest._id) : false;
+      const experimentRuns = runsByExperiment.get(experiment._id) ?? [];
+      const links = await listEvidenceLinks(ctx, experiment.pool_id);
+      const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+      const latest = latestRun(experimentRuns);
+      const latestHasFailures = latest
+        ? await latestRunHasFailures(ctx, latest, links.length)
+        : false;
 
       results.push({
         experiment_id: experiment._id,
@@ -108,7 +158,7 @@ export const listExperiments = zInternalQuery({
         scoring_config: experiment.scoring_config,
         evidence_selected_count: links.length,
         window_count: windowIds.size,
-        status: deriveExperimentStatus(runs),
+        status: deriveExperimentStatus(experimentRuns),
         latest_run: latest
           ? {
               run_id: latest._id,
@@ -137,49 +187,53 @@ export const getExperimentSummary = zInternalQuery({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
 
-    const links = await listEvidenceLinks(ctx, experiment._id);
+    const links = await listEvidenceLinks(ctx, experiment.pool_id);
     const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
-    const windowIds = new Set<string>();
-    for (const link of links) {
-      let evidence = evidenceCache.get(link.evidence_id);
-      if (!evidence) {
-        const fetched = await ctx.db.get(link.evidence_id);
-        if (fetched) {
-          evidence = fetched;
-          evidenceCache.set(link.evidence_id, fetched);
-        }
-      }
-      if (evidence) windowIds.add(String(evidence.window_id));
-    }
-
-    const samples: Doc<"samples">[] = [];
-    for (const run of runs) {
-      const runSamples = await ctx.db
-        .query("samples")
-        .withIndex("by_run", (q) => q.eq("run_id", run._id))
-        .collect();
-      samples.push(...runSamples);
-    }
-    const runIdSet = new Set(runs.map((run) => String(run._id)));
-    const scoreUnits = (await ctx.db.query("sample_evidence_scores").collect()).filter(
-      (unit) => runIdSet.has(String(unit.run_id)),
+    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+    const runArtifacts = await Promise.all(
+      runs.map(async (run) => {
+        const [samples, scoreUnits] = await Promise.all([
+          ctx.db
+            .query("samples")
+            .withIndex("by_run", (q) => q.eq("run_id", run._id))
+            .collect(),
+          ctx.db
+            .query("sample_evidence_scores")
+            .withIndex("by_run", (q) => q.eq("run_id", run._id))
+            .collect(),
+        ]);
+        return { run, samples, scoreUnits };
+      }),
     );
-    const useScoreUnits = scoreUnits.length > 0;
 
     const counts = {
-      samples: samples.length,
-      rubrics: samples.filter((s) => s.rubric_id != null).length,
-      rubric_critics: samples.filter((s) => s.rubric_critic_id != null).length,
-      scores: useScoreUnits
-        ? scoreUnits.filter((unit) => unit.score_id != null).length
-        : samples.filter((s) => s.score_id != null).length,
-      score_critics: useScoreUnits
-        ? scoreUnits.filter((unit) => unit.score_critic_id != null).length
-        : samples.filter((s) => s.score_critic_id != null).length,
+      samples: runArtifacts.reduce((sum, artifact) => sum + artifact.samples.length, 0),
+      rubrics: runArtifacts.reduce(
+        (sum, artifact) => sum + artifact.samples.filter((sample) => sample.rubric_id != null).length,
+        0,
+      ),
+      rubric_critics: runArtifacts.reduce(
+        (sum, artifact) => sum + artifact.samples.filter((sample) => sample.rubric_critic_id != null).length,
+        0,
+      ),
+      scores: runArtifacts.reduce((sum, artifact) => {
+        if (artifact.scoreUnits.length > 0) {
+          return sum + artifact.scoreUnits.filter((unit) => unit.score_id != null).length;
+        }
+        return sum + artifact.samples.filter((sample) => sample.score_id != null).length;
+      }, 0),
+      score_critics: runArtifacts.reduce((sum, artifact) => {
+        if (artifact.scoreUnits.length > 0) {
+          return sum + artifact.scoreUnits.filter((unit) => unit.score_critic_id != null).length;
+        }
+        return sum + artifact.samples.filter((sample) => sample.score_critic_id != null).length;
+      }, 0),
     };
 
     const latest = latestRun(runs);
-    const latestHasFailures = latest ? await latestRunHasFailures(ctx, latest._id) : false;
+    const latestHasFailures = latest
+      ? await latestRunHasFailures(ctx, latest, links.length)
+      : false;
 
     return {
       experiment_id: experiment._id,
@@ -209,7 +263,9 @@ export const getExperimentSummary = zInternalQuery({
 export const listExperimentEvidence = zInternalQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, { experiment_id }) => {
-    const links = await listEvidenceLinks(ctx, experiment_id);
+    const experiment = await ctx.db.get(experiment_id);
+    if (!experiment) throw new Error("Experiment not found");
+    const links = await listEvidenceLinks(ctx, experiment.pool_id);
     const evidenceRows: Array<{
       evidence_id: Id<"evidences">;
       window_id: Id<"windows">;
@@ -240,47 +296,44 @@ export const getRunSummary = zInternalQuery({
   handler: async (ctx, { run_id }) => {
     const run = await ctx.db.get(run_id);
     if (!run) throw new Error("Run not found");
-
-    const stageResults = await Promise.all(
-      RunStageSchema.options.map(async (stage) => {
-        const progress = await getRunStageProgress(ctx, run._id, stage);
-        if (!progress) {
-          return {
-            stage,
-            status: "queued",
-            total: run.target_count,
-            completed: 0,
-            failed: 0,
-          };
-        }
-        const status = progress.hasPending ? "running" : "completed";
-        if (progress.completed === 0 && progress.failed === 0 && !progress.hasPending) {
-          return {
-            stage,
-            status: "queued",
-            total: progress.total,
-            completed: 0,
-            failed: 0,
-          };
-        }
+    const snapshot = await getRunProgressSnapshot(ctx, run._id);
+    const stageResults = RunStageSchema.options.map((stage) => {
+      const progress = snapshot?.byStage[stage];
+      if (!progress) {
         return {
           stage,
-          status,
-          total: progress.total,
-          completed: progress.completed,
-          failed: progress.failed,
+          status: "queued",
+          total: run.target_count,
+          completed: 0,
+          failed: 0,
         };
-      }),
-    );
+      }
+      if (progress.completed === 0 && progress.failed === 0 && !progress.hasPending) {
+        return {
+          stage,
+          status: "queued",
+          total: progress.total,
+          completed: 0,
+          failed: 0,
+        };
+      }
+      return {
+        stage,
+        status: progress.hasPending ? "running" : "completed",
+        total: progress.total,
+        completed: progress.completed,
+        failed: progress.failed,
+      };
+    });
 
-    const failed_stage_count = stageResults.filter((stage) => stage.failed > 0).length;
+    const failed_stage_count = snapshot?.failedStageCount ?? 0;
 
     return {
       run_id: run._id,
       status: run.status,
       current_stage: run.current_stage,
       target_count: run.target_count,
-      has_failures: failed_stage_count > 0,
+      has_failures: snapshot?.hasFailures ?? false,
       failed_stage_count,
       stages: stageResults,
     };
