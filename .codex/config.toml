@@ -6,10 +6,17 @@ args = [
   "mcp",
   "start",
   "--project-dir",
-  "/Users/jesselee/dev/research/judge-gym/packages/engine",
+  "/Users/jesselee/dev/research/jg/judge-gym/packages/engine",
   "--disable-tools",
   "envList,envGet,envSet,envRemove,tables",
 ]
 
 [mcp_servers.convex.env]
 CONVEX_DEPLOYMENT = "dev:rightful-grouse-57"
+
+[mcp_servers.axiom]
+command = "/bin/zsh"
+args = [
+  "-lc",
+  "set -a; source /Users/jesselee/dev/research/jg/judge-gym/.env.local; set +a; npx -y mcp-remote https://mcp.axiom.co/mcp --header \"Authorization:Bearer ${AXIOM_API_TOKEN}\" --header \"x-axiom-org-id:${AXIOM_ORG_ID}\"",
+]
