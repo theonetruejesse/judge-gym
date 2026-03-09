@@ -23,6 +23,7 @@ import {
 import { generateLabelMapping } from "../../utils/randomize";
 import { emitTraceEvent } from "../telemetry/emit";
 import { getNextAttemptAt } from "../../utils/scheduling";
+import { getRunStageProgress } from "./run_progress";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -438,10 +439,115 @@ export const reconcileRunStage = zInternalMutation({
     run_id: zid("runs"),
     stage: RunStageSchema,
   }),
+  returns: z.object({
+    outcome: z.enum([
+      "missing_run",
+      "terminal_noop",
+      "deferred_missing_progress",
+      "deferred_pending",
+      "deferred_active_transport",
+      "deferred_stage_mismatch",
+      "advanced",
+      "completed",
+      "terminal_error",
+      "failed",
+      "paused",
+    ]),
+    completed: z.number(),
+    failed: z.number(),
+  }),
   handler: async (ctx, args) => {
-    await maybeAdvanceRunStage(ctx, args.run_id, args.stage);
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      return {
+        outcome: "missing_run" as const,
+        completed: 0,
+        failed: 0,
+      };
+    }
+    if (
+      run.status === "completed"
+      || run.status === "canceled"
+      || run.status === "error"
+    ) {
+      return {
+        outcome: "terminal_noop" as const,
+        completed: 0,
+        failed: 0,
+      };
+    }
+
+    try {
+      const result = await maybeAdvanceRunStage(ctx, args.run_id, args.stage);
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${args.run_id}`,
+        entity_type: "run",
+        entity_id: String(args.run_id),
+        event_name: "run_stage_reconciled",
+        stage: args.stage,
+        status: mapReconcileOutcomeToStatus(result.outcome),
+        payload_json: JSON.stringify({
+          outcome: result.outcome,
+          completed: result.completed,
+          failed: result.failed,
+        }),
+      });
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const canPause = run.current_stage === args.stage && run.status !== "paused";
+      const hasTransport = await hasActiveRunTransportWork(ctx, args.run_id, args.stage);
+      const shouldPause = canPause && !hasTransport;
+
+      if (shouldPause) {
+        await ctx.db.patch(args.run_id, {
+          status: "paused",
+          current_stage: args.stage,
+        });
+      }
+
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${args.run_id}`,
+        entity_type: "run",
+        entity_id: String(args.run_id),
+        event_name: shouldPause ? "run_fail_safe_paused" : "run_stage_reconcile_failed",
+        stage: args.stage,
+        status: shouldPause ? "paused" : "error",
+        payload_json: JSON.stringify({
+          error: errorMessage,
+          paused: shouldPause,
+          current_status: run.status,
+        }),
+      });
+
+      return {
+        outcome: shouldPause ? ("paused" as const) : ("failed" as const),
+        completed: 0,
+        failed: 0,
+      };
+    }
   },
 });
+
+function mapReconcileOutcomeToStatus(
+  outcome:
+    | "missing_run"
+    | "terminal_noop"
+    | "deferred_missing_progress"
+    | "deferred_pending"
+    | "deferred_active_transport"
+    | "deferred_stage_mismatch"
+    | "advanced"
+    | "completed"
+    | "terminal_error"
+    | "failed"
+    | "paused",
+): "running" | "completed" | "error" | "paused" {
+  if (outcome === "completed") return "completed";
+  if (outcome === "terminal_error" || outcome === "failed") return "error";
+  if (outcome === "paused") return "paused";
+  return "running";
+}
 
 async function resolveRunTarget(
   ctx: MutationCtx,
@@ -482,19 +588,40 @@ async function maybeAdvanceRunStage(
   stage: RunStage,
 ) {
   const run = await ctx.db.get(runId);
-  if (!run) return;
+  if (!run) {
+    return {
+      outcome: "missing_run" as const,
+      completed: 0,
+      failed: 0,
+    };
+  }
   if (
     run.status === "completed" ||
     run.status === "canceled" ||
     run.status === "error"
-  )
-    return;
+  ) {
+    return {
+      outcome: "terminal_noop" as const,
+      completed: 0,
+      failed: 0,
+    };
+  }
 
-  const orchestrator = new RunOrchestrator(ctx);
-
-  const progress = await orchestrator.getStageProgress(runId, stage);
-  if (!progress) return;
-  if (progress.hasPending) return;
+  const progress = await getRunStageProgress(ctx, runId, stage);
+  if (!progress) {
+    return {
+      outcome: "deferred_missing_progress" as const,
+      completed: 0,
+      failed: 0,
+    };
+  }
+  if (progress.hasPending) {
+    return {
+      outcome: "deferred_pending" as const,
+      completed: progress.completed,
+      failed: progress.failed,
+    };
+  }
 
   if (progress.completed === 0 && progress.failed > 0) {
     await ctx.db.patch(runId, {
@@ -513,11 +640,23 @@ async function maybeAdvanceRunStage(
         failed: progress.failed,
       }),
     });
-    return;
+    return {
+      outcome: "terminal_error" as const,
+      completed: progress.completed,
+      failed: progress.failed,
+    };
   }
 
+  const orchestrator = new RunOrchestrator(ctx);
   const nextStage = orchestrator.nextStageFor(stage);
   if (!nextStage) {
+    if (await hasActiveRunTransportWork(ctx, runId, stage)) {
+      return {
+        outcome: "deferred_active_transport" as const,
+        completed: progress.completed,
+        failed: progress.failed,
+      };
+    }
     await ctx.db.patch(runId, {
       status: "completed",
       current_stage: stage,
@@ -534,10 +673,20 @@ async function maybeAdvanceRunStage(
         failed: progress.failed,
       }),
     });
-    return;
+    return {
+      outcome: "completed" as const,
+      completed: progress.completed,
+      failed: progress.failed,
+    };
   }
 
-  if (run.current_stage !== stage) return;
+  if (run.current_stage !== stage) {
+    return {
+      outcome: "deferred_stage_mismatch" as const,
+      completed: progress.completed,
+      failed: progress.failed,
+    };
+  }
   await ctx.db.patch(runId, {
     current_stage: nextStage,
     status: "running",
@@ -556,6 +705,73 @@ async function maybeAdvanceRunStage(
     }),
   });
   await orchestrator.enqueueStage(runId, nextStage);
+  return {
+    outcome: "advanced" as const,
+    completed: progress.completed,
+    failed: progress.failed,
+  };
+}
+
+async function hasActiveRunTransportWork(
+  ctx: MutationCtx,
+  runId: Id<"runs">,
+  stage: RunStage,
+): Promise<boolean> {
+  const processKey = `run:${runId}:${stage}`;
+  const [
+    queuedBatch,
+    submittingBatch,
+    runningBatch,
+    finalizingBatch,
+    queuedJob,
+    runningJob,
+  ] = await Promise.all([
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "queued"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "submitting"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "running"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "finalizing"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "queued"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", processKey).eq("status", "running"),
+      )
+      .first(),
+  ]);
+
+  return Boolean(
+    queuedBatch
+    || submittingBatch
+    || runningBatch
+    || finalizingBatch
+    || queuedJob
+    || runningJob,
+  );
 }
 
 async function markRequestParseFailure(

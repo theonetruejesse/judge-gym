@@ -42,6 +42,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 2. Check stuck backlog
 
 - `bun run debug:stuck --older-ms 120000`
+- Read `meta.truncated`, `meta.scan_caps_hit`, and `meta.health_checks_limited` in the response before assuming global completeness.
 
 3. Inspect local recent milestones
 
@@ -59,11 +60,14 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Run: `bun run debug:heal --run <run_id>`
 - Window: `bun run debug:heal --window <window_id>`
+- Optional paging flags: `--cursor <n>` and `--max-actions <n>`
+- For large backlogs, pass smaller heal pages repeatedly with `packages/codex:autoHealProcess` using `cursor` and `max_actions`.
 
 6. Apply remediation
 
 - Run: `bun run debug:heal --run <run_id> --apply`
 - Window: `bun run debug:heal --window <window_id> --apply`
+- Continue paging while `meta.next_cursor` is non-null.
 
 7. Verify progress
 
@@ -128,8 +132,10 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - Start with dry-run in production-like runs.
 - If safe actions do not recover progress, inspect `getProcessHealth` stage rollups and local recent events before doing maintenance mutations.
+- `getProcessHealth.request_state_meta.approximate=true` means the request-state view is bounded; use the Axiom trace + direct run/window diagnostics for deeper confirmation.
 - Treat `run.status=completed` plus `has_failures=true` as a partial-success terminal run that likely needs a supplemental follow-up pass rather than a scheduler fix.
 - Freshly started runs should move off `start` and into `running` as soon as `rubric_gen` is enqueued; if they do not, investigate lifecycle patching before debugging the scheduler.
+- Reconcile failures now emit `run_stage_reconciled` outcomes and can fail-safe pause runs (`status=paused`) when no active transport remains; treat paused runs as explicit operator-attention signals.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
 - The local mirror is intentionally small and milestone-oriented; it is not a full event log.

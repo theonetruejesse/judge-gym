@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A5_001",
+  "microHypothesisID": "h_A5_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Operator endpoint read hotspots are actually core-path failures",
+      "falsificationQueries": [
+        "Compare core run progression via bounded health APIs during lab/getStuckWork instability",
+        "Verify whether core completion can proceed with operator endpoint degradation"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_observability_reliability_evidence.md",
+        "knowledge/k_004_live_recovery_ledger_2026_03_08.md",
+        "knowledge/k_005_cross_source_warning_concordance_2026_03_09.md"
+      ],
+      "falsificationAnalysis": "Core progression and eventual completion were still achievable through bounded operational sources, while heavy operator endpoints remained unstable. This supports separate-class handling.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

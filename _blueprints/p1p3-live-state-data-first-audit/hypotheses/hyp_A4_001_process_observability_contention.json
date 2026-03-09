@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A4_001",
+  "areaOfAnalysisID": "A4",
+  "statement": "Write contention on process_observability is a material second-order contributor to run latency and perceived instability under fanout load.",
+  "confidence": 0.84,
+  "rationale": "Convex insights show very high OCC retry volumes on recordProcessObservability and OCC interactions during applyRequestResult/handleRequestError against the same state surface.",
+  "keyAssumptions": [
+    "Observed OCC retries correlate with runtime slowdown and retry churn"
+  ],
+  "validationCriteria": [
+    "Reducing observability write frequency/cardinality lowers OCC retry volume during equivalent load",
+    "Core run progression metrics improve without increasing failure rate"
+  ],
+  "critiquePoints": [
+    "Some OCC retries are benign and expected under concurrency"
+  ],
+  "questions": [
+    "Which observability writes are essential in hot paths versus deferrable?"
+  ]
+}

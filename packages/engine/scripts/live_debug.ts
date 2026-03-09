@@ -11,6 +11,8 @@ type Args = {
   limit: number;
   intervalMs: number;
   maxEvents: number;
+  cursor?: number;
+  maxActions?: number;
   apply: boolean;
 };
 
@@ -23,6 +25,8 @@ function parseArgs(argv: string[]): Args {
   let limit = 50;
   let intervalMs = 4_000;
   let maxEvents = 5_000;
+  let cursor: number | undefined;
+  let maxActions: number | undefined;
   let apply = false;
 
   for (let i = 1; i < argv.length; i += 1) {
@@ -64,6 +68,22 @@ function parseArgs(argv: string[]): Args {
       i += 1;
       continue;
     }
+    if (arg === "--cursor" && argv[i + 1]) {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value) && value >= 0) {
+        cursor = value;
+      }
+      i += 1;
+      continue;
+    }
+    if (arg === "--max-actions" && argv[i + 1]) {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value) && value > 0) {
+        maxActions = value;
+      }
+      i += 1;
+      continue;
+    }
     if (arg === "--apply") {
       apply = true;
       continue;
@@ -79,6 +99,8 @@ function parseArgs(argv: string[]): Args {
     limit,
     intervalMs,
     maxEvents,
+    cursor,
+    maxActions,
     apply,
   };
 }
@@ -201,6 +223,8 @@ function runHeal(args: Args) {
     process_id: args.processId,
     older_than_ms: args.olderMs,
     dry_run: !args.apply,
+    cursor: args.cursor,
+    max_actions: args.maxActions,
   }) as any;
 
   console.log(JSON.stringify(result, null, 2));

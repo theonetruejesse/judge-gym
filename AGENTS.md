@@ -57,6 +57,7 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - List stuck work globally: `bun run debug:stuck --older-ms 120000`
 - List stuck work for runs only: `bun run debug:stuck --older-ms 120000 --run <run_id>`
 - Deep trace diagnostics: use the `external_trace_ref` from `getProcessHealth` / `debug:tail` / `debug:analyze` to pivot into Axiom.
+- `getStuckWork` includes `meta` (`truncated`, `scan_caps_hit`, `health_checks_limited`); treat it as bounded output, not guaranteed global exhaustiveness.
 
 ### Recover (safe automation)
 
@@ -64,6 +65,8 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - Apply auto-heal run: `bun run debug:heal --run <run_id> --apply`
 - Dry-run auto-heal window: `bun run debug:heal --window <window_id>`
 - Apply auto-heal window: `bun run debug:heal --window <window_id> --apply`
+- Heal CLI supports paging flags: `--cursor <n>` and `--max-actions <n>`.
+- For large backlogs, page heal actions with `packages/codex:autoHealProcess` args `cursor` + `max_actions` and continue until `meta.next_cursor` is `null`.
 
 ### Recovery Guardrails
 
@@ -145,6 +148,7 @@ Use this when a new Codex instance has zero prior context.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
+- `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded.
 - `packages/codex:analyzeProcessTelemetry` and `packages/lab:getTraceEvents` summarize the capped local recent-events mirror only; use the returned `external_trace_ref` for full Axiom history.
 
 ### 6. Retry semantics (current expectation)

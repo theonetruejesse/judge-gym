@@ -36,6 +36,7 @@ function classifyRequestState(index: RequestStateIndex, customKey: string): Requ
 
 async function buildRequestStateIndex(
   ctx: RunProgressCtx,
+  runId: Id<"runs">,
   customKeys: Set<string>,
   stage: RunStage,
 ): Promise<RequestStateIndex> {
@@ -46,33 +47,24 @@ async function buildRequestStateIndex(
     };
   }
 
-  const stageSuffix = `:${stage}`;
-  const pendingRows = await ctx.db
-    .query("llm_requests")
-    .withIndex("by_status", (q) => q.eq("status", "pending"))
-    .collect();
-  const errorRows = await ctx.db
-    .query("llm_requests")
-    .withIndex("by_status", (q) => q.eq("status", "error"))
+  const rows = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_process_stage", (q) =>
+      q
+        .eq("process_type", "run")
+        .eq("process_id", runId)
+        .eq("stage", stage),
+    )
     .collect();
 
   const pendingKeys = new Set<string>();
   const maxAttemptsByKey = new Map<string, number>();
 
-  for (const row of pendingRows) {
-    if (!row.custom_key.endsWith(stageSuffix)) continue;
+  for (const row of rows) {
     if (!customKeys.has(row.custom_key)) continue;
-    pendingKeys.add(row.custom_key);
+    if (row.has_pending) pendingKeys.add(row.custom_key);
     const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
-    const attempts = row.attempts ?? 0;
-    if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
-  }
-
-  for (const row of errorRows) {
-    if (!row.custom_key.endsWith(stageSuffix)) continue;
-    if (!customKeys.has(row.custom_key)) continue;
-    const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
-    const attempts = row.attempts ?? 0;
+    const attempts = row.max_attempts ?? 0;
     if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
   }
 
@@ -165,8 +157,18 @@ async function getSampleStageProgress(
     }
   }
 
-  const currentStageIndex = await buildRequestStateIndex(ctx, currentStageKeys, stage);
-  const rubricGenIndex = await buildRequestStateIndex(ctx, rubricGenKeys, "rubric_gen");
+  const currentStageIndex = await buildRequestStateIndex(
+    ctx,
+    runId,
+    currentStageKeys,
+    stage,
+  );
+  const rubricGenIndex = await buildRequestStateIndex(
+    ctx,
+    runId,
+    rubricGenKeys,
+    "rubric_gen",
+  );
 
   for (const sample of samples) {
     const sampleId = String(sample._id);
@@ -258,9 +260,24 @@ export async function getRunStageProgress(
     }
   }
 
-  const currentStageIndex = await buildRequestStateIndex(ctx, currentStageKeys, stage);
-  const rubricGenIndex = await buildRequestStateIndex(ctx, rubricGenKeys, "rubric_gen");
-  const scoreGenIndex = await buildRequestStateIndex(ctx, scoreGenKeys, "score_gen");
+  const currentStageIndex = await buildRequestStateIndex(
+    ctx,
+    runId,
+    currentStageKeys,
+    stage,
+  );
+  const rubricGenIndex = await buildRequestStateIndex(
+    ctx,
+    runId,
+    rubricGenKeys,
+    "rubric_gen",
+  );
+  const scoreGenIndex = await buildRequestStateIndex(
+    ctx,
+    runId,
+    scoreGenKeys,
+    "score_gen",
+  );
 
   for (const unit of scoreUnits) {
     const unitId = String(unit._id);

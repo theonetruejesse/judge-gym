@@ -1,0 +1,19 @@
+{
+  "microHypothesisID": "h_A2_001",
+  "areaOfAnalysisID": "A2",
+  "statement": "Read amplification inside run reconciliation is a dominant blocker for active run progression under current fanout.",
+  "confidence": 0.81,
+  "rationale": "Convex insights repeatedly flags bytes-read-limit errors in domain/runs/run_service.js:reconcileRunStage around active stall windows.",
+  "keyAssumptions": [
+    "Recent insights reflect present bottlenecks for current run cohort"
+  ],
+  "validationCriteria": [
+    "After scheduler resume, reconciliation errors continue to surface at similar rate"
+  ],
+  "critiquePoints": [
+    "Provider-side transient errors are also present and can co-contribute"
+  ],
+  "questions": [
+    "Which exact per-stage query paths in reconcileRunStage should be bounded first?"
+  ]
+}

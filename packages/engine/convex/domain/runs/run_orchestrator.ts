@@ -78,6 +78,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   }
 
   private async buildRequestStateIndex(
+    runId: Id<"runs">,
     customKeys: Set<string>,
     stage: RunStage,
   ): Promise<RequestStateIndex> {
@@ -88,33 +89,24 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       };
     }
 
-    const stageSuffix = `:${stage}`;
-    const pendingRows = await this.ctx.db
-      .query("llm_requests")
-      .withIndex("by_status", (q) => q.eq("status", "pending"))
-      .collect();
-    const errorRows = await this.ctx.db
-      .query("llm_requests")
-      .withIndex("by_status", (q) => q.eq("status", "error"))
+    const rows = await this.ctx.db
+      .query("process_request_targets")
+      .withIndex("by_process_stage", (q) =>
+        q
+          .eq("process_type", "run")
+          .eq("process_id", runId)
+          .eq("stage", stage),
+      )
       .collect();
 
     const pendingKeys = new Set<string>();
     const maxAttemptsByKey = new Map<string, number>();
 
-    for (const row of pendingRows) {
-      if (!row.custom_key.endsWith(stageSuffix)) continue;
+    for (const row of rows) {
       if (!customKeys.has(row.custom_key)) continue;
-      pendingKeys.add(row.custom_key);
+      if (row.has_pending) pendingKeys.add(row.custom_key);
       const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
-      const attempts = row.attempts ?? 0;
-      if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
-    }
-
-    for (const row of errorRows) {
-      if (!row.custom_key.endsWith(stageSuffix)) continue;
-      if (!customKeys.has(row.custom_key)) continue;
-      const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
-      const attempts = row.attempts ?? 0;
+      const attempts = row.max_attempts ?? 0;
       if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
     }
 
@@ -264,7 +256,11 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       if (this.isSampleStageBlocked(sample, stage)) continue;
       candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
     }
-    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+    const requestStateIndex = await this.buildRequestStateIndex(
+      runId,
+      candidateKeys,
+      stage,
+    );
 
     for (const sample of samples) {
       const outputId = this.getSampleOutputId(sample, stage);
@@ -334,7 +330,11 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       if (this.isSampleStageBlocked(sample, stage)) continue;
       candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
     }
-    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+    const requestStateIndex = await this.buildRequestStateIndex(
+      runId,
+      candidateKeys,
+      stage,
+    );
 
     for (const sample of samples) {
       if (this.getSampleOutputId(sample, stage)) continue;
@@ -377,7 +377,11 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       if (this.isSampleStageBlocked(sample, stage)) continue;
       candidateKeys.add(this.makeRequestKeyForTarget("sample", sample._id, stage));
     }
-    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+    const requestStateIndex = await this.buildRequestStateIndex(
+      runId,
+      candidateKeys,
+      stage,
+    );
 
     for (const sample of samples) {
       if (this.getSampleOutputId(sample, stage)) continue;
@@ -425,7 +429,11 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       candidateKeys.add(this.makeRequestKey(unit._id, stage));
     }
 
-    const requestStateIndex = await this.buildRequestStateIndex(candidateKeys, stage);
+    const requestStateIndex = await this.buildRequestStateIndex(
+      runId,
+      candidateKeys,
+      stage,
+    );
     const rubricBySampleId = await this.mapRubricsBySampleId(unitSamplePairs);
     const evidenceById = await this.mapEvidenceByUnitId(unitSamplePairs);
     const scoreByUnitId =

@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A5_001",
+  "areaOfAnalysisID": "A5",
+  "statement": "Operator/debug/reporting endpoints form a separate reliability class with predictable read amplification that should be optimized independently of core run progression logic.",
+  "confidence": 0.9,
+  "rationale": "Insights repeatedly flag lab summary/list endpoints, getStuckWork, and autoHealProcess for read-limit pressure while bounded per-run health paths remained usable for live triage.",
+  "keyAssumptions": [
+    "Core orchestration can remain healthy even when heavy operator endpoints degrade"
+  ],
+  "validationCriteria": [
+    "Operator dashboards and stuck-work queries remain within limits under active load after bounded-query redesign",
+    "No regression to core run throughput when operator surfaces are exercised"
+  ],
+  "critiquePoints": [
+    "Operator and core paths still share underlying tables; strict isolation is not absolute"
+  ],
+  "questions": [
+    "What are the minimal per-view aggregates needed to replace expensive scans?"
+  ]
+}

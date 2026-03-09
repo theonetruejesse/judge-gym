@@ -102,18 +102,24 @@ async function markRunArtifacts(
       if (!rubricRequest) throw new Error("rubric_request_not_found");
 
       if (failedIds.has(String(sample._id))) {
-        await ctx.db.patch(rubricRequest._id, {
-          status: "error",
-          attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
-          last_error: "synthetic rubric failure",
+        await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+          request_id: rubricRequest._id,
+          patch: {
+            status: "error",
+            attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+            last_error: "synthetic rubric failure",
+          },
         });
         continue;
       }
 
-      await ctx.db.patch(rubricRequest._id, {
-        status: "success",
-        attempts: 1,
-        assistant_output: "rubric output",
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: rubricRequest._id,
+        patch: {
+          status: "success",
+          attempts: 1,
+          assistant_output: "rubric output",
+        },
       });
       const rubricRequestId = rubricRequest._id;
       const rubricId = await ctx.db.insert("rubrics", {
@@ -133,16 +139,22 @@ async function markRunArtifacts(
         label_mapping: {},
       });
 
-      const rubricCriticRequestId = await ctx.db.insert("llm_requests", {
-        status: "success",
-        run_id,
-        job_id: null,
-        batch_id: null,
-        model: experiment.rubric_config.model,
-        user_prompt: "rubric critic request",
-        custom_key: `sample:${sample._id}:rubric_critic`,
-        attempts: 1,
-        assistant_output: "rubric critic output",
+      const rubricCriticRequestId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: experiment.rubric_config.model,
+          user_prompt: "rubric critic request",
+          custom_key: `sample:${sample._id}:rubric_critic`,
+          attempts: 1,
+        },
+      );
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: rubricCriticRequestId,
+        patch: {
+          status: "success",
+          attempts: 1,
+          assistant_output: "rubric critic output",
+        },
       });
       const rubricCriticId = await ctx.db.insert("rubric_critics", {
         run_id,
@@ -167,16 +179,22 @@ async function markRunArtifacts(
         continue;
       }
 
-      const scoreRequestId = await ctx.db.insert("llm_requests", {
-        status: "success",
-        run_id,
-        job_id: null,
-        batch_id: null,
-        model: experiment.scoring_config.model,
-        user_prompt: "score gen request",
-        custom_key: `sample_evidence:${unit._id}:score_gen`,
-        attempts: 1,
-        assistant_output: "score output",
+      const scoreRequestId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: experiment.scoring_config.model,
+          user_prompt: "score gen request",
+          custom_key: `sample_evidence:${unit._id}:score_gen`,
+          attempts: 1,
+        },
+      );
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: scoreRequestId,
+        patch: {
+          status: "success",
+          attempts: 1,
+          assistant_output: "score output",
+        },
       });
       const scoreId = await ctx.db.insert("scores", {
         run_id,
@@ -188,16 +206,22 @@ async function markRunArtifacts(
         decoded_scores: [1],
       });
 
-      const scoreCriticRequestId = await ctx.db.insert("llm_requests", {
-        status: "success",
-        run_id,
-        job_id: null,
-        batch_id: null,
-        model: experiment.scoring_config.model,
-        user_prompt: "score critic request",
-        custom_key: `sample_evidence:${unit._id}:score_critic`,
-        attempts: 1,
-        assistant_output: "score critic output",
+      const scoreCriticRequestId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: experiment.scoring_config.model,
+          user_prompt: "score critic request",
+          custom_key: `sample_evidence:${unit._id}:score_critic`,
+          attempts: 1,
+        },
+      );
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: scoreCriticRequestId,
+        patch: {
+          status: "success",
+          attempts: 1,
+          assistant_output: "score critic output",
+        },
       });
       const scoreCriticId = await ctx.db.insert("score_critics", {
         run_id,
