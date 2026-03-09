@@ -229,7 +229,7 @@ async function tableCounts(t: ReturnType<typeof convexTest>) {
       "windows",
       "evidences",
       "pools",
-      "pool_evidence",
+      "pool_evidences",
       "experiments",
       "runs",
       "samples",

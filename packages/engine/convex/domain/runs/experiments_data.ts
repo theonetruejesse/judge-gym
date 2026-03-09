@@ -120,14 +120,14 @@ async function listEvidenceLinks(
   poolId: Id<"pools">,
 ) {
   return ctx.db
-    .query("pool_evidence")
+    .query("pool_evidences")
     .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
     .collect();
 }
 
 async function collectWindowIdsForLinks(
   ctx: QueryCtx,
-  links: Doc<"pool_evidence">[],
+  links: Doc<"pool_evidences">[],
   evidenceCache: Map<Id<"evidences">, Doc<"evidences">>,
 ) {
   const windowIds = new Set<string>();
@@ -297,14 +297,14 @@ export const getExperimentSummary = zInternalQuery({
       status: deriveExperimentStatus(runs),
       latest_run: latest
         ? {
-            run_id: latest._id,
-            status: latest.status,
-            current_stage: latest.current_stage,
-            target_count: latest.target_count,
-            completed_count: latestRunState.completedCount,
-            created_at: latest._creationTime,
-            has_failures: latestRunState.hasFailures,
-          }
+          run_id: latest._id,
+          status: latest.status,
+          current_stage: latest.current_stage,
+          target_count: latest.target_count,
+          completed_count: latestRunState.completedCount,
+          created_at: latest._creationTime,
+          has_failures: latestRunState.hasFailures,
+        }
         : undefined,
       counts,
     };

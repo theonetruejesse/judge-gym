@@ -261,10 +261,10 @@ export const applyRequestResult = zInternalMutation({
         const evidence = scoreUnit
           ? await ctx.db.get(scoreUnit.evidence_id)
           : await resolveEvidenceForSample(
-              ctx,
-              sample,
-              experiment,
-            );
+            ctx,
+            sample,
+            experiment,
+          );
         if (!evidence) throw new Error("Evidence not found for sample");
 
         const config: ExperimentConfig = {
@@ -899,7 +899,7 @@ async function resolveEvidenceForSample(
   experiment: Doc<"experiments">,
 ) {
   const links = await ctx.db
-    .query("pool_evidence")
+    .query("pool_evidences")
     .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
     .collect();
 
