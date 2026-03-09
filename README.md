@@ -22,8 +22,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
-- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 10-item Norway election-reporting control pool for P3, exact window-creation payloads, dedupe/freeze rules, and explicit model-to-tier mapping) to keep agentic run setup reproducible.
+- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 20-item U.S.-only contested `P1` pool and the active 10-item Norway election-reporting control `P3` pool, freeze metadata, and model-to-tier mapping) to keep agentic run setup reproducible.
 - The first live V3 experiments on the frozen Norway election-reporting `P3` trial pool are the two `D1` control-pool configs plus a completed `gpt-4.1` 3-sample make-up run for the initial rubric-generation misses.
+- The active 20-item U.S.-only contested `P1` pool now has all `14` required `A1/A2/A3/A4/B1` experiment configs initialized and ready to launch.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
 - The engine has a scheduler, batch/job orchestration, and rate limiting.

@@ -64,7 +64,7 @@
 
 | Pool ID | Source                                          | Purpose                           | Size | Done  |
 | :------ | :---------------------------------------------- | :-------------------------------- | ---: | :---- |
-| P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | false |
+| P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | true  |
 | P2      | W11 synthetic ladder (S1..S10)                  | Required grounding check pool     |   10 | false |
 | P3      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 | true  |
 
@@ -90,6 +90,23 @@
 - Keep rule: exactly 2 evidence items per window after ranking and dedupe.
 - Exclude: duplicates, pure opinion/editorials, and non-governance tangents.
 - Invariant: `10 windows × 2 = 20` evidence rows in P1.
+
+### P1 Operational Build (Current Active Pool)
+
+- Source collection windows: `W1-W10` raw candidate packets from `2026-01-01` to `2026-01-07`.
+- Current-pass selection mode: fast U.S.-only global shortlist from the adjudicated candidate set.
+- Note: this active freeze does **not** preserve strict `2/window` balance; over-indexing across stronger windows was accepted for speed in the current pass.
+- Curated semantic-processing window id: `jx7cg9r69brkrjfy403gfbjxp982kz37`.
+- Curated window model: `gpt-4.1-mini`.
+- Active pool tag: `p1_us_contested_trial_2026_01_01`.
+- Active pool id: `ms7306g983d9pdbf8cmcvet87s82k4j0`.
+- Final size: `20` curated evidence rows with completed `l2_neutralized_content` and `l3_abstracted_content`.
+
+#### P1 active freeze notes
+
+- Jurisdiction filter: U.S.-only news/gov coverage for the active pass.
+- Excluded from freeze despite shortlist availability: the UK protest-rights fallback and duplicate/weak overlap items.
+- Intended use: baseline `P1` experiment tier launches (`A1/A2/A3/A4/B1`) in the current pass.
 
 ### P3 SOP (10 total, current pass)
 
@@ -156,6 +173,28 @@ Required total: **18 configs**.
   - `gpt-4.1` primary run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh7avay0pw0jdc15svq9jpz5p182gwjw`, `target_count=30`, terminal summary `27/30` rubrics and `270/300` score-stage completions (`has_failures=true`).
   - `gpt-5.2` primary run: experiment `j97ep0yj8sme9pg5mryq9kw2v982g2xj`, run `kh77e0h2fp5pmr9geaf5q9myh982gecn`, `target_count=30`, completed cleanly (`has_failures=false`).
   - `gpt-4.1` make-up run: experiment `j97bsj3ja09q5304x65t7xwkv982gbqr`, run `kh77x84mrerjypcthptxbmme5s82gkwq`, `target_count=3`, completed cleanly with `3/3`, `3/3`, `30/30`, `30/30`.
+
+### P1 Prepared Experiment Configs (Initialized, Not Started)
+
+- Active `P1` pool id for all prepared configs: `ms7306g983d9pdbf8cmcvet87s82k4j0`.
+- All `14` required `A1/A2/A3/A4/B1` configs are initialized and left in `status=start` for manual launch.
+
+| Tier | Config | Experiment ID | Status |
+| :--- | :----- | :------------ | :----- |
+| A1 | `gpt-4.1`, `abstain=true`, `semantic=l2`, `scale=4` | `j9700j8fw1f0wkc7msv6nqwz2582ksk7` | `start` |
+| A1 | `gpt-4.1`, `abstain=false`, `semantic=l2`, `scale=4` | `j97adetq93498fxmthx3y5xgnn82ka9a` | `start` |
+| A1 | `gpt-5.2`, `abstain=true`, `semantic=l2`, `scale=4` | `j97b1v835gct44wxgr7jfwq52582jd7d` | `start` |
+| A1 | `gpt-5.2`, `abstain=false`, `semantic=l2`, `scale=4` | `j97d5x0ab1pbdzthy48h31z14d82k4ah` | `start` |
+| A2 | `gpt-4.1`, `abstain=true`, `semantic=l3`, `scale=4` | `j975w5rp1jb5w3zykrs9k4e0kd82jhk4` | `start` |
+| A2 | `gpt-5.2`, `abstain=true`, `semantic=l3`, `scale=4` | `j9736r85tfhbp6kyzt8v2wkfp582kk20` | `start` |
+| A3 | `gpt-4.1`, `abstain=true`, `semantic=l2`, `scale=5` | `j974rffv7tb6messke9p2m8ks982jk5n` | `start` |
+| A3 | `gpt-5.2`, `abstain=true`, `semantic=l2`, `scale=5` | `j978aw673017sctryrgaynedth82jwdt` | `start` |
+| A4 | `rubric=gpt-4.1`, `scoring=gpt-5.2`, `semantic=l2`, `scale=4` | `j97ah3tg0ba88cswmnf5rgn4jx82k1ed` | `start` |
+| A4 | `rubric=gpt-5.2`, `scoring=gpt-4.1`, `semantic=l2`, `scale=4` | `j973gb77vysksgkczasggc9td182ja4p` | `start` |
+| B1 | `gpt-4.1-mini`, `abstain=true`, `semantic=l2`, `scale=4` | `j972v32z6x130pt5q5ezb4p69d82jt23` | `start` |
+| B1 | `gpt-4.1-mini`, `abstain=false`, `semantic=l2`, `scale=4` | `j9776fbsbh9vv7phs353ky5mg982jngt` | `start` |
+| B1 | `gpt-5.2-chat`, `abstain=true`, `semantic=l2`, `scale=4` | `j975gh49g05wmf4qzfz2z8rgmn82j9pg` | `start` |
+| B1 | `gpt-5.2-chat`, `abstain=false`, `semantic=l2`, `scale=4` | `j97fsd8exyx5yf3aqpkbekk8tn82jtxx` | `start` |
 
 ## Model Use Semantics (Source of Truth)
 
