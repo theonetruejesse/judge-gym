@@ -178,7 +178,7 @@ export function buildScoreCriticPrompt(args: {
 
   const user_prompt = [
     "Estimate the probability that an expert panel would agree with the model verdict.",
-    "Provide reasoning, then the final line:",
+    "Start your response by explaining your reasoning, then end your response with the final line:",
     "EXPERT_AGREEMENT: <0-1>",
     "",
     "EVIDENCE:",
