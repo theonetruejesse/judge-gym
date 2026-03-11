@@ -1,0 +1,47 @@
+{
+  "challengeID": "nc_request_target_state_redesign",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "`process_request_targets` can simply be treated as first-class truth today while `llm_requests` is already a pure immutable attempt ledger.",
+      "falsificationQueries": [
+        "Which current services still read raw llm_requests for live target semantics?",
+        "Is process_request_targets currently authoritative or derived?",
+        "Are llm_requests rows immutable in current transport handling?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_attempt_log_semantics.md",
+        "knowledge/k_002_target_snapshot_semantics.md",
+        "knowledge/k_003_consumer_contracts.md"
+      ],
+      "falsificationAnalysis": "The repo contradicts the strongest version of the hypothesis. `process_request_targets` is currently derived from `llm_requests`, not authoritative. Window orchestration still reads raw request rows for pending/error semantics, and llm_requests rows are patched in place for status/transport fields. The defensible version is narrower: redesign toward target-truth semantics while preserving llm_requests as the attempt-history lane, but do not assume the current system already has that split cleanly.",
+      "outcome": "Failed"
+    },
+    {
+      "targetDescription": "`assistant_reasoning` can be removed with low compatibility risk.",
+      "falsificationQueries": [
+        "Are there any read-side consumers of assistant_reasoning?",
+        "Do tests or docs rely on assistant_reasoning being present?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_reasoning_field_value.md"
+      ],
+      "falsificationAnalysis": "The falsifier found no read-side consumers in the repo. The field is schema baggage plus a parse-failure write path, so the low-risk removal claim survives local challenge.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Terminal failure should be represented explicitly rather than inferred from `!has_pending && max_attempts >= cap`.",
+      "falsificationQueries": [
+        "Would current consumers break if explicit terminal status replaced the inference without adaptation?",
+        "How widespread is the current inference pattern?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_target_snapshot_semantics.md",
+        "knowledge/k_003_consumer_contracts.md"
+      ],
+      "falsificationAnalysis": "The design direction is sound, but the falsifier showed that the current system is heavily inference-based. This means the implementation plan must include consumer rewrites in lab, codex, windows, and tests; it cannot be treated as a drop-in field addition.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}

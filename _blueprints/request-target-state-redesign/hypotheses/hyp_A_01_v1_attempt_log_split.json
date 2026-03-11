@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "`llm_requests` should remain the immutable attempt ledger, while `process_request_targets` should be redesigned into first-class current target truth.",
+  "confidence": 0.85,
+  "rationale": "The current code already appends retries as new request rows and uses `process_request_targets` as a per-target rollup, so the redesign aligns with existing behavior rather than fighting it.",
+  "keyAssumptions": [
+    "Current hot-path consumers do not need raw attempt history to compute stage progress.",
+    "We are willing to keep attempt history as a separate forensic lane."
+  ],
+  "validationCriteria": [
+    "Core run/window progress can be computed from target truth plus artifact rows.",
+    "Diagnostics surfaces can expose attempt history separately without losing information."
+  ],
+  "critiquePoints": [
+    "Some debugging flows may still rely on the existing blended target snapshot."
+  ],
+  "questions": [
+    "Should `process_request_targets` become authoritative state or remain derived but explicit?"
+  ]
+}

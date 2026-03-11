@@ -1,7 +1,6 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { type RunStage } from "../../models/experiments";
-import { ENGINE_SETTINGS } from "../../settings";
 
 type RunProgressCtx = QueryCtx | MutationCtx;
 type SampleDoc = Doc<"samples">;
@@ -67,11 +66,9 @@ function classifyTargetState(
   state: RequestTargetStateDoc | null | undefined,
 ): RequestState {
   if (!state) return "none";
-  if (state.has_pending) return "pending";
-  if ((state.max_attempts ?? 0) >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
-    return "exhausted";
-  }
-  if ((state.max_attempts ?? 0) > 0) return "retryable";
+  if (state.resolution === "pending") return "pending";
+  if (state.resolution === "exhausted") return "exhausted";
+  if (state.resolution === "retryable") return "retryable";
   return "none";
 }
 

@@ -76,7 +76,7 @@ Design a 4-stage rubric for evaluating the concept "{{concept}}".
 </prompt_variables>
 ```
 
-------
+---
 
 ## `rubric_critic`
 
@@ -147,7 +147,7 @@ Evaluate the quality of a rubric for the concept "{{concept}}".
 </rubric>
 ```
 
-------
+---
 
 ## `score_gen`
 
@@ -224,7 +224,7 @@ D: "Extensive or Overt Signal" - Criteria: Sustained, multi-domain actions align
 </rubric_stages>
 ```
 
-------
+---
 
 ## `score_critic`
 

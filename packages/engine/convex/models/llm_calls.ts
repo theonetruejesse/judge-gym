@@ -54,16 +54,22 @@ export const LlmRequestsTableSchema = z.object({
   model: modelTypeSchema,
   user_prompt: z.string(),
   system_prompt: z.string().optional(),
-  assistant_reasoning: z.string().optional(),
   assistant_output: z.string().optional(),
   input_tokens: z.number().optional(),
   output_tokens: z.number().optional(),
   // for decoding runs/experiments
   custom_key: z.string(),
-  attempts: z.number().int().min(0).optional(),
+  attempt_index: z.number().int().positive().optional(),
   next_attempt_at: z.number().optional(),
   last_error: z.string().optional(),
 });
+
+export const RequestTargetResolutionSchema = z.enum([
+  "pending",
+  "retryable",
+  "exhausted",
+  "succeeded",
+]);
 
 export const ProcessRequestTargetStateTableSchema = z.object({
   process_type: z.enum(["run", "window"]),
@@ -72,9 +78,15 @@ export const ProcessRequestTargetStateTableSchema = z.object({
   target_id: z.string(),
   stage: z.string(),
   custom_key: z.string(),
-  has_pending: z.boolean(),
+  resolution: RequestTargetResolutionSchema,
+  active_request_id: zid("llm_requests").nullable(),
+  latest_request_id: zid("llm_requests").nullable(),
+  success_request_id: zid("llm_requests").nullable(),
+  latest_error_request_id: zid("llm_requests").nullable(),
+  attempt_count: z.number().int().min(0),
+  retry_count: z.number().int().min(0),
+  historical_error_count: z.number().int().min(0),
   oldest_pending_ts: z.number().nullable(),
-  max_attempts: z.number().int().min(0),
   latest_error_class: z.string().nullable(),
   latest_error_message: z.string().nullable(),
   updated_at_ms: z.number(),

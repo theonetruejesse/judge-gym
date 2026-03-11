@@ -7,7 +7,6 @@ import { Doc, Id } from "../../_generated/dataModel";
 import { internal } from "../../_generated/api";
 import { getProviderForModel } from "../../platform/providers/provider_types";
 import type { MutationCtx } from "../../_generated/server";
-import { ENGINE_SETTINGS } from "../../settings";
 import { emitTraceEvent } from "../telemetry/emit";
 import { classifyRequestError } from "../llm_calls/llm_request_repo";
 
@@ -210,7 +209,7 @@ export const handleRequestError = zInternalMutation({
       payload_json: JSON.stringify({
         class: classifyRequestError(request.last_error),
         error: request.last_error ?? null,
-        attempts: request.attempts ?? null,
+        attempt_index: request.attempt_index ?? null,
       }),
     }, { defer: true });
     await maybeAdvanceWindowStage(ctx, evidence.window_id, stage);
@@ -353,6 +352,15 @@ async function maybeAdvanceWindowStage(
     .query("evidences")
     .withIndex("by_window_id", (q) => q.eq("window_id", windowId))
     .collect();
+  const targetStates = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_process_stage", (q) =>
+      q.eq("process_type", "window").eq("process_id", windowId).eq("stage", stage),
+    )
+    .collect();
+  const targetStateByKey = new Map(
+    targetStates.map((row) => [row.custom_key, row] as const),
+  );
 
   if (evidences.length === 0) return;
   let completed = 0;
@@ -373,32 +381,12 @@ async function maybeAdvanceWindowStage(
     }
 
     const custom_key = orchestrator.makeRequestKey(evidence._id, stage);
-    const pendingRequests = await ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key_status", (q) =>
-        q.eq("custom_key", custom_key).eq("status", "pending"),
-      )
-      .collect();
-    if (pendingRequests.length > 0) {
+    const targetState = targetStateByKey.get(custom_key);
+    if (!targetState) {
       hasPending = true;
       continue;
     }
-
-    const requests = await ctx.db
-      .query("llm_requests")
-      .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
-      .collect();
-
-    if (requests.length === 0) {
-      hasPending = true;
-      continue;
-    }
-
-    const maxAttempts = requests.reduce(
-      (max, req) => Math.max(max, req.attempts ?? 0),
-      0,
-    );
-    if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    if (targetState.resolution === "exhausted") {
       failed += 1;
       continue;
     }

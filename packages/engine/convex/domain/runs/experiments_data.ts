@@ -5,7 +5,6 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
-import { ENGINE_SETTINGS } from "../../settings";
 import { getExperimentTotalCount } from "./experiment_progress";
 import {
   countCompletedSamples,
@@ -105,10 +104,7 @@ async function latestRunHasFailures(
     .collect();
 
   return {
-    hasFailures: targetStates.some((state) =>
-      !state.has_pending &&
-      state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
-    ),
+    hasFailures: targetStates.some((state) => state.resolution === "exhausted"),
     completedCount: typeof run.completed_count === "number"
       ? run.completed_count
       : await getRunCompletedCount(ctx, run._id),

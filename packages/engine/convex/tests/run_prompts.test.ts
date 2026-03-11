@@ -6,6 +6,7 @@ import {
   buildScoreCriticVerdictSummary,
   buildScoreGenPrompt,
 } from "../domain/runs/run_prompts";
+import { parseRubricResponse } from "../domain/runs/run_parsers";
 
 describe("run prompts", () => {
   test("renders rubric generation prompts with XML structure", () => {
@@ -18,8 +19,31 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("Design a 4-stage rubric");
     expect(prompt.system_prompt).toContain("Do not use outside knowledge.");
     expect(prompt.system_prompt).toContain("<output_contract>");
+    expect(prompt.system_prompt).toContain("Do not wrap the `RUBRIC:` block in markdown fences or backticks.");
+    expect(prompt.system_prompt).toContain("Example:");
+    expect(prompt.system_prompt).toContain("1) Minimal or Indirect Signal :: Criterion one; Criterion two; Criterion three");
     expect(prompt.user_prompt).toContain("<prompt_variables>");
     expect(prompt.user_prompt).toContain("<concept>fascism</concept>");
+  });
+
+  test("parses rubric blocks even if the model adds markdown fences", () => {
+    const parsed = parseRubricResponse(
+      [
+        "Step 1: I identified observable signals only.",
+        "RUBRIC:",
+        "```",
+        "1) Minimal or Indirect Signal :: criterion one; criterion two; criterion three",
+        "2) Weak or Isolated Features :: criterion one; criterion two; criterion three",
+        "3) Clear but Limited Pattern :: criterion one; criterion two; criterion three",
+        "4) Extensive or Overt Signal :: criterion one; criterion two; criterion three",
+        "```",
+      ].join("\n"),
+      4,
+    );
+
+    expect(parsed.reasoning).toContain("observable signals");
+    expect(parsed.stages).toHaveLength(4);
+    expect(parsed.stages[0]?.label).toBe("Minimal or Indirect Signal");
   });
 
   test("renders rubric critic prompts with concept and rubric split", () => {

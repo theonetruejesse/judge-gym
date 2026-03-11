@@ -139,7 +139,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 ### Retryable parse/provider error not requeued
 
-- Symptom: error request with attempts below cap and no replacement pending.
+- Symptom: retryable target (`resolution="retryable"`) with no replacement pending.
 - Action: dry-run/apply `debug:heal`.
 - Expected: retry request scheduled.
 

@@ -19,9 +19,16 @@ export function parseRubricResponse(
   const lines = rubricBlock
     .split("\n")
     .map((line) => line.trim())
+    .filter((line) => line !== "```")
     .filter((line) => line.length > 0);
 
-  const stages = lines.map((line, idx) => {
+  const stageLines = lines.filter((line) => /^\d+\)\s*/.test(line));
+  const nonStageLines = lines.filter((line) => !/^\d+\)\s*/.test(line));
+  if (nonStageLines.length > 0) {
+    throw new Error(`Invalid rubric line: ${nonStageLines[0]}`);
+  }
+
+  const stages = stageLines.map((line, idx) => {
     const match = line.match(/^\s*\d+\)\s*(.+?)\s*::\s*(.+)$/);
     if (!match) {
       throw new Error(`Invalid rubric line: ${line}`);

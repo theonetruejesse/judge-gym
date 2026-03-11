@@ -78,6 +78,15 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
                     .eq(config.requestIdField, null),
             )
             .collect();
+        const targetStates = await this.ctx.db
+            .query("process_request_targets")
+            .withIndex("by_process_stage", (q) =>
+                q.eq("process_type", "window").eq("process_id", windowId).eq("stage", stage),
+            )
+            .collect();
+        const targetStateByKey = new Map(
+            targetStates.map((row) => [row.custom_key, row] as const),
+        );
 
         const pending: Array<{ targetId: Id<"evidences">; input: string }> = [];
         for (const evidence of evidences) {
@@ -85,23 +94,9 @@ export class WindowOrchestrator extends BaseOrchestrator<Id<"windows">, Semantic
             if (input === null) continue;
 
             const custom_key = this.makeRequestKey(evidence._id, stage);
-            const pendingRequests = await this.ctx.db
-                .query("llm_requests")
-                .withIndex("by_custom_key_status", (q) =>
-                    q.eq("custom_key", custom_key).eq("status", "pending"),
-                )
-                .collect();
-            if (pendingRequests.length > 0) continue;
-
-            const requests = await this.ctx.db
-                .query("llm_requests")
-                .withIndex("by_custom_key", (q) => q.eq("custom_key", custom_key))
-                .collect();
-            const maxAttempts = requests.reduce(
-                (max, req) => Math.max(max, req.attempts ?? 0),
-                0,
-            );
-            if (maxAttempts >= this.policy.max_request_attempts) continue;
+            const targetState = targetStateByKey.get(custom_key);
+            if (targetState?.resolution === "pending") continue;
+            if (targetState?.resolution === "exhausted") continue;
 
             pending.push({ targetId: evidence._id, input });
         }

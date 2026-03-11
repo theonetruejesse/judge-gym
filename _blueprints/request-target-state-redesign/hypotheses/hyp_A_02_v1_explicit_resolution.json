@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Terminal failure must be represented explicitly on target rows instead of inferred from `!has_pending && max_attempts >= cap`.",
+  "confidence": 0.91,
+  "rationale": "The current inference leaks successful last-attempt targets into failure summaries because the schema lacks an explicit resolution field.",
+  "keyAssumptions": [
+    "Target rows can cheaply persist resolution state without harming retry logic."
+  ],
+  "validationCriteria": [
+    "Completed successful targets are no longer counted as terminal failures.",
+    "Codex and lab can distinguish historical retries from exhausted failures."
+  ],
+  "critiquePoints": [
+    "The migration must preserve auto-heal behavior for genuinely retryable targets."
+  ],
+  "questions": [
+    "Which explicit enum best fits: pending|retryable|exhausted|succeeded or a richer split?"
+  ]
+}
