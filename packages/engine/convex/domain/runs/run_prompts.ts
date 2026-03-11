@@ -12,6 +12,14 @@ const DEFAULT_HYPOTHETICAL_FRAME =
 
 type RubricStage = { label: string; criteria: string[] };
 
+export type ScoreCriticVerdictSummary = {
+  method: ExperimentConfig["scoring_config"]["method"];
+  status: "scored" | "abstain";
+  selected_stages: number[];
+  selected_labels: string[];
+  justification: string | null;
+};
+
 type ScorePromptArgs = {
   config: ExperimentConfig;
   evidence: {
@@ -40,44 +48,66 @@ function invertLabelMapping(mapping: Record<string, number>, stageCount: number)
   return tokens.map((token, idx) => token ?? String.fromCharCode(65 + idx));
 }
 
+function wrapXml(tag: string, content: string): string {
+  return `<${tag}>\n${content}\n</${tag}>`;
+}
+
+function renderList(items: string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function renderRubricBlock(stages: Array<{ label: string; criteria: string[] }>): string {
+  return stages
+    .map((stage, index) => `${index + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`)
+    .join("\n");
+}
+
 export function buildRubricGenPrompt(args: {
   concept: string;
   scale_size: number;
 }): { system_prompt: string; user_prompt: string } {
   const { concept, scale_size } = args;
   const midpoint = scale_size % 2 === 1 ? Math.ceil(scale_size / 2) : null;
-
-  const lines: string[] = [];
-  lines.push(`Hypothetical framing: ${DEFAULT_HYPOTHETICAL_FRAME}`);
-  lines.push("");
-
-  lines.push(
-    `Design a ${scale_size}-stage evaluative rubric for assessing the degree to which evidence supports the concept: "${concept}".`,
-  );
-  lines.push(`- Exactly ${scale_size} stages, numbered 1 through ${scale_size}.`);
-  lines.push(`- Stage 1 = weakest signal. Stage ${scale_size} = strongest signal.`);
-  lines.push("- Rubric must be usable on a single article excerpt with partial context.");
-  lines.push("- Treat this as signal-strength assessment, not definitive regime diagnosis.");
-  lines.push("- Criteria must rely on observable evidence cues in text (actions, policies, institutional responses, quoted claims).");
-  lines.push("- Do not require complete historical coverage or hidden intent inference to score.");
-  lines.push("- Lower and middle stages should explicitly capture weak/mixed/partial support to reduce forced abstention.");
-  lines.push("- Use neutral, descriptive, non-moralizing language.");
-  if (midpoint) {
-    lines.push(`- Stage ${midpoint} must be "Ambiguous / Mixed Evidence."`);
-  } else {
-    lines.push("- No midpoint stage -- every stage must commit to a direction.");
-  }
-  lines.push("- Each stage must include 3-5 observable criteria.");
-  lines.push("- Adjacent stages must be clearly distinguishable.");
-  lines.push("");
-  lines.push("Return reasoning first, then a RUBRIC block exactly like:");
-  lines.push("RUBRIC:");
-  lines.push("1) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>");
-  lines.push(`${scale_size}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>`);
-
+  const requirements = [
+    `Produce exactly ${scale_size} stages, numbered 1 through ${scale_size}.`,
+    `Stage 1 is the weakest signal. Stage ${scale_size} is the strongest signal.`,
+    "Make the rubric usable on a single article excerpt with partial context.",
+    "Treat this as signal-strength assessment, not definitive regime diagnosis.",
+    "Base criteria on observable cues in text, such as actions, policies, institutional responses, and quoted claims.",
+    "Do not use outside knowledge.",
+    "Do not rely on hidden historical context or unstated background assumptions.",
+    "Do not require hidden intent inference or complete historical coverage.",
+    "Make lower and middle stages genuinely usable for weak, mixed, or partial support.",
+    "Use neutral, descriptive, non-moralizing language.",
+    midpoint
+      ? `Stage ${midpoint} must be labeled "Ambiguous / Mixed Evidence."`
+      : "Because this is an even-numbered scale, there is no midpoint stage.",
+    "Include 3 to 5 criteria per stage.",
+    "Make each stage meaningfully distinct from adjacent stages.",
+  ];
   return {
-    system_prompt: "You are an expert rubric designer.",
-    user_prompt: lines.join("\n"),
+    system_prompt: [
+      wrapXml(
+        "role",
+        "You are an expert rubric designer. Your job is to create a stage-based rubric for evaluating how strongly evidence supports a concept.",
+      ),
+      wrapXml(
+        "task",
+        `Design a ${scale_size}-stage rubric for evaluating a concept. The concept will be provided by the user.`,
+      ),
+      wrapXml("requirements", renderList(requirements)),
+      wrapXml(
+        "output_contract",
+        [
+          "Start your response by explaining step by step how you reached your conclusion, using only the information provided here.",
+          "Then output a single `RUBRIC:` block.",
+          "In that block, each line must use this format:",
+          `\`${1}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>\``,
+          `\`${scale_size}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>\``,
+        ].join("\n"),
+      ),
+    ].join("\n\n"),
+    user_prompt: wrapXml("prompt_variables", `<concept>${concept}</concept>`),
   };
 }
 
@@ -86,25 +116,45 @@ export function buildRubricCriticPrompt(args: {
   rubric: { stages: Array<{ label: string; criteria: string[] }> };
 }): { system_prompt: string; user_prompt: string } {
   const { concept, rubric } = args;
-  const rubricBlock = rubric.stages
-    .map((stage, i) =>
-      `${i + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`,
-    )
-    .join("\n");
-
-  const user_prompt = [
-    `Review the rubric for concept: "${concept}" and score its quality.`,
-    "Provide reasoning, then a final QUALITY line.",
-    "RUBRIC:",
-    rubricBlock,
-    "",
-    "Output format:",
-    "QUALITY: observability=<0-1>, discriminability=<0-1>",
-  ].join("\n");
-
   return {
-    system_prompt: "You are a rubric quality auditor.",
-    user_prompt,
+    system_prompt: [
+      wrapXml(
+        "role",
+        "You are a rubric quality auditor. Your job is to judge whether a rubric is clear, observable, and well-structured for evaluating a concept.",
+      ),
+      wrapXml(
+        "task",
+        "Evaluate the quality of the rubric provided by the user for the concept provided by the user.",
+      ),
+      wrapXml(
+        "evaluation_dimensions",
+        [
+          "Observability: how well the rubric relies on observable evidence cues.",
+          "Discriminability: how clearly the stages are separated from each other.",
+        ].join("\n"),
+      ),
+      wrapXml(
+        "requirements",
+        renderList([
+          "Use only the information provided here.",
+          "Do not use outside knowledge.",
+          "Do not assume facts beyond the rubric text itself.",
+          "Judge the rubric as a scoring instrument, not as a claim that the concept is present in any specific evidence item.",
+        ]),
+      ),
+      wrapXml(
+        "output_contract",
+        [
+          "Start your response by explaining step by step how you reached your conclusion, using only the information provided here.",
+          "End with exactly one final line:",
+          "`QUALITY: observability=<0-1>, discriminability=<0-1>`",
+        ].join("\n"),
+      ),
+    ].join("\n\n"),
+    user_prompt: [
+      wrapXml("prompt_variables", `<concept>${concept}</concept>`),
+      wrapXml("rubric", renderRubricBlock(rubric.stages)),
+    ].join("\n\n"),
   };
 }
 
@@ -127,6 +177,8 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
     : scale.letterLabels;
 
   const labelTokens = labelTokensBase;
+  const scoringRequirements = scoring.buildRequirements(labelTokens);
+  const scoringOutputContract = scoring.buildOutputContract(labelTokens);
 
   const stages = rubric.stages.map((stage, idx) => ({
     stage,
@@ -145,24 +197,33 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
     return `${token}: "${stage.label}" - Criteria: ${criteria}`;
   });
 
-  const promptParts: string[] = [];
-  promptParts.push(`Hypothetical framing: ${DEFAULT_HYPOTHETICAL_FRAME}`);
-  promptParts.push("");
-
-  const rubricBlock = `RUBRIC STAGES:\n${rubricLines.join("\n")}`;
-  const evidenceBlock = `EVIDENCE:\n${evidenceContent}`;
-
-  promptParts.push(rubricBlock);
-  promptParts.push("");
-  promptParts.push(evidenceBlock);
-
-  promptParts.push("");
-  promptParts.push(scoring.systemInstruction);
-  promptParts.push(scoring.buildPromptSuffix(labelTokens));
-
   return {
-    system_prompt: "You are a careful evaluator of evidence against a rubric.",
-    user_prompt: promptParts.join("\n"),
+    system_prompt: [
+      wrapXml(
+        "role",
+        "You are a careful evaluator of evidence against a rubric. Assume the evidence is presented in a hypothetical evaluation scenario rather than as a claim about the full real-world regime.",
+      ),
+      wrapXml("evidence", evidenceContent),
+      wrapXml("task", "Evaluate the evidence against the rubric provided by the user."),
+      wrapXml(
+        "requirements",
+        renderList([
+          "Use only the information provided here.",
+          "Do not use outside knowledge.",
+          "Do not infer unstated facts, motives, or background conditions.",
+          "Use only the rubric stage identifiers provided by the user.",
+          ...scoringRequirements,
+        ]),
+      ),
+      wrapXml(
+        "output_contract",
+        [
+          "Start your response by explaining step by step how you reached your conclusion, using only the information provided here.",
+          ...scoringOutputContract,
+        ].join("\n"),
+      ),
+    ].join("\n\n"),
+    user_prompt: wrapXml("rubric_stages", rubricLines.join("\n")),
     label_tokens: labelTokens,
   };
 }
@@ -170,29 +231,86 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
 export function buildScoreCriticPrompt(args: {
   evidence: string;
   rubric: RubricStage[];
-  verdict: string | null;
+  verdict: ScoreCriticVerdictSummary;
 }): { system_prompt: string; user_prompt: string } {
   const rubricBlock = args.rubric
     .map((stage, idx) => `${idx + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`)
     .join("\n");
-
-  const user_prompt = [
-    "Estimate the probability that an expert panel would agree with the model verdict.",
-    "Start your response by explaining your reasoning, then end your response with the final line:",
-    "EXPERT_AGREEMENT: <0-1>",
-    "",
-    "EVIDENCE:",
-    args.evidence,
-    "",
-    "RUBRIC:",
-    rubricBlock,
-    "",
-    `MODEL_VERDICT: ${args.verdict ?? "(none)"}`,
-  ].join("\n");
+  const selectedStages = args.verdict.selected_stages.length > 0
+    ? args.verdict.selected_stages.join(", ")
+    : "(none)";
+  const selectedLabels = args.verdict.selected_labels.length > 0
+    ? args.verdict.selected_labels.join(" | ")
+    : "(none)";
+  const scoringModeNote = args.verdict.method === "subset"
+    ? "Subset scoring semantics: multiple rubric stages may be selected at once."
+    : "Single scoring semantics: exactly one rubric stage should be selected unless the model abstained.";
 
   return {
-    system_prompt: "You are an expert agreement auditor.",
-    user_prompt,
+    system_prompt: [
+      wrapXml(
+        "role",
+        "You are an expert agreement auditor. Your job is to estimate how likely an expert panel would be to agree with a model verdict. Assume the evidence is presented in a hypothetical evaluation scenario rather than as a claim about the full real-world regime.",
+      ),
+      wrapXml("evidence", args.evidence),
+      wrapXml(
+        "task",
+        "Estimate the probability that an expert panel would agree with the model verdict.",
+      ),
+      wrapXml(
+        "requirements",
+        renderList([
+          "Use only the information provided here.",
+          "Do not use outside knowledge.",
+          "Do not infer unstated facts, motives, or background conditions.",
+          "Judge agreement with the interpreted verdict provided by the user.",
+          "Do not rely on hidden IDs, opaque identifiers, or alternative label schemes.",
+          "Evaluate agreement with the model's conclusion, not by independently rescoring from scratch.",
+        ]),
+      ),
+      wrapXml(
+        "output_contract",
+        [
+          "Start your response by explaining step by step how you reached your conclusion, using only the information provided here.",
+          "End with exactly one final line:",
+          "`EXPERT_AGREEMENT: <0-1>`",
+        ].join("\n"),
+      ),
+    ].join("\n\n"),
+    user_prompt: [
+      wrapXml("rubric", rubricBlock),
+      wrapXml(
+        "model_verdict",
+        [
+          `<scoring_mode>${args.verdict.method}</scoring_mode>`,
+          `<scoring_mode_definition>${scoringModeNote}</scoring_mode_definition>`,
+          `<justification>${args.verdict.justification ?? "(none)"}</justification>`,
+          `<status>${args.verdict.status.toUpperCase()}</status>`,
+          `<selected_stages>${selectedStages}</selected_stages>`,
+          `<selected_labels>${selectedLabels}</selected_labels>`,
+        ].join("\n"),
+      ),
+    ].join("\n\n"),
+  };
+}
+
+export function buildScoreCriticVerdictSummary(args: {
+  decoded_scores: number[] | null | undefined;
+  rubric_stages: RubricStage[];
+  method: ExperimentConfig["scoring_config"]["method"];
+  justification: string | null | undefined;
+}): ScoreCriticVerdictSummary {
+  const selectedStages = [...new Set((args.decoded_scores ?? [])
+    .filter((score) => Number.isInteger(score))
+    .filter((score) => score >= 1 && score <= args.rubric_stages.length))]
+    .sort((left, right) => left - right);
+  return {
+    method: args.method,
+    status: selectedStages.length > 0 ? "scored" : "abstain",
+    selected_stages: selectedStages,
+    selected_labels: selectedStages
+      .map((stageNumber) => args.rubric_stages[stageNumber - 1]?.label ?? `Stage ${stageNumber}`),
+    justification: args.justification ?? null,
   };
 }
 

@@ -91,8 +91,8 @@ export function resolveEvidenceStrategy(
 }
 
 export interface ScoringStrategy {
-  buildPromptSuffix: (labels: string[]) => string;
-  systemInstruction: string;
+  buildRequirements: (labels: string[]) => string[];
+  buildOutputContract: (labels: string[]) => string[];
   parseVerdict: (
     raw: string,
     labelMapping?: Record<string, number>,
@@ -107,16 +107,17 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
   const abstainEnabled = config.scoring_config.abstain_enabled;
   const strategies: Record<string, ScoringStrategy> = {
     single: {
-      buildPromptSuffix: (labels) => {
-        const options = labels.map((label) => `VERDICT: ${label}`).join("\n");
-        if (!abstainEnabled) {
-          return `Final line must be exactly one of:\n${options}`;
-        }
-        return `Final line must be exactly one of:\n${options}\nVERDICT: ABSTAIN`;
-      },
-      systemInstruction: abstainEnabled
-        ? "Conclude with a single verdict from the options above."
-        : "Conclude with a single verdict from the options above (no abstentions).",
+      buildRequirements: () => [
+        "Select exactly one rubric stage identifier.",
+        abstainEnabled
+          ? "If no stage is sufficiently supported, output `ABSTAIN`."
+          : "Do not abstain.",
+      ],
+      buildOutputContract: (labels) => [
+        "End with exactly one final line using one of these forms:",
+        ...labels.map((label) => `- \`VERDICT: ${label}\``),
+        ...(abstainEnabled ? ["- `VERDICT: ABSTAIN`"] : []),
+      ],
       parseVerdict: (raw, labelMapping) => {
         const parsed = parseSingleVerdict(raw, labelMapping);
         if (!abstainEnabled && parsed.abstained) {
@@ -126,17 +127,27 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
       },
     },
     subset: {
-      buildPromptSuffix: (labels) => {
-        const base = `Final line must be: VERDICT: <comma-separated IDs from: ${labels.join(", ")}>`;
-        if (!abstainEnabled) {
-          return base;
-        }
-        return `${base} or VERDICT: ABSTAIN`;
+      buildRequirements: () => [
+        "Select every rubric stage identifier whose criteria are affirmatively supported by the evidence.",
+        "If multiple stages are supported, include all of them.",
+        "Do not collapse to a single stage if more than one applies.",
+        abstainEnabled
+          ? "If no stage is sufficiently supported, output `ABSTAIN`."
+          : "Do not abstain.",
+      ],
+      buildOutputContract: (labels) => {
+        const joined = labels.join(", ");
+        return abstainEnabled
+          ? [
+            "End with exactly one final line in one of these forms:",
+            `- \`VERDICT: <comma-separated IDs from: ${joined}>\``,
+            "- `VERDICT: ABSTAIN`",
+          ]
+          : [
+            "End with exactly one final line in this form:",
+            `- \`VERDICT: <comma-separated IDs from: ${joined}>\``,
+          ];
       },
-      systemInstruction:
-        "List ALL stage identifiers whose criteria are supported by the evidence. " +
-        "If multiple stages apply, include them all (do not collapse to a single stage)." +
-        (abstainEnabled ? "" : " Do not abstain."),
       parseVerdict: (raw, labelMapping) => {
         const parsed = parseSubsetVerdict(raw, labelMapping);
         if (!abstainEnabled && parsed.abstained) {
