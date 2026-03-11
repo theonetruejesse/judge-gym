@@ -147,9 +147,11 @@ Use this when a new Codex instance has zero prior context.
 ### 5. Current `getProcessHealth` behavior
 
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
+- Raw window collection failures (for example Firecrawl quota exhaustion before any evidence rows exist) now mark the window `error` at `l0_raw` and emit `window_collection_failed`; `getStuckWork` also flags old `l0_raw` windows with no evidence and no active transport as `raw_collection_no_progress`.
 - `process_request_targets` now stores explicit target resolution (`pending`, `retryable`, `exhausted`, `succeeded`) plus attempt counters; treat it as current target truth, while `llm_requests` remains immutable attempt history.
 - `llm_requests` now stores `system_prompt_id` instead of inline system prompt text; inspect `llm_prompt_templates` to recover the canonical system prompt body for a request.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
+- Scheduler liveness checks in codex now prefer `scheduler_locks` heartbeat state and only use a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` / `getStuckWork` usable after large history buildup.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.

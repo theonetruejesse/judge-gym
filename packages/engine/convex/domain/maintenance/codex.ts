@@ -100,6 +100,7 @@ const StuckReasonSchema = z.enum([
   "batch_missing_ref",
   "finalizing_no_progress",
   "pending_request_no_owner",
+  "raw_collection_no_progress",
   "stage_waiting_on_exhausted_requests",
   "scheduler_not_running",
 ]);
@@ -253,6 +254,8 @@ const WINDOW_STAGES: Array<z.infer<typeof WindowStageSchema>> = [
 ];
 
 const SCHEDULER_SCAN_MAX_ROWS = 2_000;
+const SCHEDULER_LOCK_SCAN_MAX_ROWS = 8;
+const SCHEDULER_HEARTBEAT_GRACE_MS = 30_000;
 const STUCK_BATCH_SCAN_MAX_ROWS = 2_000;
 const STUCK_PROCESS_SCAN_MAX_ROWS = 300;
 const PROCESS_MEMBERSHIP_SCAN_MAX_ROWS = 2_500;
@@ -279,8 +282,26 @@ function isSchedulerRun(name: string): boolean {
 }
 
 async function hasScheduledScheduler(ctx: QueryCtx | MutationCtx): Promise<boolean> {
-  const scheduled = await ctx.db.system.query("_scheduled_functions").order("desc").take(SCHEDULER_SCAN_MAX_ROWS);
-  return scheduled.some((row) => isSchedulerRun(row.name) && row.completedTime == null);
+  const now = Date.now();
+  const locks = await ctx.db
+    .query("scheduler_locks")
+    .withIndex("by_lock_key", (q) => q.eq("lock_key", "scheduler_lock"))
+    .take(SCHEDULER_LOCK_SCAN_MAX_ROWS);
+  const hasLiveLock = locks.some((lock) =>
+    (lock.status === "running" && lock.expires_at_ms > now)
+    || lock.heartbeat_ts_ms >= now - SCHEDULER_HEARTBEAT_GRACE_MS,
+  );
+  if (hasLiveLock) return true;
+
+  try {
+    const scheduled = await ctx.db.system
+      .query("_scheduled_functions")
+      .order("desc")
+      .take(Math.min(SCHEDULER_SCAN_MAX_ROWS, 200));
+    return scheduled.some((row) => isSchedulerRun(row.name) && row.completedTime == null);
+  } catch {
+    return false;
+  }
 }
 
 async function buildMembership(
@@ -1013,7 +1034,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
     const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
     const runQuery = ctx.db.query("runs");
-    const runningWindowQuery = ctx.db.query("windows").withIndex("by_status", (q) => q.eq("status", "running"));
+    const windowQuery = ctx.db.query("windows");
 
     const [
       submittingBatches,
@@ -1035,7 +1056,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         : runQuery.take(STUCK_PROCESS_SCAN_MAX_ROWS),
       args.process_type && args.process_type !== "window"
         ? Promise.resolve([] as Doc<"windows">[])
-        : runningWindowQuery.take(STUCK_PROCESS_SCAN_MAX_ROWS),
+        : windowQuery.take(STUCK_PROCESS_SCAN_MAX_ROWS),
       hasScheduledScheduler(ctx),
     ]);
     const scanCapsHit = (
@@ -1188,7 +1209,11 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
 
     const windowRows = args.process_type === "run"
       ? []
-      : windows;
+      : windows.filter((window) =>
+        window.status !== "completed"
+        && window.status !== "error"
+        && window.status !== "canceled",
+      );
     const windowHealthRows = windowRows
       .filter((window) =>
         window.status !== "completed"
@@ -1205,6 +1230,29 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         process_id: String(window._id),
         include_recent_events: 0,
       });
+      if (
+        window.status === "start"
+        && window.current_stage === "l0_raw"
+        && health.active_transport.queued_batches === 0
+        && health.active_transport.running_batches === 0
+        && health.active_transport.queued_jobs === 0
+        && health.active_transport.running_jobs === 0
+        && health.active_transport.orphaned_requests === 0
+        && health.stage_progress.every((row) => row.target_total === 0)
+        && now - window._creationTime >= args.older_than_ms
+      ) {
+        items.push({
+          process_type: "window",
+          process_id: String(window._id),
+          reason: "raw_collection_no_progress",
+          entity_type: "window",
+          entity_id: String(window._id),
+          custom_key: `window:${window._id}:l0_raw`,
+          age_ms: now - window._creationTime,
+          details: "Window has no collected evidence, no active transport, and no raw-collection progress",
+        });
+        continue;
+      }
       const currentStage = health.stage_progress.find((row: z.infer<typeof StageProgressSchema>) =>
         row.stage === health.current_stage,
       );

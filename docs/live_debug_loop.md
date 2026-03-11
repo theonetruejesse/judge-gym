@@ -46,6 +46,8 @@ This runbook standardizes live debugging for run and window orchestration in Con
 
 - `bun run debug:stuck --older-ms 120000`
 - Read `meta.truncated`, `meta.scan_caps_hit`, and `meta.health_checks_limited` in the response before assuming global completeness.
+- Windows that fail before any evidence is inserted now transition to `status=error` with a `window_collection_failed` trace event; `getStuckWork` also flags old `l0_raw` windows with no evidence and no active transport as `raw_collection_no_progress`.
+- Scheduler liveness in codex is derived primarily from `scheduler_locks` heartbeat state, with only a tiny best-effort `_scheduled_functions` fallback, so stuck checks remain usable even after large scheduled-function history growth.
 
 3. Inspect local recent milestones
 

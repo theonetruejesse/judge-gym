@@ -8,6 +8,7 @@ import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
+import { classifyRequestError } from "../domain/llm_calls/llm_request_repo";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -76,13 +77,26 @@ export const startWindowFlow = zInternalAction({
       }),
     });
 
-    await ctx.runAction(
-      internal.domain.window.window_service.collectWindowEvidence,
-      {
-        window_id,
-        limit: evidence_limit,
-      },
-    );
+    try {
+      await ctx.runAction(
+        internal.domain.window.window_service.collectWindowEvidence,
+        {
+          window_id,
+          limit: evidence_limit,
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(
+        internal.domain.window.window_service.markWindowCollectionError,
+        {
+          window_id,
+          error_class: classifyRequestError(errorMessage),
+          error_message: errorMessage,
+        },
+      );
+      return;
+    }
 
     await ctx.runMutation(
       internal.domain.window.window_service.startWindowOrchestration,
@@ -110,6 +124,7 @@ export const startWindowFlow = zInternalAction({
 
 type EvidenceStatus =
   | "scraping"
+  | "error"
   | "cleaning"
   | "neutralizing"
   | "abstracting"
@@ -129,6 +144,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       evidence_count: z.number(),
       evidence_status: z.enum([
         "scraping",
+        "error",
         "cleaning",
         "neutralizing",
         "abstracting",
@@ -162,7 +178,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
 
     for (const window of windows) {
       const evidences = evidencesByWindow.get(window._id) ?? [];
-      const evidence_status = deriveEvidenceStatus(evidences);
+      const evidence_status = deriveEvidenceStatus(window.status, evidences);
       results.push({
         window_id: window._id,
         start_date: window.start_date,
@@ -634,12 +650,14 @@ export const getEvidenceContent: ReturnType<typeof zQuery> = zQuery({
 
 // change this to handle the permanent failure cases
 function deriveEvidenceStatus(
+  windowStatus: string,
   evidences: Array<{
     l1_cleaned_content: string | null;
     l2_neutralized_content: string | null;
     l3_abstracted_content: string | null;
   }>,
 ): EvidenceStatus {
+  if (windowStatus === "error") return "error";
   if (evidences.length === 0) return "scraping";
   if (evidences.some((e) => e.l1_cleaned_content === null)) return "cleaning";
   if (evidences.some((e) => e.l2_neutralized_content === null)) return "neutralizing";
