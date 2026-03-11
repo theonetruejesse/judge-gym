@@ -11,11 +11,22 @@ import { ENGINE_SETTINGS } from "../../settings";
 
 const CreateLlmRequestArgsSchema = LlmRequestsTableSchema.pick({
   model: true,
-  system_prompt: true,
+  system_prompt_id: true,
   user_prompt: true,
   custom_key: true,
   attempt_index: true,
+}).extend({
+  system_prompt: z.string().optional(),
 });
+
+function hashPromptContent(content: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < content.length; index += 1) {
+    hash ^= content.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
 
 type ParsedRequestCustomKey = {
   target_type: "sample" | "sample_evidence" | "evidence";
@@ -227,8 +238,27 @@ export const createLlmRequest = zInternalMutation({
   returns: zid("llm_requests"),
   handler: async (ctx, args) => {
     const run_id = await resolveRunIdForCustomKey(ctx, args.custom_key);
+    let systemPromptId = args.system_prompt_id ?? null;
+    if (!systemPromptId && args.system_prompt) {
+      const contentHash = hashPromptContent(args.system_prompt);
+      const existingTemplate = await ctx.db
+        .query("llm_prompt_templates")
+        .withIndex("by_content_hash", (q) => q.eq("content_hash", contentHash))
+        .first();
+      if (existingTemplate && existingTemplate.content === args.system_prompt) {
+        systemPromptId = existingTemplate._id;
+      } else {
+        systemPromptId = await ctx.db.insert("llm_prompt_templates", {
+          content_hash: contentHash,
+          content: args.system_prompt,
+        });
+      }
+    }
     const requestId = await ctx.db.insert("llm_requests", {
-      ...args,
+      model: args.model,
+      user_prompt: args.user_prompt,
+      custom_key: args.custom_key,
+      system_prompt_id: systemPromptId,
       run_id,
       job_id: null,
       batch_id: null,
@@ -237,6 +267,46 @@ export const createLlmRequest = zInternalMutation({
     });
     await refreshProcessRequestTargetState(ctx, args.custom_key);
     return requestId;
+  },
+});
+
+export const resolveRequestPrompts = zInternalQuery({
+  args: z.object({
+    request_ids: z.array(zid("llm_requests")).min(1),
+  }),
+  returns: z.array(z.object({
+    request_id: zid("llm_requests"),
+    system_prompt: z.string().nullable(),
+    user_prompt: z.string(),
+  })),
+  handler: async (ctx, args) => {
+    const resolved = [] as Array<{
+      request_id: Id<"llm_requests">;
+      system_prompt: string | null;
+      user_prompt: string;
+    }>;
+
+    for (const requestId of args.request_ids) {
+      const request = await ctx.db.get(requestId);
+      if (!request) {
+        throw new Error(`Request not found: ${requestId}`);
+      }
+      let systemPrompt: string | null = null;
+      if (request.system_prompt_id) {
+        const template = await ctx.db.get(request.system_prompt_id);
+        if (!template) {
+          throw new Error(`Prompt template not found for request ${requestId}`);
+        }
+        systemPrompt = template.content;
+      }
+      resolved.push({
+        request_id: request._id,
+        system_prompt: systemPrompt,
+        user_prompt: request.user_prompt,
+      });
+    }
+
+    return resolved;
   },
 });
 

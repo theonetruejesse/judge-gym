@@ -97,9 +97,9 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("<evidence>");
     expect(prompt.system_prompt).toContain("Neutralized evidence");
     expect(prompt.system_prompt).toContain("Do not use outside knowledge.");
-    expect(prompt.system_prompt).toContain("Select every rubric stage identifier whose criteria are affirmatively supported by the evidence.");
+    expect(prompt.system_prompt).toContain("Select every rubric stage identifier from the user-provided rubric whose criteria are affirmatively supported by the evidence.");
     expect(prompt.system_prompt).toContain("End with exactly one final line in one of these forms:");
-    expect(prompt.system_prompt).toContain("`VERDICT: <comma-separated IDs from: A, B, C, D>`");
+    expect(prompt.system_prompt).toContain("`VERDICT: <comma-separated rubric stage identifiers from the user prompt>`");
     expect(prompt.system_prompt).toContain("`VERDICT: ABSTAIN`");
     expect(prompt.user_prompt).toContain("<rubric_stages>");
     expect(prompt.user_prompt).toContain("A: \"Minimal\" - Criteria: a; b; c");

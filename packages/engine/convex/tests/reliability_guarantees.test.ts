@@ -237,4 +237,76 @@ describe("reliability guarantees", () => {
     expect(recoveredBatch.batch.submission_id).toBe(submittingBatch.batch.submission_id);
   });
 
+  test("deduplicates identical system prompts into one template row", async () => {
+    const t = initTest();
+
+    const { window_id } = await t.mutation(
+      internal.domain.window.window_repo.createWindow,
+      {
+        country: "USA",
+        model: "gpt-4.1-mini",
+        start_date: "2026-03-01",
+        end_date: "2026-03-02",
+        query: "prompt template dedupe test",
+      },
+    );
+
+    await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
+      window_id,
+      evidences: [
+        {
+          title: "Prompt template evidence A",
+          url: "https://example.com/prompt-template-a",
+          raw_content: "Evidence A.",
+        },
+        {
+          title: "Prompt template evidence B",
+          url: "https://example.com/prompt-template-b",
+          raw_content: "Evidence B.",
+        },
+      ],
+    });
+
+    const evidences = await t.query(
+      internal.domain.window.window_repo.listEvidenceByWindow,
+      { window_id },
+    );
+    expect(evidences).toHaveLength(2);
+
+    const systemPrompt = "Shared system prompt body";
+    const requestA = await t.mutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: "gpt-4.1-mini",
+        system_prompt: systemPrompt,
+        user_prompt: "User prompt A",
+        custom_key: `evidence:${evidences[0]!._id}:l1_cleaned`,
+      },
+    );
+    const requestB = await t.mutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: "gpt-4.1-mini",
+        system_prompt: systemPrompt,
+        user_prompt: "User prompt B",
+        custom_key: `evidence:${evidences[1]!._id}:l1_cleaned`,
+      },
+    );
+
+    const [storedA, storedB, templates] = await Promise.all([
+      t.query(internal.domain.llm_calls.llm_request_repo.getLlmRequest, {
+        request_id: requestA,
+      }),
+      t.query(internal.domain.llm_calls.llm_request_repo.getLlmRequest, {
+        request_id: requestB,
+      }),
+      t.run(async (ctx) => ctx.db.query("llm_prompt_templates").collect()),
+    ]);
+
+    expect(storedA.system_prompt_id).toBeTruthy();
+    expect(storedA.system_prompt_id).toBe(storedB.system_prompt_id);
+    expect(templates).toHaveLength(1);
+    expect(templates[0]?.content).toBe(systemPrompt);
+  });
+
 });

@@ -154,7 +154,7 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
       internal.domain.llm_calls.llm_request_repo.createLlmRequest,
       {
         model: req.model,
-        system_prompt: req.system_prompt ?? undefined,
+        system_prompt_id: req.system_prompt_id ?? null,
         user_prompt: req.user_prompt,
         custom_key: req.custom_key,
         attempt_index: nextAttempt,
@@ -254,12 +254,16 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
   const processRequest = async (req: Doc<"llm_requests">) => {
     try {
       await heartbeat?.();
+      const [resolvedPrompt] = await ctx.runQuery(
+        internal.domain.llm_calls.llm_request_repo.resolveRequestPrompts,
+        { request_ids: [req._id] },
+      );
       const output = await ctx.runAction(
         internal.platform.providers.provider_services.openAiChatAction,
         {
           model: req.model,
-          system_prompt: req.system_prompt ?? undefined,
-          user_prompt: req.user_prompt,
+          system_prompt: resolvedPrompt?.system_prompt ?? undefined,
+          user_prompt: resolvedPrompt?.user_prompt ?? req.user_prompt,
           max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
         },
       );
