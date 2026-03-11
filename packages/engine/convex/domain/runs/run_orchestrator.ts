@@ -3,6 +3,7 @@ import type { MutationCtx } from "../../_generated/server";
 import { type ModelType } from "../../platform/providers/provider_types";
 import { BaseOrchestrator } from "../orchestrator/base";
 import {
+  buildScoreCriticVerdictSummary,
   buildRubricCriticPrompt,
   buildRubricGenPrompt,
   buildScoreCriticPrompt,
@@ -188,7 +189,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
         const payload = JSON.parse(input) as {
           evidence: string;
           rubric: Array<{ label: string; criteria: string[] }>;
-          verdict: string | null;
+          verdict: ReturnType<typeof buildScoreCriticVerdictSummary>;
         };
         const prompts = buildScoreCriticPrompt(payload);
         return { system: prompts.system_prompt, user: prompts.user_prompt };
@@ -471,15 +472,15 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       const evidenceStrategy = resolveEvidenceStrategy(config);
       const evidenceText =
         evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
-      const verdict = this.buildVerdictLabel(
-        score.decoded_scores,
-        rubric.label_mapping,
-        config.rubric_config.scale_size,
-      );
       return {
         evidence: evidenceText,
         rubric: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
-        verdict,
+        verdict: buildScoreCriticVerdictSummary({
+          decoded_scores: score.decoded_scores,
+          rubric_stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+          method: config.scoring_config.method,
+          justification: score.justification,
+        }),
       };
     }
 
@@ -581,26 +582,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       .withIndex("by_run", (q) => q.eq("run_id", runId))
       .collect();
     return new Map(samples.map((sample) => [String(sample._id), sample]));
-  }
-
-  private buildVerdictLabel(
-    decodedScores: number[] | null | undefined,
-    labelMapping: Record<string, number>,
-    stageCount: number,
-  ): string | null {
-    if (!decodedScores || decodedScores.length === 0) return "ABSTAIN";
-    const tokens = new Array<string>(stageCount);
-    for (const [token, stage] of Object.entries(labelMapping)) {
-      if (stage >= 1 && stage <= stageCount) {
-        tokens[stage - 1] = token;
-      }
-    }
-    const resolved = decodedScores
-      .map((score) => tokens[score - 1] ?? String.fromCharCode(64 + score))
-      .filter(Boolean);
-    if (resolved.length === 0) return null;
-    if (resolved.length === 1) return resolved[0];
-    return resolved.join(", ");
   }
 
   private makeRequestKeyForTarget(
