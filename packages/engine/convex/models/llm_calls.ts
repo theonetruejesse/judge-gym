@@ -46,6 +46,11 @@ export const RequestStatusSchema = z.enum([
   "error",
 ]);
 
+export const LlmPromptTemplatesTableSchema = z.object({
+  content_hash: z.string(),
+  content: z.string(),
+});
+
 export const LlmRequestsTableSchema = z.object({
   status: RequestStatusSchema,
   run_id: zid("runs").nullable().optional(),
@@ -53,7 +58,7 @@ export const LlmRequestsTableSchema = z.object({
   batch_id: zid("llm_batches").nullable().optional(),
   model: modelTypeSchema,
   user_prompt: z.string(),
-  system_prompt: z.string().optional(),
+  system_prompt_id: zid("llm_prompt_templates").nullable().optional(),
   assistant_output: z.string().optional(),
   input_tokens: z.number().optional(),
   output_tokens: z.number().optional(),

@@ -148,6 +148,7 @@ Use this when a new Codex instance has zero prior context.
 
 - `packages/codex:getProcessHealth` now reads from `process_request_targets` snapshots instead of per-target `llm_requests` scans, so large fanout runs (for example `target_count=30` with large score-unit fanout) are safe for normal live-debug loops.
 - `process_request_targets` now stores explicit target resolution (`pending`, `retryable`, `exhausted`, `succeeded`) plus attempt counters; treat it as current target truth, while `llm_requests` remains immutable attempt history.
+- `llm_requests` now stores `system_prompt_id` instead of inline system prompt text; inspect `llm_prompt_templates` to recover the canonical system prompt body for a request.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.

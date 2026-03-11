@@ -879,7 +879,7 @@ async function markRequestParseFailure(
     internal.domain.llm_calls.llm_request_repo.createLlmRequest,
     {
       model: request.model,
-      system_prompt: request.system_prompt ?? undefined,
+      system_prompt_id: request.system_prompt_id ?? null,
       user_prompt: request.user_prompt,
       custom_key: request.custom_key,
       attempt_index: nextAttemptIndex,

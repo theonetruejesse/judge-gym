@@ -161,6 +161,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - `packages/lab:getRunSummary` now includes persisted `completed_count`, which is the sample-level done count backing the lab run table.
 - `packages/lab:getRunDiagnostics` now splits historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when available.
+- `llm_requests` now stores `system_prompt_id`; recover the actual system prompt text from `llm_prompt_templates` when auditing provider payloads.
 - `packages/lab:listExperiments` and `packages/lab:getExperimentSummary` now include persisted `total_count`, which is the experiment-level aggregate of run completions.
 - `samples` now persist `score_count` / `score_critic_count` as the sample-level score aggregation surface; legacy sample `score_id` / `score_critic_id` are no longer part of the schema.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.

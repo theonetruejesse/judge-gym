@@ -187,8 +187,8 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
     : scale.letterLabels;
 
   const labelTokens = labelTokensBase;
-  const scoringRequirements = scoring.buildRequirements(labelTokens);
-  const scoringOutputContract = scoring.buildOutputContract(labelTokens);
+  const scoringRequirements = scoring.buildRequirements();
+  const scoringOutputContract = scoring.buildOutputContract();
 
   const stages = rubric.stages.map((stage, idx) => ({
     stage,

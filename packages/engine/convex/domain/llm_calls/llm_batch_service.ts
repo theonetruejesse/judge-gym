@@ -11,7 +11,7 @@ import {
 } from "../orchestrator/target_registry";
 
 type MutationRunner = Pick<MutationCtx, "runMutation">;
-type ActionRunner = Pick<ActionCtx, "runAction">;
+type ActionRunner = Pick<ActionCtx, "runAction" | "runQuery">;
 type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
 
 function classifyError(error: string | null | undefined): string {
@@ -197,7 +197,7 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
           internal.domain.llm_calls.llm_request_repo.createLlmRequest,
           {
             model: req.model,
-            system_prompt: req.system_prompt ?? undefined,
+            system_prompt_id: req.system_prompt_id ?? null,
             user_prompt: req.user_prompt,
             custom_key: req.custom_key,
             attempt_index: nextAttempt,
@@ -295,13 +295,20 @@ interface SubmitBatchArgs {
 }
 export async function submitBatch(args: SubmitBatchArgs) {
   const { ctx, requests, batch_id, submission_id } = args;
+  const resolvedPrompts = await ctx.runQuery(
+    internal.domain.llm_calls.llm_request_repo.resolveRequestPrompts,
+    { request_ids: requests.map((req) => req._id) },
+  );
+  const promptByRequestId = new Map(
+    resolvedPrompts.map((row) => [row.request_id, row]),
+  );
   const payload = requests.map((req) => ({
     custom_key: req.custom_key,
     model: req.model,
-    system_prompt: req.system_prompt ?? undefined,
-    user_prompt: req.user_prompt,
+    system_prompt: promptByRequestId.get(req._id)?.system_prompt ?? undefined,
+    user_prompt: promptByRequestId.get(req._id)?.user_prompt ?? req.user_prompt,
     max_tokens: ENGINE_SETTINGS.run_policy.max_tokens,
-  }))
+  }));
   const result = await ctx.runAction(
     internal.platform.providers.provider_services.submitOpenAiBatchAction,
     {
@@ -411,7 +418,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
           internal.domain.llm_calls.llm_request_repo.createLlmRequest,
           {
             model: req.model,
-            system_prompt: req.system_prompt ?? undefined,
+            system_prompt_id: req.system_prompt_id ?? null,
             user_prompt: req.user_prompt,
             custom_key: req.custom_key,
             attempt_index: nextAttempt,
@@ -490,7 +497,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
             internal.domain.llm_calls.llm_request_repo.createLlmRequest,
             {
               model: req.model,
-              system_prompt: req.system_prompt ?? undefined,
+              system_prompt_id: req.system_prompt_id ?? null,
               user_prompt: req.user_prompt,
               custom_key: req.custom_key,
               attempt_index: nextAttempt,
@@ -554,7 +561,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
         internal.domain.llm_calls.llm_request_repo.createLlmRequest,
         {
           model: req.model,
-          system_prompt: req.system_prompt ?? undefined,
+          system_prompt_id: req.system_prompt_id ?? null,
           user_prompt: req.user_prompt,
           custom_key: req.custom_key,
           attempt_index: nextAttempt,

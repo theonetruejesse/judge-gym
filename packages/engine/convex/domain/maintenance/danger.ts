@@ -4,6 +4,7 @@ import { zid } from "convex-helpers/server/zod4";
 import type { DataModel, Doc } from "../../_generated/dataModel";
 
 const tableNames = [
+  "llm_prompt_templates",
   "llm_batches",
   "llm_jobs",
   "llm_requests",
