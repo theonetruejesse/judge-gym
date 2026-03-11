@@ -55,6 +55,13 @@ function parseRequestCustomKey(customKey: string): ParsedRequestCustomKey | null
 export function classifyRequestError(error: string | null | undefined): string {
   const value = String(error ?? "").toLowerCase();
   if (!value) return "unknown";
+  if (
+    value.includes("insufficient credits")
+    || value.includes("quota")
+    || value.includes("credit")
+  ) {
+    return "quota_exhausted";
+  }
   if (value.includes("parse")) return "parse_error";
   if (value.includes("timeout")) return "timeout";
   if (value.includes("rate limit") || value.includes("429")) return "rate_limit";

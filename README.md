@@ -62,6 +62,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
 - System prompts are now deduplicated in `llm_prompt_templates`, and `llm_requests` stores `system_prompt_id` instead of duplicating raw system prompt text on each attempt row.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
+- Codex scheduler liveness checks now prefer `scheduler_locks` heartbeat state and use only a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` and `getStuckWork` stable after large scheduled-function history buildup.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
@@ -176,7 +177,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **High-level path**
 
 1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
-2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`.
+2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`. Raw-collection provider failures now mark the window `status=error` at `l0_raw` and emit `window_collection_failed` instead of leaving the window in silent `scraping` limbo.
 3. `startWindowOrchestration` sets the window to `running`, sets `current_stage` to `l1_cleaned`, and calls `WindowOrchestrator.enqueueStage`.
 4. `WindowOrchestrator.enqueueStage` lists pending evidence for the stage using the stage-specific index.
 5. The orchestrator builds prompts and creates one `llm_request` per evidence item.
