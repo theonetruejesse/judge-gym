@@ -405,7 +405,7 @@ export const handleRequestError = zInternalMutation({
       payload_json: JSON.stringify({
         class: classifyRequestError(request.last_error),
         error: request.last_error ?? null,
-        attempts: request.attempts ?? null,
+        attempt_index: request.attempt_index ?? null,
       }),
     }, { defer: true });
   },
@@ -855,34 +855,26 @@ async function markRequestParseFailure(
     { request_id: requestId },
   );
   const message = error instanceof Error ? error.message : String(error);
-  const attempts = (request.attempts ?? 0) + 1;
-  let reasoning: string | undefined;
-  try {
-    reasoning = extractReasoningBeforeVerdict(output);
-  } catch {
-    reasoning = undefined;
-  }
+  const attemptIndex = request.attempt_index ?? 1;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.patchRequest,
     {
       request_id: requestId,
       patch: {
         status: "error",
-        attempts,
         last_error: message,
         assistant_output: output,
-        assistant_reasoning: reasoning,
         input_tokens: inputTokens,
         output_tokens: outputTokens,
       },
     },
   );
 
-  if (attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+  if (attemptIndex >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
     return;
   }
 
-  const nextAttempt = attempts + 1;
+  const nextAttemptIndex = attemptIndex + 1;
   const retryRequestId = await ctx.runMutation(
     internal.domain.llm_calls.llm_request_repo.createLlmRequest,
     {
@@ -890,7 +882,7 @@ async function markRequestParseFailure(
       system_prompt: request.system_prompt ?? undefined,
       user_prompt: request.user_prompt,
       custom_key: request.custom_key,
-      attempts: nextAttempt,
+      attempt_index: nextAttemptIndex,
     },
   );
 

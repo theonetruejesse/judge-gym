@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "`assistant_reasoning` can be removed from `llm_requests` with low compatibility risk.",
+  "confidence": 0.83,
+  "rationale": "The field is not part of the main success path and artifact tables already store parsed justifications where needed.",
+  "keyAssumptions": [
+    "No external or undocumented consumer depends on this field.",
+    "Parse-failure forensics can rely on `assistant_output` and `last_error` instead."
+  ],
+  "validationCriteria": [
+    "Repo search finds no required read paths for the field.",
+    "Existing diagnostics still preserve enough raw output for debugging."
+  ],
+  "critiquePoints": [
+    "Removing the field slightly reduces structured parse-failure breadcrumbs."
+  ],
+  "questions": [
+    "Do we later want a parsed debug artifact separate from request rows?"
+  ]
+}

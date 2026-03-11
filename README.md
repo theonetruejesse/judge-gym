@@ -143,8 +143,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- | --- |
 | `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date` |
 | `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
-| `llm_requests` | Individual LLM calls | `status`, `run_id`, `model`, `custom_key`, `attempts`, `next_attempt_at`, `job_id`, `batch_id` |
-| `process_request_targets` | Derived per-target request state snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `has_pending`, `max_attempts`, `latest_error_class` |
+| `llm_requests` | Individual LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
+| `process_request_targets` | Current per-target request snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
 | `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
 | `process_observability` | Small per-process local observability mirror for the live loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |

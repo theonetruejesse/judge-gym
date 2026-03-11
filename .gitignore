@@ -32,6 +32,7 @@ Thumbs.db
 # Build output
 dist/
 .next/
+*.tsbuildinfo
 
 # Bun
 bun.lockb

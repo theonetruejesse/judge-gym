@@ -177,15 +177,14 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
 
     for (const req of requests) {
       if (req.status !== "pending") continue;
-      const requestAttempts = (req.attempts ?? 0) + 1;
-      if (requestAttempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+      const attemptIndex = req.attempt_index ?? 1;
+      if (attemptIndex < ENGINE_SETTINGS.run_policy.max_request_attempts) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
             request_id: req._id,
             patch: {
               status: "error",
-              attempts: requestAttempts,
               last_error: error,
               batch_id: null,
               job_id: null,
@@ -193,7 +192,7 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
           },
         );
 
-        const nextAttempt = requestAttempts + 1;
+        const nextAttempt = attemptIndex + 1;
         const retryRequestId = await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.createLlmRequest,
           {
@@ -201,7 +200,7 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
             system_prompt: req.system_prompt ?? undefined,
             user_prompt: req.user_prompt,
             custom_key: req.custom_key,
-            attempts: nextAttempt,
+            attempt_index: nextAttempt,
           },
         );
         retryRequestIds.push(retryRequestId);
@@ -214,7 +213,6 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
           request_id: req._id,
           patch: {
             status: "error",
-            attempts: requestAttempts,
             last_error: error,
             batch_id: null,
             job_id: null,
@@ -275,7 +273,6 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
         patch: {
           status: "error",
           last_error: error,
-          attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
         },
       },
     );
@@ -396,21 +393,20 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
 
     if (!row) {
       missingResultCount += 1;
-      const attempts = (req.attempts ?? 0) + 1;
-      if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+      const attemptIndex = req.attempt_index ?? 1;
+      if (attemptIndex < ENGINE_SETTINGS.run_policy.max_request_attempts) {
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
           {
             request_id: req._id,
             patch: {
               status: "error",
-              attempts,
               last_error: "missing_batch_result",
             },
           },
         );
 
-        const nextAttempt = attempts + 1;
+        const nextAttempt = attemptIndex + 1;
         const retryRequestId = await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.createLlmRequest,
           {
@@ -418,7 +414,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
             system_prompt: req.system_prompt ?? undefined,
             user_prompt: req.user_prompt,
             custom_key: req.custom_key,
-            attempts: nextAttempt,
+            attempt_index: nextAttempt,
           },
         );
 
@@ -443,7 +439,6 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
             request_id: req._id,
             patch: {
               status: "error",
-              attempts,
               last_error: "missing_batch_result",
             },
           },
@@ -476,22 +471,21 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const attempts = (req.attempts ?? 0) + 1;
+        const attemptIndex = req.attempt_index ?? 1;
         const terminal = isTerminalRequestError(message);
-        if (!terminal && attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+        if (!terminal && attemptIndex < ENGINE_SETTINGS.run_policy.max_request_attempts) {
           await ctx.runMutation(
             internal.domain.llm_calls.llm_request_repo.patchRequest,
             {
               request_id: req._id,
               patch: {
                 status: "error",
-                attempts,
                 last_error: message,
               },
             },
           );
 
-          const nextAttempt = attempts + 1;
+          const nextAttempt = attemptIndex + 1;
           const retryRequestId = await ctx.runMutation(
             internal.domain.llm_calls.llm_request_repo.createLlmRequest,
             {
@@ -499,7 +493,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
               system_prompt: req.system_prompt ?? undefined,
               user_prompt: req.user_prompt,
               custom_key: req.custom_key,
-              attempts: nextAttempt,
+              attempt_index: nextAttempt,
             },
           );
 
@@ -524,7 +518,6 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
               request_id: req._id,
               patch: {
                 status: "error",
-                attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
                 last_error: message,
               },
             },
@@ -542,22 +535,21 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
       continue;
     }
 
-    const attempts = (req.attempts ?? 0) + 1;
+    const attemptIndex = req.attempt_index ?? 1;
     const terminal = isTerminalRequestError(row.error ?? "provider_error");
-    if (!terminal && attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    if (!terminal && attemptIndex < ENGINE_SETTINGS.run_policy.max_request_attempts) {
       await ctx.runMutation(
         internal.domain.llm_calls.llm_request_repo.patchRequest,
         {
           request_id: req._id,
           patch: {
             status: "error",
-            attempts,
             last_error: row.error ?? "provider_error",
           },
         },
       );
 
-      const nextAttempt = attempts + 1;
+      const nextAttempt = attemptIndex + 1;
       const retryRequestId = await ctx.runMutation(
         internal.domain.llm_calls.llm_request_repo.createLlmRequest,
         {
@@ -565,7 +557,7 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
           system_prompt: req.system_prompt ?? undefined,
           user_prompt: req.user_prompt,
           custom_key: req.custom_key,
-          attempts: nextAttempt,
+          attempt_index: nextAttempt,
         },
       );
 
@@ -590,7 +582,6 @@ export async function applyBatchResults(args: ApplyBatchResultsArgs) {
           request_id: req._id,
           patch: {
             status: "error",
-            attempts,
             last_error: row.error ?? "provider_error",
           },
         },

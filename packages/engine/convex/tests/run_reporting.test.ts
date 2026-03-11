@@ -106,7 +106,7 @@ async function markRunArtifacts(
           request_id: rubricRequest._id,
           patch: {
             status: "error",
-            attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+            attempt_index: ENGINE_SETTINGS.run_policy.max_request_attempts,
             last_error: "synthetic rubric failure",
           },
         });
@@ -117,7 +117,6 @@ async function markRunArtifacts(
         request_id: rubricRequest._id,
         patch: {
           status: "success",
-          attempts: 1,
           assistant_output: "rubric output",
         },
       });
@@ -145,14 +144,13 @@ async function markRunArtifacts(
           model: experiment.rubric_config.model,
           user_prompt: "rubric critic request",
           custom_key: `sample:${sample._id}:rubric_critic`,
-          attempts: 1,
+          attempt_index: 1,
         },
       );
       await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
         request_id: rubricCriticRequestId,
         patch: {
           status: "success",
-          attempts: 1,
           assistant_output: "rubric critic output",
         },
       });
@@ -185,14 +183,13 @@ async function markRunArtifacts(
           model: experiment.scoring_config.model,
           user_prompt: "score gen request",
           custom_key: `sample_evidence:${unit._id}:score_gen`,
-          attempts: 1,
+          attempt_index: 1,
         },
       );
       await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
         request_id: scoreRequestId,
         patch: {
           status: "success",
-          attempts: 1,
           assistant_output: "score output",
         },
       });
@@ -212,14 +209,13 @@ async function markRunArtifacts(
           model: experiment.scoring_config.model,
           user_prompt: "score critic request",
           custom_key: `sample_evidence:${unit._id}:score_critic`,
-          attempts: 1,
+          attempt_index: 1,
         },
       );
       await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
         request_id: scoreCriticRequestId,
         patch: {
           status: "success",
-          attempts: 1,
           assistant_output: "score critic output",
         },
       });
@@ -375,7 +371,7 @@ describe("run reporting", () => {
     expect(diagnostics.terminal_failed_targets).toEqual([
       expect.objectContaining({
         stage: "rubric_gen",
-        attempts: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        attempt_count: 1,
         error_message: "synthetic rubric failure",
       }),
     ]);

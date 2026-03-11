@@ -6,6 +6,7 @@ import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
 import { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
+import { ENGINE_SETTINGS } from "../../settings";
 
 
 const CreateLlmRequestArgsSchema = LlmRequestsTableSchema.pick({
@@ -13,7 +14,7 @@ const CreateLlmRequestArgsSchema = LlmRequestsTableSchema.pick({
   system_prompt: true,
   user_prompt: true,
   custom_key: true,
-  attempts: true,
+  attempt_index: true,
 });
 
 type ParsedRequestCustomKey = {
@@ -108,43 +109,67 @@ async function refreshProcessRequestTargetState(
     .query("llm_requests")
     .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
     .collect();
-
-  let hasPending = false;
-  let oldestPendingTs: number | null = null;
-  let maxAttempts = 0;
-  let latestErrorClass: string | null = null;
-  let latestErrorMessage: string | null = null;
-  let latestErrorAttempts = -1;
-  let latestErrorTs = -1;
-
-  for (const row of requests) {
-    const attempts = row.attempts ?? 0;
-    if (attempts > maxAttempts) maxAttempts = attempts;
-
-    if (row.status === "pending") {
-      hasPending = true;
-      if (oldestPendingTs == null || row._creationTime < oldestPendingTs) {
-        oldestPendingTs = row._creationTime;
-      }
-      continue;
-    }
-
-    if (row.status !== "error") continue;
-    if (
-      attempts > latestErrorAttempts
-      || (attempts === latestErrorAttempts && row._creationTime > latestErrorTs)
-    ) {
-      latestErrorAttempts = attempts;
-      latestErrorTs = row._creationTime;
-      latestErrorClass = classifyRequestError(row.last_error);
-      latestErrorMessage = row.last_error ?? null;
-    }
-  }
-
   const existing = await ctx.db
     .query("process_request_targets")
     .withIndex("by_custom_key", (q) => q.eq("custom_key", customKey))
     .first();
+
+  if (requests.length === 0) {
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+    return;
+  }
+
+  let oldestPendingTs: number | null = null;
+  let latestRequest: Doc<"llm_requests"> | null = null;
+  let activeRequest: Doc<"llm_requests"> | null = null;
+  let successRequest: Doc<"llm_requests"> | null = null;
+  let latestErrorRequest: Doc<"llm_requests"> | null = null;
+  let historicalErrorCount = 0;
+
+  for (const row of requests) {
+    if (!latestRequest || row._creationTime > latestRequest._creationTime) {
+      latestRequest = row;
+    }
+
+    if (row.status === "pending") {
+      if (oldestPendingTs == null || row._creationTime < oldestPendingTs) {
+        oldestPendingTs = row._creationTime;
+      }
+      if (!activeRequest || row._creationTime > activeRequest._creationTime) {
+        activeRequest = row;
+      }
+      continue;
+    }
+
+    if (row.status === "success") {
+      if (!successRequest || row._creationTime > successRequest._creationTime) {
+        successRequest = row;
+      }
+      continue;
+    }
+
+    historicalErrorCount += 1;
+    if (!latestErrorRequest || row._creationTime > latestErrorRequest._creationTime) {
+      latestErrorRequest = row;
+    }
+  }
+
+  const attemptCount = requests.length;
+  const retryCount = Math.max(0, attemptCount - 1);
+  const latestErrorClass = latestErrorRequest
+    ? classifyRequestError(latestErrorRequest.last_error)
+    : null;
+  const latestErrorMessage = latestErrorRequest?.last_error ?? null;
+  const resolution = activeRequest
+    ? "pending"
+    : successRequest
+      ? "succeeded"
+      : latestErrorRequest
+        && (latestErrorRequest.attempt_index ?? 1) >= ENGINE_SETTINGS.run_policy.max_request_attempts
+        ? "exhausted"
+      : "retryable";
 
   const basePayload = {
     process_type: processRef.process_type,
@@ -153,9 +178,15 @@ async function refreshProcessRequestTargetState(
     target_id: parsed.target_id,
     stage: parsed.stage,
     custom_key: customKey,
-    has_pending: hasPending,
+    resolution,
+    active_request_id: activeRequest?._id ?? null,
+    latest_request_id: latestRequest?._id ?? null,
+    success_request_id: successRequest?._id ?? null,
+    latest_error_request_id: latestErrorRequest?._id ?? null,
+    attempt_count: attemptCount,
+    retry_count: retryCount,
+    historical_error_count: historicalErrorCount,
     oldest_pending_ts: oldestPendingTs,
-    max_attempts: maxAttempts,
     latest_error_class: latestErrorClass,
     latest_error_message: latestErrorMessage,
   } as const;
@@ -167,9 +198,15 @@ async function refreshProcessRequestTargetState(
       && existing.target_id === basePayload.target_id
       && existing.stage === basePayload.stage
       && existing.custom_key === basePayload.custom_key
-      && existing.has_pending === basePayload.has_pending
+      && existing.resolution === basePayload.resolution
+      && existing.active_request_id === basePayload.active_request_id
+      && existing.latest_request_id === basePayload.latest_request_id
+      && existing.success_request_id === basePayload.success_request_id
+      && existing.latest_error_request_id === basePayload.latest_error_request_id
+      && existing.attempt_count === basePayload.attempt_count
+      && existing.retry_count === basePayload.retry_count
+      && existing.historical_error_count === basePayload.historical_error_count
       && existing.oldest_pending_ts === basePayload.oldest_pending_ts
-      && existing.max_attempts === basePayload.max_attempts
       && existing.latest_error_class === basePayload.latest_error_class
       && existing.latest_error_message === basePayload.latest_error_message;
     if (unchanged) return;
@@ -196,7 +233,7 @@ export const createLlmRequest = zInternalMutation({
       job_id: null,
       batch_id: null,
       status: "pending",
-      attempts: args.attempts ?? 0,
+      attempt_index: args.attempt_index ?? 1,
     });
     await refreshProcessRequestTargetState(ctx, args.custom_key);
     return requestId;
@@ -251,7 +288,7 @@ export const patchRequest = zInternalMutation({
 
     const changedKeys = new Set(changedEntries.map(([key]) => key));
     const snapshotRelevant = changedKeys.has("status")
-      || changedKeys.has("attempts")
+      || changedKeys.has("attempt_index")
       || changedKeys.has("last_error")
       || changedKeys.has("custom_key");
     if (!snapshotRelevant) return;

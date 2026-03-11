@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "originalQuestion": "How should llm_requests and process_request_targets be redesigned so llm_requests is a clean attempt log, process_request_targets reflects current logical target truth instead of historical residue, assistant_reasoning is removed, and downstream run_service/codex/lab consumers remain correct after a destructive reset and rebuild?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/request-target-state-redesign",
+    "finalPlanPath": null
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019cdb5e-a172-7cd2-b924-86f855aecd67",
+        "nickname": "Faraday",
+        "role": "A_01 researcher"
+      },
+      {
+        "id": "019cdb5e-a228-74f3-8270-86122d0930ac",
+        "nickname": "Archimedes",
+        "role": "A_02 researcher"
+      },
+      {
+        "id": "019cdb5e-a3c1-73d0-955f-f355173005d8",
+        "nickname": "Cicero",
+        "role": "A_03 researcher"
+      }
+    ],
+    "falsifier": {
+      "id": "019cdb62-f43b-7802-bbe3-117f87ce3c36",
+      "nickname": "Helmholtz"
+    },
+    "certaintyScorer": {
+      "id": "019cdb62-f48b-7311-ba2a-c69ede8d1d19",
+      "nickname": "Plato"
+    },
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "scope": "Current schema and write semantics for llm_requests and process_request_targets",
+      "assignedAgent": "Faraday"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "scope": "Downstream consumer contracts in run_service, run_orchestrator, lab, and codex",
+      "assignedAgent": "Archimedes"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "scope": "Migration/reset implications and clean replacement strategy on fresh project",
+      "assignedAgent": "Cicero"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_attempt_log_semantics.md",
+      "knowledge/k_002_target_snapshot_semantics.md",
+      "knowledge/k_003_consumer_contracts.md",
+      "knowledge/k_004_reasoning_field_value.md"
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "S1",
+        "score": 0.95
+      },
+      {
+        "id": "S2",
+        "score": 0.89
+      },
+      {
+        "id": "S3",
+        "score": 0.72
+      },
+      {
+        "id": "S4",
+        "score": 0.87
+      },
+      {
+        "id": "S5",
+        "score": 0.74
+      },
+      {
+        "id": "S6",
+        "score": 0.9
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "scope": "Current schema and write semantics for llm_requests and process_request_targets",
+      "assignedAgent": "Faraday"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "scope": "Downstream consumer contracts in run_service, run_orchestrator, lab, and codex",
+      "assignedAgent": "Archimedes"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "scope": "Migration/reset implications and clean replacement strategy on fresh project",
+      "assignedAgent": "Cicero"
+    }
+  ],
+  "microHypotheses": [
+    {
+      "id": "h_A_01_001",
+      "path": "hypotheses/hyp_A_01_v1_attempt_log_split.json"
+    },
+    {
+      "id": "h_A_02_001",
+      "path": "hypotheses/hyp_A_02_v1_explicit_resolution.json"
+    },
+    {
+      "id": "h_A_03_001",
+      "path": "hypotheses/hyp_A_03_v1_remove_reasoning.json"
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesisID": "h_A_01_001",
+      "conflict": "Current repo does not yet treat process_request_targets as authoritative truth, and some window flows still read llm_requests directly."
+    },
+    {
+      "hypothesisID": "h_A_02_001",
+      "conflict": "Explicit terminal resolution is a valid redesign goal, but current consumers and tests assume inference from has_pending/max_attempts and must be rewritten together."
+    }
+  ],
+  "synthesisOutput": "blueprint.md"
+}

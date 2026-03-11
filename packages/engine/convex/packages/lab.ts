@@ -8,7 +8,6 @@ import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
-import { ENGINE_SETTINGS } from "../settings";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -491,7 +490,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const failed_requests = [] as Array<{
       request_id: Id<"llm_requests">;
       custom_key: string;
-      attempts: number | null;
+      attempt_index: number | null;
       last_error: string | null;
       status: "pending" | "success" | "error";
       assistant_output_preview: string | null;
@@ -513,7 +512,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
         failed_requests.push({
           request_id: request._id,
           custom_key: request.custom_key,
-          attempts: request.attempts ?? null,
+          attempt_index: request.attempt_index ?? null,
           last_error: request.last_error ?? null,
           status: request.status,
           assistant_output_preview: request.assistant_output?.slice(0, 400) ?? null,
@@ -522,16 +521,14 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     }
 
     const terminal_failed_targets = targetStates
-      .filter((state) =>
-        !state.has_pending
-        && state.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts
-      )
+      .filter((state) => state.resolution === "exhausted")
       .map((state) => ({
         target_type: state.target_type,
         target_id: state.target_id,
         stage: state.stage,
         custom_key: state.custom_key,
-        attempts: state.max_attempts,
+        attempt_count: state.attempt_count,
+        retry_count: state.retry_count,
         error_class: state.latest_error_class,
         error_message: state.latest_error_message,
       }));
@@ -562,7 +559,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       target_count: run.target_count,
       request_counts: {
         total: requestRows.length,
-        error: failed_requests.length,
+        error: terminal_failed_targets.length,
         historical_error: failed_requests.length,
         terminal_failed_targets: terminal_failed_targets.length,
       },

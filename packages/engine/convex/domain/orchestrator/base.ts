@@ -153,7 +153,7 @@ export abstract class BaseOrchestrator<TProcessId, TStage> {
           system_prompt: prompts.system,
           user_prompt: prompts.user,
           custom_key,
-          attempts: 0,
+          attempt_index: 1,
         },
       )) as Id<"llm_requests">;
       await this.onRequestCreated(target.targetId, stage, requestId);

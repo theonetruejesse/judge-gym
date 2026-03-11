@@ -205,9 +205,15 @@ type RequestTargetState = {
   target_id: string;
   stage: string;
   custom_key: string;
-  has_pending: boolean;
+  resolution: "pending" | "retryable" | "exhausted" | "succeeded";
+  active_request_id: Id<"llm_requests"> | null;
+  latest_request_id: Id<"llm_requests"> | null;
+  success_request_id: Id<"llm_requests"> | null;
+  latest_error_request_id: Id<"llm_requests"> | null;
+  attempt_count: number;
+  retry_count: number;
+  historical_error_count: number;
   oldest_pending_ts: number | null;
-  max_attempts: number;
   latest_error_class: string | null;
   latest_error_message: string | null;
 };
@@ -246,8 +252,6 @@ const WINDOW_STAGES: Array<z.infer<typeof WindowStageSchema>> = [
   "l3_abstracted",
 ];
 
-const LEGACY_REQUEST_SCAN_LIMIT_PER_STATUS = 1500;
-const MIXED_SNAPSHOT_SCAN_LIMIT_PER_STATUS = 300;
 const SCHEDULER_SCAN_MAX_ROWS = 2_000;
 const STUCK_BATCH_SCAN_MAX_ROWS = 2_000;
 const STUCK_PROCESS_SCAN_MAX_ROWS = 300;
@@ -265,21 +269,6 @@ function parseCustomKey(key: string) {
     targetId,
     stage,
   };
-}
-
-function classifyError(error: string | null | undefined): string {
-  const value = String(error ?? "").toLowerCase();
-  if (!value) return "unknown";
-  if (value.includes("parse")) return "parse_error";
-  if (value.includes("timeout")) return "timeout";
-  if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
-  if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
-    return "orchestrator_error";
-  }
-  if (value.includes("provider") || value.includes("api") || value.includes("openai") || value.includes("5xx")) {
-    return "api_error";
-  }
-  return "unknown";
 }
 
 function isSchedulerRun(name: string): boolean {
@@ -341,20 +330,6 @@ async function buildMembership(
   };
 }
 
-function requestBelongsToMembership(
-  membership: ProcessMembership,
-  request: Pick<Doc<"llm_requests">, "custom_key">,
-): boolean {
-  const { targetType, targetId } = parseCustomKey(request.custom_key);
-  if (membership.process_type === "run") {
-    if (targetType === "sample") return membership.sampleIds.has(targetId);
-    if (targetType === "sample_evidence") return membership.scoreUnitIds.has(targetId);
-    return false;
-  }
-  if (targetType !== "evidence") return false;
-  return membership.evidenceIds.has(targetId);
-}
-
 async function listProcessRequestTargetStates(
   ctx: QueryCtx | MutationCtx,
   membership: ProcessMembership,
@@ -372,96 +347,23 @@ async function listProcessRequestTargetStates(
       target_id: row.target_id,
       stage: row.stage,
       custom_key: row.custom_key,
-      has_pending: row.has_pending,
+      resolution: row.resolution,
+      active_request_id: row.active_request_id,
+      latest_request_id: row.latest_request_id,
+      success_request_id: row.success_request_id,
+      latest_error_request_id: row.latest_error_request_id,
+      attempt_count: row.attempt_count,
+      retry_count: row.retry_count,
+      historical_error_count: row.historical_error_count,
       oldest_pending_ts: row.oldest_pending_ts,
-      max_attempts: row.max_attempts,
       latest_error_class: row.latest_error_class,
       latest_error_message: row.latest_error_message,
     });
   }
 
-  const perStatusLimit =
-    snapshotRows.length > 0
-      ? MIXED_SNAPSHOT_SCAN_LIMIT_PER_STATUS
-      : LEGACY_REQUEST_SCAN_LIMIT_PER_STATUS;
-
-  const [pendingRows, errorRows] = await Promise.all([
-    ctx.db
-      .query("llm_requests")
-      .withIndex("by_status", (q) => q.eq("status", "pending"))
-      .order("desc")
-      .take(perStatusLimit),
-    ctx.db
-      .query("llm_requests")
-      .withIndex("by_status", (q) => q.eq("status", "error"))
-      .order("desc")
-      .take(perStatusLimit),
-  ]);
-  const latestErrorMeta = new Map<string, { attempts: number; ts: number }>();
-  for (const row of snapshotRows) {
-    latestErrorMeta.set(row.custom_key, {
-      attempts: row.max_attempts,
-      ts: row.updated_at_ms,
-    });
-  }
-  const upsert = (
-    request: Doc<"llm_requests">,
-    status: "pending" | "error",
-  ) => {
-    if (!requestBelongsToMembership(membership, request)) return;
-    const { targetType, targetId, stage } = parseCustomKey(request.custom_key);
-    if (
-      !targetId || !stage
-      || (targetType !== "sample" && targetType !== "sample_evidence" && targetType !== "evidence")
-    ) {
-      return;
-    }
-    if (snapshotRows.length > 0 && aggregate.has(request.custom_key)) return;
-
-    const existing = aggregate.get(request.custom_key);
-    const base: RequestTargetState = existing ?? {
-      target_type: targetType,
-      target_id: targetId,
-      stage,
-      custom_key: request.custom_key,
-      has_pending: false,
-      oldest_pending_ts: null,
-      max_attempts: 0,
-      latest_error_class: null,
-      latest_error_message: null,
-    };
-    const attempts = request.attempts ?? 0;
-
-    if (status === "pending") {
-      base.has_pending = true;
-      if (base.oldest_pending_ts == null || request._creationTime < base.oldest_pending_ts) {
-        base.oldest_pending_ts = request._creationTime;
-      }
-    } else {
-      const meta = latestErrorMeta.get(request.custom_key) ?? { attempts: -1, ts: -1 };
-      if (attempts > meta.attempts || (attempts === meta.attempts && request._creationTime > meta.ts)) {
-        base.latest_error_class = classifyError(request.last_error);
-        base.latest_error_message = request.last_error ?? null;
-        latestErrorMeta.set(request.custom_key, {
-          attempts,
-          ts: request._creationTime,
-        });
-      }
-    }
-    if (attempts > base.max_attempts) base.max_attempts = attempts;
-    aggregate.set(request.custom_key, base);
-  };
-
-  for (const row of pendingRows) upsert(row, "pending");
-  for (const row of errorRows) upsert(row, "error");
-
   return {
     rows: [...aggregate.values()],
-    approximate:
-      snapshotRows.length === PROCESS_TARGET_STATE_SCAN_MAX_ROWS
-      ||
-      pendingRows.length === perStatusLimit
-      || errorRows.length === perStatusLimit,
+    approximate: snapshotRows.length === PROCESS_TARGET_STATE_SCAN_MAX_ROWS,
     latest_updated_at_ms: snapshotRows.length > 0
       ? Math.max(...snapshotRows.map((row) => row.updated_at_ms))
       : null,
@@ -470,8 +372,7 @@ async function listProcessRequestTargetStates(
 
 function isTargetFailed(targetState: RequestTargetState | undefined): boolean {
   if (!targetState) return false;
-  if (targetState.has_pending) return false;
-  return targetState.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts;
+  return targetState.resolution === "exhausted";
 }
 
 function appendErrorClass(
@@ -486,7 +387,7 @@ function considerOldestPending(
   state: RequestTargetState | undefined,
   sink: number[],
 ) {
-  if (!state || !state.has_pending || state.oldest_pending_ts == null) return;
+  if (!state || state.resolution !== "pending" || state.oldest_pending_ts == null) return;
   sink.push(state.oldest_pending_ts);
 }
 
@@ -608,6 +509,26 @@ function parseProcessFromCustomKey(customKey: string): {
   return { process_type: null, process_id: null };
 }
 
+function requestBelongsToMembership(
+  membership: ProcessMembership,
+  request: Doc<"llm_requests">,
+): boolean {
+  const parsed = parseCustomKey(request.custom_key);
+  if (!parsed.targetId || !parsed.stage) return false;
+
+  if (membership.process_type === "run") {
+    if (parsed.targetType === "sample") {
+      return membership.sampleIds.has(parsed.targetId);
+    }
+    if (parsed.targetType === "sample_evidence") {
+      return membership.scoreUnitIds.has(parsed.targetId);
+    }
+    return false;
+  }
+
+  return parsed.targetType === "evidence" && membership.evidenceIds.has(parsed.targetId);
+}
+
 function stageNamesForProcess(processType: "run" | "window"): string[] {
   return processType === "run"
     ? [...RUN_STAGES]
@@ -718,8 +639,8 @@ async function executeDebugAction(
         reason: "Request is not in error state",
       };
     }
-    const attempts = request.attempts ?? 0;
-    if (attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+    const attemptIndex = request.attempt_index ?? 1;
+    if (attemptIndex >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
       return {
         action: action.action,
         entity_id: String(request._id),
@@ -1608,16 +1529,13 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
     const scannedRows = targetStateResult.rows.slice(0, args.max_stage_scan);
     for (const targetState of scannedRows) {
       if (
-        targetState.has_pending
+        targetState.resolution === "pending"
         && targetState.oldest_pending_ts != null
         && targetState.oldest_pending_ts <= cutoff
       ) {
-        const pending = await ctx.db
-          .query("llm_requests")
-          .withIndex("by_custom_key_status", (q) =>
-            q.eq("custom_key", targetState.custom_key).eq("status", "pending"),
-          )
-          .first();
+        const pending = targetState.active_request_id
+          ? await ctx.db.get(targetState.active_request_id)
+          : null;
         if (pending && pending.batch_id == null && pending.job_id == null) {
           plannedActions.push({
             action: "requeue_orphan_request",
@@ -1627,10 +1545,11 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
         continue;
       }
 
-      if (targetState.has_pending) continue;
-      if (targetState.max_attempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) continue;
+      if (targetState.resolution === "pending") continue;
+      if (targetState.resolution === "exhausted") continue;
+      if (targetState.resolution === "succeeded") continue;
       if (
-        targetState.max_attempts <= 0
+        targetState.attempt_count <= 0
         && targetState.latest_error_class == null
         && targetState.latest_error_message == null
       ) {
@@ -1645,13 +1564,9 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
         .first();
       if (pendingReplacement) continue;
 
-      const latestError = await ctx.db
-        .query("llm_requests")
-        .withIndex("by_custom_key_status", (q) =>
-          q.eq("custom_key", targetState.custom_key).eq("status", "error"),
-        )
-        .order("desc")
-        .first();
+      const latestError = targetState.latest_error_request_id
+        ? await ctx.db.get(targetState.latest_error_request_id)
+        : null;
       if (!latestError) continue;
       plannedActions.push({
         action: "requeue_retryable_request",

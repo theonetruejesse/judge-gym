@@ -144,7 +144,6 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
         request_id: req._id,
         patch: {
           status: "error",
-          attempts,
           last_error: error,
         },
       },
@@ -158,7 +157,7 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
         system_prompt: req.system_prompt ?? undefined,
         user_prompt: req.user_prompt,
         custom_key: req.custom_key,
-        attempts: nextAttempt,
+        attempt_index: nextAttempt,
       },
     );
 
@@ -185,7 +184,6 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
       request_id: req._id,
       patch: {
         status: "error",
-        attempts,
         last_error: error,
       },
     },
@@ -276,7 +274,7 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
       await applyRequestSuccess({ ctx, req, output });
       await heartbeat?.();
     } catch (error: any) {
-      const attempts = (req.attempts ?? 0) + 1;
+      const attempts = req.attempt_index ?? 1;
       const didRetry = await applyRequestError({
         ctx,
         req,

@@ -23,8 +23,7 @@ type SampleStage = Exclude<RunStage, "score_gen" | "score_critic">;
 
 type RequestState = "pending" | "none" | "retryable" | "exhausted";
 type RequestStateIndex = {
-  pendingKeys: Set<string>;
-  maxAttemptsByKey: Map<string, number>;
+  stateByKey: Map<string, RequestState>;
 };
 
 const SCORE_STAGES: RunStage[] = ["score_gen", "score_critic"];
@@ -69,13 +68,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   }
 
   private classifyRequestState(index: RequestStateIndex, customKey: string): RequestState {
-    if (index.pendingKeys.has(customKey)) return "pending";
-    const maxAttempts = index.maxAttemptsByKey.get(customKey);
-    if (maxAttempts == null) return "none";
-    if (maxAttempts >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
-      return "exhausted";
-    }
-    return "retryable";
+    return index.stateByKey.get(customKey) ?? "none";
   }
 
   private async buildRequestStateIndex(
@@ -85,8 +78,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   ): Promise<RequestStateIndex> {
     if (customKeys.size === 0) {
       return {
-        pendingKeys: new Set(),
-        maxAttemptsByKey: new Map(),
+        stateByKey: new Map(),
       };
     }
 
@@ -100,18 +92,24 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       )
       .collect();
 
-    const pendingKeys = new Set<string>();
-    const maxAttemptsByKey = new Map<string, number>();
+    const stateByKey = new Map<string, RequestState>();
 
     for (const row of rows) {
       if (!customKeys.has(row.custom_key)) continue;
-      if (row.has_pending) pendingKeys.add(row.custom_key);
-      const current = maxAttemptsByKey.get(row.custom_key) ?? 0;
-      const attempts = row.max_attempts ?? 0;
-      if (attempts > current) maxAttemptsByKey.set(row.custom_key, attempts);
+      if (row.resolution === "pending") {
+        stateByKey.set(row.custom_key, "pending");
+        continue;
+      }
+      if (row.resolution === "exhausted") {
+        stateByKey.set(row.custom_key, "exhausted");
+        continue;
+      }
+      if (row.resolution === "retryable") {
+        stateByKey.set(row.custom_key, "retryable");
+      }
     }
 
-    return { pendingKeys, maxAttemptsByKey };
+    return { stateByKey };
   }
 
   protected async listPendingTargets(runId: Id<"runs">, stage: RunStage) {
