@@ -92,6 +92,7 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - `submitting` batches are pollable/debuggable the same as `running`/`finalizing` batches; a missing `batch_ref` during `submitting` should be treated as recoverable first, not immediately terminal.
 - If a process remains stalled after safe actions, inspect `getProcessHealth`, local recent events, and the Axiom trace before any manual data mutation.
 - `domain/maintenance/danger:deleteRunData` uses `isDryRun` (not `dry_run`) and blocks active runs unless `allow_active=true`.
+- `domain/maintenance/danger:deleteExperimentRunData` wipes run-scoped data for one experiment while preserving windows, pools, and the experiment config row; prefer it over full table nukes when iterating on canaries.
 
 ### Telemetry Notes
 

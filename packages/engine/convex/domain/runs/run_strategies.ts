@@ -141,7 +141,7 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
         "Select exactly one rubric stage identifier from the rubric provided by the user.",
         abstainEnabled
           ? "If no stage is sufficiently supported, output `ABSTAIN`."
-          : "Do not abstain.",
+          : "Do not abstain. You must always select exactly one displayed rubric stage identifier, even if the evidence is weak or ambiguous.",
       ],
       buildOutputContract: () => abstainEnabled
         ? [
@@ -152,6 +152,7 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
         : [
           "End with exactly one final line in this form:",
           "- `VERDICT: <one rubric stage identifier from the user prompt>`",
+          "- Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
         ],
       parseVerdict: (raw, labelMapping) => {
         const parsed = parseSingleVerdict(raw, labelMapping);
@@ -168,7 +169,7 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
         "Do not collapse to a single stage if more than one applies.",
         abstainEnabled
           ? "If no stage is sufficiently supported, output `ABSTAIN`."
-          : "Do not abstain.",
+          : "Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.",
       ],
       buildOutputContract: () => {
         return abstainEnabled
@@ -180,6 +181,8 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
           : [
             "End with exactly one final line in this form:",
             "- `VERDICT: <comma-separated rubric stage identifiers from the user prompt>`",
+            "- The final line must contain at least one displayed rubric stage identifier.",
+            "- Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
           ];
       },
       parseVerdict: (raw, labelMapping) => {

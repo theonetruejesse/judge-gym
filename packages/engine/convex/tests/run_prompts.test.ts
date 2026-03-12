@@ -109,6 +109,44 @@ describe("run prompts", () => {
     expect(prompt.label_tokens).toEqual(["A", "B", "C", "D"]);
   });
 
+  test("renders non-abstain score generation prompts with forced-choice fallback", () => {
+    const prompt = buildScoreGenPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 4,
+          concept: "fascism",
+        },
+        scoring_config: {
+          method: "subset",
+          abstain_enabled: false,
+          evidence_view: "l2_neutralized",
+          randomizations: [],
+          evidence_grouping: {
+            mode: "single_evidence",
+          },
+        },
+      },
+      evidence: {
+        l0_raw_content: "Raw evidence",
+        l2_neutralized_content: "Neutralized evidence",
+      },
+      rubric: {
+        stages: [
+          { label: "Minimal", criteria: ["a", "b", "c"] },
+          { label: "Weak", criteria: ["a", "b", "c"] },
+          { label: "Clear", criteria: ["a", "b", "c"] },
+          { label: "Extensive", criteria: ["a", "b", "c"] },
+        ],
+      },
+      sample: {},
+    });
+
+    expect(prompt.system_prompt).toContain("Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.");
+    expect(prompt.system_prompt).toContain("The final line must contain at least one displayed rubric stage identifier.");
+    expect(prompt.system_prompt).toContain("Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.");
+    expect(prompt.system_prompt).toContain("If none of the stronger stages are supported, use the weakest displayed rubric stage identifier as your fallback instead of leaving the verdict blank.");
+  });
+
   test("builds score critic verdict summaries from decoded stages", () => {
     const verdict = buildScoreCriticVerdictSummary({
       decoded_scores: [4, 2, 4],
