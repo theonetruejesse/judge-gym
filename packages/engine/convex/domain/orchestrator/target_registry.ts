@@ -15,19 +15,19 @@ export type ErrorHandler =
 const APPLY_HANDLERS: Record<string, ApplyResultHandler> = {
   evidence: internal.domain.window.window_service.applyRequestResult,
   sample: internal.domain.runs.run_service.applyRequestResult,
-  sample_evidence: internal.domain.runs.run_service.applyRequestResult,
+  sample_score_target: internal.domain.runs.run_service.applyRequestResult,
 };
 
 const REQUEUE_HANDLERS: Record<string, RequeueHandler> = {
   evidence: internal.domain.window.window_service.requeueWindowRequest,
   sample: internal.domain.runs.run_service.requeueRunRequest,
-  sample_evidence: internal.domain.runs.run_service.requeueRunRequest,
+  sample_score_target: internal.domain.runs.run_service.requeueRunRequest,
 };
 
 const ERROR_HANDLERS: Record<string, ErrorHandler> = {
   evidence: internal.domain.window.window_service.handleRequestError,
   sample: internal.domain.runs.run_service.handleRequestError,
-  sample_evidence: internal.domain.runs.run_service.handleRequestError,
+  sample_score_target: internal.domain.runs.run_service.handleRequestError,
 };
 
 export function resolveApplyHandler(key: string): ApplyResultHandler | null {

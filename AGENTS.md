@@ -22,8 +22,21 @@ An open-source LLM-as-Judge design space engine. Turborepo monorepo with bun (en
 - Do not run `bun dev`, `npx convex dev`, or `uv run jupyter` unless explicitly instructed; assume they are already running.
 - Do not run `npx convex codegen` unless explicitly instructed.
 - Do not modify environment variables without explicit user approval.
-- After any Convex code or schema changes, run `bun run typecheck` (root) to validate TypeScript types.
+- After any Convex code or schema changes, run the full validation routine:
+  1. `bun run validate:convex` (root), or
+  2. `cd packages/engine && npx convex codegen`, then `bun run typecheck` (root).
+- Treat `npx convex codegen` + root `bun run typecheck` as one routine; do not stop after only one of them when schema/API shapes changed.
 - After changes, update `README.md` to reflect the current project state.
+
+## Commit Practice
+
+- Commit only after the validation routine passes or you have an explicit documented blocker.
+- Keep commits scoped to one coherent change set; avoid mixing unrelated cleanup with behavior changes.
+- Before committing, check `git status --short` and confirm generated noise is excluded (for example `*.tsbuildinfo`).
+- In the final task summary, state:
+  - what changed,
+  - what was validated,
+  - and any known remaining limitation.
 
 ## Live Debug Loop
 
@@ -150,10 +163,12 @@ Use this when a new Codex instance has zero prior context.
 - Raw window collection failures (for example Firecrawl quota exhaustion before any evidence rows exist) now mark the window `error` at `l0_raw` and emit `window_collection_failed`; `getStuckWork` also flags old `l0_raw` windows with no evidence and no active transport as `raw_collection_no_progress`.
 - `process_request_targets` now stores explicit target resolution (`pending`, `retryable`, `exhausted`, `succeeded`) plus attempt counters; treat it as current target truth, while `llm_requests` remains immutable attempt history.
 - `llm_requests` now stores `system_prompt_id` instead of inline system prompt text; inspect `llm_prompt_templates` to recover the canonical system prompt body for a request.
+- Run score fanout now lives in `sample_score_targets` / `sample_score_target_items`, and `scoring_config.evidence_grouping` explicitly chooses between `single_evidence` and `bundle`.
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - Scheduler liveness checks in codex now prefer `scheduler_locks` heartbeat state and only use a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` / `getStuckWork` usable after large history buildup.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.
+- `packages/lab:listRunScoreTargets` lists frozen score-target membership so operators can inspect bundle composition per run.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
 - `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded, and splits terminal failure classes (`error_summary`) from historical attempt noise (`historical_error_summary`).
 - `packages/codex:analyzeProcessTelemetry` and `packages/lab:getTraceEvents` summarize the capped local recent-events mirror only; use the returned `external_trace_ref` for full Axiom history.

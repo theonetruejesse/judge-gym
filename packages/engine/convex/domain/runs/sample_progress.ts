@@ -2,7 +2,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 
 type SampleProgressCtx = QueryCtx | MutationCtx;
-type SampleEvidenceScoreDoc = Doc<"sample_evidence_scores">;
+type SampleScoreTargetDoc = Doc<"sample_score_targets">;
 
 export type SampleScoreCounts = {
   score_count: number;
@@ -10,11 +10,11 @@ export type SampleScoreCounts = {
 };
 
 export function countSampleScoreCounts(
-  scoreUnits: SampleEvidenceScoreDoc[],
+  scoreTargets: SampleScoreTargetDoc[],
 ): SampleScoreCounts {
   return {
-    score_count: scoreUnits.filter((unit) => unit.score_id != null).length,
-    score_critic_count: scoreUnits.filter((unit) => unit.score_critic_id != null).length,
+    score_count: scoreTargets.filter((target) => target.score_id != null).length,
+    score_critic_count: scoreTargets.filter((target) => target.score_critic_id != null).length,
   };
 }
 
@@ -22,13 +22,13 @@ export async function getSampleScoreCounts(
   ctx: SampleProgressCtx,
   sampleId: Id<"samples">,
 ): Promise<SampleScoreCounts> {
-  const scoreUnits = await ctx.db
-    .query("sample_evidence_scores")
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
     .withIndex("by_sample", (q) => q.eq("sample_id", sampleId))
     .collect();
 
-  if (scoreUnits.length > 0) {
-    return countSampleScoreCounts(scoreUnits);
+  if (scoreTargets.length > 0) {
+    return countSampleScoreCounts(scoreTargets);
   }
 
   const [scores, scoreCritics] = await Promise.all([

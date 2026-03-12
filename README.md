@@ -16,6 +16,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 2. `nvm use 22.12.0`
 3. `nvm alias default 22.12.0`
 
+**Validation routine**
+
+- After Convex schema or function changes, run `bun run validate:convex` from the repo root.
+- That routine runs `npx convex codegen` in `packages/engine` and then the root TypeScript typecheck.
+
 **What exists today**
 
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
@@ -29,7 +34,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
 - Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
-- Samples now persist `score_count` and `score_critic_count` instead of legacy sample-level `score_id` / `score_critic_id`, so sample aggregation reflects the actual number of completed `sample_evidence_scores`.
+- Samples now persist `score_count` and `score_critic_count`, and score fanout is stored in generalized `sample_score_targets` / `sample_score_target_items` rows so both single-evidence and bundled-evidence runs share one scoring model.
 - `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
 - Ops now include a one-off `packages/codex:backfillRunCompletedCounts` mutation with dry-run + paging support to repair historical runs after the `completed_count` addition.
 - Ops now also include `packages/codex:backfillExperimentTotalCounts` to repair historical experiment aggregates after the `total_count` addition.
@@ -161,7 +166,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count`, `completed_count` |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count` |
-| `sample_evidence_scores` | Run score units (sample × evidence) | `run_id`, `sample_id`, `evidence_id`, `score_id`, `score_critic_id` |
+| `sample_score_targets` | Run score targets (single evidence or bundle) | `run_id`, `sample_id`, `target_mode`, `score_id`, `score_critic_id` |
+| `sample_score_target_items` | Evidence membership for each score target | `score_target_id`, `evidence_id`, `window_id`, `position` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
 **Indexes that drive orchestration**
@@ -191,11 +197,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_evidence_scores` for the Cartesian product of samples and pool evidence, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
+2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
-4. Score-stage requests are keyed by score-unit IDs (`sample_evidence:<id>:score_gen|score_critic`) so each sample is scored against every pool evidence item.
+4. Score-stage requests are keyed by score-target IDs (`sample_score_target:<id>:score_gen|score_critic`) so each sample can score either one evidence item or a frozen bundle of evidence items.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
-6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-evidence targets for score stages), while sample `score_count` / `score_critic_count`, run `completed_count`, and experiment `total_count` persist as score work finishes.
+6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-score-target targets for score stages), while sample `score_count` / `score_critic_count`, run `completed_count`, and experiment `total_count` persist as score work finishes.
 
 **Architecture overview**
 
@@ -246,7 +252,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 - `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
 - `RunOrchestrator.makeRequestKey` formats rubric-stage request keys as `sample:<sample_id>:<stage>`.
-- `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_evidence:<sample_evidence_score_id>:<stage>`.
+- `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_score_target:<sample_score_target_id>:<stage>`.
 
 **Process keys**
 
@@ -256,7 +262,7 @@ Custom keys are how LLM results route back into domain handlers.
 **Routing**
 
 - `target_registry` maps custom key prefixes to handlers.
-- `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_evidence` targets.
+- `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_score_target` targets.
 
 ---
 

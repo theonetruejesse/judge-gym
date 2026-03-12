@@ -63,6 +63,9 @@ async function setupExperiment(t: ConvexTestInstance) {
         abstain_enabled: true,
         evidence_view: "l0_raw",
         randomizations: [],
+        evidence_grouping: {
+          mode: "single_evidence",
+        },
       },
     },
     pool_id: pool.pool_id,
@@ -84,7 +87,7 @@ async function markRunArtifacts(
     if (!experiment) throw new Error("experiment_not_found");
 
     const samples = (await ctx.db.query("samples").collect()).filter((sample) => sample.run_id === run_id);
-    const scoreUnits = (await ctx.db.query("sample_evidence_scores").collect()).filter((unit) => unit.run_id === run_id);
+    const scoreTargets = (await ctx.db.query("sample_score_targets").collect()).filter((target) => target.run_id === run_id);
     const requests = (await ctx.db.query("llm_requests").collect()).filter((request) => request.run_id === run_id);
 
     const failedIds = new Set(samples.slice(0, failedSampleCount).map((sample) => String(sample._id)));
@@ -172,8 +175,8 @@ async function markRunArtifacts(
       });
     }
 
-    for (const unit of scoreUnits) {
-      if (failedIds.has(String(unit.sample_id))) {
+    for (const target of scoreTargets) {
+      if (failedIds.has(String(target.sample_id))) {
         continue;
       }
 
@@ -182,7 +185,7 @@ async function markRunArtifacts(
         {
           model: experiment.scoring_config.model,
           user_prompt: "score gen request",
-          custom_key: `sample_evidence:${unit._id}:score_gen`,
+          custom_key: `sample_score_target:${target._id}:score_gen`,
           attempt_index: 1,
         },
       );
@@ -195,9 +198,9 @@ async function markRunArtifacts(
       });
       const scoreId = await ctx.db.insert("scores", {
         run_id,
-        sample_id: unit.sample_id,
+        sample_id: target.sample_id,
+        score_target_id: target._id,
         model: experiment.scoring_config.model,
-        evidence_id: unit.evidence_id,
         llm_request_id: scoreRequestId,
         justification: "ok",
         decoded_scores: [1],
@@ -208,7 +211,7 @@ async function markRunArtifacts(
         {
           model: experiment.scoring_config.model,
           user_prompt: "score critic request",
-          custom_key: `sample_evidence:${unit._id}:score_critic`,
+          custom_key: `sample_score_target:${target._id}:score_critic`,
           attempt_index: 1,
         },
       );
@@ -221,25 +224,26 @@ async function markRunArtifacts(
       });
       const scoreCriticId = await ctx.db.insert("score_critics", {
         run_id,
-        sample_id: unit.sample_id,
+        sample_id: target.sample_id,
+        score_target_id: target._id,
         model: experiment.scoring_config.model,
         llm_request_id: scoreCriticRequestId,
         justification: "ok",
         expert_agreement_prob: 0.8,
       });
 
-      await ctx.db.patch(unit._id, {
+      await ctx.db.patch(target._id, {
         score_id: scoreId,
         score_critic_id: scoreCriticId,
       });
     }
 
     for (const sample of samples) {
-      const sampleUnits = scoreUnits.filter((unit) => unit.sample_id === sample._id);
-      const successfulUnits = sampleUnits.filter((unit) => !failedIds.has(String(unit.sample_id)));
+      const sampleTargets = scoreTargets.filter((target) => target.sample_id === sample._id);
+      const successfulTargets = sampleTargets.filter((target) => !failedIds.has(String(target.sample_id)));
       await ctx.db.patch(sample._id, {
-        score_count: successfulUnits.length,
-        score_critic_count: successfulUnits.length,
+        score_count: successfulTargets.length,
+        score_critic_count: successfulTargets.length,
       });
     }
 

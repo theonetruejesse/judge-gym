@@ -77,6 +77,9 @@ describe("run prompts", () => {
           abstain_enabled: true,
           evidence_view: "l2_neutralized",
           randomizations: [],
+          evidence_grouping: {
+            mode: "single_evidence",
+          },
         },
       },
       evidence: {

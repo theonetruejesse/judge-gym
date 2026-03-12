@@ -266,6 +266,32 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
+export const backfillExperimentEvidenceGrouping: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({}),
+  returns: z.object({
+    scanned: z.number(),
+    changed: z.number(),
+  }),
+  handler: async (ctx) => {
+    const experiments = await ctx.db.query("experiments").collect();
+    let changed = 0;
+    for (const experiment of experiments) {
+      if (experiment.scoring_config.evidence_grouping) continue;
+      await ctx.db.patch(experiment._id, {
+        scoring_config: {
+          ...experiment.scoring_config,
+          evidence_grouping: { mode: "single_evidence" },
+        },
+      });
+      changed += 1;
+    }
+    return {
+      scanned: experiments.length,
+      changed,
+    };
+  },
+});
+
 export const createPool: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     evidence_ids: z.array(zid("evidences")).min(1),
@@ -601,6 +627,62 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       },
       trace_id: `run:${run._id}`,
     };
+  },
+});
+
+export const listRunScoreTargets: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ run_id: zid("runs") }),
+  returns: z.array(z.object({
+    score_target_id: zid("sample_score_targets"),
+    sample_id: zid("samples"),
+    target_mode: z.enum(["single_evidence", "bundle"]),
+    score_id: zid("scores").nullable(),
+    score_critic_id: zid("score_critics").nullable(),
+    items: z.array(z.object({
+      evidence_id: zid("evidences"),
+      window_id: zid("windows"),
+      position: z.number(),
+      title: z.string(),
+      url: z.string(),
+    })),
+  })),
+  handler: async (ctx, { run_id }) => {
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+
+    const results = [];
+    for (const scoreTarget of scoreTargets) {
+      const items = await ctx.db
+        .query("sample_score_target_items")
+        .withIndex("by_score_target", (q) => q.eq("score_target_id", scoreTarget._id))
+        .collect();
+
+      const hydratedItems = [];
+      for (const item of items.slice().sort((a, b) => a.position - b.position)) {
+        const evidence = await ctx.db.get(item.evidence_id);
+        if (!evidence) continue;
+        hydratedItems.push({
+          evidence_id: evidence._id,
+          window_id: item.window_id,
+          position: item.position,
+          title: evidence.title,
+          url: evidence.url,
+        });
+      }
+
+      results.push({
+        score_target_id: scoreTarget._id,
+        sample_id: scoreTarget.sample_id,
+        target_mode: scoreTarget.target_mode,
+        score_id: scoreTarget.score_id,
+        score_critic_id: scoreTarget.score_critic_id,
+        items: hydratedItems,
+      });
+    }
+
+    return results;
   },
 });
 
