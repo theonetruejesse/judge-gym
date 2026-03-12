@@ -226,3 +226,4 @@ For every merged behavior change (orchestration, telemetry, retries, scheduling,
 4. Release gate
 
 - No change is considered complete until the docs above are updated or explicitly confirmed unchanged in the final task summary.
+- Git commit your changes with sensible organization and clear commit messages.
