@@ -127,6 +127,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - `domain/maintenance/danger:deleteRunData` rejects active runs by default (`start`, `queued`, `running`, `paused`).
 - To force deletion of an active run, pass `allow_active=true` explicitly (for emergency recovery only).
 - Prefer dry-run first and capture deletion counts before applying.
+- Use `domain/maintenance/danger:deleteExperimentRunData` when you want to wipe canary/full-run artifacts for one experiment without rebuilding windows, evidence, pools, or the experiment config row.
 
 ### Stuck finalizing batch
 

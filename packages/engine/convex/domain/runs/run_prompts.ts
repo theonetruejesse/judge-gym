@@ -274,7 +274,13 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
         [
           "Start your response by explaining step by step how you reached your conclusion, using only the information provided here.",
           ...scoringOutputContract,
-        ].join("\n"),
+          !config.scoring_config.abstain_enabled
+            ? "If none of the stronger stages are supported, use the weakest displayed rubric stage identifier as your fallback instead of leaving the verdict blank."
+            : null,
+          !config.scoring_config.abstain_enabled
+            ? "Example fallback final line: `VERDICT: <weakest displayed rubric stage identifier from the user prompt>`"
+            : null,
+        ].filter(Boolean).join("\n"),
       ),
     ].join("\n\n"),
     user_prompt: wrapXml("rubric_stages", displayedRubric.lines.join("\n")),

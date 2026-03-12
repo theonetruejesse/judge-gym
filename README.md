@@ -60,14 +60,16 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
+- Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving windows, pools, and the experiment config intact.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to run an Axiom ingest smoke test through Convex.
 - The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, local recent-event tailing, Axiom trace references, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
 - `getProcessHealth` now returns `request_state_meta` (`approximate`, scanned target count, snapshot freshness) so operators can detect when health is in bounded/approximate mode.
 - Run diagnostics now read run-scoped artifacts and requests via direct `run_id` indexes (`rubrics`, `rubric_critics`, `scores`, `score_critics`, `llm_requests`) instead of full-table artifact scans.
 - Run diagnostics now separate historical failed attempts from terminal failed targets, and include a short failed-output preview for run-scoped request forensics.
-- Score-critic prompts now receive decoded stage numbers/labels plus the model justification, instead of opaque score-stage tokens, so expert-agreement judgments operate on the actual model verdict.
+- Score-critic prompts now mirror the exact randomized rubric surface shown to `score_gen` (same identifiers, label hiding, and rubric order) instead of leaking decoded canonical stage labels back into the critic.
 - Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
+- Non-abstain score prompts now use an explicit forced-choice fallback: if no stronger stage is supported, the model must emit the weakest displayed stage identifier instead of `None`, blank verdicts, or other out-of-contract text.
 - System prompts are now deduplicated in `llm_prompt_templates`, and `llm_requests` stores `system_prompt_id` instead of duplicating raw system prompt text on each attempt row.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
 - Codex scheduler liveness checks now prefer `scheduler_locks` heartbeat state and use only a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` and `getStuckWork` stable after large scheduled-function history buildup.
