@@ -73,6 +73,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - System prompts are now deduplicated in `llm_prompt_templates`, and `llm_requests` stores `system_prompt_id` instead of duplicating raw system prompt text on each attempt row.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
 - Codex scheduler liveness checks now prefer `scheduler_locks` heartbeat state and use only a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` and `getStuckWork` stable after large scheduled-function history buildup.
+- Codex health/stuck surfaces now explicitly flag `retryable_no_transport` stalls when a stage has retryable targets, no pending replacements, and no active batch/job transport; the scheduler also auto-requeues those stranded retryables during normal ticks.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
@@ -158,8 +159,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
 | `llm_requests` | Individual LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
 | `process_request_targets` | Current per-target request snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
-| `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `next_run_at`, `last_error` |
-| `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempts`, `next_poll_at`, `last_error` |
+| `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `attempt_index`, `next_run_at`, `last_error` |
+| `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempt_index`, `attempts`, `next_poll_at`, `last_error` |
 | `process_observability` | Small per-process local observability mirror for the live loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
 | `scheduler_locks` | Dedicated scheduler heartbeat/lock rows | `lock_key`, `status`, `heartbeat_ts_ms`, `expires_at_ms` |
 
@@ -310,6 +311,7 @@ Custom keys are how LLM results route back into domain handlers.
 **Retry and backoff**
 
 - `max_request_attempts` and `retry_backoff_ms` are enforced in both batch and job paths.
+- Retryable requests that lose all active transport are requeued automatically by the scheduler; manual heal remains the fallback, not the primary recovery path.
 - `getNextAttemptAt` and `getNextRunAt` derive from `ENGINE_SETTINGS.run_policy`.
 
 ---
@@ -325,7 +327,7 @@ Custom keys are how LLM results route back into domain handlers.
 | `min_batch_size`          | `25`    | Minimum requests needed to batch                          | `BaseOrchestrator.decideRoute`         |
 | `max_tokens`              | `8000`  | Hard cap per request                                      | `llm_batch_service`, `llm_job_service` |
 | `max_batch_retries`       | `2`     | Batch re-poll/retry cap                                   | `llm_batch_service`                    |
-| `max_request_attempts`    | `2`     | Request retry cap                                         | `llm_batch_service`, `llm_job_service` |
+| `max_request_attempts`    | `3`     | Request retry cap                                         | `llm_batch_service`, `llm_job_service` |
 | `retry_backoff_ms`        | `60000` | Backoff before retry                                      | `utils/scheduling.ts`                  |
 | `job_request_concurrency` | `8`     | Max concurrent request executions per job processing tick | `llm_job_service`                      |
 

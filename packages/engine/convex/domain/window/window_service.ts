@@ -340,8 +340,10 @@ export const requeueWindowRequest = zInternalMutation({
       {
         request_id: request._id,
         patch: {
+          status: "pending",
           job_id: jobId,
           batch_id: null,
+          next_attempt_at: undefined,
         },
       },
     );

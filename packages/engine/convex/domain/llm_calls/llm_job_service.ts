@@ -9,7 +9,7 @@ import {
   resolveErrorHandler,
 } from "../orchestrator/target_registry";
 
-type MutationRunner = Pick<ActionCtx, "runMutation">;
+type MutationRunner = Pick<ActionCtx, "runMutation" | "runQuery">;
 type JobRunner = Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">;
 type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
 
@@ -39,11 +39,18 @@ interface MarkJobRunningArgs {
 
 export async function markJobRunning(args: MarkJobRunningArgs) {
   const { ctx, job_id } = args;
+  const job = await ctx.runQuery(
+    internal.domain.llm_calls.llm_job_repo.getJobWithRequests,
+    { job_id },
+  );
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
     {
       job_id,
-      patch: { status: "running" },
+      patch: {
+        status: "running",
+        attempt_index: job.job.attempt_index ?? 1,
+      },
     },
   );
 }
@@ -55,12 +62,17 @@ interface ScheduleJobRunArgs {
 }
 export async function scheduleJobRun(args: ScheduleJobRunArgs) {
   const { ctx, job_id, now } = args;
+  const job = await ctx.runQuery(
+    internal.domain.llm_calls.llm_job_repo.getJobWithRequests,
+    { job_id },
+  );
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
     {
       job_id,
       patch: {
         status: "running",
+        attempt_index: (job.job.attempt_index ?? 1) + 1,
         next_run_at: getNextRunAt(now),
       },
     },

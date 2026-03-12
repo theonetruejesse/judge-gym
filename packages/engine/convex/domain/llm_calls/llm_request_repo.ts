@@ -64,6 +64,14 @@ export function classifyRequestError(error: string | null | undefined): string {
   }
   if (value.includes("parse")) return "parse_error";
   if (value.includes("timeout")) return "timeout";
+  if (
+    value.includes("try again later")
+    || value.includes("temporarily unavailable")
+    || value.includes("couldn't be completed")
+    || value.includes("could not be completed")
+  ) {
+    return "temporary_unavailable";
+  }
   if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
   if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
     return "orchestrator_error";

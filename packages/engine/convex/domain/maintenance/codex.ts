@@ -10,7 +10,7 @@ import { SemanticLevelSchema } from "../../models/_shared";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 import { getExperimentTotalCount } from "../runs/experiment_progress";
 import { getSampleScoreCounts } from "../runs/sample_progress";
-import { getRunCompletedCount, getRunStageProgress } from "../runs/run_progress";
+import { getRunCompletedCount } from "../runs/run_progress";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
@@ -57,6 +57,10 @@ const HealthSummarySchema = z.object({
     no_progress_for_ms: z.number().nullable(),
     oldest_pending_request_age_ms: z.number().nullable(),
     scheduler_scheduled: z.boolean(),
+    recoverable_stage_stalls: z.array(z.object({
+      stage: z.string(),
+      retryable_targets: z.number(),
+    })),
   }),
   request_state_meta: RequestStateMetaSchema,
   error_summary: z.array(
@@ -101,6 +105,7 @@ const StuckReasonSchema = z.enum([
   "finalizing_no_progress",
   "pending_request_no_owner",
   "raw_collection_no_progress",
+  "retryable_no_transport",
   "stage_waiting_on_exhausted_requests",
   "scheduler_not_running",
 ]);
@@ -238,6 +243,10 @@ type StageProgressSummary = {
   terminalErrorClasses: string[];
   historicalErrorClasses: string[];
   oldestPendingTs: number | null;
+  recoverableStageStalls: Array<{
+    stage: string;
+    retryable_targets: number;
+  }>;
 };
 
 const RUN_STAGES: Array<z.infer<typeof RunStageSchema>> = [
@@ -422,10 +431,54 @@ function buildTargetStateIndex(
   return byKey;
 }
 
+function buildStageTransportIndex(
+  membership: ProcessMembership,
+  queuedBatches: Doc<"llm_batches">[],
+  runningBatches: Doc<"llm_batches">[],
+  queuedJobs: Doc<"llm_jobs">[],
+  runningJobs: Doc<"llm_jobs">[],
+) {
+  const transportByStage = new Map<string, number>();
+  const prefix = `${membership.process_type}:${membership.process_id}:`;
+  const addCustomKey = (customKey: string) => {
+    if (!customKey.startsWith(prefix)) return;
+    const stage = customKey.slice(prefix.length);
+    transportByStage.set(stage, (transportByStage.get(stage) ?? 0) + 1);
+  };
+
+  for (const row of queuedBatches) addCustomKey(row.custom_key);
+  for (const row of runningBatches) addCustomKey(row.custom_key);
+  for (const row of queuedJobs) addCustomKey(row.custom_key);
+  for (const row of runningJobs) addCustomKey(row.custom_key);
+
+  return transportByStage;
+}
+
+function buildRecoverableStageStalls(
+  stages: string[],
+  targetStates: Map<string, RequestTargetState>,
+  transportByStage: Map<string, number>,
+) {
+  return stages.flatMap((stage) => {
+    let retryableTargets = 0;
+    let pendingTargets = 0;
+    for (const row of targetStates.values()) {
+      if (row.stage !== stage) continue;
+      if (row.resolution === "retryable") retryableTargets += 1;
+      if (row.resolution === "pending") pendingTargets += 1;
+    }
+    if (retryableTargets === 0 || pendingTargets > 0 || (transportByStage.get(stage) ?? 0) > 0) {
+      return [];
+    }
+    return [{ stage, retryable_targets: retryableTargets }];
+  });
+}
+
 async function buildRunStageProgress(
   ctx: QueryCtx | MutationCtx,
   run_id: Id<"runs">,
   targetStates: Map<string, RequestTargetState>,
+  transportByStage: Map<string, number>,
 ): Promise<StageProgressSummary> {
   const pendingTimes: number[] = [];
   const terminalErrorClasses: string[] = [];
@@ -438,28 +491,32 @@ async function buildRunStageProgress(
     }
   }
 
-  const stageRows = await Promise.all(
-    RUN_STAGES.map(async (stage) => {
-      const progress = await getRunStageProgress(ctx, run_id, stage);
-      const targetTotal = progress?.total ?? 0;
-      const completed = progress?.completed ?? 0;
-      const failed = progress?.failed ?? 0;
-      const pending = Math.max(0, targetTotal - completed - failed);
-      return {
-        stage,
-        target_total: targetTotal,
-        completed,
-        pending,
-        failed,
-      };
-    }),
-  );
+  const stageRows = RUN_STAGES.map((stage) => {
+    const targetType = stage === "rubric_gen" || stage === "rubric_critic"
+      ? "sample"
+      : "sample_score_target";
+    const rows = [...targetStates.values()].filter((state) =>
+      state.stage === stage && state.target_type === targetType
+    );
+    const targetTotal = rows.length;
+    const completed = rows.filter((state) => state.resolution === "succeeded").length;
+    const failed = rows.filter((state) => state.resolution === "exhausted").length;
+    const pending = Math.max(0, targetTotal - completed - failed);
+    return {
+      stage,
+      target_total: targetTotal,
+      completed,
+      pending,
+      failed,
+    };
+  });
 
   return {
     progress: stageRows,
     terminalErrorClasses,
     historicalErrorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
+    recoverableStageStalls: buildRecoverableStageStalls(RUN_STAGES, targetStates, transportByStage),
   };
 }
 
@@ -467,6 +524,7 @@ async function buildWindowStageProgress(
   ctx: QueryCtx | MutationCtx,
   window_id: Id<"windows">,
   targetStates: Map<string, RequestTargetState>,
+  transportByStage: Map<string, number>,
 ): Promise<StageProgressSummary> {
   const evidences = await ctx.db
     .query("evidences")
@@ -516,6 +574,7 @@ async function buildWindowStageProgress(
     terminalErrorClasses,
     historicalErrorClasses,
     oldestPendingTs: pendingTimes.length > 0 ? Math.min(...pendingTimes) : null,
+    recoverableStageStalls: buildRecoverableStageStalls(WINDOW_STAGES, targetStates, transportByStage),
   };
 }
 
@@ -794,11 +853,18 @@ async function collectProcessHealth(
   const memberOrphans = orphanedRequests.filter((row: Doc<"llm_requests">) =>
     requestBelongsToMembership(membership, row),
   );
+  const transportByStage = buildStageTransportIndex(
+    membership,
+    queuedBatches,
+    runningBatches,
+    queuedJobs,
+    runningJobs,
+  );
 
   const stateByCustomKey = buildTargetStateIndex(stateRowsResult.rows);
   const stageSummary = membership.process_type === "run"
-    ? await buildRunStageProgress(ctx, membership.process_id as Id<"runs">, stateByCustomKey)
-    : await buildWindowStageProgress(ctx, membership.process_id as Id<"windows">, stateByCustomKey);
+    ? await buildRunStageProgress(ctx, membership.process_id as Id<"runs">, stateByCustomKey, transportByStage)
+    : await buildWindowStageProgress(ctx, membership.process_id as Id<"windows">, stateByCustomKey, transportByStage);
 
   const observability = await ctx.runQuery(
     internal.domain.telemetry.events.getProcessObservability,
@@ -858,6 +924,7 @@ async function collectProcessHealth(
       no_progress_for_ms: noProgressForMs,
       oldest_pending_request_age_ms: oldestPendingRequestAgeMs,
       scheduler_scheduled: schedulerScheduled,
+      recoverable_stage_stalls: stageSummary.recoverableStageStalls,
     },
     request_state_meta: {
       approximate: stateRowsResult.approximate,
@@ -1194,6 +1261,23 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         row.stage === health.current_stage,
       );
       if (!currentStage) continue;
+      const recoverableStall = health.stalled_signals.recoverable_stage_stalls
+        .find((row) => row.stage === health.current_stage);
+      if (
+        recoverableStall
+        && (health.stalled_signals.no_progress_for_ms ?? 0) >= args.older_than_ms
+      ) {
+        items.push({
+          process_type: "run",
+          process_id: String(run._id),
+          reason: "retryable_no_transport",
+          entity_type: "run",
+          entity_id: String(run._id),
+          custom_key: `run:${run._id}:${health.current_stage}`,
+          age_ms: health.stalled_signals.no_progress_for_ms,
+          details: `Current stage has ${recoverableStall.retryable_targets} retryable targets and no active transport`,
+        });
+      }
       if (currentStage.failed === 0 || currentStage.pending > 0) continue;
       items.push({
         process_type: "run",
@@ -1257,6 +1341,23 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         row.stage === health.current_stage,
       );
       if (!currentStage) continue;
+      const recoverableStall = health.stalled_signals.recoverable_stage_stalls
+        .find((row) => row.stage === health.current_stage);
+      if (
+        recoverableStall
+        && (health.stalled_signals.no_progress_for_ms ?? 0) >= args.older_than_ms
+      ) {
+        items.push({
+          process_type: "window",
+          process_id: String(window._id),
+          reason: "retryable_no_transport",
+          entity_type: "window",
+          entity_id: String(window._id),
+          custom_key: `window:${window._id}:${health.current_stage}`,
+          age_ms: health.stalled_signals.no_progress_for_ms,
+          details: `Current stage has ${recoverableStall.retryable_targets} retryable targets and no active transport`,
+        });
+      }
       if (currentStage.failed === 0 || currentStage.pending > 0) continue;
       items.push({
         process_type: "window",

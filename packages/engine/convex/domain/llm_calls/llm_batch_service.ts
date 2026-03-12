@@ -9,24 +9,14 @@ import {
   resolveApplyHandler,
   resolveErrorHandler,
 } from "../orchestrator/target_registry";
+import { classifyRequestError } from "./llm_request_repo";
 
 type MutationRunner = Pick<MutationCtx, "runMutation">;
 type ActionRunner = Pick<ActionCtx, "runAction" | "runQuery">;
 type RateLimitRunner = Parameters<typeof rateLimiter.limit>[0];
 
 function classifyError(error: string | null | undefined): string {
-  const value = String(error ?? "").toLowerCase();
-  if (!value) return "unknown";
-  if (value.includes("parse")) return "parse_error";
-  if (value.includes("timeout")) return "timeout";
-  if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
-  if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
-    return "orchestrator_error";
-  }
-  if (value.includes("provider") || value.includes("api") || value.includes("openai") || value.includes("5xx")) {
-    return "api_error";
-  }
-  return "unknown";
+  return classifyRequestError(error);
 }
 
 function isTerminalRequestError(error: string | null | undefined): boolean {
@@ -62,17 +52,18 @@ interface MarkBatchRunningArgs {
 }
 export async function markBatchRunning(args: MarkBatchRunningArgs) {
   const { ctx, batch, batch_ref, input_file_id } = args;
-  const attempts = (batch.attempts ?? 0) + 1;
+  const attemptIndex = batch.attempt_index ?? Math.max(1, batch.attempts ?? 1);
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
     {
       batch_id: batch._id,
       patch: {
         status: "running",
+        attempt_index: attemptIndex,
         batch_ref,
         input_file_id,
         next_poll_at: getNextRunAt(Date.now()),
-        attempts,
+        attempts: attemptIndex,
         poll_claim_owner: null,
         poll_claim_expires_at: null,
       },
@@ -151,11 +142,12 @@ interface HandleBatchErrorArgs {
 }
 export async function handleBatchError(args: HandleBatchErrorArgs) {
   const { ctx, batch, requests, error } = args;
-  const attempts = (batch.attempts ?? 0) + 1;
+  const currentAttemptIndex = batch.attempt_index ?? Math.max(1, batch.attempts ?? 1);
   const forceTerminal = String(error).toLowerCase().includes("terminal:")
     || isTerminalRequestError(error);
-  if (!forceTerminal && attempts <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
+  if (!forceTerminal && currentAttemptIndex <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
     const retryRequestIds: Id<"llm_requests">[] = [];
+    const nextAttemptIndex = currentAttemptIndex + 1;
     await ctx.runMutation(
       internal.domain.llm_calls.llm_batch_repo.patchBatch,
       {
@@ -166,7 +158,8 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
           input_file_id: undefined,
           submission_id: undefined,
           submitting_at: undefined,
-          attempts,
+          attempt_index: nextAttemptIndex,
+          attempts: nextAttemptIndex,
           last_error: error,
           next_poll_at: getNextRunAt(Date.now()),
           poll_claim_owner: null,
