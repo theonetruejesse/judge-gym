@@ -15,6 +15,7 @@ export const LlmBatchesTableSchema = z.object({
   provider: providerTypeSchema,
   model: modelTypeSchema,
   status: ProcessStatusSchema,
+  attempt_index: z.number().int().positive().optional(),
   batch_ref: z.string().optional(),
   input_file_id: z.string().optional(),
   submission_id: z.string().optional(),
@@ -32,6 +33,7 @@ export const LlmJobsTableSchema = z.object({
   provider: providerTypeSchema,
   model: modelTypeSchema,
   status: ProcessStatusSchema,
+  attempt_index: z.number().int().positive().optional(),
   // for decoding windows/runs
   custom_key: z.string(),
   next_run_at: z.number().optional(),

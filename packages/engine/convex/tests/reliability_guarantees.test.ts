@@ -2,11 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import { normalizeOpenAiBatchStatus } from "../platform/providers/openai_batch";
 import { __findMockBatchByMetadata, __resetMockProviders, __setMockSubmitMode, __submitMockBatch } from "./provider_services_mock";
 import { handleQueuedBatchWorkflow, handleRunningBatchWorkflow } from "../domain/orchestrator/process_workflows";
+import { markJobRunning, scheduleJobRun } from "../domain/llm_calls/llm_job_service";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
@@ -114,6 +115,97 @@ describe("reliability guarantees", () => {
     }
   });
 
+  test("scheduler auto-recovers retryable requests with no transport", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-12T12:00:00.000Z"));
+      __resetMockProviders();
+      const t = initTest();
+
+      const { window_id } = await t.mutation(
+        internal.domain.window.window_repo.createWindow,
+        {
+          country: "USA",
+          model: "gpt-4.1-mini",
+          start_date: "2026-03-01",
+          end_date: "2026-03-02",
+          query: "scheduler retryable recovery test",
+        },
+      );
+
+      await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
+        window_id,
+        evidences: [
+          {
+            title: "Retryable evidence",
+            url: "https://example.com/retryable-evidence",
+            raw_content: "A short evidence paragraph about policy.",
+          },
+        ],
+      });
+
+      await t.mutation(internal.domain.window.window_service.startWindowOrchestration, {
+        window_id,
+      });
+
+      const [evidence] = await t.query(
+        internal.domain.window.window_repo.listEvidenceByWindow,
+        { window_id },
+      );
+      expect(evidence).not.toBeNull();
+
+      const customKey = `evidence:${evidence!._id}:l1_cleaned`;
+      const originalRequest = await t.run(async (ctx) => {
+        const requests = await ctx.db.query("llm_requests").collect();
+        return requests.find((request) => request.custom_key === customKey) ?? null;
+      });
+      expect(originalRequest).not.toBeNull();
+      expect(originalRequest!.job_id).not.toBeNull();
+
+      await t.mutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: originalRequest!._id,
+        patch: {
+          status: "error",
+          last_error: "Your request couldn't be completed. Try again later.",
+          job_id: null,
+          batch_id: null,
+          next_attempt_at: Date.now() - 1,
+        },
+      });
+
+      await t.mutation(internal.domain.llm_calls.llm_job_repo.patchJob, {
+        job_id: originalRequest!.job_id!,
+        patch: {
+          status: "error",
+          next_run_at: undefined,
+          run_claim_owner: null,
+          run_claim_expires_at: null,
+        },
+      });
+
+      vi.advanceTimersByTime(5);
+
+      const stuck = await t.query(api.packages.codex.getStuckWork, {
+        process_type: "window",
+        older_than_ms: 1,
+        limit: 20,
+      });
+      expect(stuck.items.some((item: { reason: string }) => item.reason === "retryable_no_transport")).toBe(true);
+
+      const result = await t.mutation(internal.domain.orchestrator.scheduler.runScheduler, {});
+      expect(result).toMatchObject({ recovered_retryable_requests: 1 });
+
+      const targetState = await t.run(async (ctx) => {
+        const rows = await ctx.db.query("process_request_targets").collect();
+        return rows.find((row) => row.custom_key === customKey) ?? null;
+      });
+      expect(targetState?.resolution).toBe("pending");
+      expect(targetState?.active_request_id).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("startScheduler debounces repeated kickoff requests", async () => {
     vi.useFakeTimers();
     try {
@@ -134,6 +226,69 @@ describe("reliability guarantees", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("batch and job attempt_index track retry progression", async () => {
+    const t = initTest();
+
+    const batch_id = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        custom_key: "run:test:rubric_critic",
+      },
+    );
+
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+      batch_id,
+      patch: {
+        poll_claim_owner: "owner",
+        poll_claim_expires_at: Date.now() + 10_000,
+      },
+    });
+
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.markBatchSubmitting, {
+      batch_id,
+      owner: "owner",
+      now: Date.now(),
+      lease_ms: 10_000,
+      submission_id: "sub_1",
+    });
+
+    const batchAfterSubmit = await t.run(async (ctx) => ctx.db.get(batch_id));
+    expect(batchAfterSubmit?.attempt_index).toBe(1);
+    expect(batchAfterSubmit?.attempts).toBe(1);
+
+    const job_id = await t.mutation(
+      internal.domain.llm_calls.llm_job_repo.createLlmJob,
+      {
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        custom_key: "run:test:rubric_gen",
+      },
+    );
+
+    await markJobRunning({
+      ctx: {
+        runMutation: t.mutation,
+        runQuery: t.query,
+      } as never,
+      job_id,
+    });
+    const jobAfterFirstRun = await t.run(async (ctx) => ctx.db.get(job_id));
+    expect(jobAfterFirstRun?.attempt_index).toBe(1);
+
+    await scheduleJobRun({
+      ctx: {
+        runMutation: t.mutation,
+        runQuery: t.query,
+      } as never,
+      job_id,
+      now: Date.now(),
+    });
+    const jobAfterRetry = await t.run(async (ctx) => ctx.db.get(job_id));
+    expect(jobAfterRetry?.attempt_index).toBe(2);
   });
 
 

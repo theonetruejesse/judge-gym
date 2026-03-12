@@ -1,6 +1,6 @@
 import z from "zod";
 import { internal } from "../../_generated/api";
-import type { Doc } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { zInternalMutation } from "../../utils/custom_fns";
 import { ENGINE_SETTINGS } from "../../settings";
@@ -19,6 +19,7 @@ const MAX_RUNNING_BATCHES_PER_TICK = 20;
 const MAX_QUEUED_JOBS_PER_TICK = 20;
 const MAX_RUNNING_JOBS_PER_TICK = 30;
 const MAX_ORPHANED_REQUESTS_PER_TICK = 30;
+const MAX_RETRYABLE_RECOVERIES_PER_TICK = 40;
 const SCHEDULER_SCAN_MULTIPLIER = 3;
 const SCHEDULED_SCAN_MAX_ROWS = 2_000;
 
@@ -82,6 +83,125 @@ async function listSchedulerLocks(
     .withIndex("by_lock_key", (q) => q.eq("lock_key", SCHEDULER_LOCK_ENTITY_ID))
     .take(8);
   return rows.sort((left, right) => left._creationTime - right._creationTime);
+}
+
+type RetryableStageRecovery = {
+  processType: "run" | "window";
+  processId: string;
+  stage: string;
+  requests: Id<"llm_requests">[];
+};
+
+async function hasActiveTransportForProcessStage(
+  ctx: MutationCtx,
+  processType: "run" | "window",
+  processId: string,
+  stage: string,
+): Promise<boolean> {
+  const customKey = `${processType}:${processId}:${stage}`;
+  const [
+    queuedBatch,
+    submittingBatch,
+    runningBatch,
+    finalizingBatch,
+    queuedJob,
+    runningJob,
+  ] = await Promise.all([
+    ctx.db.query("llm_batches").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "queued")).first(),
+    ctx.db.query("llm_batches").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "submitting")).first(),
+    ctx.db.query("llm_batches").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "running")).first(),
+    ctx.db.query("llm_batches").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "finalizing")).first(),
+    ctx.db.query("llm_jobs").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "queued")).first(),
+    ctx.db.query("llm_jobs").withIndex("by_custom_key_status", (q) => q.eq("custom_key", customKey).eq("status", "running")).first(),
+  ]);
+
+  return Boolean(
+    queuedBatch
+    || submittingBatch
+    || runningBatch
+    || finalizingBatch
+    || queuedJob
+    || runningJob
+  );
+}
+
+async function listRetryableRecoveryCandidates(
+  ctx: MutationCtx,
+  now: number,
+): Promise<RetryableStageRecovery[]> {
+  const rows = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_resolution", (q) => q.eq("resolution", "retryable"))
+    .take(MAX_RETRYABLE_RECOVERIES_PER_TICK * SCHEDULER_SCAN_MULTIPLIER) as Doc<"process_request_targets">[];
+
+  const grouped = new Map<string, RetryableStageRecovery>();
+  for (const row of rows) {
+    if (!row.latest_error_request_id) continue;
+    const stageKey = `${row.process_type}:${row.process_id}:${row.stage}`;
+    const existing = grouped.get(stageKey) ?? {
+      processType: row.process_type,
+      processId: row.process_id,
+      stage: row.stage,
+      requests: [],
+    };
+    existing.requests.push(row.latest_error_request_id);
+    grouped.set(stageKey, existing);
+  }
+
+  const recoveries: RetryableStageRecovery[] = [];
+  for (const candidate of grouped.values()) {
+    const stageStates = await ctx.db
+      .query("process_request_targets")
+      .withIndex("by_process_stage", (q) =>
+        q.eq("process_type", candidate.processType).eq("process_id", candidate.processId).eq("stage", candidate.stage),
+      )
+      .collect();
+
+    if (stageStates.some((row) => row.resolution === "pending")) {
+      continue;
+    }
+
+    const hasTransport = await hasActiveTransportForProcessStage(
+      ctx,
+      candidate.processType,
+      candidate.processId,
+      candidate.stage,
+    );
+    if (hasTransport) {
+      continue;
+    }
+
+    const dedupedRequests: Id<"llm_requests">[] = [];
+    for (const requestId of candidate.requests) {
+      const request = await ctx.db.get(requestId);
+      if (!request || request.status !== "error") continue;
+      if ((request.attempt_index ?? 1) >= ENGINE_SETTINGS.run_policy.max_request_attempts) {
+        continue;
+      }
+      if (!shouldRunAt(request.next_attempt_at, now)) continue;
+      const pendingReplacement = await ctx.db
+        .query("llm_requests")
+        .withIndex("by_custom_key_status", (q) =>
+          q.eq("custom_key", request.custom_key).eq("status", "pending"),
+        )
+        .first();
+      if (pendingReplacement) continue;
+      dedupedRequests.push(request._id);
+      if (dedupedRequests.length >= MAX_RETRYABLE_RECOVERIES_PER_TICK) break;
+    }
+
+    if (dedupedRequests.length > 0) {
+      recoveries.push({
+        ...candidate,
+        requests: dedupedRequests,
+      });
+    }
+    if (recoveries.reduce((sum, item) => sum + item.requests.length, 0) >= MAX_RETRYABLE_RECOVERIES_PER_TICK) {
+      break;
+    }
+  }
+
+  return recoveries;
 }
 
 async function tryAcquireSchedulerLock(
@@ -218,13 +338,15 @@ export const runScheduler = zInternalMutation({
         internal.domain.llm_calls.llm_request_repo.listOrphanedRequests,
         { limit: MAX_ORPHANED_REQUESTS_PER_TICK * SCHEDULER_SCAN_MULTIPLIER },
       )) as Doc<"llm_requests">[];
+      const retryableRecoveries = await listRetryableRecoveryCandidates(ctx, now);
 
       if (
         queued_batches.length === 0 &&
         running_batches.length === 0 &&
         queued_jobs.length === 0 &&
         running_jobs.length === 0 &&
-        orphanedRequests.length === 0
+        orphanedRequests.length === 0 &&
+        retryableRecoveries.length === 0
       ) {
         return { done: true };
       }
@@ -292,6 +414,33 @@ export const runScheduler = zInternalMutation({
         requeuedOrphanedRequests += 1;
       }
 
+      let recoveredRetryableRequests = 0;
+      for (const recovery of retryableRecoveries) {
+        if (recoveredRetryableRequests >= MAX_RETRYABLE_RECOVERIES_PER_TICK) break;
+        const requestIds = recovery.requests.slice(
+          0,
+          Math.max(0, MAX_RETRYABLE_RECOVERIES_PER_TICK - recoveredRetryableRequests),
+        );
+        for (const requestId of requestIds) {
+          await ctx.runMutation(internal.domain.orchestrator.scheduler.requeueRequest, {
+            request_id: requestId,
+          });
+          recoveredRetryableRequests += 1;
+        }
+        await emitTraceEvent(ctx, {
+          trace_id: `${recovery.processType}:${recovery.processId}`,
+          entity_type: recovery.processType,
+          entity_id: recovery.processId,
+          event_name: "scheduler_retryable_stage_recovered",
+          stage: recovery.stage,
+          status: "running",
+          custom_key: `${recovery.processType}:${recovery.processId}:${recovery.stage}`,
+          payload_json: JSON.stringify({
+            recovered_requests: requestIds.length,
+          }),
+        });
+      }
+
       await ctx.scheduler.runAfter(
         ENGINE_SETTINGS.run_policy.poll_interval_ms,
         internal.domain.orchestrator.scheduler.runScheduler,
@@ -309,6 +458,7 @@ export const runScheduler = zInternalMutation({
         processed_queued_jobs: processedQueuedJobs,
         processed_running_jobs: processedRunningJobs,
         requeued_orphaned_requests: requeuedOrphanedRequests,
+        recovered_retryable_requests: recoveredRetryableRequests,
       };
 
       await emitTraceEvent(ctx, {

@@ -50,6 +50,7 @@ export default defineSchema({
   process_request_targets: defineTable(zodOutputToConvex(ProcessRequestTargetStateTableSchema))
     .index("by_process", ["process_type", "process_id"])
     .index("by_process_stage", ["process_type", "process_id", "stage"])
+    .index("by_resolution", ["resolution"])
     .index("by_custom_key", ["custom_key"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))

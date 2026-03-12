@@ -26,6 +26,7 @@ import { emitTraceEvent } from "../telemetry/emit";
 import { internal } from "../../_generated/api";
 import { zInternalAction } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
+import { classifyRequestError } from "../llm_calls/llm_request_repo";
 
 const BATCH_POLL_LEASE_MS = 300_000;
 const JOB_RUN_LEASE_MS = 300_000;
@@ -109,18 +110,7 @@ async function reconcileProcessStageAfterTransportFinalized(
 }
 
 function classifyError(error: unknown): string {
-  const value = String(error ?? "").toLowerCase();
-  if (!value) return "unknown";
-  if (value.includes("parse")) return "parse_error";
-  if (value.includes("too many bytes read") || value.includes("convex") || value.includes("orchestrator")) {
-    return "orchestrator_error";
-  }
-  if (value.includes("timeout")) return "timeout";
-  if (value.includes("rate limit") || value.includes("429")) return "rate_limit";
-  if (value.includes("provider") || value.includes("api") || value.includes("openai") || value.includes("5xx")) {
-    return "api_error";
-  }
-  return "unknown";
+  return classifyRequestError(String(error ?? ""));
 }
 
 function isTerminalApplyError(error: unknown): boolean {

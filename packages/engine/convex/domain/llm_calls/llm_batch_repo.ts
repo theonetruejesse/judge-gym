@@ -17,6 +17,7 @@ export const createLlmBatch = zInternalMutation({
     return ctx.db.insert("llm_batches", {
       ...args,
       status: "queued",
+      attempts: 0,
     });
   },
 });
@@ -156,6 +157,8 @@ export const markBatchSubmitting = zInternalMutation({
     if (batch.poll_claim_owner !== args.owner) return { ok: false };
     await ctx.db.patch(args.batch_id, {
       status: "submitting",
+      attempt_index: batch.attempt_index ?? 1,
+      attempts: Math.max(batch.attempts ?? 0, batch.attempt_index ?? 1),
       submission_id: batch.submission_id ?? args.submission_id,
       submitting_at: batch.submitting_at ?? args.now,
       next_poll_at: args.now,
