@@ -197,12 +197,12 @@ type ProcessMembership = {
   status: string;
   current_stage: string;
   sampleIds: Set<string>;
-  scoreUnitIds: Set<string>;
+  scoreTargetIds: Set<string>;
   evidenceIds: Set<string>;
 };
 
 type RequestTargetState = {
-  target_type: "sample" | "sample_evidence" | "evidence";
+  target_type: "sample" | "sample_score_target" | "evidence";
   target_id: string;
   stage: string;
   custom_key: string;
@@ -316,8 +316,8 @@ async function buildMembership(
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .take(PROCESS_MEMBERSHIP_SCAN_MAX_ROWS);
-    const scoreUnits = await ctx.db
-      .query("sample_evidence_scores")
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
       .withIndex("by_run", (q) => q.eq("run_id", run._id))
       .take(PROCESS_MEMBERSHIP_SCAN_MAX_ROWS);
 
@@ -328,7 +328,7 @@ async function buildMembership(
       status: run.status,
       current_stage: run.current_stage,
       sampleIds: new Set(samples.map((row) => String(row._id))),
-      scoreUnitIds: new Set(scoreUnits.map((row) => String(row._id))),
+      scoreTargetIds: new Set(scoreTargets.map((row) => String(row._id))),
       evidenceIds: new Set(),
     };
   }
@@ -346,7 +346,7 @@ async function buildMembership(
     status: window.status,
     current_stage: window.current_stage,
     sampleIds: new Set(),
-    scoreUnitIds: new Set(),
+    scoreTargetIds: new Set(),
     evidenceIds: new Set(evidences.map((row) => String(row._id))),
   };
 }
@@ -541,8 +541,8 @@ function requestBelongsToMembership(
     if (parsed.targetType === "sample") {
       return membership.sampleIds.has(parsed.targetId);
     }
-    if (parsed.targetType === "sample_evidence") {
-      return membership.scoreUnitIds.has(parsed.targetId);
+    if (parsed.targetType === "sample_score_target") {
+      return membership.scoreTargetIds.has(parsed.targetId);
     }
     return false;
   }
@@ -1123,11 +1123,11 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
           processId = String(sample.run_id);
         }
       }
-      if (parsedKey.targetType === "sample_evidence") {
-        const scoreUnit = await ctx.db.get(parsedKey.targetId as Id<"sample_evidence_scores">);
-        if (scoreUnit) {
+      if (parsedKey.targetType === "sample_score_target") {
+        const scoreTarget = await ctx.db.get(parsedKey.targetId as Id<"sample_score_targets">);
+        if (scoreTarget) {
           processType = "run";
-          processId = String(scoreUnit.run_id);
+          processId = String(scoreTarget.run_id);
         }
       }
       if (parsedKey.targetType === "evidence") {

@@ -22,7 +22,8 @@ import {
   RubricCriticsTableSchema,
   ScoresTableSchema,
   ScoreCriticsTableSchema,
-  SampleEvidenceScoresTableSchema,
+  SampleScoreTargetsTableSchema,
+  SampleScoreTargetItemsTableSchema,
 } from "./models/samples";
 import {
   ProcessObservabilityTableSchema,
@@ -79,17 +80,21 @@ export default defineSchema({
     .index("by_run", ["run_id"]),
   scores: defineTable(zodOutputToConvex(ScoresTableSchema))
     .index("by_sample", ["sample_id"])
-    .index("by_run", ["run_id"]),
+    .index("by_run", ["run_id"])
+    .index("by_score_target", ["score_target_id"]),
   score_critics: defineTable(zodOutputToConvex(ScoreCriticsTableSchema))
     .index("by_sample", ["sample_id"])
-    .index("by_run", ["run_id"]),
-  sample_evidence_scores: defineTable(zodOutputToConvex(SampleEvidenceScoresTableSchema))
+    .index("by_run", ["run_id"])
+    .index("by_score_target", ["score_target_id"]),
+  sample_score_targets: defineTable(zodOutputToConvex(SampleScoreTargetsTableSchema))
     .index("by_run", ["run_id"])
     .index("by_sample", ["sample_id"])
-    .index("by_evidence", ["evidence_id"])
     .index("by_score_id", ["score_id"])
-    .index("by_score_critic_id", ["score_critic_id"])
-    .index("by_sample_evidence", ["sample_id", "evidence_id"]),
+    .index("by_score_critic_id", ["score_critic_id"]),
+  sample_score_target_items: defineTable(zodOutputToConvex(SampleScoreTargetItemsTableSchema))
+    .index("by_score_target", ["score_target_id"])
+    .index("by_evidence", ["evidence_id"])
+    .index("by_window", ["window_id"]),
   process_observability: defineTable(zodOutputToConvex(ProcessObservabilityTableSchema))
     .index("by_process", ["process_type", "process_id"])
     .index("by_trace", ["trace_id"])

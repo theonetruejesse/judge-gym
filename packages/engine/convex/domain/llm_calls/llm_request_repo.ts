@@ -29,7 +29,7 @@ function hashPromptContent(content: string): string {
 }
 
 type ParsedRequestCustomKey = {
-  target_type: "sample" | "sample_evidence" | "evidence";
+  target_type: "sample" | "sample_score_target" | "evidence";
   target_id: string;
   stage: string;
 };
@@ -42,7 +42,7 @@ type ResolvedProcessRef = {
 function parseRequestCustomKey(customKey: string): ParsedRequestCustomKey | null {
   const [targetType, targetId, stage] = customKey.split(":");
   if (!targetId || !stage) return null;
-  if (targetType !== "sample" && targetType !== "sample_evidence" && targetType !== "evidence") {
+  if (targetType !== "sample" && targetType !== "sample_score_target" && targetType !== "evidence") {
     return null;
   }
   return {
@@ -86,12 +86,12 @@ async function resolveProcessForTarget(
       process_id: String(sample.run_id),
     };
   }
-  if (parsed.target_type === "sample_evidence") {
-    const scoreUnit = await ctx.db.get(parsed.target_id as Id<"sample_evidence_scores">);
-    if (!scoreUnit) return null;
+  if (parsed.target_type === "sample_score_target") {
+    const scoreTarget = await ctx.db.get(parsed.target_id as Id<"sample_score_targets">);
+    if (!scoreTarget) return null;
     return {
       process_type: "run",
-      process_id: String(scoreUnit.run_id),
+      process_id: String(scoreTarget.run_id),
     };
   }
   const evidence = await ctx.db.get(parsed.target_id as Id<"evidences">);

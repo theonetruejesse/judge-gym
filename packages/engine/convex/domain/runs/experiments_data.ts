@@ -38,12 +38,12 @@ function latestRun(runs: Array<Doc<"runs">>) {
 
 function sumSampleScoreCount(
   samples: Array<Doc<"samples">>,
-  scoreUnits: Array<Doc<"sample_evidence_scores">>,
+  scoreTargets: Array<Doc<"sample_score_targets">>,
   field: "score_count" | "score_critic_count",
   unitField: "score_id" | "score_critic_id",
 ) {
-  if (scoreUnits.length > 0) {
-    return scoreUnits.filter((unit) => unit[unitField] != null).length;
+  if (scoreTargets.length > 0) {
+    return scoreTargets.filter((target) => target[unitField] != null).length;
   }
   return samples.reduce((sum, sample) => sum + (sample[field] ?? 0), 0);
 }
@@ -51,22 +51,21 @@ function sumSampleScoreCount(
 async function latestRunHasFailures(
   ctx: QueryCtx,
   run: Doc<"runs">,
-  evidenceCount: number,
 ): Promise<{ hasFailures: boolean; completedCount: number }> {
   if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
-    const [samples, scoreUnits] = await Promise.all([
+    const [samples, scoreTargets] = await Promise.all([
       ctx.db
         .query("samples")
         .withIndex("by_run", (q) => q.eq("run_id", run._id))
         .collect(),
       ctx.db
-        .query("sample_evidence_scores")
+        .query("sample_score_targets")
         .withIndex("by_run", (q) => q.eq("run_id", run._id))
         .collect(),
     ]);
     const completedCount = typeof run.completed_count === "number"
       ? run.completed_count
-      : countCompletedSamples(samples, scoreUnits);
+      : countCompletedSamples(samples, scoreTargets);
 
     if (samples.length < run.target_count) {
       return { hasFailures: true, completedCount };
@@ -75,14 +74,10 @@ async function latestRunHasFailures(
       return { hasFailures: true, completedCount };
     }
 
-    if (scoreUnits.length > 0) {
-      const expectedScoreUnits = samples.length * evidenceCount;
-      if (scoreUnits.length < expectedScoreUnits) {
-        return { hasFailures: true, completedCount };
-      }
+    if (scoreTargets.length > 0) {
       return {
-        hasFailures: scoreUnits.some(
-          (unit) => unit.score_id == null || unit.score_critic_id == null,
+        hasFailures: scoreTargets.some(
+          (target) => target.score_id == null || target.score_critic_id == null,
         ),
         completedCount,
       };
@@ -184,7 +179,7 @@ export const listExperiments = zInternalQuery({
         ? experiment.total_count
         : await getExperimentTotalCount(ctx, experiment._id);
       const latestRunState = latest
-        ? await latestRunHasFailures(ctx, latest, links.length)
+        ? await latestRunHasFailures(ctx, latest)
         : { hasFailures: false, completedCount: 0 };
 
       results.push({
@@ -230,17 +225,17 @@ export const getExperimentSummary = zInternalQuery({
     const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
     const runArtifacts = await Promise.all(
       runs.map(async (run) => {
-        const [samples, scoreUnits] = await Promise.all([
+        const [samples, scoreTargets] = await Promise.all([
           ctx.db
             .query("samples")
             .withIndex("by_run", (q) => q.eq("run_id", run._id))
             .collect(),
           ctx.db
-            .query("sample_evidence_scores")
+            .query("sample_score_targets")
             .withIndex("by_run", (q) => q.eq("run_id", run._id))
             .collect(),
         ]);
-        return { run, samples, scoreUnits };
+        return { run, samples, scoreTargets };
       }),
     );
 
@@ -257,7 +252,7 @@ export const getExperimentSummary = zInternalQuery({
       scores: runArtifacts.reduce((sum, artifact) => {
         return sum + sumSampleScoreCount(
           artifact.samples,
-          artifact.scoreUnits,
+          artifact.scoreTargets,
           "score_count",
           "score_id",
         );
@@ -265,7 +260,7 @@ export const getExperimentSummary = zInternalQuery({
       score_critics: runArtifacts.reduce((sum, artifact) => {
         return sum + sumSampleScoreCount(
           artifact.samples,
-          artifact.scoreUnits,
+          artifact.scoreTargets,
           "score_critic_count",
           "score_critic_id",
         );
@@ -277,7 +272,7 @@ export const getExperimentSummary = zInternalQuery({
       ? experiment.total_count
       : await getExperimentTotalCount(ctx, experiment._id);
     const latestRunState = latest
-      ? await latestRunHasFailures(ctx, latest, links.length)
+      ? await latestRunHasFailures(ctx, latest)
       : { hasFailures: false, completedCount: 0 };
 
     return {

@@ -22,7 +22,8 @@ const tableNames = [
   "rubric_critics",
   "scores",
   "score_critics",
-  "sample_evidence_scores",
+  "sample_score_targets",
+  "sample_score_target_items",
 ] as const satisfies ReadonlyArray<keyof DataModel>;
 
 type TableName = (typeof tableNames)[number];
@@ -149,12 +150,13 @@ export const deleteRunData = zInternalMutation({
     isDryRun: z.boolean(),
     run_id: zid("runs"),
     trace_id: z.string(),
-    deleted: z.object({
-      runs: z.number(),
-      samples: z.number(),
-      sample_evidence_scores: z.number(),
-      rubrics: z.number(),
-      rubric_critics: z.number(),
+      deleted: z.object({
+        runs: z.number(),
+        samples: z.number(),
+        sample_score_targets: z.number(),
+        sample_score_target_items: z.number(),
+        rubrics: z.number(),
+        rubric_critics: z.number(),
       scores: z.number(),
       score_critics: z.number(),
       llm_batches: z.number(),
@@ -177,7 +179,8 @@ export const deleteRunData = zInternalMutation({
         deleted: {
           runs: 0,
           samples: 0,
-          sample_evidence_scores: 0,
+          sample_score_targets: 0,
+          sample_score_target_items: 0,
           rubrics: 0,
           rubric_critics: 0,
           scores: 0,
@@ -206,7 +209,8 @@ export const deleteRunData = zInternalMutation({
 
     const [
       samples,
-      scoreUnits,
+      scoreTargets,
+      scoreTargetItems,
       rubrics,
       rubricCritics,
       scores,
@@ -218,7 +222,8 @@ export const deleteRunData = zInternalMutation({
       allJobs,
     ] = await Promise.all([
       ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
-      ctx.db.query("sample_evidence_scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
+      ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
+      ctx.db.query("sample_score_target_items").collect(),
       ctx.db.query("rubrics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
       ctx.db.query("rubric_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
       ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).collect(),
@@ -243,7 +248,8 @@ export const deleteRunData = zInternalMutation({
         ...scores,
         ...rubricCritics,
         ...rubrics,
-        ...scoreUnits,
+        ...scoreTargetItems.filter((item) => scoreTargets.some((target) => target._id === item.score_target_id)),
+        ...scoreTargets,
         ...samples,
         ...runRequests,
         ...runBatches,
@@ -264,7 +270,10 @@ export const deleteRunData = zInternalMutation({
       deleted: {
         runs: 1,
         samples: samples.length,
-        sample_evidence_scores: scoreUnits.length,
+        sample_score_targets: scoreTargets.length,
+        sample_score_target_items: scoreTargetItems.filter((item) =>
+          scoreTargets.some((target) => target._id === item.score_target_id),
+        ).length,
         rubrics: rubrics.length,
         rubric_critics: rubricCritics.length,
         scores: scores.length,

@@ -4,7 +4,7 @@ import { type RunStage } from "../../models/experiments";
 
 type RunProgressCtx = QueryCtx | MutationCtx;
 type SampleDoc = Doc<"samples">;
-type SampleEvidenceScoreDoc = Doc<"sample_evidence_scores">;
+type SampleScoreTargetDoc = Doc<"sample_score_targets">;
 type RequestTargetStateDoc = Doc<"process_request_targets">;
 
 type RequestState = "pending" | "none" | "retryable" | "exhausted";
@@ -25,27 +25,27 @@ export type RunProgressSnapshot = {
 
 export function countCompletedSamples(
   samples: SampleDoc[],
-  scoreUnits: SampleEvidenceScoreDoc[],
+  scoreTargets: SampleScoreTargetDoc[],
 ): number {
   if (samples.length === 0) return 0;
 
-  if (scoreUnits.length === 0) {
+  if (scoreTargets.length === 0) {
     return samples.filter((sample) => (sample.score_critic_count ?? 0) > 0).length;
   }
 
-  const scoreUnitsBySampleId = new Map<string, SampleEvidenceScoreDoc[]>();
-  for (const unit of scoreUnits) {
-    const sampleId = String(unit.sample_id);
-    const current = scoreUnitsBySampleId.get(sampleId) ?? [];
-    current.push(unit);
-    scoreUnitsBySampleId.set(sampleId, current);
+  const targetsBySampleId = new Map<string, SampleScoreTargetDoc[]>();
+  for (const target of scoreTargets) {
+    const sampleId = String(target.sample_id);
+    const current = targetsBySampleId.get(sampleId) ?? [];
+    current.push(target);
+    targetsBySampleId.set(sampleId, current);
   }
 
   let completed = 0;
   for (const sample of samples) {
-    const sampleUnits = scoreUnitsBySampleId.get(String(sample._id)) ?? [];
-    if (sampleUnits.length === 0) continue;
-    if (sampleUnits.every((unit) => unit.score_critic_id != null)) {
+    const sampleTargets = targetsBySampleId.get(String(sample._id)) ?? [];
+    if (sampleTargets.length === 0) continue;
+    if (sampleTargets.every((target) => target.score_critic_id != null)) {
       completed += 1;
     }
   }
@@ -79,16 +79,14 @@ function resolveBlockedFromTargetState(
 }
 
 function makeRequestKeyForTarget(
-  targetType: "sample" | "sample_evidence",
+  targetType: "sample" | "sample_score_target",
   targetId: string,
   stage: RunStage,
 ) {
   return `${targetType}:${targetId}:${stage}`;
 }
 
-function buildTargetStateIndex(
-  rows: RequestTargetStateDoc[],
-): Record<RunStage, Map<string, RequestTargetStateDoc>> {
+function buildTargetStateIndex(rows: RequestTargetStateDoc[]) {
   const index: Record<RunStage, Map<string, RequestTargetStateDoc>> = {
     rubric_gen: new Map(),
     rubric_critic: new Map(),
@@ -104,14 +102,6 @@ function buildTargetStateIndex(
   return index;
 }
 
-function getSampleOutputId(
-  sample: SampleDoc,
-  stage: Exclude<RunStage, "score_gen" | "score_critic">,
-) {
-  if (stage === "rubric_gen") return sample.rubric_id;
-  return sample.rubric_critic_id;
-}
-
 function buildSampleStageProgress(
   samples: SampleDoc[],
   statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
@@ -124,8 +114,7 @@ function buildSampleStageProgress(
   let hasPending = false;
 
   for (const sample of samples) {
-    const sampleId = String(sample._id);
-    const outputId = getSampleOutputId(sample, stage);
+    const outputId = stage === "rubric_gen" ? sample.rubric_id : sample.rubric_critic_id;
     if (outputId) {
       completed += 1;
       continue;
@@ -133,7 +122,7 @@ function buildSampleStageProgress(
 
     if (stage !== "rubric_gen" && !sample.rubric_id) {
       const blockedState = statesByStage.rubric_gen.get(
-        makeRequestKeyForTarget("sample", sampleId, "rubric_gen"),
+        makeRequestKeyForTarget("sample", String(sample._id), "rubric_gen"),
       );
       if (resolveBlockedFromTargetState(blockedState) === "failed") {
         failed += 1;
@@ -144,7 +133,7 @@ function buildSampleStageProgress(
     }
 
     const currentState = statesByStage[stage].get(
-      makeRequestKeyForTarget("sample", sampleId, stage),
+      makeRequestKeyForTarget("sample", String(sample._id), stage),
     );
     if (classifyTargetState(currentState) === "exhausted") {
       failed += 1;
@@ -153,36 +142,30 @@ function buildSampleStageProgress(
     }
   }
 
-  return {
-    completed,
-    failed,
-    hasPending,
-    total: samples.length,
-  };
+  return { completed, failed, hasPending, total: samples.length };
 }
 
 function buildScoreStageProgress(
   samples: SampleDoc[],
-  scoreUnits: SampleEvidenceScoreDoc[],
+  scoreTargets: SampleScoreTargetDoc[],
   statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
   stage: "score_gen" | "score_critic",
 ): RunStageProgress | null {
-  if (scoreUnits.length === 0) return null;
+  if (scoreTargets.length === 0) return null;
 
   const sampleById = new Map(samples.map((sample) => [String(sample._id), sample]));
   let completed = 0;
   let failed = 0;
   let hasPending = false;
 
-  for (const unit of scoreUnits) {
-    const unitId = String(unit._id);
-    const sample = sampleById.get(String(unit.sample_id));
+  for (const target of scoreTargets) {
+    const sample = sampleById.get(String(target.sample_id));
     if (!sample) {
       failed += 1;
       continue;
     }
 
-    const outputId = stage === "score_gen" ? unit.score_id : unit.score_critic_id;
+    const outputId = stage === "score_gen" ? target.score_id : target.score_critic_id;
     if (outputId) {
       completed += 1;
       continue;
@@ -200,9 +183,9 @@ function buildScoreStageProgress(
       continue;
     }
 
-    if (stage === "score_critic" && !unit.score_id) {
+    if (stage === "score_critic" && !target.score_id) {
       const blockedState = statesByStage.score_gen.get(
-        makeRequestKeyForTarget("sample_evidence", unitId, "score_gen"),
+        makeRequestKeyForTarget("sample_score_target", String(target._id), "score_gen"),
       );
       if (resolveBlockedFromTargetState(blockedState) === "failed") {
         failed += 1;
@@ -213,7 +196,7 @@ function buildScoreStageProgress(
     }
 
     const currentState = statesByStage[stage].get(
-      makeRequestKeyForTarget("sample_evidence", unitId, stage),
+      makeRequestKeyForTarget("sample_score_target", String(target._id), stage),
     );
     if (classifyTargetState(currentState) === "exhausted") {
       failed += 1;
@@ -226,7 +209,7 @@ function buildScoreStageProgress(
     completed,
     failed,
     hasPending,
-    total: scoreUnits.length,
+    total: scoreTargets.length,
   };
 }
 
@@ -234,21 +217,12 @@ export async function getRunProgressSnapshot(
   ctx: RunProgressCtx,
   runId: Id<"runs">,
 ): Promise<RunProgressSnapshot | null> {
-  const [samples, scoreUnits, targetStates] = await Promise.all([
-    ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect(),
-    ctx.db
-      .query("sample_evidence_scores")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect(),
-    ctx.db
-      .query("process_request_targets")
-      .withIndex("by_process", (q) =>
-        q.eq("process_type", "run").eq("process_id", runId),
-      )
-      .collect(),
+  const [samples, scoreTargets, targetStates] = await Promise.all([
+    ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("process_request_targets").withIndex("by_process", (q) =>
+      q.eq("process_type", "run").eq("process_id", runId),
+    ).collect(),
   ]);
 
   if (samples.length === 0) return null;
@@ -256,8 +230,8 @@ export async function getRunProgressSnapshot(
   const statesByStage = buildTargetStateIndex(targetStates);
   const rubricGen = buildSampleStageProgress(samples, statesByStage, "rubric_gen");
   const rubricCritic = buildSampleStageProgress(samples, statesByStage, "rubric_critic");
-  const scoreGen = buildScoreStageProgress(samples, scoreUnits, statesByStage, "score_gen");
-  const scoreCritic = buildScoreStageProgress(samples, scoreUnits, statesByStage, "score_critic");
+  const scoreGen = buildScoreStageProgress(samples, scoreTargets, statesByStage, "score_gen");
+  const scoreCritic = buildScoreStageProgress(samples, scoreTargets, statesByStage, "score_critic");
 
   const byStage = {
     rubric_gen: rubricGen ?? { completed: 0, failed: 0, hasPending: false, total: 0 },
@@ -278,18 +252,12 @@ export async function getRunCompletedCount(
   ctx: RunProgressCtx,
   runId: Id<"runs">,
 ): Promise<number> {
-  const [samples, scoreUnits] = await Promise.all([
-    ctx.db
-      .query("samples")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect(),
-    ctx.db
-      .query("sample_evidence_scores")
-      .withIndex("by_run", (q) => q.eq("run_id", runId))
-      .collect(),
+  const [samples, scoreTargets] = await Promise.all([
+    ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
   ]);
 
-  return countCompletedSamples(samples, scoreUnits);
+  return countCompletedSamples(samples, scoreTargets);
 }
 
 export async function getRunStageProgress(

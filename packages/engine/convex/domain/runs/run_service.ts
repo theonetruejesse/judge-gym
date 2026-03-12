@@ -15,6 +15,7 @@ import {
   parseRubricResponse,
 } from "./run_parsers";
 import {
+  normalizeExperimentConfig,
   resolveRandomizationStrategy,
   resolveScaleStrategy,
   resolveScoringStrategy,
@@ -27,6 +28,7 @@ import { emitTraceEvent } from "../telemetry/emit";
 import { getNextAttemptAt } from "../../utils/scheduling";
 import { getRunCompletedCount, getRunStageProgress } from "./run_progress";
 import { classifyRequestError } from "../llm_calls/llm_request_repo";
+import { resolveEvidenceStrategy } from "./run_strategies";
 
 export const startRunFlow = zInternalMutation({
   args: z.object({
@@ -91,7 +93,7 @@ export const applyRequestResult = zInternalMutation({
     const target = await resolveRunTarget(ctx, targetType, targetId);
     const sample = target.sample;
     const sampleId = sample._id;
-    const scoreUnit = target.scoreUnit;
+    const scoreTarget = target.scoreTarget;
     const request = await ctx.runQuery(
       internal.domain.llm_calls.llm_request_repo.getLlmRequest,
       { request_id: args.request_id },
@@ -144,7 +146,7 @@ export const applyRequestResult = zInternalMutation({
         }, { defer: true });
         return;
       }
-      if (stage === "score_gen" && scoreUnit?.score_id) {
+      if (stage === "score_gen" && scoreTarget?.score_id) {
         if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
@@ -166,7 +168,7 @@ export const applyRequestResult = zInternalMutation({
       }
       if (
         stage === "score_critic" &&
-        scoreUnit?.score_critic_id
+        scoreTarget?.score_critic_id
       ) {
         if (request.status === "success") return;
         await ctx.runMutation(
@@ -197,18 +199,7 @@ export const applyRequestResult = zInternalMutation({
           experiment.rubric_config.scale_size,
         );
 
-        const config: ExperimentConfig = {
-          rubric_config: {
-            scale_size: experiment.rubric_config.scale_size,
-            concept: experiment.rubric_config.concept,
-          },
-          scoring_config: {
-            method: experiment.scoring_config.method,
-            abstain_enabled: experiment.scoring_config.abstain_enabled,
-            evidence_view: experiment.scoring_config.evidence_view,
-            randomizations: experiment.scoring_config.randomizations,
-          },
-        };
+        const config = normalizeExperimentConfig(experiment);
 
         const label_mapping = buildLabelMapping(
           config,
@@ -259,27 +250,10 @@ export const applyRequestResult = zInternalMutation({
         const rubric = await ctx.db.get(sample.rubric_id);
         if (!rubric) throw new Error("Rubric not found");
 
-        const evidence = scoreUnit
-          ? await ctx.db.get(scoreUnit.evidence_id)
-          : await resolveEvidenceForSample(
-            ctx,
-            sample,
-            experiment,
-          );
-        if (!evidence) throw new Error("Evidence not found for sample");
-
-        const config: ExperimentConfig = {
-          rubric_config: {
-            scale_size: experiment.rubric_config.scale_size,
-            concept: experiment.rubric_config.concept,
-          },
-          scoring_config: {
-            method: experiment.scoring_config.method,
-            abstain_enabled: experiment.scoring_config.abstain_enabled,
-            evidence_view: experiment.scoring_config.evidence_view,
-            randomizations: experiment.scoring_config.randomizations,
-          },
-        };
+        const config = normalizeExperimentConfig(experiment);
+        if (!scoreTarget) {
+          throw new Error("Score stage requires sample_score_target");
+        }
 
         const scoring = resolveScoringStrategy(config);
         const verdict = scoring.parseVerdict(
@@ -292,40 +266,41 @@ export const applyRequestResult = zInternalMutation({
         const score_id = await ctx.db.insert("scores", {
           run_id: sample.run_id,
           sample_id: sampleId,
+          score_target_id: scoreTarget._id,
           model: sample.model,
-          evidence_id: evidence._id,
           llm_request_id: args.request_id,
           justification,
           decoded_scores: decodedScores,
         });
 
-        if (scoreUnit) {
-          await ctx.db.patch(scoreUnit._id, { score_id });
+        if (scoreTarget) {
+          await ctx.db.patch(scoreTarget._id, { score_id });
           await syncSampleScoreCounts(ctx, sampleId);
         } else {
-          throw new Error("Score stage requires sample_evidence target");
+          throw new Error("Score stage requires sample_score_target");
         }
       }
 
       if (stage === "score_critic") {
-        const score_id = scoreUnit?.score_id;
+        const score_id = scoreTarget?.score_id;
         if (!score_id) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
         const score_critic_id = await ctx.db.insert("score_critics", {
           run_id: sample.run_id,
           sample_id: sampleId,
+          score_target_id: scoreTarget._id,
           model: sample.model,
           llm_request_id: args.request_id,
           justification: parsed.reasoning,
           expert_agreement_prob: parsed.expertAgreementProb,
         });
 
-        if (scoreUnit) {
-          await ctx.db.patch(scoreUnit._id, { score_critic_id });
+        if (scoreTarget) {
+          await ctx.db.patch(scoreTarget._id, { score_critic_id });
           await syncSampleScoreCounts(ctx, sampleId);
-          await incrementRunCompletedCountForScoreUnit(ctx, sample.run_id, sampleId);
+          await incrementRunCompletedCountForScoreTarget(ctx, sample.run_id, sampleId);
         } else {
-          throw new Error("Score critic stage requires sample_evidence target");
+          throw new Error("Score critic stage requires sample_score_target");
         }
       }
     } catch (error) {
@@ -581,31 +556,31 @@ async function resolveRunTarget(
   targetId: string,
 ): Promise<{
   sample: Doc<"samples">;
-  scoreUnit: Doc<"sample_evidence_scores"> | null;
+  scoreTarget: Doc<"sample_score_targets"> | null;
 }> {
   if (targetType === "sample") {
     const sample = await ctx.db.get(targetId as Id<"samples">);
     if (!sample) {
       throw new Error(`Sample not found for request target: ${targetId}`);
     }
-    return { sample, scoreUnit: null };
+    return { sample, scoreTarget: null };
   }
 
-  const scoreUnit = await ctx.db.get(
-    targetId as Id<"sample_evidence_scores">,
+  const scoreTarget = await ctx.db.get(
+    targetId as Id<"sample_score_targets">,
   );
-  if (!scoreUnit) {
-    throw new Error(`Sample-evidence score unit not found: ${targetId}`);
+  if (!scoreTarget) {
+    throw new Error(`Sample score target not found: ${targetId}`);
   }
 
-  const sample = await ctx.db.get(scoreUnit.sample_id);
+  const sample = await ctx.db.get(scoreTarget.sample_id);
   if (!sample) {
     throw new Error(
-      `Sample not found for score unit ${targetId}: ${scoreUnit.sample_id}`,
+      `Sample not found for score target ${targetId}: ${scoreTarget.sample_id}`,
     );
   }
 
-  return { sample, scoreUnit };
+  return { sample, scoreTarget };
 }
 
 async function maybeAdvanceRunStage(
@@ -764,18 +739,18 @@ async function incrementRunCompletedCountForCompletedSample(
   await syncExperimentTotalCount(ctx, run.experiment_id);
 }
 
-async function incrementRunCompletedCountForScoreUnit(
+async function incrementRunCompletedCountForScoreTarget(
   ctx: MutationCtx,
   runId: Id<"runs">,
   sampleId: Id<"samples">,
 ) {
-  const scoreUnits = await ctx.db
-    .query("sample_evidence_scores")
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
     .withIndex("by_sample", (q) => q.eq("sample_id", sampleId))
     .collect();
 
-  if (scoreUnits.length === 0) return;
-  if (!scoreUnits.every((unit) => unit.score_critic_id != null)) return;
+  if (scoreTargets.length === 0) return;
+  if (!scoreTargets.every((target) => target.score_critic_id != null)) return;
 
   await incrementRunCompletedCountForCompletedSample(ctx, runId);
 }
@@ -917,29 +892,4 @@ function buildLabelMapping(
     mapping[label] = idx + 1;
   });
   return mapping;
-}
-
-async function resolveEvidenceForSample(
-  ctx: MutationCtx,
-  sample: Doc<"samples">,
-  experiment: Doc<"experiments">,
-) {
-  const links = await ctx.db
-    .query("pool_evidences")
-    .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
-    .collect();
-
-  const ordered = links
-    .slice()
-    .sort((a, b) => a._creationTime - b._creationTime);
-
-  const evidences: Doc<"evidences">[] = [];
-  for (const link of ordered) {
-    const evidence = await ctx.db.get(link.evidence_id);
-    if (evidence) evidences.push(evidence);
-  }
-
-  if (evidences.length === 0) return null;
-  const idx = Math.abs(sample.seed) % evidences.length;
-  return evidences[idx] ?? null;
 }

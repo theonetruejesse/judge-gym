@@ -79,7 +79,7 @@ export const RequestTargetResolutionSchema = z.enum([
 export const ProcessRequestTargetStateTableSchema = z.object({
   process_type: z.enum(["run", "window"]),
   process_id: z.string(),
-  target_type: z.enum(["sample", "sample_evidence", "evidence"]),
+  target_type: z.enum(["sample", "sample_score_target", "evidence"]),
   target_id: z.string(),
   stage: z.string(),
   custom_key: z.string(),

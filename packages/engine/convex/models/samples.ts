@@ -48,8 +48,8 @@ export const RubricCriticsTableSchema = z.object({
 export const ScoresTableSchema = z.object({
     run_id: zid("runs"),
     sample_id: zid("samples"),
+    score_target_id: zid("sample_score_targets"),
     model: modelTypeSchema,
-    evidence_id: zid("evidences"),
     llm_request_id: zid("llm_requests"),
     justification: z.string(),
     decoded_scores: z.array(z.number()),
@@ -58,16 +58,29 @@ export const ScoresTableSchema = z.object({
 export const ScoreCriticsTableSchema = z.object({
     run_id: zid("runs"),
     sample_id: zid("samples"),
+    score_target_id: zid("sample_score_targets"),
     model: modelTypeSchema,
     llm_request_id: zid("llm_requests"),
     justification: z.string(),
     expert_agreement_prob: z.number(),
 });
 
-export const SampleEvidenceScoresTableSchema = z.object({
+export const SampleScoreTargetModeSchema = z.enum([
+    "single_evidence",
+    "bundle",
+]);
+
+export const SampleScoreTargetsTableSchema = z.object({
     run_id: zid("runs"),
     sample_id: zid("samples"),
-    evidence_id: zid("evidences"),
+    target_mode: SampleScoreTargetModeSchema,
     score_id: zid("scores").nullable(),
     score_critic_id: zid("score_critics").nullable(),
+});
+
+export const SampleScoreTargetItemsTableSchema = z.object({
+    score_target_id: zid("sample_score_targets"),
+    evidence_id: zid("evidences"),
+    window_id: zid("windows"),
+    position: z.number().int().min(0),
 });

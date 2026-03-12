@@ -3,6 +3,7 @@ import {
   parseSingleVerdict,
   parseSubsetVerdict,
 } from "./run_parsers";
+import type { EvidenceGroupingConfig } from "../../models/_shared";
 
 export type ExperimentConfig = {
   rubric_config: {
@@ -16,8 +17,37 @@ export type ExperimentConfig = {
     randomizations: Array<
       "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
     >;
+    evidence_grouping: Exclude<EvidenceGroupingConfig, undefined>;
   };
 };
+
+export const DEFAULT_EVIDENCE_GROUPING: Exclude<EvidenceGroupingConfig, undefined> = {
+  mode: "single_evidence",
+};
+
+export function normalizeExperimentConfig<T extends {
+  rubric_config: {
+    scale_size: number;
+    concept: string;
+  };
+  scoring_config: {
+    method: "single" | "subset";
+    abstain_enabled: boolean;
+    evidence_view: SemanticLevel;
+    randomizations: Array<
+      "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
+    >;
+    evidence_grouping?: EvidenceGroupingConfig;
+  };
+}>(config: T): ExperimentConfig {
+  return {
+    rubric_config: config.rubric_config,
+    scoring_config: {
+      ...config.scoring_config,
+      evidence_grouping: config.scoring_config.evidence_grouping ?? DEFAULT_EVIDENCE_GROUPING,
+    },
+  };
+}
 
 export type RandomizationMode =
   | "anonymize_stages"

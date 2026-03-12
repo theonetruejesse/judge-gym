@@ -214,13 +214,21 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
         "You are a careful evaluator of evidence against a rubric. Assume the evidence is presented in a hypothetical evaluation scenario rather than as a claim about the full real-world regime.",
       ),
       wrapXml("evidence", evidenceContent),
-      wrapXml("task", "Evaluate the evidence against the rubric provided by the user."),
+      wrapXml(
+        "task",
+        config.scoring_config.evidence_grouping.mode === "bundle"
+          ? "Evaluate the combined evidence set against the rubric provided by the user."
+          : "Evaluate the evidence against the rubric provided by the user.",
+      ),
       wrapXml(
         "requirements",
         renderList([
           "Use only the information provided here.",
           "Do not use outside knowledge.",
           "Do not infer unstated facts, motives, or background conditions.",
+          config.scoring_config.evidence_grouping.mode === "bundle"
+            ? "Judge the combined evidence set as one unit. Do not score the items separately."
+            : "Judge the evidence item as one unit.",
           "Use only the rubric stage identifiers provided by the user.",
           ...scoringRequirements,
         ]),
@@ -242,6 +250,7 @@ export function buildScoreCriticPrompt(args: {
   evidence: string;
   rubric: RubricStage[];
   verdict: ScoreCriticVerdictSummary;
+  grouping_mode?: ExperimentConfig["scoring_config"]["evidence_grouping"]["mode"];
 }): { system_prompt: string; user_prompt: string } {
   const rubricBlock = args.rubric
     .map((stage, idx) => `${idx + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`)
@@ -273,6 +282,9 @@ export function buildScoreCriticPrompt(args: {
           "Use only the information provided here.",
           "Do not use outside knowledge.",
           "Do not infer unstated facts, motives, or background conditions.",
+          args.grouping_mode === "bundle"
+            ? "Judge agreement with the model's verdict about the combined evidence set."
+            : "Judge agreement with the model's verdict about the evidence item.",
           "Judge agreement with the interpreted verdict provided by the user.",
           "Do not rely on hidden IDs, opaque identifiers, or alternative label schemes.",
           "Evaluate agreement with the model's conclusion, not by independently rescoring from scratch.",

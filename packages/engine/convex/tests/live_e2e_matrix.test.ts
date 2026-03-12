@@ -240,7 +240,8 @@ async function tableCounts(t: ReturnType<typeof convexTest>) {
       "rubric_critics",
       "scores",
       "score_critics",
-      "sample_evidence_scores",
+      "sample_score_targets",
+      "sample_score_target_items",
       "process_observability",
     ] as const;
     const pairs = await Promise.all(
@@ -327,6 +328,9 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
               abstain_enabled: false,
               evidence_view: "l0_raw",
               randomizations: [],
+              evidence_grouping: {
+                mode: "single_evidence",
+              },
             },
           },
           pool_id: pool.pool_id,
@@ -345,15 +349,15 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
             .query("samples")
             .withIndex("by_run", (q) => q.eq("run_id", run.run_id))
             .collect();
-          const scoreUnits = await ctx.db
-            .query("sample_evidence_scores")
+          const scoreTargets = await ctx.db
+            .query("sample_score_targets")
             .withIndex("by_run", (q) => q.eq("run_id", run.run_id))
             .collect();
           const sampleIds = new Set(samples.map((sample) => String(sample._id)));
-          const scoreUnitIds = new Set(scoreUnits.map((unit) => String(unit._id)));
+          const scoreTargetIds = new Set(scoreTargets.map((target) => String(target._id)));
           const requests = (await ctx.db.query("llm_requests").collect()).filter((request) =>
             sampleIds.has(request.custom_key.split(":")[1] ?? "") ||
-            scoreUnitIds.has(request.custom_key.split(":")[1] ?? ""),
+            scoreTargetIds.has(request.custom_key.split(":")[1] ?? ""),
           );
           const seeds = samples.map((sample) => sample.seed);
           const seed_unique_ok =
@@ -362,7 +366,7 @@ describe(live ? "live e2e telemetry matrix" : "live e2e telemetry matrix (skippe
 
           return {
             sample_count: samples.length,
-            score_unit_count: scoreUnits.length,
+            score_unit_count: scoreTargets.length,
             request_count: requests.length,
             seed_unique_ok,
           };
