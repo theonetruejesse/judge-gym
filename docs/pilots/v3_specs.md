@@ -78,14 +78,16 @@
 | A4 (primary swap mechanism)             | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=single_evidence`   |            2 | false |
 | A5 (concept extension baseline)         | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
 | A6 (bundle-context ablation)            | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=bundle`, stratified-by-window bundles    |            2 | false |
+| A7 (bundle semantic ablation)           | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, scale=`4`, abstain=`true`, `evidence_grouping=bundle`, stratified-by-window bundles    |            2 | false |
 | B1 (secondary baseline + abstain)       | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                            |            4 | false |
 | D1 (Norway reporting control baseline)  | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
 
-Required total (current live finish pass): **20 configs**.
+Required total (current live finish pass): **22 configs**.
 
 ### Bundle Ablation Notes
 
 - `A6` uses the current frozen `P1` pool and the new explicit `scoring_config.evidence_grouping` path.
+- `A7` keeps the same bundle settings as `A6` but switches scoring context to `l3_abstracted`.
 - Bundle membership is assigned **per run**, frozen at run creation, and inspectable via `packages/lab:listRunScoreTargets`.
 - Current canary coverage already passed for:
   - `bundle_size=3`

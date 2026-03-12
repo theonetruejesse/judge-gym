@@ -6,12 +6,13 @@ import { internal } from "../../_generated/api";
 import { Doc, Id } from "../../_generated/dataModel";
 import { SearchNewsResults } from "./evidence_search";
 
-const CreateWindowArgsSchema = WindowsTableSchema.pick({
-    country: true,
-    model: true,
-    start_date: true,
-    end_date: true,
-    query: true,
+const CreateWindowArgsSchema = z.object({
+    country: WindowsTableSchema.shape.country,
+    model: WindowsTableSchema.shape.model,
+    start_date: WindowsTableSchema.shape.start_date,
+    end_date: WindowsTableSchema.shape.end_date,
+    query: WindowsTableSchema.shape.query,
+    target_count: WindowsTableSchema.shape.target_count.optional(),
 });
 
 export type CreateWindowResult = {
@@ -25,9 +26,9 @@ export const createWindow = zInternalMutation({
     handler: async (ctx, args): Promise<CreateWindowResult> => {
         const window_id = await ctx.db.insert("windows", {
             ...args,
+            target_count: args.target_count ?? 0,
             status: "start",
             current_stage: "l0_raw",
-            target_count: 0,
             completed_count: 0,
         });
         return { window_id };
@@ -116,11 +117,6 @@ export const insertEvidenceBatch = zInternalMutation({
             .query("evidences")
             .withIndex("by_window_id", (q) => q.eq("window_id", args.window_id))
             .collect();
-
-        await ctx.db.patch(args.window_id, {
-            target_count: total.length,
-        });
-
         return { inserted: args.evidences.length, total: total.length };
     },
 });
