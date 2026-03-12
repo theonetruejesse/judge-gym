@@ -238,4 +238,27 @@ describe("bundle score targets", () => {
       }),
     ).rejects.toThrow(/max_estimated_input_tokens/i);
   });
+
+  test("windows and pools persist count fields", async () => {
+    const t = initTest();
+    const windowA = await createWindowWithEvidence(t, "count-a", 2, "count-a");
+    const windowB = await createWindowWithEvidence(t, "count-b", 3, "count-b");
+    const pool = await createPoolFromWindows(t, [windowA, windowB]);
+
+    const storedWindowA = await t.query(internal.domain.window.window_repo.getWindow, {
+      window_id: windowA.window_id,
+    });
+    const storedWindowB = await t.query(internal.domain.window.window_repo.getWindow, {
+      window_id: windowB.window_id,
+    });
+    const storedPool = await t.query(internal.domain.runs.experiments_repo.getPool, {
+      pool_id: pool.pool_id,
+    });
+
+    expect(storedWindowA.target_count).toBe(2);
+    expect(storedWindowA.completed_count).toBe(0);
+    expect(storedWindowB.target_count).toBe(3);
+    expect(storedWindowB.completed_count).toBe(0);
+    expect(storedPool.evidence_count).toBe(5);
+  });
 });

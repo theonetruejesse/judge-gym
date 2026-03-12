@@ -33,10 +33,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
+- Windows now persist both `target_count` and `completed_count`, so window summaries can report done/target progress without recomputing totals from scratch.
 - Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
+- Pools now persist `evidence_count`, which records the number of evidence rows frozen into the pool.
 - Samples now persist `score_count` and `score_critic_count`, and score fanout is stored in generalized `sample_score_targets` / `sample_score_target_items` rows so both single-evidence and bundled-evidence runs share one scoring model.
 - `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
 - Ops now include a one-off `packages/codex:backfillRunCompletedCounts` mutation with dry-run + paging support to repair historical runs after the `completed_count` addition.
+- Ops now also include `packages/codex:backfillWindowCompletedCounts` and `packages/codex:backfillPoolEvidenceCounts` to repair historical window/pool counts after those persisted fields are added.
 - Ops now also include `packages/codex:backfillExperimentTotalCounts` to repair historical experiment aggregates after the `total_count` addition.
 - Ops now also include `packages/codex:backfillSampleScoreCounts` to repair historical sample score aggregates and strip legacy sample score ID fields before their final schema removal.
 - Run-stage reconcile now emits explicit reconcile outcomes (`run_stage_reconciled`) and can fail-safe pause a run (`status=paused`) when reconcile fails with no active transport left.
@@ -148,7 +151,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Orchestration tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `windows` | Evidence window state | `status`, `current_stage`, `model`, `query`, `country`, `start_date`, `end_date` |
+| `windows` | Evidence window state | `status`, `current_stage`, `target_count`, `completed_count`, `model`, `query`, `country`, `start_date`, `end_date` |
 | `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
 | `llm_requests` | Individual LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
@@ -161,7 +164,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `pools` | Reusable evidence pools | `pool_tag` |
+| `pools` | Reusable evidence pools | `pool_tag`, `evidence_count` |
 | `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
 | `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count`, `completed_count` |

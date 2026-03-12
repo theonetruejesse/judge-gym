@@ -27,6 +27,8 @@ export const createWindow = zInternalMutation({
             ...args,
             status: "start",
             current_stage: "l0_raw",
+            target_count: 0,
+            completed_count: 0,
         });
         return { window_id };
     },
@@ -114,6 +116,10 @@ export const insertEvidenceBatch = zInternalMutation({
             .query("evidences")
             .withIndex("by_window_id", (q) => q.eq("window_id", args.window_id))
             .collect();
+
+        await ctx.db.patch(args.window_id, {
+            target_count: total.length,
+        });
 
         return { inserted: args.evidences.length, total: total.length };
     },

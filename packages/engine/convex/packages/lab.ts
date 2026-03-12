@@ -186,7 +186,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
         country: window.country,
         query: window.query,
         model: window.model,
-        evidence_count: evidences.length,
+        evidence_count: window.target_count,
         evidence_status,
       });
     }
@@ -489,7 +489,9 @@ export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
       window_id: window._id,
       status: window.status,
       current_stage: window.current_stage,
-      evidence_total: evidences.length,
+      target_count: window.target_count,
+      completed_count: window.completed_count,
+      evidence_total: window.target_count,
       l1_completed,
       l2_completed,
       l3_completed,

@@ -6,6 +6,8 @@ import { zid } from "convex-helpers/server/zod4";
 export const WindowsTableSchema = z.object({
     status: StateStatusSchema,
     current_stage: SemanticLevelSchema,
+    target_count: z.number(),
+    completed_count: z.number(),
     model: modelTypeSchema,
     start_date: z.string(),
     end_date: z.string(),
@@ -28,6 +30,7 @@ export const EvidencesTableSchema = z.object({
 
 export const PoolsTableSchema = z.object({
     pool_tag: z.string(),
+    evidence_count: z.number(),
 });
 
 export const PoolEvidencesTableSchema = z.object({
