@@ -22,10 +22,12 @@ This runbook standardizes live debugging for run and window orchestration in Con
   - `packages/codex:tailTrace`
   - `packages/codex:runDebugActions`
   - `packages/codex:autoHealProcess`
-  - `packages/codex:backfillExperimentTotalCounts`
-  - `packages/codex:backfillRunCompletedCounts`
-  - `packages/codex:backfillSampleScoreCounts`
-  - `packages/codex:testAxiomIngest`
+- `packages/codex:backfillExperimentTotalCounts`
+- `packages/codex:backfillRunCompletedCounts`
+- `packages/codex:backfillWindowCompletedCounts`
+- `packages/codex:backfillPoolEvidenceCounts`
+- `packages/codex:backfillSampleScoreCounts`
+- `packages/codex:testAxiomIngest`
 - Bun wrapper in `packages/engine/scripts/live_debug.ts`
   - `bun run debug:watch`
   - `bun run debug:stuck`
@@ -91,7 +93,19 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Inspect `rows[].changed`, `previous_total_count`, and `computed_total_count`.
 - Apply with `dry_run: false` and continue while `next_cursor` is non-null.
 
-10. Repair historical sample score aggregates
+10. Repair historical window progress counts
+
+- Dry-run `packages/codex:backfillWindowCompletedCounts` with `{ "dry_run": true, "cursor": 0, "max_windows": 100 }`.
+- Inspect `rows[].changed`, `previous_target_count`, `previous_completed_count`, `computed_target_count`, and `computed_completed_count`.
+- Apply with `dry_run: false` and continue while `next_cursor` is non-null.
+
+11. Repair historical pool evidence counts
+
+- Dry-run `packages/codex:backfillPoolEvidenceCounts` with `{ "dry_run": true, "cursor": 0, "max_pools": 100 }`.
+- Inspect `rows[].changed`, `previous_evidence_count`, and `computed_evidence_count`.
+- Apply with `dry_run: false` and continue while `next_cursor` is non-null.
+
+12. Repair historical sample score aggregates
 
 - Dry-run `packages/codex:backfillSampleScoreCounts` with `{ "dry_run": true, "cursor": 0, "max_samples": 100 }`.
 - Inspect `rows[].changed`, `previous_score_count`, `previous_score_critic_count`, `computed_score_count`, and `computed_score_critic_count`.
@@ -162,10 +176,12 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - Reconcile failures now emit `run_stage_reconciled` outcomes and can fail-safe pause runs (`status=paused`) when no active transport remains; treat paused runs as explicit operator-attention signals.
 - `packages/codex:getProcessHealth` is snapshot-backed (`process_request_targets`) and intended for large run/window fanout in normal watch loops.
 - `packages/lab:getRunSummary` now includes persisted `completed_count`, which is the sample-level done count backing the lab run table.
+- `packages/lab:getWindowSummary` now includes persisted `target_count` / `completed_count`, and `packages/lab:listEvidenceWindows` reads the persisted window target count instead of recomputing totals from scratch.
 - `packages/lab:getRunDiagnostics` now splits historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when available.
 - `llm_requests` now stores `system_prompt_id`; recover the actual system prompt text from `llm_prompt_templates` when auditing provider payloads.
 - Run score fanout now uses `sample_score_targets` / `sample_score_target_items`, and `packages/lab:listRunScoreTargets` is the inspection surface for bundle membership and frozen target composition.
 - `packages/lab:listExperiments` and `packages/lab:getExperimentSummary` now include persisted `total_count`, which is the experiment-level aggregate of run completions.
+- `pools` now persist `evidence_count`, so pool summaries can read frozen membership totals without scanning `pool_evidences`.
 - `samples` now persist `score_count` / `score_critic_count` as the sample-level score aggregation surface; legacy sample `score_id` / `score_critic_id` are no longer part of the schema.
 - `packages/codex:tailTrace` and `packages/codex:analyzeProcessTelemetry` read the capped local mirror in `process_observability`.
 - The local mirror is intentionally small and milestone-oriented; it now keeps `external_trace_ref` and truncated payloads for local triage, but it is still not a full event log.

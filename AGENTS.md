@@ -82,6 +82,8 @@ Use the codex debug surface (`packages/engine/convex/maintenance/codex.ts`) plus
 - For large backlogs, page heal actions with `packages/codex:autoHealProcess` args `cursor` + `max_actions` and continue until `meta.next_cursor` is `null`.
 - Run-count backfill: dry-run `packages/codex:backfillRunCompletedCounts` with `{ "dry_run": true, "cursor": 0, "max_runs": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
 - Experiment-total backfill: dry-run `packages/codex:backfillExperimentTotalCounts` with `{ "dry_run": true, "cursor": 0, "max_experiments": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
+- Window-count backfill: dry-run `packages/codex:backfillWindowCompletedCounts` with `{ "dry_run": true, "cursor": 0, "max_windows": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
+- Pool-count backfill: dry-run `packages/codex:backfillPoolEvidenceCounts` with `{ "dry_run": true, "cursor": 0, "max_pools": 100 }`, then apply with `dry_run: false` until `next_cursor` is `null`.
 
 ### Recovery Guardrails
 
@@ -183,6 +185,8 @@ Use this when a new Codex instance has zero prior context.
 ### 7. One-off run count repair
 
 - `runs` now persist both `target_count` and `completed_count`.
+- `windows` now persist both `target_count` and `completed_count`.
+- `pools` now persist `evidence_count`.
 - `experiments` now persist `total_count`, defined as the sum of `completed_count` across their runs.
 - `samples` now persist `score_count` and `score_critic_count`, and legacy sample-level `score_id` / `score_critic_id` fields have been removed after backfill.
 - Historical rows can be repaired with `mcp__convex__run` -> `packages/codex:backfillRunCompletedCounts`.
@@ -192,6 +196,8 @@ Use this when a new Codex instance has zero prior context.
   3. rerun with `dry_run: false`,
   4. continue while `next_cursor` is non-null.
 - Experiment aggregates use the same paging flow with `packages/codex:backfillExperimentTotalCounts` and `max_experiments`.
+- Window aggregates use the same paging flow with `packages/codex:backfillWindowCompletedCounts` and `max_windows`.
+- Pool aggregates use the same paging flow with `packages/codex:backfillPoolEvidenceCounts` and `max_pools`.
 - Sample score aggregates use the same paging flow with `packages/codex:backfillSampleScoreCounts` and `max_samples`; this mutation also strips legacy sample score ID fields from old rows before final schema removal.
 
 ## Agentic Recursion Contract

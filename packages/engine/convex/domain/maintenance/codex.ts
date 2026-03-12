@@ -1868,6 +1868,194 @@ export const backfillExperimentTotalCounts: ReturnType<typeof zMutation> = zMuta
   },
 });
 
+export const backfillWindowCompletedCounts: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_windows: z.number().int().min(1).max(500).default(100),
+    window_ids: z.array(zid("windows")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      window_id: zid("windows"),
+      previous_target_count: z.number().nullable(),
+      previous_completed_count: z.number().nullable(),
+      computed_target_count: z.number(),
+      computed_completed_count: z.number(),
+      changed: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let windows: Array<Doc<"windows">> = [];
+
+    if (args.window_ids?.length) {
+      const loaded = await Promise.all(args.window_ids.map((windowId) => ctx.db.get(windowId)));
+      windows = loaded.filter((window): window is Doc<"windows"> => window != null);
+    } else {
+      const orderedWindows = await ctx.db
+        .query("windows")
+        .order("asc")
+        .take(cursor + args.max_windows + 1);
+      const page = orderedWindows.slice(cursor, cursor + args.max_windows + 1);
+      windows = page.slice(0, args.max_windows);
+      if (page.length > args.max_windows) {
+        nextCursor = cursor + args.max_windows;
+      }
+    }
+
+    const rows: Array<{
+      window_id: Id<"windows">;
+      previous_target_count: number | null;
+      previous_completed_count: number | null;
+      computed_target_count: number;
+      computed_completed_count: number;
+      changed: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const window of windows) {
+      const evidences = await ctx.db
+        .query("evidences")
+        .withIndex("by_window_id", (q) => q.eq("window_id", window._id))
+        .collect();
+      const computedTargetCount = evidences.length;
+      const computedCompletedCount = evidences.filter(
+        (evidence) => evidence.l3_abstracted_content != null,
+      ).length;
+      const previousTargetCount = typeof window.target_count === "number"
+        ? window.target_count
+        : null;
+      const previousCompletedCount = typeof window.completed_count === "number"
+        ? window.completed_count
+        : null;
+      const changed =
+        previousTargetCount !== computedTargetCount
+        || previousCompletedCount !== computedCompletedCount;
+
+      if (changed && !args.dry_run) {
+        await ctx.db.patch(window._id, {
+          target_count: computedTargetCount,
+          completed_count: computedCompletedCount,
+        });
+      }
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        window_id: window._id,
+        previous_target_count: previousTargetCount,
+        previous_completed_count: previousCompletedCount,
+        computed_target_count: computedTargetCount,
+        computed_completed_count: computedCompletedCount,
+        changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: windows.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillPoolEvidenceCounts: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_pools: z.number().int().min(1).max(500).default(100),
+    pool_ids: z.array(zid("pools")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      pool_id: zid("pools"),
+      pool_tag: z.string(),
+      previous_evidence_count: z.number().nullable(),
+      computed_evidence_count: z.number(),
+      changed: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let pools: Array<Doc<"pools">> = [];
+
+    if (args.pool_ids?.length) {
+      const loaded = await Promise.all(args.pool_ids.map((poolId) => ctx.db.get(poolId)));
+      pools = loaded.filter((pool): pool is Doc<"pools"> => pool != null);
+    } else {
+      const orderedPools = await ctx.db
+        .query("pools")
+        .order("asc")
+        .take(cursor + args.max_pools + 1);
+      const page = orderedPools.slice(cursor, cursor + args.max_pools + 1);
+      pools = page.slice(0, args.max_pools);
+      if (page.length > args.max_pools) {
+        nextCursor = cursor + args.max_pools;
+      }
+    }
+
+    const rows: Array<{
+      pool_id: Id<"pools">;
+      pool_tag: string;
+      previous_evidence_count: number | null;
+      computed_evidence_count: number;
+      changed: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const pool of pools) {
+      const links = await ctx.db
+        .query("pool_evidences")
+        .withIndex("by_pool", (q) => q.eq("pool_id", pool._id))
+        .collect();
+      const computedEvidenceCount = links.length;
+      const previousEvidenceCount = typeof pool.evidence_count === "number"
+        ? pool.evidence_count
+        : null;
+      const changed = previousEvidenceCount !== computedEvidenceCount;
+
+      if (changed && !args.dry_run) {
+        await ctx.db.patch(pool._id, {
+          evidence_count: computedEvidenceCount,
+        });
+      }
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        pool_id: pool._id,
+        pool_tag: pool.pool_tag,
+        previous_evidence_count: previousEvidenceCount,
+        computed_evidence_count: computedEvidenceCount,
+        changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: pools.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
 export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     dry_run: z.boolean().default(true),

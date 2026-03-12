@@ -196,6 +196,19 @@ export const applyRequestResult = zInternalMutation({
       [config.requestIdField]: args.request_id,
     } as Partial<Doc<"evidences">>);
 
+    if (stage === "l3_abstracted") {
+      const window = await ctx.db.get(evidence.window_id);
+      if (window) {
+        const nextCompletedCount = Math.min(
+          window.target_count,
+          (window.completed_count ?? 0) + 1,
+        );
+        await ctx.db.patch(evidence.window_id, {
+          completed_count: nextCompletedCount,
+        });
+      }
+    }
+
     await ctx.runMutation(
       internal.domain.llm_calls.llm_request_repo.patchRequest,
       {
@@ -456,6 +469,7 @@ async function maybeAdvanceWindowStage(
     await ctx.db.patch(windowId, {
       status: "completed",
       current_stage: stage,
+      completed_count: completed,
     });
     await emitTraceEvent(ctx, {
       trace_id: `window:${windowId}`,

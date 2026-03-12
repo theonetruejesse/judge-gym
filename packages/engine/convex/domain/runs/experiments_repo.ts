@@ -39,11 +39,12 @@ export const createPool = zInternalMutation({
       .first();
     if (existingPool) throw new Error(`Pool tag already exists: ${poolTag}`);
 
+    const insertIds = new Set<Id<"evidences">>(args.evidence_ids);
+
     const pool_id = await ctx.db.insert("pools", {
       pool_tag: poolTag,
+      evidence_count: insertIds.size,
     });
-
-    const insertIds = new Set<Id<"evidences">>(args.evidence_ids);
 
     for (const evidence_id of insertIds) {
       await ctx.db.insert("pool_evidences", {
