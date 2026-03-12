@@ -112,78 +112,107 @@ describe("run prompts", () => {
   test("builds score critic verdict summaries from decoded stages", () => {
     const verdict = buildScoreCriticVerdictSummary({
       decoded_scores: [4, 2, 4],
-      rubric_stages: [
-        { label: "Minimal", criteria: ["a", "b", "c"] },
-        { label: "Weak", criteria: ["a", "b", "c"] },
-        { label: "Clear", criteria: ["a", "b", "c"] },
-        { label: "Extensive", criteria: ["a", "b", "c"] },
-      ],
+      displayed_identifiers_by_stage: ["A", "B", "C", "D"],
       method: "subset",
-      justification: "The evidence supports multiple stages.",
     });
 
     expect(verdict).toEqual({
       method: "subset",
       status: "scored",
-      selected_stages: [2, 4],
-      selected_labels: ["Weak", "Extensive"],
-      justification: "The evidence supports multiple stages.",
+      selected_identifiers: ["B", "D"],
     });
   });
 
-  test("renders score critic prompts with decoded verdict details", () => {
+  test("renders score critic prompts with randomized rubric surface", () => {
     const prompt = buildScoreCriticPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 4,
+          concept: "fascism",
+        },
+        scoring_config: {
+          method: "subset",
+          abstain_enabled: true,
+          evidence_view: "l2_neutralized",
+          randomizations: ["anonymize_stages", "hide_label_text", "shuffle_rubric_order"],
+          evidence_grouping: {
+            mode: "single_evidence",
+          },
+        },
+      },
       evidence: "Neutralized Summary:\nInstitutional pressure escalated.",
-      rubric: [
-        { label: "Minimal", criteria: ["a", "b", "c"] },
-        { label: "Weak", criteria: ["a", "b", "c"] },
-        { label: "Clear", criteria: ["a", "b", "c"] },
-        { label: "Extensive", criteria: ["a", "b", "c"] },
-      ],
+      rubric: {
+        stages: [
+          { label: "Minimal", criteria: ["a", "b", "c"] },
+          { label: "Weak", criteria: ["d", "e", "f"] },
+          { label: "Clear", criteria: ["g", "h", "i"] },
+          { label: "Extensive", criteria: ["j", "k", "l"] },
+        ],
+      },
+      sample: {
+        label_mapping: {
+          QBIqOe: 1,
+          "1PV7Cj": 2,
+          C3Phqx: 3,
+          hIbjkx: 4,
+        },
+        display_seed: 42,
+      },
       verdict: {
         method: "subset",
         status: "scored",
-        selected_stages: [2, 4],
-        selected_labels: ["Weak", "Extensive"],
-        justification: "The evidence supports multiple stages.",
+        selected_identifiers: ["1PV7Cj", "hIbjkx"],
       },
     });
 
     expect(prompt.system_prompt).toContain("<evidence>");
-    expect(prompt.system_prompt).toContain("Do not rely on hidden IDs, opaque identifiers, or alternative label schemes.");
+    expect(prompt.system_prompt).toContain("Judge agreement with the exact rubric presentation and verdict identifiers provided by the user.");
     expect(prompt.user_prompt).toContain("<model_verdict>");
     expect(prompt.user_prompt).toContain("<scoring_mode>subset</scoring_mode>");
     expect(prompt.user_prompt).toContain("<scoring_mode_definition>Subset scoring semantics: multiple rubric stages may be selected at once.</scoring_mode_definition>");
     expect(prompt.user_prompt).toContain("<status>SCORED</status>");
-    expect(prompt.user_prompt).toContain("<selected_stages>2, 4</selected_stages>");
-    expect(prompt.user_prompt).toContain("<selected_labels>Weak | Extensive</selected_labels>");
-    expect(prompt.user_prompt).toContain("<justification>The evidence supports multiple stages.</justification>");
+    expect(prompt.user_prompt).toContain("<selected_identifiers>1PV7Cj, hIbjkx</selected_identifiers>");
+    expect(prompt.user_prompt).toContain("Criteria:");
+    expect(prompt.user_prompt).not.toContain("\"Minimal\"");
   });
 
   test("renders abstentions explicitly for score critic prompts", () => {
     const verdict = buildScoreCriticVerdictSummary({
       decoded_scores: [],
-      rubric_stages: [
-        { label: "Minimal", criteria: ["a", "b", "c"] },
-        { label: "Weak", criteria: ["a", "b", "c"] },
-      ],
+      displayed_identifiers_by_stage: ["A", "B"],
       method: "single",
-      justification: "No stage is sufficiently supported.",
     });
 
     const prompt = buildScoreCriticPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 2,
+          concept: "fascism",
+        },
+        scoring_config: {
+          method: "single",
+          abstain_enabled: true,
+          evidence_view: "l0_raw",
+          randomizations: [],
+          evidence_grouping: {
+            mode: "single_evidence",
+          },
+        },
+      },
       evidence: "Raw evidence.",
-      rubric: [
-        { label: "Minimal", criteria: ["a", "b", "c"] },
-        { label: "Weak", criteria: ["a", "b", "c"] },
-      ],
+      rubric: {
+        stages: [
+          { label: "Minimal", criteria: ["a", "b", "c"] },
+          { label: "Weak", criteria: ["a", "b", "c"] },
+        ],
+      },
+      sample: {},
       verdict,
     });
 
     expect(verdict.status).toBe("abstain");
     expect(prompt.user_prompt).toContain("<scoring_mode>single</scoring_mode>");
     expect(prompt.user_prompt).toContain("<status>ABSTAIN</status>");
-    expect(prompt.user_prompt).toContain("<selected_stages>(none)</selected_stages>");
-    expect(prompt.user_prompt).toContain("<selected_labels>(none)</selected_labels>");
+    expect(prompt.user_prompt).toContain("<selected_identifiers>(none)</selected_identifiers>");
   });
 });

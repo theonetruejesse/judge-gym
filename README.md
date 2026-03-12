@@ -197,7 +197,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`.
+2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`. In bundle mode, each sample partitions the frozen pool into multiple bundle score targets; e.g. `bundle_size=5` on a 20-item pool yields `4` score targets for that sample.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
 4. Score-stage requests are keyed by score-target IDs (`sample_score_target:<id>:score_gen|score_critic`) so each sample can score either one evidence item or a frozen bundle of evidence items.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.

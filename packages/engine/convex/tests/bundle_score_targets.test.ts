@@ -133,7 +133,7 @@ describe("bundle score targets", () => {
     }
   });
 
-  test("bundle runs create one stratified score target per sample", async () => {
+  test("bundle runs partition the pool into stratified score targets per sample", async () => {
     const t = initTest();
     const windows = await Promise.all([
       createWindowWithEvidence(t, "bundle-a", 2, "bundle-a"),
@@ -174,11 +174,26 @@ describe("bundle score targets", () => {
     });
 
     const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
-    expect(scoreTargets).toHaveLength(2);
+    expect(scoreTargets).toHaveLength(6);
+    const groupedBySample = new Map<string, (typeof scoreTargets)>();
     for (const target of scoreTargets) {
       expect(target.target_mode).toBe("bundle");
-      expect(target.items).toHaveLength(3);
-      expect(new Set(target.items.map((item: { window_id: Id<"windows"> }) => String(item.window_id))).size).toBe(3);
+      const sampleTargets = groupedBySample.get(String(target.sample_id)) ?? [];
+      sampleTargets.push(target);
+      groupedBySample.set(String(target.sample_id), sampleTargets);
+    }
+
+    expect(groupedBySample.size).toBe(2);
+    for (const targets of groupedBySample.values()) {
+      expect(targets).toHaveLength(3);
+      expect(targets[0]?.items).toHaveLength(3);
+      expect(targets[1]?.items).toHaveLength(3);
+      expect(targets[2]?.items).toHaveLength(2);
+      expect(
+        new Set(
+          targets[0]!.items.map((item: { window_id: Id<"windows"> }) => String(item.window_id)),
+        ).size,
+      ).toBe(3);
     }
   });
 

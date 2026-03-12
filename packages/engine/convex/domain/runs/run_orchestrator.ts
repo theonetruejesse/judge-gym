@@ -402,13 +402,23 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
 
     if (!score) return null;
     return {
+      config,
       evidence: renderedEvidence.selected_content,
-      rubric: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+      rubric: {
+        stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+      },
+      sample: {
+        label_mapping: rubric.label_mapping,
+        display_seed: hydrated.sample.seed,
+      },
       verdict: buildScoreCriticVerdictSummary({
         decoded_scores: score.decoded_scores,
-        rubric_stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+        displayed_identifiers_by_stage: rubric.label_mapping
+          ? Object.entries(rubric.label_mapping)
+            .sort((left, right) => left[1] - right[1])
+            .map(([token]) => token)
+          : rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
         method: config.scoring_config.method,
-        justification: score.justification,
       }),
       grouping_mode: config.scoring_config.evidence_grouping.mode,
     };

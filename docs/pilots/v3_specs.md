@@ -1,4 +1,4 @@
-# V3 Specs (L2-First, Full Required Matrix)
+# V3 Specs (L2-First, Live Finish Pass)
 
 ## Objective and Guardrails
 
@@ -25,16 +25,17 @@
    - Check: run primary-model rubric/scoring swap on baseline settings and compare geometry persistence.
 6. RQ6: Do secondary-model patterns cohere with primary-model findings?
    - Check: run baseline + abstain check on `gpt-4.1-mini` and `gpt-5.2-chat`.
-7. RQ7: Do synthetic/control pools show expected grounding behavior?
-   - Check: run required P2 and P3 checks under baseline settings.
+7. RQ7: Does the Norway election-reporting control pool stay low-signal under baseline settings?
+   - Check: run required P3 checks under baseline settings.
+8. RQ8: Does bundle-context aggregation materially shift geometry relative to single-evidence scoring?
+   - Check: compare matched `single_evidence` vs `bundle` runs on `P1` with stratified-by-window bundles.
 
 ## Windows
 
-| Window ID | Pool | Date Range               | Build Procedure                                                                  |            Output |
-| :-------- | :--- | :----------------------- | :------------------------------------------------------------------------------- | ----------------: |
-| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2                                           | 2 each (20 total) |
-| W11       | P2   | N/A                      | synthetic ladder scenarios (S1..S10)                                             |                10 |
-| W12-W15   | P3   | 2025-09-08 to 2025-09-12 | Norway election-reporting queries; fetch 10 per window; dedupe and keep 10 total |                10 |
+| Window ID | Pool | Date Range               | Build Procedure                                                                |           Output |
+| :-------- | :--- | :----------------------- | :----------------------------------------------------------------------------- | ---------------: |
+| W1-W10    | P1   | 2026-01-01 to 2026-01-07 | one query per window; fetch 10; keep 2                                         | 2 each (20 total) |
+| W12-W15   | P3   | 2025-09-08 to 2025-09-12 | Norway election-reporting queries; fetch 10 per window; dedupe aggressively    | 4 final keepers |
 
 ### W1-W10 query plan (P1)
 
@@ -62,42 +63,58 @@
 
 ## Pools
 
-| Pool ID | Source                                          | Purpose                           | Size | Done  |
-| :------ | :---------------------------------------------- | :-------------------------------- | ---: | :---- |
-| P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | true  |
-| P2      | W12-W15 Norway election-reporting control trial | Required low-contestation control |   10 | true  |
-| P3      | W11 synthetic ladder (S1..S10)                  | Required grounding check pool     |   10 | false |
+| Pool ID | Source                                          | Purpose                           | Size | Done |
+| :------ | :---------------------------------------------- | :-------------------------------- | ---: | :--- |
+| P1      | W1-W10 (real news)                              | Primary contested pool            |   20 | true |
+| P3      | W12-W15 Norway election-reporting control trial | Low-contestation reporting control |    4 | true |
 
 ## Experiments (Source of Truth)
 
-| Tier                               | Pool | Models                     | Concept                | Ablations                                                     | Config Count | Done  |
-| :--------------------------------- | :--- | :------------------------- | :--------------------- | :------------------------------------------------------------ | -----------: | :---- |
-| A1 (primary baseline + abstain)    | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
-| A2 (primary semantic ablation)     | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`                      |            2 | false |
-| A3 (primary scale ablation)        | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`                      |            2 | false |
-| A4 (primary swap mechanism)        | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true` |            2 | false |
-| A5 (concept extension baseline)    | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
-| A6 (low contested country control) | P2   | gpt-4.1, gpt-5.2           | fascism                | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
-| B1 (secondary baseline + abstain)  | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`                         |            4 | false |
-| C1 (control domain check)          | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`                      |            2 | false |
+| Tier                                    | Pool | Models                     | Concept                | Ablations                                                                                              | Config Count | Done |
+| :-------------------------------------- | :--- | :------------------------- | :--------------------- | :----------------------------------------------------------------------------------------------------- | -----------: | :--- |
+| A1 (primary baseline + abstain)         | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                            |            4 | false |
+| A2 (primary semantic ablation)          | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
+| A3 (primary scale ablation)             | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`, `evidence_grouping=single_evidence`                         |            2 | false |
+| A4 (primary swap mechanism)             | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=single_evidence`   |            2 | false |
+| A5 (concept extension baseline)         | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
+| A6 (bundle-context ablation)            | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=bundle`, stratified-by-window bundles    |            2 | false |
+| B1 (secondary baseline + abstain)       | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                            |            4 | false |
+| D1 (Norway reporting control baseline)  | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
 
 Required total (current live finish pass): **20 configs**.
+
+### Bundle Ablation Notes
+
+- `A6` uses the current frozen `P1` pool and the new explicit `scoring_config.evidence_grouping` path.
+- Bundle membership is assigned **per run**, frozen at run creation, and inspectable via `packages/lab:listRunScoreTargets`.
+- Current canary coverage already passed for:
+  - `bundle_size=3`
+  - `bundle_size=5`
+  - `bundle_size="all"`
+- Current default bundle settings for the first real pass:
+  - `mode="bundle"`
+  - `bundle_size=5`
+  - `bundle_strategy="stratified_by_window"`
+  - `assignment_scope="per_run"`
+  - each sample partitions the frozen pool into multiple bundle score targets; `bundle_size=5` on `P1` yields `4` score targets per sample
 
 ### Preflight
 
 - [ ] Confirm index hardening is deployed (`llm_requests.by_run`, artifact `by_run`, transport `by_custom_key_status`).
-- [ ] Reset run/LLM operational tables before fresh validation (keep windows/evidence).
+- [x] Reset run/LLM operational tables before fresh validation (keep windows/evidence).
 - [ ] Confirm `P1` has expected count (20 evidence; 2 per W1-W10).
-- [ ] Confirm `P2` and `P3` are populated with expected counts.
+- [ ] Confirm `P3` is populated with expected count (`4` de-duplicated Norway reporting items).
 - [ ] Confirm P1/P3 dedupe pass is complete (normalized URL + near-duplicate title).
 - [ ] Confirm pool freeze metadata is recorded (stable `pool_tag` + fixed evidence IDs).
-- [ ] Confirm default experiment settings (subset scoring + all randomizations).
-- [ ] Run one tiny canary (`target_count=1`) and verify full stage completion.
+- [ ] Confirm default experiment settings (subset scoring + all randomizations + explicit `evidence_grouping`).
+- [ ] Run final tiny canary gate:
+  - one `single_evidence` baseline (`target_count=1`)
+  - one `bundle` baseline (`target_count=1`)
 
 ### Pool QA Gate (must pass before required runs)
 
 - [ ] `P1` cardinality invariant passes (`10 × 2 = 20`).
-- [ ] `P3` cardinality invariant passes (`10` de-duplicated election-reporting items).
+- [ ] `P3` cardinality invariant passes (`4` de-duplicated election-reporting items).
 - [ ] All selected P1/P3 evidence has non-empty `l2_neutralized_content`.
 - [ ] `P3` selected evidence passes exclusion rules (no crisis/overturn/authoritarian framing artifacts).
 
@@ -107,8 +124,9 @@ Required total (current live finish pass): **20 configs**.
 - [ ] Complete A2 (2 configs): singular `l3` semantic ablation (`abstain=true`, scale `4`).
 - [ ] Complete A3 (2 configs): singular scale `5` ablation (`l2`, `abstain=true`).
 - [ ] Complete A4 (2 configs): primary rubric/scoring swap mechanism check.
+- [ ] Complete A5 (2 configs): `illiberal democracy` concept extension baseline.
+- [ ] Complete A6 (2 configs): bundle-context ablation on `P1`.
 - [ ] Complete B1 (4 configs): secondary-model baseline + abstain check (`gpt-4.1-mini`, `gpt-5.2-chat`).
-- [ ] Complete C1 (2 configs): synthetic grounding check on P2.
 - [ ] Complete D1 (2 configs): fascism-control check on P3.
 
 ### Per-run Monitoring

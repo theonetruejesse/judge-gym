@@ -15,9 +15,7 @@ type RubricStage = { label: string; criteria: string[] };
 export type ScoreCriticVerdictSummary = {
   method: ExperimentConfig["scoring_config"]["method"];
   status: "scored" | "abstain";
-  selected_stages: number[];
-  selected_labels: string[];
-  justification: string | null;
+  selected_identifiers: string[];
 };
 
 type ScorePromptArgs = {
@@ -60,6 +58,68 @@ function renderRubricBlock(stages: Array<{ label: string; criteria: string[] }>)
   return stages
     .map((stage, index) => `${index + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`)
     .join("\n");
+}
+
+type DisplayedRubricStage = {
+  canonical_stage: number;
+  token: string;
+  label: string;
+  criteria: string[];
+};
+
+function buildDisplayedRubricStages(args: {
+  config: ExperimentConfig;
+  rubric: { stages: RubricStage[] };
+  sample: { label_mapping?: Record<string, number>; display_seed?: number };
+}): {
+  stages: DisplayedRubricStage[];
+  tokensByCanonicalStage: string[];
+} {
+  const scale = resolveScaleStrategy(args.config);
+  const randomization = resolveRandomizationStrategy(args.config);
+
+  const labelTokensBase = randomization.anonLabel && args.sample.label_mapping
+    ? invertLabelMapping(args.sample.label_mapping, scale.stageCount)
+    : scale.letterLabels;
+
+  const staged = args.rubric.stages.map((stage, idx) => ({
+    canonical_stage: idx + 1,
+    label: stage.label,
+    criteria: stage.criteria,
+    token: labelTokensBase[idx] ?? scale.letterLabels[idx],
+  }));
+
+  const displayedStages = randomization.rubricOrderShuffle
+    ? shuffleWithSeed(staged, args.sample.display_seed)
+    : staged;
+
+  return {
+    stages: displayedStages,
+    tokensByCanonicalStage: staged
+      .slice()
+      .sort((left, right) => left.canonical_stage - right.canonical_stage)
+      .map((stage) => stage.token),
+  };
+}
+
+function renderDisplayedRubricLines(args: {
+  config: ExperimentConfig;
+  rubric: { stages: RubricStage[] };
+  sample: { label_mapping?: Record<string, number>; display_seed?: number };
+}) {
+  const randomization = resolveRandomizationStrategy(args.config);
+  const displayed = buildDisplayedRubricStages(args);
+  const lines = displayed.stages.map((stage) => {
+    const criteria = stage.criteria.join("; ");
+    if (randomization.hideLabelName) {
+      return `${stage.token}: Criteria: ${criteria}`;
+    }
+    return `${stage.token}: "${stage.label}" - Criteria: ${criteria}`;
+  });
+  return {
+    lines,
+    tokensByCanonicalStage: displayed.tokensByCanonicalStage,
+  };
 }
 
 export function buildRubricGenPrompt(args: {
@@ -175,37 +235,13 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
 } {
   const { config, evidence, rubric, sample } = args;
   const scoring = resolveScoringStrategy(config);
-  const scale = resolveScaleStrategy(config);
-  const randomization = resolveRandomizationStrategy(config);
   const evidenceStrategy = resolveEvidenceStrategy(config);
 
   const evidenceContent =
     evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
-
-  const labelTokensBase = randomization.anonLabel && sample.label_mapping
-    ? invertLabelMapping(sample.label_mapping, scale.stageCount)
-    : scale.letterLabels;
-
-  const labelTokens = labelTokensBase;
   const scoringRequirements = scoring.buildRequirements();
   const scoringOutputContract = scoring.buildOutputContract();
-
-  const stages = rubric.stages.map((stage, idx) => ({
-    stage,
-    token: labelTokens[idx] ?? scale.letterLabels[idx],
-  }));
-
-  const stagedForPrompt = randomization.rubricOrderShuffle
-    ? shuffleWithSeed(stages, sample.display_seed)
-    : stages;
-
-  const rubricLines = stagedForPrompt.map(({ stage, token }) => {
-    const criteria = stage.criteria.join("; ");
-    if (randomization.hideLabelName) {
-      return `${token}: Criteria: ${criteria}`;
-    }
-    return `${token}: "${stage.label}" - Criteria: ${criteria}`;
-  });
+  const displayedRubric = renderDisplayedRubricLines({ config, rubric, sample });
 
   return {
     system_prompt: [
@@ -241,25 +277,26 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
         ].join("\n"),
       ),
     ].join("\n\n"),
-    user_prompt: wrapXml("rubric_stages", rubricLines.join("\n")),
-    label_tokens: labelTokens,
+    user_prompt: wrapXml("rubric_stages", displayedRubric.lines.join("\n")),
+    label_tokens: displayedRubric.tokensByCanonicalStage,
   };
 }
 
 export function buildScoreCriticPrompt(args: {
+  config: ExperimentConfig;
   evidence: string;
-  rubric: RubricStage[];
+  rubric: { stages: RubricStage[] };
+  sample: { label_mapping?: Record<string, number>; display_seed?: number };
   verdict: ScoreCriticVerdictSummary;
   grouping_mode?: ExperimentConfig["scoring_config"]["evidence_grouping"]["mode"];
 }): { system_prompt: string; user_prompt: string } {
-  const rubricBlock = args.rubric
-    .map((stage, idx) => `${idx + 1}) ${stage.label} :: ${stage.criteria.join("; ")}`)
-    .join("\n");
-  const selectedStages = args.verdict.selected_stages.length > 0
-    ? args.verdict.selected_stages.join(", ")
-    : "(none)";
-  const selectedLabels = args.verdict.selected_labels.length > 0
-    ? args.verdict.selected_labels.join(" | ")
+  const displayedRubric = renderDisplayedRubricLines({
+    config: args.config,
+    rubric: args.rubric,
+    sample: args.sample,
+  });
+  const selectedIdentifiers = args.verdict.selected_identifiers.length > 0
+    ? args.verdict.selected_identifiers.join(", ")
     : "(none)";
   const scoringModeNote = args.verdict.method === "subset"
     ? "Subset scoring semantics: multiple rubric stages may be selected at once."
@@ -285,8 +322,7 @@ export function buildScoreCriticPrompt(args: {
           args.grouping_mode === "bundle"
             ? "Judge agreement with the model's verdict about the combined evidence set."
             : "Judge agreement with the model's verdict about the evidence item.",
-          "Judge agreement with the interpreted verdict provided by the user.",
-          "Do not rely on hidden IDs, opaque identifiers, or alternative label schemes.",
+          "Judge agreement with the exact rubric presentation and verdict identifiers provided by the user.",
           "Evaluate agreement with the model's conclusion, not by independently rescoring from scratch.",
         ]),
       ),
@@ -300,16 +336,14 @@ export function buildScoreCriticPrompt(args: {
       ),
     ].join("\n\n"),
     user_prompt: [
-      wrapXml("rubric", rubricBlock),
+      wrapXml("rubric_stages", displayedRubric.lines.join("\n")),
       wrapXml(
         "model_verdict",
         [
           `<scoring_mode>${args.verdict.method}</scoring_mode>`,
           `<scoring_mode_definition>${scoringModeNote}</scoring_mode_definition>`,
-          `<justification>${args.verdict.justification ?? "(none)"}</justification>`,
           `<status>${args.verdict.status.toUpperCase()}</status>`,
-          `<selected_stages>${selectedStages}</selected_stages>`,
-          `<selected_labels>${selectedLabels}</selected_labels>`,
+          `<selected_identifiers>${selectedIdentifiers}</selected_identifiers>`,
         ].join("\n"),
       ),
     ].join("\n\n"),
@@ -318,21 +352,18 @@ export function buildScoreCriticPrompt(args: {
 
 export function buildScoreCriticVerdictSummary(args: {
   decoded_scores: number[] | null | undefined;
-  rubric_stages: RubricStage[];
+  displayed_identifiers_by_stage: string[];
   method: ExperimentConfig["scoring_config"]["method"];
-  justification: string | null | undefined;
 }): ScoreCriticVerdictSummary {
   const selectedStages = [...new Set((args.decoded_scores ?? [])
     .filter((score) => Number.isInteger(score))
-    .filter((score) => score >= 1 && score <= args.rubric_stages.length))]
+    .filter((score) => score >= 1 && score <= args.displayed_identifiers_by_stage.length))]
     .sort((left, right) => left - right);
   return {
     method: args.method,
     status: selectedStages.length > 0 ? "scored" : "abstain",
-    selected_stages: selectedStages,
-    selected_labels: selectedStages
-      .map((stageNumber) => args.rubric_stages[stageNumber - 1]?.label ?? `Stage ${stageNumber}`),
-    justification: args.justification ?? null,
+    selected_identifiers: selectedStages
+      .map((stageNumber) => args.displayed_identifiers_by_stage[stageNumber - 1] ?? `Stage ${stageNumber}`),
   };
 }
 

@@ -29,7 +29,7 @@ function getEvidenceContentForConfig(
   return evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
 }
 
-function buildBundleForSample(
+function buildBundleSequenceForSample(
   evidences: EvidenceDoc[],
   config: ExperimentConfig,
   seed: number,
@@ -45,7 +45,7 @@ function buildBundleForSample(
   }
 
   if (grouping.bundle_strategy === "global_random") {
-    return shuffledAll.slice(0, grouping.bundle_size);
+    return shuffledAll;
   }
 
   const byWindow = new Map<string, EvidenceDoc[]>();
@@ -57,30 +57,45 @@ function buildBundleForSample(
   }
 
   const orderedWindowIds = shuffleWithSeed(Array.from(byWindow.keys()), seed ^ 0x9e3779b9);
-  const selected: EvidenceDoc[] = [];
-  const selectedIds = new Set<string>();
-
-  for (const windowId of orderedWindowIds) {
-    const candidates = byWindow.get(windowId) ?? [];
-    const choice = candidates.find((evidence) => !selectedIds.has(String(evidence._id)));
-    if (!choice) continue;
-    selected.push(choice);
-    selectedIds.add(String(choice._id));
-    if (selected.length >= grouping.bundle_size) {
-      return selected;
+  const sequence: EvidenceDoc[] = [];
+  let appended = true;
+  while (appended) {
+    appended = false;
+    for (const windowId of orderedWindowIds) {
+      const candidates = byWindow.get(windowId) ?? [];
+      const next = candidates.shift();
+      if (!next) continue;
+      sequence.push(next);
+      appended = true;
     }
   }
 
-  for (const evidence of shuffledAll) {
-    if (selectedIds.has(String(evidence._id))) continue;
-    selected.push(evidence);
-    selectedIds.add(String(evidence._id));
-    if (selected.length >= grouping.bundle_size) {
-      break;
-    }
+  return sequence;
+}
+
+function buildBundlesForSample(
+  evidences: EvidenceDoc[],
+  config: ExperimentConfig,
+  seed: number,
+) {
+  const grouping = config.scoring_config.evidence_grouping;
+  if (grouping.mode !== "bundle") {
+    return [] as EvidenceDoc[][];
   }
 
-  return selected;
+  const sequence = buildBundleSequenceForSample(evidences, config, seed);
+  if (grouping.bundle_size === "all") {
+    return sequence.length > 0 ? [sequence] : [];
+  }
+
+  const bundles: EvidenceDoc[][] = [];
+  for (let index = 0; index < sequence.length; index += grouping.bundle_size) {
+    const bundle = sequence.slice(index, index + grouping.bundle_size);
+    if (bundle.length > 0) {
+      bundles.push(bundle);
+    }
+  }
+  return bundles;
 }
 
 function assertBundleFitsBudget(
@@ -175,24 +190,26 @@ export const createRun = zInternalMutation({
         continue;
       }
 
-      const bundle = buildBundleForSample(orderedEvidences, experiment, sample.seed);
-      assertBundleFitsBudget(bundle, experiment);
+      const bundles = buildBundlesForSample(orderedEvidences, experiment, sample.seed);
+      for (const bundle of bundles) {
+        assertBundleFitsBudget(bundle, experiment);
 
-      const scoreTargetId = await ctx.db.insert("sample_score_targets", {
-        run_id,
-        sample_id,
-        target_mode: "bundle",
-        score_id: null,
-        score_critic_id: null,
-      });
-
-      for (const [index, evidence] of bundle.entries()) {
-        await ctx.db.insert("sample_score_target_items", {
-          score_target_id: scoreTargetId,
-          evidence_id: evidence._id,
-          window_id: evidence.window_id,
-          position: index,
+        const scoreTargetId = await ctx.db.insert("sample_score_targets", {
+          run_id,
+          sample_id,
+          target_mode: "bundle",
+          score_id: null,
+          score_critic_id: null,
         });
+
+        for (const [index, evidence] of bundle.entries()) {
+          await ctx.db.insert("sample_score_target_items", {
+            score_target_id: scoreTargetId,
+            evidence_id: evidence._id,
+            window_id: evidence.window_id,
+            position: index,
+          });
+        }
       }
     }
 
