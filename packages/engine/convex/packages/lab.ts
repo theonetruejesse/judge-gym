@@ -37,7 +37,10 @@ export const createWindowForm = zMutation({
 
     const { window_id } = await ctx.runMutation(
       internal.domain.window.window_repo.createWindow,
-      evidence_window,
+      {
+        ...evidence_window,
+        target_count: evidence_limit,
+      },
     );
     await emitTraceEvent(ctx, {
       trace_id: `window:${window_id}`,
@@ -77,8 +80,9 @@ export const startWindowFlow = zInternalAction({
       }),
     });
 
+    let collectionResult;
     try {
-      await ctx.runAction(
+      collectionResult = await ctx.runAction(
         internal.domain.window.window_service.collectWindowEvidence,
         {
           window_id,
@@ -94,6 +98,14 @@ export const startWindowFlow = zInternalAction({
           error_class: classifyRequestError(errorMessage),
           error_message: errorMessage,
         },
+      );
+      return;
+    }
+
+    if (collectionResult.total === 0) {
+      await ctx.runMutation(
+        internal.domain.window.window_service.markWindowNoEvidence,
+        { window_id },
       );
       return;
     }
@@ -742,6 +754,7 @@ function deriveEvidenceStatus(
   }>,
 ): EvidenceStatus {
   if (windowStatus === "error") return "error";
+  if (windowStatus === "completed") return "ready";
   if (evidences.length === 0) return "scraping";
   if (evidences.some((e) => e.l1_cleaned_content === null)) return "cleaning";
   if (evidences.some((e) => e.l2_neutralized_content === null)) return "neutralizing";

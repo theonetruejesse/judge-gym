@@ -87,6 +87,44 @@ export const markWindowCollectionError = zInternalMutation({
   },
 });
 
+export const markWindowNoEvidence = zInternalMutation({
+  args: z.object({
+    window_id: zid("windows"),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const window = await ctx.db.get(args.window_id);
+    if (!window) return null;
+    if (
+      window.status === "completed"
+      || window.status === "canceled"
+      || window.status === "error"
+    ) {
+      return null;
+    }
+
+    await ctx.db.patch(args.window_id, {
+      status: "completed",
+      current_stage: "l0_raw",
+      target_count: 0,
+      completed_count: 0,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${args.window_id}`,
+      entity_type: "window",
+      entity_id: String(args.window_id),
+      event_name: "window_completed_no_evidence",
+      stage: "l0_raw",
+      status: "completed",
+      payload_json: JSON.stringify({
+        target_count: 0,
+        completed_count: 0,
+      }),
+    });
+    return null;
+  },
+});
+
 export const startWindowOrchestration = zInternalMutation({
   args: z.object({
     window_id: zid("windows"),

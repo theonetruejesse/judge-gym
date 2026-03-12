@@ -33,7 +33,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
-- Windows now persist both `target_count` and `completed_count`, so window summaries can report done/target progress without recomputing totals from scratch.
+- Windows now persist both `target_count` and `completed_count`; `target_count` is the requested scrape cap from window creation, while `completed_count` tracks how many evidence rows actually reached `l3`.
 - Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
 - Pools now persist `evidence_count`, which records the number of evidence rows frozen into the pool.
 - Samples now persist `score_count` and `score_critic_count`, and score fanout is stored in generalized `sample_score_targets` / `sample_score_target_items` rows so both single-evidence and bundled-evidence runs share one scoring model.
