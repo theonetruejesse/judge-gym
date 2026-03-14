@@ -1143,6 +1143,29 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     for (const batch of [...submittingBatches, ...runningBatches]) {
       if (!isAllowedProcess(batch.custom_key)) continue;
       if (batch.batch_ref) continue;
+      const [runningSibling, finalizingSibling, successSibling] = await Promise.all([
+        ctx.db
+          .query("llm_batches")
+          .withIndex("by_custom_key_status", (q) =>
+            q.eq("custom_key", batch.custom_key).eq("status", "running"),
+          )
+          .collect(),
+        ctx.db
+          .query("llm_batches")
+          .withIndex("by_custom_key_status", (q) =>
+            q.eq("custom_key", batch.custom_key).eq("status", "finalizing"),
+          )
+          .collect(),
+        ctx.db
+          .query("llm_batches")
+          .withIndex("by_custom_key_status", (q) =>
+            q.eq("custom_key", batch.custom_key).eq("status", "success"),
+          )
+          .collect(),
+      ]);
+      const superseded = [...runningSibling, ...finalizingSibling, ...successSibling]
+        .some((row) => row._id !== batch._id && typeof row.batch_ref === "string" && row.batch_ref.length > 0);
+      if (superseded) continue;
       const ageMs = Math.max(0, now - batch._creationTime);
       if (ageMs < args.older_than_ms) continue;
       const parsed = parseProcessFromCustomKey(batch.custom_key);

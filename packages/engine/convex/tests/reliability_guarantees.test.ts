@@ -258,7 +258,6 @@ describe("reliability guarantees", () => {
 
     const batchAfterSubmit = await t.run(async (ctx) => ctx.db.get(batch_id));
     expect(batchAfterSubmit?.attempt_index).toBe(1);
-    expect(batchAfterSubmit?.attempts).toBe(1);
 
     const job_id = await t.mutation(
       internal.domain.llm_calls.llm_job_repo.createLlmJob,
@@ -390,6 +389,57 @@ describe("reliability guarantees", () => {
     expect(recoveredBatch.batch.batch_ref).toBeTruthy();
     expect(recoveredBatch.batch.input_file_id).toBeTruthy();
     expect(recoveredBatch.batch.submission_id).toBe(submittingBatch.batch.submission_id);
+  });
+
+  test("finds superseding successful batch for a stale submitting sibling", async () => {
+    const t = initTest();
+
+    const staleBatchId = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        custom_key: "run:test:score_gen",
+      },
+    );
+
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+      batch_id: staleBatchId,
+      patch: {
+        status: "submitting",
+        submission_id: "sub_stale",
+      },
+    });
+
+    const liveBatchId = await t.mutation(
+      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+      {
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        custom_key: "run:test:score_gen",
+      },
+    );
+
+    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
+      batch_id: liveBatchId,
+      patch: {
+        status: "success",
+        batch_ref: "batch_live",
+      },
+    });
+
+    const superseding = await t.query(
+      internal.domain.llm_calls.llm_batch_repo.findSupersedingBatch,
+      {
+        batch_id: staleBatchId,
+        custom_key: "run:test:score_gen",
+      },
+    );
+
+    expect(superseding).not.toBeNull();
+    expect(superseding?.batch_id).toBe(liveBatchId);
+    expect(superseding?.status).toBe("success");
+    expect(superseding?.batch_ref).toBe("batch_live");
   });
 
   test("deduplicates identical system prompts into one template row", async () => {

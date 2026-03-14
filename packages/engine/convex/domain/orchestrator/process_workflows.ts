@@ -521,6 +521,43 @@ export async function handleRunningBatchWorkflow(
   }
   if (!shouldRunAt(batch.next_poll_at, now)) return;
   if (!batch.batch_ref) {
+    const supersedingBatch = await step.runQuery(
+      internal.domain.llm_calls.llm_batch_repo.findSupersedingBatch,
+      {
+        batch_id: batch._id,
+        custom_key: batch.custom_key,
+      },
+    );
+    if (supersedingBatch) {
+      await step.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.patchBatch,
+        {
+          batch_id: batch._id,
+          patch: {
+            status: "error",
+            last_error: `superseded_by_batch:${supersedingBatch.batch_id}`,
+            next_poll_at: undefined,
+            poll_claim_owner: null,
+            poll_claim_expires_at: null,
+          },
+        },
+      );
+      await emitTraceEvent(step, {
+        trace_id: traceIdForCustomKey(batch.custom_key),
+        entity_type: "batch",
+        entity_id: String(batch._id),
+        event_name: "batch_superseded",
+        status: "error",
+        custom_key: batch.custom_key,
+        stage: batch.custom_key.split(":")[2] ?? null,
+        payload_json: JSON.stringify({
+          superseding_batch_id: supersedingBatch.batch_id,
+          superseding_status: supersedingBatch.status,
+          superseding_batch_ref: supersedingBatch.batch_ref,
+        }),
+      });
+      return;
+    }
     if (batch.status === "submitting" && batch.submission_id) {
       const recovered = await recoverSubmittedBatch({
         ctx: step,

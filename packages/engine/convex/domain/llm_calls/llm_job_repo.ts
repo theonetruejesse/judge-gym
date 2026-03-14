@@ -17,7 +17,7 @@ export const createLlmJob = zInternalMutation({
     return ctx.db.insert("llm_jobs", {
       ...args,
       status: "queued",
-      attempt_index: undefined,
+      attempt_index: 1,
       run_claim_owner: null,
       run_claim_expires_at: null,
     });

@@ -115,7 +115,27 @@ export function extractReasoningBeforeQuality(raw: string): string {
   return reasoning;
 }
 
-const VERDICT_REGEX = /VERDICT:\s*(.+)/gi;
+const VERDICT_REGEX = /(?:^|\n)\s*VERDICT:\s*([^\n\r]*)/gim;
+
+function normalizeVerdictLine(line: string): string {
+  let normalized = line.trim();
+  normalized = normalized.replace(/^`+|`+$/g, "");
+  normalized = normalized.replace(/^VERDICT:\s*/i, "");
+  normalized = normalized.replace(/^VERDICT:\s*/i, "");
+  normalized = normalized.replace(/^["']|["']$/g, "");
+  normalized = normalized.replace(/[.;]+$/g, "");
+  return normalized.trim();
+}
+
+function normalizeVerdictToken(token: string): string {
+  return token
+    .trim()
+    .replace(/^`+|`+$/g, "")
+    .replace(/^VERDICT:\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .replace(/[.;]+$/g, "")
+    .trim();
+}
 
 function getLastVerdictMatch(raw: string): { line: string; index: number } {
   let match: RegExpExecArray | null;
@@ -127,7 +147,7 @@ function getLastVerdictMatch(raw: string): { line: string; index: number } {
   if (!lastMatch) {
     throw new Error(`Failed to parse verdict line: ${raw}`);
   }
-  const line = lastMatch[1].split("\n")[0].trim();
+  const line = normalizeVerdictLine(lastMatch[1].split("\n")[0] ?? "");
   return { line, index: lastMatch.index };
 }
 
@@ -152,12 +172,12 @@ export function parseSingleVerdict(
   if (line.toUpperCase() === "ABSTAIN")
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
 
-  const tokenMatch = line.match(/[A-Za-z0-9]+/);
+  const tokenMatch = normalizeVerdictLine(line).match(/[A-Za-z0-9]+/);
   if (!tokenMatch) {
     throw new Error(`Failed to parse verdict token: ${line}`);
   }
 
-  const token = tokenMatch[0];
+  const token = normalizeVerdictToken(tokenMatch[0] ?? "");
 
   const normalized = token.toUpperCase();
   const decoded = labelMapping
@@ -183,10 +203,10 @@ export function parseSubsetVerdict(
   if (verdictLine.toUpperCase() === "ABSTAIN")
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
 
-  const cleaned = verdictLine.replace(/[\[\]]/g, "");
+  const cleaned = normalizeVerdictLine(verdictLine).replace(/[\[\]]/g, "");
   const tokens = cleaned
     .split(/[,\s/]+/)
-    .map((t) => t.trim())
+    .map((t) => normalizeVerdictToken(t))
     .filter((t) => t.length > 0);
   if (tokens.length === 0) {
     throw new Error(`Failed to parse verdict tokens: ${verdictLine}`);

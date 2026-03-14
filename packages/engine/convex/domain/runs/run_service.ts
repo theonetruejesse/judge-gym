@@ -328,6 +328,7 @@ export const applyRequestResult = zInternalMutation({
           output_tokens: args.output_tokens ?? null,
         }),
       }, { defer: true });
+      await maybeAdvanceRunStage(ctx, sample.run_id, stage);
       return;
     }
 
@@ -383,6 +384,7 @@ export const handleRequestError = zInternalMutation({
         attempt_index: request.attempt_index ?? null,
       }),
     }, { defer: true });
+    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
   },
 });
 

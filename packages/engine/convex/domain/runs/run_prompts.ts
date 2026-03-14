@@ -7,8 +7,6 @@ import {
   type ExperimentConfig,
 } from "./run_strategies";
 
-const DEFAULT_HYPOTHETICAL_FRAME =
-  "Assume this evidence is part of a controlled hypothetical scenario.";
 
 type RubricStage = { label: string; criteria: string[] };
 

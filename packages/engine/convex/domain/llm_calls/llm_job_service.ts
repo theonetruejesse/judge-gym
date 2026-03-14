@@ -49,7 +49,7 @@ export async function markJobRunning(args: MarkJobRunningArgs) {
       job_id,
       patch: {
         status: "running",
-        attempt_index: job.job.attempt_index ?? 1,
+        attempt_index: job.job.attempt_index,
       },
     },
   );
@@ -72,7 +72,7 @@ export async function scheduleJobRun(args: ScheduleJobRunArgs) {
       job_id,
       patch: {
         status: "running",
-        attempt_index: (job.job.attempt_index ?? 1) + 1,
+        attempt_index: job.job.attempt_index + 1,
         next_run_at: getNextRunAt(now),
       },
     },
@@ -144,12 +144,12 @@ interface ApplyRequestErrorArgs {
   ctx: MutationRunner;
   req: Doc<"llm_requests">;
   error: string;
-  attempts: number;
+  attemptIndex: number;
   now: number;
 }
 export async function applyRequestError(args: ApplyRequestErrorArgs) {
-  const { ctx, req, error, attempts, now } = args;
-  if (attempts < ENGINE_SETTINGS.run_policy.max_request_attempts) {
+  const { ctx, req, error, attemptIndex, now } = args;
+  if (attemptIndex < ENGINE_SETTINGS.run_policy.max_request_attempts) {
     await ctx.runMutation(
       internal.domain.llm_calls.llm_request_repo.patchRequest,
       {
@@ -161,7 +161,7 @@ export async function applyRequestError(args: ApplyRequestErrorArgs) {
       },
     );
 
-    const nextAttempt = attempts + 1;
+    const nextAttempt = attemptIndex + 1;
     const retryRequestId = await ctx.runMutation(
       internal.domain.llm_calls.llm_request_repo.createLlmRequest,
       {
@@ -290,12 +290,12 @@ export async function runJobRequests(args: RunJobRequestsArgs) {
       await applyRequestSuccess({ ctx, req, output });
       await heartbeat?.();
     } catch (error: any) {
-      const attempts = req.attempt_index ?? 1;
+      const attemptIndex = req.attempt_index ?? 1;
       const didRetry = await applyRequestError({
         ctx,
         req,
         error: error?.message ?? "provider_error",
-        attempts,
+        attemptIndex,
         now,
       });
       if (didRetry) {

@@ -145,12 +145,14 @@ export function shouldMirrorLocally(
   const processRef = parseProcessRefFromTraceId(trace_event.trace_id);
   if (!processRef) return false;
   if (trace_event.entity_type === processRef.process_type) return true;
-  if (trace_event.status === "error" || trace_event.status === "failed") return true;
   if (trace_event.entity_type === "batch") {
     return BATCH_MILESTONE_EVENTS.has(trace_event.event_name);
   }
   if (trace_event.entity_type === "job") {
     return JOB_MILESTONE_EVENTS.has(trace_event.event_name);
+  }
+  if (trace_event.entity_type === "request") {
+    return false;
   }
   return false;
 }
