@@ -42,7 +42,7 @@ describe("telemetry runtime helpers", () => {
     expect(shouldMirrorLocally(local)).toBe(true);
   });
 
-  test("mirrors request failures but skips request success noise", () => {
+  test("skips request-level local mirror noise", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
     const failure = buildLocalTraceEvent({
@@ -62,7 +62,7 @@ describe("telemetry runtime helpers", () => {
       ts_ms: 1235,
     });
 
-    expect(shouldMirrorLocally(failure)).toBe(true);
+    expect(shouldMirrorLocally(failure)).toBe(false);
     expect(shouldMirrorLocally(success)).toBe(false);
   });
 });

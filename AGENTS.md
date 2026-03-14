@@ -172,7 +172,8 @@ Use this when a new Codex instance has zero prior context.
 - `packages/codex:getStuckWork` now surfaces `retryable_no_transport` when a process stage has retryable targets, no pending replacements, and no active batch/job transport; the scheduler now auto-requeues that state during normal ticks.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.
-- `llm_batches` and `llm_jobs` now expose 1-based `attempt_index`; treat it as canonical and view legacy `attempts` on batches as compatibility-only.
+- `llm_batches` and `llm_jobs` now use 1-based `attempt_index` as the only retry-attempt field.
+- Local `process_observability` mirroring now skips request-level success/error spam; use `process_request_targets` plus capped recent events for live health.
 - `packages/lab:listRunScoreTargets` lists frozen score-target membership so operators can inspect bundle composition per run.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
 - `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded, and splits terminal failure classes (`error_summary`) from historical attempt noise (`historical_error_summary`).

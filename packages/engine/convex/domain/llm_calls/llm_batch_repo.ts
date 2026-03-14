@@ -17,7 +17,7 @@ export const createLlmBatch = zInternalMutation({
     return ctx.db.insert("llm_batches", {
       ...args,
       status: "queued",
-      attempts: 0,
+      attempt_index: 1,
     });
   },
 });
@@ -157,8 +157,7 @@ export const markBatchSubmitting = zInternalMutation({
     if (batch.poll_claim_owner !== args.owner) return { ok: false };
     await ctx.db.patch(args.batch_id, {
       status: "submitting",
-      attempt_index: batch.attempt_index ?? 1,
-      attempts: Math.max(batch.attempts ?? 0, batch.attempt_index ?? 1),
+      attempt_index: batch.attempt_index,
       submission_id: batch.submission_id ?? args.submission_id,
       submitting_at: batch.submitting_at ?? args.now,
       next_poll_at: args.now,
@@ -166,6 +165,45 @@ export const markBatchSubmitting = zInternalMutation({
       poll_claim_expires_at: args.now + args.lease_ms,
     });
     return { ok: true };
+  },
+});
+
+export const findSupersedingBatch = zInternalQuery({
+  args: z.object({
+    batch_id: zid("llm_batches"),
+    custom_key: z.string(),
+  }),
+  returns: z.object({
+    batch_id: zid("llm_batches"),
+    status: z.enum(["running", "finalizing", "success"]),
+    batch_ref: z.string(),
+  }).nullable(),
+  handler: async (ctx, args) => {
+    const [running, finalizing, success] = await Promise.all([
+      ctx.db
+        .query("llm_batches")
+        .withIndex("by_custom_key_status", (q) => q.eq("custom_key", args.custom_key).eq("status", "running"))
+        .collect(),
+      ctx.db
+        .query("llm_batches")
+        .withIndex("by_custom_key_status", (q) => q.eq("custom_key", args.custom_key).eq("status", "finalizing"))
+        .collect(),
+      ctx.db
+        .query("llm_batches")
+        .withIndex("by_custom_key_status", (q) => q.eq("custom_key", args.custom_key).eq("status", "success"))
+        .collect(),
+    ]);
+
+    const candidate = [...running, ...finalizing, ...success]
+      .filter((row) => row._id !== args.batch_id && typeof row.batch_ref === "string" && row.batch_ref.length > 0)
+      .sort((left, right) => right._creationTime - left._creationTime)[0];
+
+    if (!candidate || !candidate.batch_ref) return null;
+    return {
+      batch_id: candidate._id,
+      status: candidate.status as "running" | "finalizing" | "success",
+      batch_ref: candidate.batch_ref,
+    };
   },
 });
 

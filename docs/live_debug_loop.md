@@ -120,7 +120,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - `requeue_retryable_request`
 - `release_expired_batch_claim`
 - `nudge_batch_poll_now`
-- `submitting` batches are included in poll nudges and stale-batch detection; an unknown submit outcome should surface as recoverable `batch_missing_ref` work before any manual re-submit.
+- `submitting` batches are included in poll nudges and stale-batch detection, but stale submit rows are ignored once a sibling batch for the same `custom_key` has already recovered or completed with a `batch_ref`.
 
 ## Failure Playbook
 

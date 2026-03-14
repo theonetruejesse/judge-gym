@@ -52,7 +52,7 @@ interface MarkBatchRunningArgs {
 }
 export async function markBatchRunning(args: MarkBatchRunningArgs) {
   const { ctx, batch, batch_ref, input_file_id } = args;
-  const attemptIndex = batch.attempt_index ?? Math.max(1, batch.attempts ?? 1);
+  const attemptIndex = batch.attempt_index;
   await ctx.runMutation(
     internal.domain.llm_calls.llm_batch_repo.patchBatch,
     {
@@ -63,7 +63,6 @@ export async function markBatchRunning(args: MarkBatchRunningArgs) {
         batch_ref,
         input_file_id,
         next_poll_at: getNextRunAt(Date.now()),
-        attempts: attemptIndex,
         poll_claim_owner: null,
         poll_claim_expires_at: null,
       },
@@ -142,7 +141,7 @@ interface HandleBatchErrorArgs {
 }
 export async function handleBatchError(args: HandleBatchErrorArgs) {
   const { ctx, batch, requests, error } = args;
-  const currentAttemptIndex = batch.attempt_index ?? Math.max(1, batch.attempts ?? 1);
+  const currentAttemptIndex = batch.attempt_index;
   const forceTerminal = String(error).toLowerCase().includes("terminal:")
     || isTerminalRequestError(error);
   if (!forceTerminal && currentAttemptIndex <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
@@ -159,7 +158,6 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
           submission_id: undefined,
           submitting_at: undefined,
           attempt_index: nextAttemptIndex,
-          attempts: nextAttemptIndex,
           last_error: error,
           next_poll_at: getNextRunAt(Date.now()),
           poll_claim_owner: null,
