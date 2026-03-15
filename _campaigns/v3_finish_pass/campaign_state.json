@@ -1,0 +1,9 @@
+{
+  "campaign_id": "v3_finish_pass",
+  "phase": "preflight_clean",
+  "latest_iteration_id": null,
+  "last_successful_gate": null,
+  "current_blockers": [],
+  "reset_allowed": true,
+  "notes": []
+}

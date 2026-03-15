@@ -1,0 +1,15 @@
+{
+  "taxonomy": [
+    "scheduler_kickoff",
+    "transport_requeue",
+    "provider_submit_poll",
+    "parser_contract",
+    "artifact_apply",
+    "stage_reconciliation",
+    "count_accounting",
+    "attempt_model",
+    "observability_blind_spot",
+    "spec_or_manifest_mismatch"
+  ],
+  "entries": []
+}

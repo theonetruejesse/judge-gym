@@ -1,0 +1,17 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The repo already has enough low-level execution primitives for V3; the main missing piece is a thin mission-specific campaign control plane with manifest and state files.",
+  "confidence": 0.86,
+  "rationale": "Reset, launch, status, heal, and bundle inspection already exist, but cohort-level launch/reset/status is still manual stitching.",
+  "keyAssumptions": [
+    "Existing codex/lab primitives remain stable enough to be reused by the skill."
+  ],
+  "validationCriteria": [
+    "A fresh agent can execute the V3 loop from manifest + existing primitives without adding new backend APIs."
+  ],
+  "critiquePoints": [
+    "A helper API may still be worth adding if manual stitching proves too error-prone."
+  ],
+  "questions": []
+}

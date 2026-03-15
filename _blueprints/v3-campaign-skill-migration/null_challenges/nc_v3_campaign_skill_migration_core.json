@@ -1,0 +1,35 @@
+{
+  "challengeID": "nc_v3_campaign_skill_migration_core",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Challenge whether existing repo docs and helpers are already sufficient without a dedicated manifest + skill split.",
+      "falsificationQueries": [
+        "Inspect AGENTS.md for complete fresh-context bootstrap coverage",
+        "Inspect codex for existing V3 cohort helper",
+        "Inspect lab/codex surfaces for missing cohort-level launch/reset/status primitives"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_control_plane_primitives.md",
+        "knowledge/k_002_docs_source_of_truth_drift.md",
+        "knowledge/k_005_fresh_agent_bootstrap_and_manifest.md"
+      ],
+      "falsificationAnalysis": "The falsifier found strong counterevidence to any absolute claim that a manifest + skill is the only viable path: AGENTS.md already bootstraps a fresh agent, and reseedV3Experiments is a partial code-level cohort helper. But the same evidence also shows drift, duplication, and stale semantics. The claim survives in softened form: manifest + skill is the highest-value next layer, not the only theoretically possible approach.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Challenge whether a first-class iteration snapshot artifact is really necessary, given current codex/lab observability.",
+      "falsificationQueries": [
+        "Inspect getProcessHealth/getStuckWork/getRunSummary/getRunDiagnostics/listRunScoreTargets",
+        "Check whether one existing API already provides a full cohort forensic snapshot"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_forensic_snapshot_requirements.md",
+        "knowledge/k_001_control_plane_primitives.md"
+      ],
+      "falsificationAnalysis": "Current surfaces already expose enough information to reconstruct a failed pass, but only by composing multiple bounded views. No first-class iteration artifact exists. This weakens the claim that snapshotting is the only missing observability feature, but still supports it as a top priority.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}

@@ -619,7 +619,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       failed_requests,
       terminal_failed_targets,
       terminal_stage_rollup: Object.fromEntries(
-        runSummary.stages.map((stage) => [
+        runSummary.stages.map((stage: (typeof runSummary.stages)[number]) => [
           stage.stage,
           {
             completed: stage.completed,

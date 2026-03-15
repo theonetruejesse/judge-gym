@@ -6,8 +6,12 @@ export {
   backfillSampleScoreCounts,
   getProcessHealth,
   getStuckWork,
-  reseedV3Experiments,
   runDebugActions,
   tailTrace,
   testAxiomIngest,
 } from "../domain/maintenance/codex";
+export {
+  getV3CampaignStatus,
+  resetRuns,
+  startV3Experiments,
+} from "../domain/maintenance/v3_campaign";

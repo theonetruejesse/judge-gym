@@ -284,7 +284,11 @@ export async function submitBatch(args: SubmitBatchArgs) {
     { request_ids: requests.map((req) => req._id) },
   );
   const promptByRequestId = new Map(
-    resolvedPrompts.map((row) => [row.request_id, row]),
+    resolvedPrompts.map((row: {
+      request_id: Id<"llm_requests">;
+      system_prompt: string | null;
+      user_prompt: string;
+    }) => [row.request_id, row]),
   );
   const payload = requests.map((req) => ({
     custom_key: req.custom_key,
