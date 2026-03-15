@@ -2359,19 +2359,6 @@ export const reseedV3Experiments: ReturnType<typeof zMutation> = zMutation({
       await Promise.all(experiments.map(async (experiment) => {
         const pool = await ctx.db.get(experiment.pool_id);
         if (!pool) return null;
-        const rawScoringConfig = experiment.scoring_config as typeof experiment.scoring_config & {
-          evidence_grouping?: {
-            mode?: "single_evidence" | "bundle";
-            bundle_size?: number | "all";
-          };
-        };
-        const evidenceBundleSize = typeof rawScoringConfig.evidence_bundle_size === "number"
-          ? rawScoringConfig.evidence_bundle_size
-          : rawScoringConfig.evidence_grouping?.mode === "bundle"
-            ? rawScoringConfig.evidence_grouping.bundle_size === "all"
-              ? Math.max(1, pool.evidence_count)
-              : Math.max(1, rawScoringConfig.evidence_grouping.bundle_size ?? 1)
-            : 1;
         return {
           experiment_id: experiment._id,
           experiment_tag: experiment.experiment_tag,
@@ -2382,7 +2369,7 @@ export const reseedV3Experiments: ReturnType<typeof zMutation> = zMutation({
           scale_size: experiment.rubric_config.scale_size,
           abstain_enabled: experiment.scoring_config.abstain_enabled,
           evidence_view: experiment.scoring_config.evidence_view,
-          evidence_bundle_size: evidenceBundleSize,
+          evidence_bundle_size: experiment.scoring_config.evidence_bundle_size,
           total_count: experiment.total_count,
         };
       }))
