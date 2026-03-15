@@ -172,7 +172,7 @@ Use this when a new Codex instance has zero prior context.
 - `packages/codex:getStuckWork` now surfaces `retryable_no_transport` when a process stage has retryable targets, no pending replacements, and no active batch/job transport; the scheduler now auto-requeues that state during normal ticks.
 - `packages/lab:getRunDiagnostics` now uses direct `run_id` indexes (`llm_requests.by_run` and artifact `by_run`) for run-scoped diagnostics, replacing prior global artifact scans.
 - `packages/lab:getRunDiagnostics` now separates historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when present.
-- `llm_batches` and `llm_jobs` now use 1-based `attempt_index` as the only retry-attempt field.
+- `llm_batches` and `llm_jobs` now use 1-based `attempt_index` as the only retry-attempt field, and retries create fresh transport rows instead of mutating the prior attempt row in place.
 - Local `process_observability` mirroring now skips request-level success/error spam; use `process_request_targets` plus capped recent events for live health.
 - `packages/lab:listRunScoreTargets` lists frozen score-target membership so operators can inspect bundle composition per run.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
@@ -185,10 +185,11 @@ Use this when a new Codex instance has zero prior context.
 - Parse/orchestrator-side apply failures are treated as terminal request failures.
 - Provider/network/rate-limit classes remain retryable up to policy caps.
 - Every retry is represented as a new `llm_requests` row with a 1-based `attempt_index`; failed attempts remain persisted for forensic analysis.
+- Successful request apply also triggers run-stage reconciliation, so stages with exhausted residual request targets do not remain stuck once artifact state is already settled.
 
 ### 7. One-off run count repair
 
-- `runs` now persist both `target_count` and `completed_count`.
+- `runs` now persist `target_count`, `completed_count`, per-stage completed counters, and optional `pause_after`.
 - `windows` now persist both `target_count` and `completed_count`.
 - `pools` now persist `evidence_count`.
 - `experiments` now persist `total_count`, defined as the sum of `completed_count` across their runs.

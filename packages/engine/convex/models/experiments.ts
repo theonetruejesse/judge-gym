@@ -23,6 +23,11 @@ export const RunsTableSchema = z.object({
     status: StateStatusSchema,
     experiment_id: zid("experiments"),
     current_stage: RunStageSchema,
+    pause_after: RunStageSchema.nullable(),
     target_count: z.number(),
     completed_count: z.number(),
+    rubric_gen_count: z.number(),
+    rubric_critic_count: z.number(),
+    score_gen_count: z.number(),
+    score_critic_count: z.number(),
 });

@@ -165,6 +165,13 @@ export const listExperiments = zInternalQuery({
         current_stage: z.infer<typeof RunStageSchema>;
         target_count: number;
         completed_count: number;
+        pause_after: z.infer<typeof RunStageSchema> | null;
+        stage_counts: {
+          rubric_gen: number;
+          rubric_critic: number;
+          score_gen: number;
+          score_critic: number;
+        };
         created_at: number;
         has_failures: boolean;
       };
@@ -198,6 +205,13 @@ export const listExperiments = zInternalQuery({
             current_stage: latest.current_stage,
             target_count: latest.target_count,
             completed_count: latestRunState.completedCount,
+            pause_after: latest.pause_after ?? null,
+            stage_counts: {
+              rubric_gen: latest.rubric_gen_count ?? 0,
+              rubric_critic: latest.rubric_critic_count ?? 0,
+              score_gen: latest.score_gen_count ?? 0,
+              score_critic: latest.score_critic_count ?? 0,
+            },
             created_at: latest._creationTime,
             has_failures: latestRunState.hasFailures,
           }
@@ -293,6 +307,13 @@ export const getExperimentSummary = zInternalQuery({
           current_stage: latest.current_stage,
           target_count: latest.target_count,
           completed_count: latestRunState.completedCount,
+          pause_after: latest.pause_after ?? null,
+          stage_counts: {
+            rubric_gen: latest.rubric_gen_count ?? 0,
+            rubric_critic: latest.rubric_critic_count ?? 0,
+            score_gen: latest.score_gen_count ?? 0,
+            score_critic: latest.score_critic_count ?? 0,
+          },
           created_at: latest._creationTime,
           has_failures: latestRunState.hasFailures,
         }
@@ -377,8 +398,15 @@ export const getRunSummary = zInternalQuery({
       run_id: run._id,
       status: run.status,
       current_stage: run.current_stage,
+      pause_after: run.pause_after ?? null,
       target_count: run.target_count,
       completed_count: completedCount,
+      stage_counts: {
+        rubric_gen: run.rubric_gen_count ?? 0,
+        rubric_critic: run.rubric_critic_count ?? 0,
+        score_gen: run.score_gen_count ?? 0,
+        score_critic: run.score_critic_count ?? 0,
+      },
       has_failures: snapshot?.hasFailures ?? false,
       failed_stage_count,
       stages: stageResults,
