@@ -32,7 +32,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The active 20-item U.S.-only contested `P1` pool now has all `14` required `A1/A2/A3/A4/B1` experiment configs initialized and ready to launch.
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
-- Runs now persist both `target_count` and `completed_count`, and the lab run table shows live done/target progress instead of only the requested sample count.
+- Runs now persist both `target_count` and `completed_count`, plus per-stage completed counters (`rubric_gen_count`, `rubric_critic_count`, `score_gen_count`, `score_critic_count`) for live monitoring.
+- Runs also support `pause_after`, which pauses the run after the requested stage settles instead of automatically enqueueing the next stage.
 - Windows now persist both `target_count` and `completed_count`; `target_count` is the requested scrape cap from window creation, while `completed_count` tracks how many evidence rows actually reached `l3`.
 - Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
 - Pools now persist `evidence_count`, which records the number of evidence rows frozen into the pool.
@@ -58,6 +59,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Run-stage pending-state and stage-transition reconciliation now read from `process_request_targets` snapshots instead of global `llm_requests` status scans, reducing read-limit failures on large score-stage backlogs.
 - Local `process_observability` mirroring now skips request-level noise; live health derives request failure state from `process_request_targets` instead of per-request event spam on the hot observability row.
 - Stale `submitting` batches are now superseded when a sibling batch for the same `custom_key` already recovered or completed with a provider `batch_ref`.
+- Successful request apply now reconciles the owning run stage immediately, so stages with exhausted residual requests do not remain stuck `running` after artifact state is already settled.
+- `llm_batches` and `llm_jobs` now behave as append-only transport attempt logs: a failed attempt stays `error`, and the next retry creates a fresh row with the next `attempt_index`.
 - Run trace ordering now emits request/job terminal events before `run_completed`, so terminal telemetry no longer includes post-terminal transport events.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
@@ -161,8 +164,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
 | `llm_requests` | Individual LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
 | `process_request_targets` | Current per-target request snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
-| `llm_jobs` | Non-batched request groups | `status`, `model`, `custom_key`, `attempt_index`, `next_run_at`, `last_error` |
-| `llm_batches` | Batched request groups | `status`, `model`, `custom_key`, `batch_ref`, `attempt_index`, `next_poll_at`, `last_error` |
+| `llm_jobs` | Non-batched request transport attempt log | `status`, `model`, `custom_key`, `attempt_index`, `next_run_at`, `last_error` |
+| `llm_batches` | Batched request transport attempt log | `status`, `model`, `custom_key`, `batch_ref`, `attempt_index`, `next_poll_at`, `last_error` |
 | `process_observability` | Small per-process local observability mirror for the live loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
 | `scheduler_locks` | Dedicated scheduler heartbeat/lock rows | `lock_key`, `status`, `heartbeat_ts_ms`, `expires_at_ms` |
 
@@ -172,7 +175,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `pools` | Reusable evidence pools | `pool_tag`, `evidence_count` |
 | `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
 | `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
-| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `target_count`, `completed_count` |
+| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count` |
 | `sample_score_targets` | Run score targets (single evidence or bundle) | `run_id`, `sample_id`, `target_mode`, `score_id`, `score_critic_id` |
 | `sample_score_target_items` | Evidence membership for each score target | `score_target_id`, `evidence_id`, `window_id`, `position` |
@@ -205,11 +208,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`. In bundle mode, each sample partitions the frozen pool into multiple bundle score targets; e.g. `bundle_size=5` on a 20-item pool yields `4` score targets for that sample.
+2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`. Optional `pause_after` lets operators stop a run after a chosen settled stage (for example after `rubric_critic`). In bundle mode, each sample partitions the frozen pool into multiple bundle score targets; e.g. `bundle_size=5` on a 20-item pool yields `4` score targets for that sample.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
 4. Score-stage requests are keyed by score-target IDs (`sample_score_target:<id>:score_gen|score_critic`) so each sample can score either one evidence item or a frozen bundle of evidence items.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.
-6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-score-target targets for score stages), while sample `score_count` / `score_critic_count`, run `completed_count`, and experiment `total_count` persist as score work finishes.
+6. `maybeAdvanceRunStage` advances stages when every stage target is either completed or terminally failed (sample targets for rubric stages, sample-score-target targets for score stages), persists per-stage run counters as work lands, and respects `pause_after` before enqueueing the next stage. Sample `score_count` / `score_critic_count`, run `completed_count`, and experiment `total_count` persist as score work finishes.
 
 **Architecture overview**
 

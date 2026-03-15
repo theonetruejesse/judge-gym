@@ -7,7 +7,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Scheduler-driven orchestration for run/window flows.
 - Internal actions process queued/running batches and jobs.
 - Internal mutations own state transitions and durable table writes.
-- Runs persist both requested samples (`target_count`) and fully finished samples (`completed_count`).
+- Runs persist requested samples (`target_count`), fully finished samples (`completed_count`), per-stage completed counters, and optional `pause_after`.
 - Experiments persist `total_count`, the aggregate sum of run `completed_count` values for that experiment.
 - Scheduler auto-requeues due orphaned requests on normal ticks.
 - `process_request_targets` provides snapshot-backed process health rollups.

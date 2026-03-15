@@ -10,9 +10,10 @@ import {
   type ExperimentConfig,
 } from "./run_strategies";
 
-const CreateRunArgsSchema = RunsTableSchema.pick({
-  experiment_id: true,
-  target_count: true,
+const CreateRunArgsSchema = z.object({
+  experiment_id: RunsTableSchema.shape.experiment_id,
+  target_count: RunsTableSchema.shape.target_count,
+  pause_after: RunsTableSchema.shape.pause_after.optional(),
 });
 
 type EvidenceDoc = Doc<"evidences">;
@@ -132,9 +133,14 @@ export const createRun = zInternalMutation({
     const run_id = await ctx.db.insert("runs", {
       experiment_id,
       target_count,
+      pause_after: args.pause_after ?? null,
       completed_count: 0,
       status: "start",
       current_stage: "rubric_gen",
+      rubric_gen_count: 0,
+      rubric_critic_count: 0,
+      score_gen_count: 0,
+      score_critic_count: 0,
     });
 
     const baseSeed = (Math.random() * 0xffffffff) | 0;
@@ -149,6 +155,7 @@ export const createRun = zInternalMutation({
         seed,
         rubric_id: null,
         rubric_critic_id: null,
+        score_target_total: 0,
         score_count: 0,
         score_critic_count: 0,
       });
@@ -187,6 +194,9 @@ export const createRun = zInternalMutation({
             position: 0,
           });
         }
+        await ctx.db.patch(sample_id, {
+          score_target_total: orderedEvidences.length,
+        });
         continue;
       }
 
@@ -211,6 +221,9 @@ export const createRun = zInternalMutation({
           });
         }
       }
+      await ctx.db.patch(sample_id, {
+        score_target_total: bundles.length,
+      });
     }
 
     return run_id;

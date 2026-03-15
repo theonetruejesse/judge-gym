@@ -266,6 +266,94 @@ async function markRunArtifacts(
   });
 }
 
+async function markRunThroughRubricCritic(
+  t: ConvexTestInstance,
+  run_id: Id<"runs">,
+) {
+  await t.run(async (ctx) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) throw new Error("run_not_found");
+
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) throw new Error("experiment_not_found");
+
+    const samples = (await ctx.db.query("samples").collect()).filter((sample) => sample.run_id === run_id);
+    const requests = (await ctx.db.query("llm_requests").collect()).filter((request) => request.run_id === run_id);
+
+    const rubricRequestBySampleId = new Map(
+      requests
+        .filter((request) => request.custom_key.endsWith(":rubric_gen"))
+        .map((request) => {
+          const [, sampleId] = request.custom_key.split(":");
+          return [sampleId, request] as const;
+        }),
+    );
+
+    for (const sample of samples) {
+      const rubricRequest = rubricRequestBySampleId.get(String(sample._id));
+      if (!rubricRequest) throw new Error("rubric_request_not_found");
+
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: rubricRequest._id,
+        patch: {
+          status: "success",
+          assistant_output: "rubric output",
+        },
+      });
+
+      const rubricId = await ctx.db.insert("rubrics", {
+        run_id,
+        sample_id: sample._id,
+        model: experiment.rubric_config.model,
+        concept: experiment.rubric_config.concept,
+        scale_size: experiment.rubric_config.scale_size,
+        llm_request_id: rubricRequest._id,
+        justification: "ok",
+        stages: [
+          { stage_number: 1, label: "Weak", criteria: ["a", "b", "c"] },
+          { stage_number: 2, label: "Medium", criteria: ["a", "b", "c"] },
+          { stage_number: 3, label: "Strong", criteria: ["a", "b", "c"] },
+          { stage_number: 4, label: "Max", criteria: ["a", "b", "c"] },
+        ],
+        label_mapping: {},
+      });
+
+      const rubricCriticRequestId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: experiment.rubric_config.model,
+          user_prompt: "rubric critic request",
+          custom_key: `sample:${sample._id}:rubric_critic`,
+          attempt_index: 1,
+        },
+      );
+      await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+        request_id: rubricCriticRequestId,
+        patch: {
+          status: "success",
+          assistant_output: "rubric critic output",
+        },
+      });
+      const rubricCriticId = await ctx.db.insert("rubric_critics", {
+        run_id,
+        sample_id: sample._id,
+        model: experiment.rubric_config.model,
+        llm_request_id: rubricCriticRequestId,
+        justification: "ok",
+        expert_agreement_prob: {
+          observability_score: 0.9,
+          discriminability_score: 0.8,
+        },
+      });
+
+      await ctx.db.patch(sample._id, {
+        rubric_id: rubricId,
+        rubric_critic_id: rubricCriticId,
+      });
+    }
+  });
+}
+
 describe("run reporting", () => {
   const originalDataset = process.env.AXIOM_DATASET;
   const originalToken = process.env.AXIOM_TOKEN;
@@ -564,5 +652,39 @@ describe("run reporting", () => {
     const refreshedTargets = refreshedSamples.filter((sample) => sample.run_id === started.run_id);
     expect(refreshedTargets.every((sample) => sample.score_count === 1)).toBe(true);
     expect(refreshedTargets.every((sample) => sample.score_critic_count === 1)).toBe(true);
+  });
+
+  test("pause_after pauses after rubric_critic and persists stage counters", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(api.packages.lab.startExperimentRun, {
+      experiment_id,
+      target_count: 2,
+      pause_after: "rubric_critic",
+    });
+    await markRunThroughRubricCritic(t, started.run_id);
+
+    await t.mutation(internal.domain.runs.run_service.reconcileRunStage, {
+      run_id: started.run_id,
+      stage: "rubric_gen",
+    });
+    await t.mutation(internal.domain.runs.run_service.reconcileRunStage, {
+      run_id: started.run_id,
+      stage: "rubric_critic",
+    });
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.status).toBe("paused");
+    expect(summary.current_stage).toBe("rubric_critic");
+    expect(summary.pause_after).toBe("rubric_critic");
+    expect(summary.stage_counts).toEqual({
+      rubric_gen: 2,
+      rubric_critic: 2,
+      score_gen: 0,
+      score_critic: 0,
+    });
   });
 });

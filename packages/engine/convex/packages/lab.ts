@@ -5,7 +5,7 @@ import { internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
-import { ExperimentsTableSchema } from "../models/experiments";
+import { ExperimentsTableSchema, RunStageSchema } from "../models/experiments";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import { classifyRequestError } from "../domain/llm_calls/llm_request_repo";
@@ -325,6 +325,7 @@ export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),
     target_count: z.number().int().min(1),
+    pause_after: RunStageSchema.nullable().optional(),
   }),
   returns: z.object({
     run_id: zid("runs"),
@@ -379,6 +380,13 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
           current_stage: z.string(),
           target_count: z.number(),
           completed_count: z.number(),
+          pause_after: RunStageSchema.nullable(),
+          stage_counts: z.object({
+            rubric_gen: z.number(),
+            rubric_critic: z.number(),
+            score_gen: z.number(),
+            score_critic: z.number(),
+          }),
           created_at: z.number(),
           has_failures: z.boolean(),
         })
@@ -412,6 +420,13 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
       current_stage: z.string(),
       target_count: z.number(),
       completed_count: z.number(),
+      pause_after: RunStageSchema.nullable(),
+      stage_counts: z.object({
+        rubric_gen: z.number(),
+        rubric_critic: z.number(),
+        score_gen: z.number(),
+        score_critic: z.number(),
+      }),
       created_at: z.number(),
       has_failures: z.boolean(),
     }).optional(),
@@ -456,8 +471,15 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
     run_id: zid("runs"),
     status: z.string(),
     current_stage: z.string(),
+    pause_after: RunStageSchema.nullable(),
     target_count: z.number(),
     completed_count: z.number(),
+    stage_counts: z.object({
+      rubric_gen: z.number(),
+      rubric_critic: z.number(),
+      score_gen: z.number(),
+      score_critic: z.number(),
+    }),
     has_failures: z.boolean(),
     failed_stage_count: z.number(),
     stages: z.array(z.object({
