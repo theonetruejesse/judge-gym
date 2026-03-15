@@ -31,6 +31,7 @@ type ScorePromptArgs = {
     label_mapping?: Record<string, number>;
     display_seed?: number;
   };
+  evidence_item_count: number;
 };
 
 
@@ -232,6 +233,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
   label_tokens: string[];
 } {
   const { config, evidence, rubric, sample } = args;
+  const isBundledEvidence = args.evidence_item_count > 1;
   const scoring = resolveScoringStrategy(config);
   const evidenceStrategy = resolveEvidenceStrategy(config);
 
@@ -250,7 +252,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
       wrapXml("evidence", evidenceContent),
       wrapXml(
         "task",
-        config.scoring_config.evidence_grouping.mode === "bundle"
+        isBundledEvidence
           ? "Evaluate the combined evidence set against the rubric provided by the user."
           : "Evaluate the evidence against the rubric provided by the user.",
       ),
@@ -260,7 +262,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
           "Use only the information provided here.",
           "Do not use outside knowledge.",
           "Do not infer unstated facts, motives, or background conditions.",
-          config.scoring_config.evidence_grouping.mode === "bundle"
+          isBundledEvidence
             ? "Judge the combined evidence set as one unit. Do not score the items separately."
             : "Judge the evidence item as one unit.",
           "Use only the rubric stage identifiers provided by the user.",
@@ -292,13 +294,14 @@ export function buildScoreCriticPrompt(args: {
   rubric: { stages: RubricStage[] };
   sample: { label_mapping?: Record<string, number>; display_seed?: number };
   verdict: ScoreCriticVerdictSummary;
-  grouping_mode?: ExperimentConfig["scoring_config"]["evidence_grouping"]["mode"];
+  evidence_item_count: number;
 }): { system_prompt: string; user_prompt: string } {
   const displayedRubric = renderDisplayedRubricLines({
     config: args.config,
     rubric: args.rubric,
     sample: args.sample,
   });
+  const isBundledEvidence = args.evidence_item_count > 1;
   const selectedIdentifiers = args.verdict.selected_identifiers.length > 0
     ? args.verdict.selected_identifiers.join(", ")
     : "(none)";
@@ -323,7 +326,7 @@ export function buildScoreCriticPrompt(args: {
           "Use only the information provided here.",
           "Do not use outside knowledge.",
           "Do not infer unstated facts, motives, or background conditions.",
-          args.grouping_mode === "bundle"
+          isBundledEvidence
             ? "Judge agreement with the model's verdict about the combined evidence set."
             : "Judge agreement with the model's verdict about the evidence item.",
           "Judge agreement with the exact rubric presentation and verdict identifiers provided by the user.",

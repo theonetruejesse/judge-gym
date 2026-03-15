@@ -17,6 +17,7 @@ const CreateRunArgsSchema = z.object({
 });
 
 type EvidenceDoc = Doc<"evidences">;
+const MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS = 20_000;
 
 function estimateEvidenceTokens(text: string | null | undefined) {
   return Math.ceil((text ?? "").length / 4);
@@ -32,23 +33,9 @@ function getEvidenceContentForConfig(
 
 function buildBundleSequenceForSample(
   evidences: EvidenceDoc[],
-  config: ExperimentConfig,
   seed: number,
 ) {
-  const grouping = config.scoring_config.evidence_grouping;
-  if (grouping.mode !== "bundle") {
-    return [] as EvidenceDoc[];
-  }
-
   const shuffledAll = shuffleWithSeed(evidences, seed);
-  if (grouping.bundle_size === "all") {
-    return shuffledAll;
-  }
-
-  if (grouping.bundle_strategy === "global_random") {
-    return shuffledAll;
-  }
-
   const byWindow = new Map<string, EvidenceDoc[]>();
   for (const evidence of shuffledAll) {
     const key = String(evidence.window_id);
@@ -79,19 +66,15 @@ function buildBundlesForSample(
   config: ExperimentConfig,
   seed: number,
 ) {
-  const grouping = config.scoring_config.evidence_grouping;
-  if (grouping.mode !== "bundle") {
-    return [] as EvidenceDoc[][];
-  }
-
-  const sequence = buildBundleSequenceForSample(evidences, config, seed);
-  if (grouping.bundle_size === "all") {
+  const sequence = buildBundleSequenceForSample(evidences, seed);
+  const bundleSize = Math.max(1, config.scoring_config.evidence_bundle_size);
+  if (bundleSize >= sequence.length) {
     return sequence.length > 0 ? [sequence] : [];
   }
 
   const bundles: EvidenceDoc[][] = [];
-  for (let index = 0; index < sequence.length; index += grouping.bundle_size) {
-    const bundle = sequence.slice(index, index + grouping.bundle_size);
+  for (let index = 0; index < sequence.length; index += bundleSize) {
+    const bundle = sequence.slice(index, index + bundleSize);
     if (bundle.length > 0) {
       bundles.push(bundle);
     }
@@ -103,17 +86,14 @@ function assertBundleFitsBudget(
   evidences: EvidenceDoc[],
   config: ExperimentConfig,
 ) {
-  const grouping = config.scoring_config.evidence_grouping;
-  if (grouping.mode !== "bundle") return;
-
   const estimatedTokens = evidences.reduce((sum, evidence) => {
     return sum + estimateEvidenceTokens(getEvidenceContentForConfig(evidence, config));
   }, 0);
 
-  if (estimatedTokens > grouping.max_estimated_input_tokens) {
+  if (estimatedTokens > MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS) {
     throw new Error(
-      `Bundle estimated input tokens ${estimatedTokens} exceed max_estimated_input_tokens `
-      + `${grouping.max_estimated_input_tokens}`,
+      `Score target estimated input tokens ${estimatedTokens} exceed internal cap `
+      + `${MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS}`,
     );
   }
 }
@@ -176,30 +156,6 @@ export const createRun = zInternalMutation({
     for (const sample_id of sampleIds) {
       const sample = await ctx.db.get(sample_id);
       if (!sample) continue;
-      const grouping = experiment.scoring_config.evidence_grouping;
-
-      if (grouping.mode === "single_evidence") {
-        for (const evidence of orderedEvidences) {
-          const scoreTargetId = await ctx.db.insert("sample_score_targets", {
-            run_id,
-            sample_id,
-            target_mode: "single_evidence",
-            score_id: null,
-            score_critic_id: null,
-          });
-          await ctx.db.insert("sample_score_target_items", {
-            score_target_id: scoreTargetId,
-            evidence_id: evidence._id,
-            window_id: evidence.window_id,
-            position: 0,
-          });
-        }
-        await ctx.db.patch(sample_id, {
-          score_target_total: orderedEvidences.length,
-        });
-        continue;
-      }
-
       const bundles = buildBundlesForSample(orderedEvidences, experiment, sample.seed);
       for (const bundle of bundles) {
         assertBundleFitsBudget(bundle, experiment);
@@ -207,7 +163,6 @@ export const createRun = zInternalMutation({
         const scoreTargetId = await ctx.db.insert("sample_score_targets", {
           run_id,
           sample_id,
-          target_mode: "bundle",
           score_id: null,
           score_critic_id: null,
         });

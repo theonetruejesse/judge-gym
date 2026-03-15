@@ -253,9 +253,7 @@ function defaultExperimentConfig() {
       abstain_enabled: true,
       evidence_view: "l3_abstracted",
       randomizations: [],
-      evidence_grouping: {
-        mode: "single_evidence",
-      },
+      evidence_bundle_size: 1,
     },
   };
 }

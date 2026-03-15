@@ -397,6 +397,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
           label_mapping: rubric.label_mapping,
           display_seed: hydrated.sample.seed,
         },
+        evidence_item_count: hydrated.items.length,
       };
     }
 
@@ -420,7 +421,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
           : rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
         method: config.scoring_config.method,
       }),
-      grouping_mode: config.scoring_config.evidence_grouping.mode,
+      evidence_item_count: hydrated.items.length,
     };
   }
 

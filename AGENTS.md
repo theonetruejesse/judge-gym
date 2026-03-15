@@ -166,7 +166,7 @@ Use this when a new Codex instance has zero prior context.
 - Raw window collection failures (for example Firecrawl quota exhaustion before any evidence rows exist) now mark the window `error` at `l0_raw` and emit `window_collection_failed`; `getStuckWork` also flags old `l0_raw` windows with no evidence and no active transport as `raw_collection_no_progress`.
 - `process_request_targets` now stores explicit target resolution (`pending`, `retryable`, `exhausted`, `succeeded`) plus attempt counters; treat it as current target truth, while `llm_requests` remains immutable attempt history.
 - `llm_requests` now stores `system_prompt_id` instead of inline system prompt text; inspect `llm_prompt_templates` to recover the canonical system prompt body for a request.
-- Run score fanout now lives in `sample_score_targets` / `sample_score_target_items`, and `scoring_config.evidence_grouping` explicitly chooses between `single_evidence` and `bundle`.
+- Run score fanout now lives in `sample_score_targets` / `sample_score_target_items`, and `scoring_config.evidence_bundle_size` controls how many evidence items each frozen score target contains (`1` means single-evidence scoring).
 - `packages/codex:getProcessHealth`, `packages/codex:getStuckWork`, and `packages/codex:autoHealProcess` now use bounded scans (`take` caps) for internal table/system reads (including `_scheduled_functions`) to avoid Convex read-limit blowups after large historical churn.
 - Scheduler liveness checks in codex now prefer `scheduler_locks` heartbeat state and only use a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` / `getStuckWork` usable after large history buildup.
 - `packages/codex:getStuckWork` now surfaces `retryable_no_transport` when a process stage has retryable targets, no pending replacements, and no active batch/job transport; the scheduler now auto-requeues that state during normal ticks.
@@ -175,6 +175,7 @@ Use this when a new Codex instance has zero prior context.
 - `llm_batches` and `llm_jobs` now use 1-based `attempt_index` as the only retry-attempt field, and retries create fresh transport rows instead of mutating the prior attempt row in place.
 - Local `process_observability` mirroring now skips request-level success/error spam; use `process_request_targets` plus capped recent events for live health.
 - `packages/lab:listRunScoreTargets` lists frozen score-target membership so operators can inspect bundle composition per run.
+- `packages/codex:reseedV3Experiments` previews or reapplies the canonical 22-config V3 matrix on ownDev; it resolves pools by pool tag and refuses to run if any runs exist.
 - `packages/codex:getProcessHealth` now combines `process_request_targets` with `process_observability` for local watch loops.
 - `packages/codex:getProcessHealth` now returns `request_state_meta` so operators can see when health state is approximate/bounded, and splits terminal failure classes (`error_summary`) from historical attempt noise (`historical_error_summary`).
 - `packages/codex:analyzeProcessTelemetry` and `packages/lab:getTraceEvents` summarize the capped local recent-events mirror only; use the returned `external_trace_ref` for full Axiom history.

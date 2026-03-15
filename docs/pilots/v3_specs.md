@@ -28,7 +28,7 @@
 7. RQ7: Does the Norway election-reporting control pool stay low-signal under baseline settings?
    - Check: run required P3 checks under baseline settings.
 8. RQ8: Does bundle-context aggregation materially shift geometry relative to single-evidence scoring?
-   - Check: compare matched `single_evidence` vs `bundle` runs on `P1` with stratified-by-window bundles.
+   - Check: compare matched `evidence_bundle_size=1` vs `evidence_bundle_size=5` runs on `P1` with stratified-by-window bundles.
 
 ## Windows
 
@@ -72,33 +72,34 @@
 
 | Tier                                    | Pool | Models                     | Concept                | Ablations                                                                                              | Config Count | Done |
 | :-------------------------------------- | :--- | :------------------------- | :--------------------- | :----------------------------------------------------------------------------------------------------- | -----------: | :--- |
-| A1 (primary baseline + abstain)         | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                            |            4 | false |
-| A2 (primary semantic ablation)          | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
-| A3 (primary scale ablation)             | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`, `evidence_grouping=single_evidence`                         |            2 | false |
-| A4 (primary swap mechanism)             | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=single_evidence`   |            2 | false |
-| A5 (concept extension baseline)         | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
-| A6 (bundle-context ablation)            | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l2`, scale=`4`, abstain=`true`, `evidence_grouping=bundle`, stratified-by-window bundles    |            2 | false |
-| A7 (bundle semantic ablation)           | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, scale=`4`, abstain=`true`, `evidence_grouping=bundle`, stratified-by-window bundles    |            2 | false |
-| B1 (secondary baseline + abstain)       | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                            |            4 | false |
-| D1 (Norway reporting control baseline)  | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_grouping=single_evidence`                         |            2 | false |
+| A1 (primary baseline + abstain)         | P1   | gpt-4.1, gpt-5.2           | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_bundle_size=1`                                       |            4 | false |
+| A2 (primary semantic ablation)          | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, abstain=`true`, scale=`4`, `evidence_bundle_size=1`                                    |            2 | false |
+| A3 (primary scale ablation)             | P1   | gpt-4.1, gpt-5.2           | fascism                | scale=`5`, semantic=`l2`, abstain=`true`, `evidence_bundle_size=1`                                    |            2 | false |
+| A4 (primary swap mechanism)             | P1   | gpt-4.1 ↔ gpt-5.2          | fascism                | rubric/scoring swap, semantic=`l2`, scale=`4`, abstain=`true`, `evidence_bundle_size=1`              |            2 | false |
+| A5 (concept extension baseline)         | P1   | gpt-4.1, gpt-5.2           | illiberal democracy    | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_bundle_size=1`                                    |            2 | false |
+| A6 (bundle-context ablation)            | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l2`, scale=`4`, abstain=`true`, `evidence_bundle_size=5`, stratified-by-window bundles      |            2 | false |
+| A7 (bundle semantic ablation)           | P1   | gpt-4.1, gpt-5.2           | fascism                | semantic=`l3`, scale=`4`, abstain=`true`, `evidence_bundle_size=5`, stratified-by-window bundles      |            2 | false |
+| B1 (secondary baseline + abstain)       | P1   | gpt-4.1-mini, gpt-5.2-chat | fascism                | abstain (2), semantic=`l2`, scale=`4`, `evidence_bundle_size=1`                                       |            4 | false |
+| D1 (Norway reporting control baseline)  | P3   | gpt-4.1, gpt-5.2           | fascism (control pool) | abstain=`true`, semantic=`l2`, scale=`4`, `evidence_bundle_size=1`                                    |            2 | false |
 
 Required total (current live finish pass): **22 configs**.
 
 ### Bundle Ablation Notes
 
-- `A6` uses the current frozen `P1` pool and the new explicit `scoring_config.evidence_grouping` path.
+- Live ownDev pool bindings for experiment reseed:
+  - `P1` -> `p1_us_contested_trial_2026_01_01`
+  - `P3` control pool -> legacy tag `p2_no_election_reporting_control_2025_09_08`
+- `A6` uses the current frozen `P1` pool and the explicit `scoring_config.evidence_bundle_size=5` path.
 - `A7` keeps the same bundle settings as `A6` but switches scoring context to `l3_abstracted`.
 - Bundle membership is assigned **per run**, frozen at run creation, and inspectable via `packages/lab:listRunScoreTargets`.
 - Current canary coverage already passed for:
-  - `bundle_size=3`
-  - `bundle_size=5`
-  - `bundle_size="all"`
+  - `evidence_bundle_size=3`
+  - `evidence_bundle_size=5`
+  - oversized bundle sizes that collapse to one all-evidence score target
 - Current default bundle settings for the first real pass:
-  - `mode="bundle"`
-  - `bundle_size=5`
-  - `bundle_strategy="stratified_by_window"`
-  - `assignment_scope="per_run"`
-  - each sample partitions the frozen pool into multiple bundle score targets; `bundle_size=5` on `P1` yields `4` score targets per sample
+  - `evidence_bundle_size=5`
+  - bundling always stratifies by window at run creation
+  - each sample partitions the frozen pool into multiple score targets; `evidence_bundle_size=5` on `P1` yields `4` score targets per sample
 
 ### Preflight
 
@@ -108,10 +109,10 @@ Required total (current live finish pass): **22 configs**.
 - [ ] Confirm `P3` is populated with expected count (`4` de-duplicated Norway reporting items).
 - [ ] Confirm P1/P3 dedupe pass is complete (normalized URL + near-duplicate title).
 - [ ] Confirm pool freeze metadata is recorded (stable `pool_tag` + fixed evidence IDs).
-- [ ] Confirm default experiment settings (subset scoring + all randomizations + explicit `evidence_grouping`).
+- [ ] Confirm default experiment settings (subset scoring + all randomizations + explicit `evidence_bundle_size`).
 - [ ] Run final tiny canary gate:
-  - one `single_evidence` baseline (`target_count=1`)
-  - one `bundle` baseline (`target_count=1`)
+  - one `evidence_bundle_size=1` baseline (`target_count=1`)
+  - one `evidence_bundle_size=5` baseline (`target_count=1`)
 
 ### Pool QA Gate (must pass before required runs)
 

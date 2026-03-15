@@ -182,7 +182,7 @@ This runbook standardizes live debugging for run and window orchestration in Con
 - `packages/lab:getWindowSummary` now includes persisted `target_count` / `completed_count`, and `packages/lab:listEvidenceWindows` reads the persisted window target count instead of recomputing totals from scratch.
 - `packages/lab:getRunDiagnostics` now splits historical failed attempts (`failed_requests`) from terminal failed targets (`terminal_failed_targets`) and includes a short failed-output preview when available.
 - `llm_requests` now stores `system_prompt_id`; recover the actual system prompt text from `llm_prompt_templates` when auditing provider payloads.
-- Run score fanout now uses `sample_score_targets` / `sample_score_target_items`, and `packages/lab:listRunScoreTargets` is the inspection surface for bundle membership and frozen target composition.
+- Run score fanout now uses `sample_score_targets` / `sample_score_target_items`, and `packages/lab:listRunScoreTargets` is the inspection surface for frozen target composition; infer single-vs-bundled scoring from `items.length`, not a `target_mode` field.
 - `llm_batches` and `llm_jobs` are append-only transport attempt logs; a failed transport attempt stays `error`, and the next retry creates a fresh row with the next `attempt_index`.
 - `packages/lab:listExperiments` and `packages/lab:getExperimentSummary` now include persisted `total_count`, which is the experiment-level aggregate of run completions.
 - `pools` now persist `evidence_count`, so pool summaries can read frozen membership totals without scanning `pool_evidences`.
