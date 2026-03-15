@@ -66,15 +66,9 @@ export const ScoreCriticsTableSchema = z.object({
     expert_agreement_prob: z.number(),
 });
 
-export const SampleScoreTargetModeSchema = z.enum([
-    "single_evidence",
-    "bundle",
-]);
-
 export const SampleScoreTargetsTableSchema = z.object({
     run_id: zid("runs"),
     sample_id: zid("samples"),
-    target_mode: SampleScoreTargetModeSchema,
     score_id: zid("scores").nullable(),
     score_critic_id: zid("score_critics").nullable(),
 });

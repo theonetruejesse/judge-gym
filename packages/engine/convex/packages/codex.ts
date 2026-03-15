@@ -6,6 +6,7 @@ export {
   backfillSampleScoreCounts,
   getProcessHealth,
   getStuckWork,
+  reseedV3Experiments,
   runDebugActions,
   tailTrace,
   testAxiomIngest,

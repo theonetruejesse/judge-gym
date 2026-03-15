@@ -109,9 +109,7 @@ describe("bundle score targets", () => {
           abstain_enabled: true,
           evidence_view: "l2_neutralized",
           randomizations: [],
-          evidence_grouping: {
-            mode: "single_evidence",
-          },
+          evidence_bundle_size: 1,
         },
       },
     });
@@ -124,9 +122,6 @@ describe("bundle score targets", () => {
     const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
 
     expect(scoreTargets).toHaveLength(6);
-    expect(
-      scoreTargets.every((target: (typeof scoreTargets)[number]) => target.target_mode === "single_evidence"),
-    ).toBe(true);
     for (const target of scoreTargets) {
       expect(target.items).toHaveLength(1);
       expect(target.items[0]?.position).toBe(0);
@@ -157,13 +152,7 @@ describe("bundle score targets", () => {
           abstain_enabled: true,
           evidence_view: "l2_neutralized",
           randomizations: [],
-          evidence_grouping: {
-            mode: "bundle",
-            bundle_size: 3,
-            bundle_strategy: "stratified_by_window",
-            assignment_scope: "per_run",
-            max_estimated_input_tokens: 20000,
-          },
+          evidence_bundle_size: 3,
         },
       },
     });
@@ -177,7 +166,6 @@ describe("bundle score targets", () => {
     expect(scoreTargets).toHaveLength(6);
     const groupedBySample = new Map<string, (typeof scoreTargets)>();
     for (const target of scoreTargets) {
-      expect(target.target_mode).toBe("bundle");
       const sampleTargets = groupedBySample.get(String(target.sample_id)) ?? [];
       sampleTargets.push(target);
       groupedBySample.set(String(target.sample_id), sampleTargets);
@@ -195,6 +183,43 @@ describe("bundle score targets", () => {
         ).size,
       ).toBe(3);
     }
+  });
+
+  test("bundle size greater than pool size creates a single all-evidence score target", async () => {
+    const t = initTest();
+    const windows = await Promise.all([
+      createWindowWithEvidence(t, "all-a", 2, "all-a"),
+      createWindowWithEvidence(t, "all-b", 2, "all-b"),
+    ]);
+    const pool = await createPoolFromWindows(t, windows);
+
+    const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
+      pool_id: pool.pool_id,
+      experiment_config: {
+        rubric_config: {
+          model: "gpt-4.1",
+          scale_size: 4,
+          concept: "fascism",
+        },
+        scoring_config: {
+          model: "gpt-4.1",
+          method: "subset",
+          abstain_enabled: true,
+          evidence_view: "l2_neutralized",
+          randomizations: [],
+          evidence_bundle_size: 99,
+        },
+      },
+    });
+
+    const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id,
+      target_count: 1,
+    });
+
+    const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
+    expect(scoreTargets).toHaveLength(1);
+    expect(scoreTargets[0]?.items).toHaveLength(4);
   });
 
   test("bundle token gate fails fast when estimated input is too large", async () => {
@@ -220,13 +245,7 @@ describe("bundle score targets", () => {
           abstain_enabled: true,
           evidence_view: "l0_raw",
           randomizations: [],
-          evidence_grouping: {
-            mode: "bundle",
-            bundle_size: 3,
-            bundle_strategy: "stratified_by_window",
-            assignment_scope: "per_run",
-            max_estimated_input_tokens: 10,
-          },
+          evidence_bundle_size: 3,
         },
       },
     });
@@ -236,7 +255,7 @@ describe("bundle score targets", () => {
         experiment_id,
         target_count: 1,
       }),
-    ).rejects.toThrow(/max_estimated_input_tokens/i);
+    ).rejects.toThrow(/internal cap/i);
   });
 
   test("windows and pools persist count fields", async () => {

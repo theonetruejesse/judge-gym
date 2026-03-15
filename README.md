@@ -26,10 +26,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
-- The V3 pilot spec is now scoped as an L2-first full required matrix (default scale 4; singular L3 and scale-5 ablations; includes secondary-model checks and required P2/P3 tiers) in `docs/pilots/v3_specs.md`.
-- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3 (including the active 20-item U.S.-only contested `P1` pool and the active 10-item Norway election-reporting control `P3` pool, freeze metadata, and model-to-tier mapping) to keep agentic run setup reproducible.
-- The first live V3 experiments on the frozen Norway election-reporting `P3` trial pool are the two `D1` control-pool configs plus a completed `gpt-4.1` 3-sample make-up run for the initial rubric-generation misses.
-- The active 20-item U.S.-only contested `P1` pool now has all `14` required `A1/A2/A3/A4/B1` experiment configs initialized and ready to launch.
+- The V3 pilot spec is now scoped as an L2-first 22-config matrix and uses `scoring_config.evidence_bundle_size` as the only experiment-side bundle control (`1` = single evidence; `5` = the current bundle ablation) in `docs/pilots/v3_specs.md`.
+- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3, plus the actual ownDev pool-tag bindings used for experiment reseed (`p1_us_contested_trial_2026_01_01` and legacy control tag `p2_no_election_reporting_control_2025_09_08`).
+- The canonical ownDev V3 experiment matrix can now be previewed or reapplied with `packages/codex:reseedV3Experiments`, which deletes and recreates the 22 experiment rows only when no runs exist.
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, plus per-stage completed counters (`rubric_gen_count`, `rubric_critic_count`, `score_gen_count`, `score_critic_count`) for live monitoring.
@@ -177,7 +176,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `experiments` | Experiment configs | `experiment_tag`, `pool_id`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count` |
-| `sample_score_targets` | Run score targets (single evidence or bundle) | `run_id`, `sample_id`, `target_mode`, `score_id`, `score_critic_id` |
+| `sample_score_targets` | Frozen run score targets | `run_id`, `sample_id`, `score_id`, `score_critic_id` |
 | `sample_score_target_items` | Evidence membership for each score target | `score_target_id`, `evidence_id`, `window_id`, `position` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | LLM request IDs + metadata |
 
@@ -208,7 +207,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Run flow (experiment)**
 
 1. `initExperiment` creates an experiment that references a reusable pool (`pool_id`).
-2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) according to `scoring_config.evidence_grouping`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`. Optional `pause_after` lets operators stop a run after a chosen settled stage (for example after `rubric_critic`). In bundle mode, each sample partitions the frozen pool into multiple bundle score targets; e.g. `bundle_size=5` on a 20-item pool yields `4` score targets for that sample.
+2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) by stratifying the frozen pool by window and chunking it by `scoring_config.evidence_bundle_size`, and immediately patches the run to `status=running` with `current_stage=rubric_gen`. Optional `pause_after` lets operators stop a run after a chosen settled stage (for example after `rubric_critic`). `evidence_bundle_size=1` yields single-evidence scoring; `evidence_bundle_size=5` on the 20-item `P1` pool yields `4` score targets per sample.
 3. `RunOrchestrator.enqueueStage` builds rubric prompts and creates LLM requests keyed by `sample:<id>:rubric_gen`.
 4. Score-stage requests are keyed by score-target IDs (`sample_score_target:<id>:score_gen|score_critic`) so each sample can score either one evidence item or a frozen bundle of evidence items.
 5. Results apply into `rubrics`, then `rubric_critics`, then `scores`, then `score_critics` across the four stages.

@@ -278,32 +278,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
-export const backfillExperimentEvidenceGrouping: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({}),
-  returns: z.object({
-    scanned: z.number(),
-    changed: z.number(),
-  }),
-  handler: async (ctx) => {
-    const experiments = await ctx.db.query("experiments").collect();
-    let changed = 0;
-    for (const experiment of experiments) {
-      if (experiment.scoring_config.evidence_grouping) continue;
-      await ctx.db.patch(experiment._id, {
-        scoring_config: {
-          ...experiment.scoring_config,
-          evidence_grouping: { mode: "single_evidence" },
-        },
-      });
-      changed += 1;
-    }
-    return {
-      scanned: experiments.length,
-      changed,
-    };
-  },
-});
-
 export const createPool: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     evidence_ids: z.array(zid("evidences")).min(1),
@@ -671,7 +645,6 @@ export const listRunScoreTargets: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(z.object({
     score_target_id: zid("sample_score_targets"),
     sample_id: zid("samples"),
-    target_mode: z.enum(["single_evidence", "bundle"]),
     score_id: zid("scores").nullable(),
     score_critic_id: zid("score_critics").nullable(),
     items: z.array(z.object({
@@ -711,7 +684,6 @@ export const listRunScoreTargets: ReturnType<typeof zQuery> = zQuery({
       results.push({
         score_target_id: scoreTarget._id,
         sample_id: scoreTarget.sample_id,
-        target_mode: scoreTarget.target_mode,
         score_id: scoreTarget.score_id,
         score_critic_id: scoreTarget.score_critic_id,
         items: hydratedItems,

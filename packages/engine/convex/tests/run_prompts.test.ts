@@ -77,9 +77,7 @@ describe("run prompts", () => {
           abstain_enabled: true,
           evidence_view: "l2_neutralized",
           randomizations: [],
-          evidence_grouping: {
-            mode: "single_evidence",
-          },
+          evidence_bundle_size: 1,
         },
       },
       evidence: {
@@ -95,6 +93,7 @@ describe("run prompts", () => {
         ],
       },
       sample: {},
+      evidence_item_count: 1,
     });
 
     expect(prompt.system_prompt).toContain("<evidence>");
@@ -121,9 +120,7 @@ describe("run prompts", () => {
           abstain_enabled: false,
           evidence_view: "l2_neutralized",
           randomizations: [],
-          evidence_grouping: {
-            mode: "single_evidence",
-          },
+          evidence_bundle_size: 1,
         },
       },
       evidence: {
@@ -139,6 +136,7 @@ describe("run prompts", () => {
         ],
       },
       sample: {},
+      evidence_item_count: 1,
     });
 
     expect(prompt.system_prompt).toContain("Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.");
@@ -173,9 +171,7 @@ describe("run prompts", () => {
           abstain_enabled: true,
           evidence_view: "l2_neutralized",
           randomizations: ["anonymize_stages", "hide_label_text", "shuffle_rubric_order"],
-          evidence_grouping: {
-            mode: "single_evidence",
-          },
+          evidence_bundle_size: 1,
         },
       },
       evidence: "Neutralized Summary:\nInstitutional pressure escalated.",
@@ -201,6 +197,7 @@ describe("run prompts", () => {
         status: "scored",
         selected_identifiers: ["1PV7Cj", "hIbjkx"],
       },
+      evidence_item_count: 1,
     });
 
     expect(prompt.system_prompt).toContain("<evidence>");
@@ -232,9 +229,7 @@ describe("run prompts", () => {
           abstain_enabled: true,
           evidence_view: "l0_raw",
           randomizations: [],
-          evidence_grouping: {
-            mode: "single_evidence",
-          },
+          evidence_bundle_size: 1,
         },
       },
       evidence: "Raw evidence.",
@@ -246,11 +241,47 @@ describe("run prompts", () => {
       },
       sample: {},
       verdict,
+      evidence_item_count: 1,
     });
 
     expect(verdict.status).toBe("abstain");
     expect(prompt.user_prompt).toContain("<scoring_mode>single</scoring_mode>");
     expect(prompt.user_prompt).toContain("<status>ABSTAIN</status>");
     expect(prompt.user_prompt).toContain("<selected_identifiers>(none)</selected_identifiers>");
+  });
+
+  test("renders combined-evidence wording when a score target has multiple items", () => {
+    const prompt = buildScoreGenPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 4,
+          concept: "fascism",
+        },
+        scoring_config: {
+          method: "subset",
+          abstain_enabled: true,
+          evidence_view: "l2_neutralized",
+          randomizations: [],
+          evidence_bundle_size: 5,
+        },
+      },
+      evidence: {
+        l0_raw_content: "EVIDENCE 1\nRaw evidence A\n\nEVIDENCE 2\nRaw evidence B",
+        l2_neutralized_content: "EVIDENCE 1\nNeutralized evidence A\n\nEVIDENCE 2\nNeutralized evidence B",
+      },
+      rubric: {
+        stages: [
+          { label: "Minimal", criteria: ["a", "b", "c"] },
+          { label: "Weak", criteria: ["a", "b", "c"] },
+          { label: "Clear", criteria: ["a", "b", "c"] },
+          { label: "Extensive", criteria: ["a", "b", "c"] },
+        ],
+      },
+      sample: {},
+      evidence_item_count: 2,
+    });
+
+    expect(prompt.system_prompt).toContain("Evaluate the combined evidence set against the rubric provided by the user.");
+    expect(prompt.system_prompt).toContain("Judge the combined evidence set as one unit. Do not score the items separately.");
   });
 });

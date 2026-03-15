@@ -63,9 +63,7 @@ async function setupExperiment(t: ConvexTestInstance) {
         abstain_enabled: true,
         evidence_view: "l0_raw",
         randomizations: [],
-        evidence_grouping: {
-          mode: "single_evidence",
-        },
+        evidence_bundle_size: 1,
       },
     },
     pool_id: pool.pool_id,
