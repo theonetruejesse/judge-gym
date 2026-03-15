@@ -59,24 +59,59 @@ interface ScheduleJobRunArgs {
   ctx: MutationRunner;
   job_id: Id<"llm_jobs">;
   now: number;
+  anyErrors: boolean;
 }
 export async function scheduleJobRun(args: ScheduleJobRunArgs) {
-  const { ctx, job_id, now } = args;
+  const { ctx, job_id, now, anyErrors } = args;
   const job = await ctx.runQuery(
     internal.domain.llm_calls.llm_job_repo.getJobWithRequests,
     { job_id },
   );
+  const retryJobId = await ctx.runMutation(
+    internal.domain.llm_calls.llm_job_repo.createLlmJob,
+    {
+      provider: job.job.provider,
+      model: job.job.model,
+      custom_key: job.job.custom_key,
+      attempt_index: job.job.attempt_index + 1,
+    },
+  );
+  const pendingRequestIds = job.requests
+    .filter((request) => request.status === "pending")
+    .map((request) => request._id);
+  if (pendingRequestIds.length > 0) {
+    await ctx.runMutation(
+      internal.domain.llm_calls.llm_job_repo.assignRequestsToJob,
+      {
+        request_ids: pendingRequestIds,
+        job_id: retryJobId,
+      },
+    );
+  }
   await ctx.runMutation(
     internal.domain.llm_calls.llm_job_repo.patchJob,
     {
       job_id,
       patch: {
+        status: anyErrors ? "error" : "success",
+        last_error: anyErrors ? "rescheduled_pending_requests" : undefined,
+        next_run_at: undefined,
+        run_claim_owner: null,
+        run_claim_expires_at: null,
+      },
+    },
+  );
+  await ctx.runMutation(
+    internal.domain.llm_calls.llm_job_repo.patchJob,
+    {
+      job_id: retryJobId,
+      patch: {
         status: "running",
-        attempt_index: job.job.attempt_index + 1,
         next_run_at: getNextRunAt(now),
       },
     },
   );
+  return retryJobId;
 }
 
 interface FinalizeJobArgs {

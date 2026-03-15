@@ -147,24 +147,6 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
   if (!forceTerminal && currentAttemptIndex <= ENGINE_SETTINGS.run_policy.max_batch_retries) {
     const retryRequestIds: Id<"llm_requests">[] = [];
     const nextAttemptIndex = currentAttemptIndex + 1;
-    await ctx.runMutation(
-      internal.domain.llm_calls.llm_batch_repo.patchBatch,
-      {
-        batch_id: batch._id,
-        patch: {
-          status: "queued",
-          batch_ref: undefined,
-          input_file_id: undefined,
-          submission_id: undefined,
-          submitting_at: undefined,
-          attempt_index: nextAttemptIndex,
-          last_error: error,
-          next_poll_at: getNextRunAt(Date.now()),
-          poll_claim_owner: null,
-          poll_claim_expires_at: null,
-        },
-      },
-    );
 
     for (const req of requests) {
       if (req.status !== "pending") continue;
@@ -221,25 +203,36 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
     }
 
     if (retryRequestIds.length > 0) {
+      const retryBatchId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+        {
+          provider: batch.provider,
+          model: batch.model,
+          custom_key: batch.custom_key,
+          attempt_index: nextAttemptIndex,
+        },
+      );
       await ctx.runMutation(
         internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
         {
           request_ids: retryRequestIds,
-          batch_id: batch._id,
-        },
-      );
-    } else {
-      await ctx.runMutation(
-        internal.domain.llm_calls.llm_batch_repo.patchBatch,
-        {
-          batch_id: batch._id,
-          patch: {
-            status: "error",
-            last_error: error,
-          },
+          batch_id: retryBatchId,
         },
       );
     }
+    await ctx.runMutation(
+      internal.domain.llm_calls.llm_batch_repo.patchBatch,
+      {
+        batch_id: batch._id,
+        patch: {
+          status: "error",
+          last_error: error,
+          next_poll_at: undefined,
+          poll_claim_owner: null,
+          poll_claim_expires_at: null,
+        },
+      },
+    );
     return;
   }
   await ctx.runMutation(
