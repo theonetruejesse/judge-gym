@@ -77,8 +77,8 @@ export async function scheduleJobRun(args: ScheduleJobRunArgs) {
     },
   );
   const pendingRequestIds = job.requests
-    .filter((request) => request.status === "pending")
-    .map((request) => request._id);
+    .filter((request: Doc<"llm_requests">) => request.status === "pending")
+    .map((request: Doc<"llm_requests">) => request._id);
   if (pendingRequestIds.length > 0) {
     await ctx.runMutation(
       internal.domain.llm_calls.llm_job_repo.assignRequestsToJob,

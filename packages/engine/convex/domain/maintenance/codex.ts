@@ -6,13 +6,10 @@ import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
-import { SemanticLevelSchema } from "../../models/_shared";
-import { modelTypeSchema } from "../../platform/providers/provider_types";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 import { getExperimentTotalCount } from "../runs/experiment_progress";
 import { getSampleScoreCounts } from "../runs/sample_progress";
 import { getRunCompletedCount } from "../runs/run_progress";
-import { V3_EXPERIMENT_SPECS } from "./v3_experiment_specs";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
@@ -195,23 +192,6 @@ const ProcessTelemetryAnalysisSchema = z.object({
     terminal_seq: z.number().nullable(),
     events_after_terminal: z.number(),
   }),
-});
-
-const V3ExperimentPreviewRowSchema = z.object({
-  experiment_tag: z.string(),
-  pool_tag: z.string(),
-  rubric_model: modelTypeSchema,
-  scoring_model: modelTypeSchema,
-  concept: z.string(),
-  scale_size: z.number(),
-  abstain_enabled: z.boolean(),
-  evidence_view: SemanticLevelSchema,
-  evidence_bundle_size: z.number().int().min(1),
-});
-
-const ExistingV3ExperimentPreviewRowSchema = V3ExperimentPreviewRowSchema.extend({
-  experiment_id: zid("experiments"),
-  total_count: z.number(),
 });
 
 type ProcessMembership = {
@@ -956,7 +936,7 @@ async function collectProcessHealth(
     historical_error_summary: [...historicalErrorCounts.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([errorClass, count]) => ({ class: errorClass, count })),
-    recent_events: recentRows.map((event) => ({
+    recent_events: recentRows.map((event: (typeof recentRows)[number]) => ({
       seq: event.seq,
       ts_ms: event.ts_ms,
       event_name: event.event_name,
@@ -1290,9 +1270,9 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         && run.status !== "canceled",
       )
       .slice(0, STUCK_HEALTH_CHECK_MAX_PROCESSES);
-    for (const run of runRows) {
+    for (const run of runRows as Doc<"runs">[]) {
       if (args.process_type && args.process_type !== "run") continue;
-      if (!runHealthRows.find((row) => row._id === run._id)) continue;
+      if (!runHealthRows.find((row: Doc<"runs">) => row._id === run._id)) continue;
       healthChecks += 1;
       const health = await collectProcessHealth(ctx, {
         process_type: "run",
@@ -1335,21 +1315,21 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
 
     const windowRows = args.process_type === "run"
       ? []
-      : windows.filter((window) =>
+      : windows.filter((window: Doc<"windows">) =>
         window.status !== "completed"
         && window.status !== "error"
         && window.status !== "canceled",
       );
     const windowHealthRows = windowRows
-      .filter((window) =>
+      .filter((window: Doc<"windows">) =>
         window.status !== "completed"
         && window.status !== "error"
         && window.status !== "canceled",
       )
       .slice(0, STUCK_HEALTH_CHECK_MAX_PROCESSES);
-    for (const window of windowRows) {
+    for (const window of windowRows as Doc<"windows">[]) {
       if (args.process_type && args.process_type !== "window") continue;
-      if (!windowHealthRows.find((row) => row._id === window._id)) continue;
+      if (!windowHealthRows.find((row: Doc<"windows">) => row._id === window._id)) continue;
       healthChecks += 1;
       const health = await collectProcessHealth(ctx, {
         process_type: "window",
@@ -2315,130 +2295,6 @@ export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation
       updated,
       next_cursor: nextCursor,
       rows,
-    };
-  },
-});
-
-export const reseedV3Experiments: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    dry_run: z.boolean().default(true),
-  }),
-  returns: z.object({
-    dry_run: z.boolean(),
-    runs_found: z.number(),
-    existing_count: z.number(),
-    deleted: z.number(),
-    inserted: z.number(),
-    existing_rows: z.array(ExistingV3ExperimentPreviewRowSchema),
-    planned_rows: z.array(V3ExperimentPreviewRowSchema),
-  }),
-  handler: async (ctx, args) => {
-    const runs = await ctx.db.query("runs").collect();
-    const requiredPoolTags = Array.from(new Set(V3_EXPERIMENT_SPECS.map((spec) => spec.pool_tag)));
-    const pools = await Promise.all(
-      requiredPoolTags.map((poolTag) =>
-        ctx.db
-          .query("pools")
-          .withIndex("by_pool_tag", (q) => q.eq("pool_tag", poolTag))
-          .first()),
-    );
-
-    const poolByTag = new Map<string, Doc<"pools">>();
-    for (const pool of pools) {
-      if (!pool) continue;
-      poolByTag.set(pool.pool_tag, pool);
-    }
-    for (const poolTag of requiredPoolTags) {
-      if (!poolByTag.has(poolTag)) {
-        throw new Error(`Required pool not found: ${poolTag}`);
-      }
-    }
-
-    const experiments = await ctx.db.query("experiments").collect();
-    const existingRows = (
-      await Promise.all(experiments.map(async (experiment) => {
-        const pool = await ctx.db.get(experiment.pool_id);
-        if (!pool) return null;
-        return {
-          experiment_id: experiment._id,
-          experiment_tag: experiment.experiment_tag,
-          pool_tag: pool.pool_tag,
-          rubric_model: experiment.rubric_config.model,
-          scoring_model: experiment.scoring_config.model,
-          concept: experiment.rubric_config.concept,
-          scale_size: experiment.rubric_config.scale_size,
-          abstain_enabled: experiment.scoring_config.abstain_enabled,
-          evidence_view: experiment.scoring_config.evidence_view,
-          evidence_bundle_size: experiment.scoring_config.evidence_bundle_size,
-          total_count: experiment.total_count,
-        };
-      }))
-    )
-      .filter((row): row is z.infer<typeof ExistingV3ExperimentPreviewRowSchema> => row != null)
-      .sort((left, right) => left.experiment_tag.localeCompare(right.experiment_tag));
-
-    const plannedRows = V3_EXPERIMENT_SPECS.map((spec) => ({
-      experiment_tag: spec.experiment_tag,
-      pool_tag: spec.pool_tag,
-      rubric_model: spec.rubric_model,
-      scoring_model: spec.scoring_model,
-      concept: spec.concept,
-      scale_size: spec.scale_size,
-      abstain_enabled: spec.abstain_enabled,
-      evidence_view: spec.evidence_view,
-      evidence_bundle_size: spec.evidence_bundle_size,
-    }));
-
-    if (runs.length > 0) {
-      throw new Error(`Refusing to reseed experiments while ${runs.length} runs exist`);
-    }
-
-    let deleted = 0;
-    let inserted = 0;
-    if (!args.dry_run) {
-      for (const experiment of experiments) {
-        await ctx.db.delete(experiment._id);
-        deleted += 1;
-      }
-      for (const spec of V3_EXPERIMENT_SPECS) {
-        const pool = poolByTag.get(spec.pool_tag);
-        if (!pool) {
-          throw new Error(`Required pool not found during insert: ${spec.pool_tag}`);
-        }
-        await ctx.db.insert("experiments", {
-          experiment_tag: spec.experiment_tag,
-          pool_id: pool._id,
-          rubric_config: {
-            model: spec.rubric_model,
-            scale_size: spec.scale_size,
-            concept: spec.concept,
-          },
-          scoring_config: {
-            model: spec.scoring_model,
-            method: "subset",
-            abstain_enabled: spec.abstain_enabled,
-            evidence_view: spec.evidence_view,
-            randomizations: [
-              "anonymize_stages",
-              "hide_label_text",
-              "shuffle_rubric_order",
-            ],
-            evidence_bundle_size: spec.evidence_bundle_size,
-          },
-          total_count: 0,
-        });
-        inserted += 1;
-      }
-    }
-
-    return {
-      dry_run: args.dry_run,
-      runs_found: runs.length,
-      existing_count: experiments.length,
-      deleted,
-      inserted,
-      existing_rows: existingRows,
-      planned_rows: plannedRows,
     };
   },
 });

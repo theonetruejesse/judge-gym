@@ -26,9 +26,15 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
-- The V3 pilot spec is now scoped as an L2-first 22-config matrix and uses `scoring_config.evidence_bundle_size` as the only experiment-side bundle control (`1` = single evidence; `5` = the current bundle ablation) in `docs/pilots/v3_specs.md`.
-- The V3 pilot spec now includes deterministic pool-construction SOPs for P1/P3, plus the actual ownDev pool-tag bindings used for experiment reseed (`p1_us_contested_trial_2026_01_01` and legacy control tag `p2_no_election_reporting_control_2025_09_08`).
-- The canonical ownDev V3 experiment matrix can now be previewed or reapplied with `packages/codex:reseedV3Experiments`, which deletes and recreates the 22 experiment rows only when no runs exist.
+- The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
+- The current V3 cohort uses `scoring_config.evidence_bundle_size` as the only experiment-side bundle control (`1` = single evidence; `5` = the current bundle ablation), and the live `experiments` table is the config source of truth.
+- The V3 cohort control plane now lives in:
+  - `packages/codex:getV3CampaignStatus`
+  - `packages/codex:resetRuns`
+  - `packages/codex:startV3Experiments`
+- The current ownDev pool-tag bindings are captured in `_campaigns/v3_finish_pass/manifest.json`:
+  - `p1_us_contested_trial_2026_01_01`
+  - `p2_no_election_reporting_control_2025_09_08`
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
 - Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
 - Runs now persist both `target_count` and `completed_count`, plus per-stage completed counters (`rubric_gen_count`, `rubric_critic_count`, `score_gen_count`, `score_critic_count`) for live monitoring.

@@ -1,0 +1,4 @@
+version: 1
+display_name: V3 Finish Pass
+short_description: Run the judge-gym V3 campaign loop from manifest, including reset, launch, monitoring, forensics, and patch iterations.
+default_prompt: Run the V3 finish-pass campaign for this repo using the manifest and campaign state files, then capture the next iteration result.

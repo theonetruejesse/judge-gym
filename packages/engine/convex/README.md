@@ -60,6 +60,11 @@ After code changes in this package:
 bun run typecheck
 ```
 
-Use live debug loop docs for runtime triage and recovery:
+For V3 campaign execution, use:
 
-- `docs/live_debug_loop.md`
+- repo skill: `skills/v3-finish-pass/SKILL.md`
+- campaign control plane:
+  - `_campaigns/v3_finish_pass/manifest.json`
+  - `packages/codex:getV3CampaignStatus`
+  - `packages/codex:resetRuns`
+  - `packages/codex:startV3Experiments`
