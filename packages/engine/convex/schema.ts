@@ -35,10 +35,12 @@ export default defineSchema({
     .index("by_content_hash", ["content_hash"]),
   llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema))
     .index("by_status", ["status"])
-    .index("by_custom_key_status", ["custom_key", "status"]),
+    .index("by_custom_key_status", ["custom_key", "status"])
+    .index("by_custom_key_attempt_index", ["custom_key", "attempt_index"]),
   llm_jobs: defineTable(zodOutputToConvex(LlmJobsTableSchema))
     .index("by_status", ["status"])
-    .index("by_custom_key_status", ["custom_key", "status"]),
+    .index("by_custom_key_status", ["custom_key", "status"])
+    .index("by_custom_key_attempt_index", ["custom_key", "attempt_index"]),
   llm_requests: defineTable(zodOutputToConvex(LlmRequestsTableSchema))
     .index("by_status", ["status"])
     .index("by_run", ["run_id"])

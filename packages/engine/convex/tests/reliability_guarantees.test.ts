@@ -228,36 +228,8 @@ describe("reliability guarantees", () => {
     }
   });
 
-  test("batch and job attempt_index track retry progression", async () => {
+  test("job reschedule creates a new attempt row", async () => {
     const t = initTest();
-
-    const batch_id = await t.mutation(
-      internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
-      {
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        custom_key: "run:test:rubric_critic",
-      },
-    );
-
-    await t.mutation(internal.domain.llm_calls.llm_batch_repo.patchBatch, {
-      batch_id,
-      patch: {
-        poll_claim_owner: "owner",
-        poll_claim_expires_at: Date.now() + 10_000,
-      },
-    });
-
-    await t.mutation(internal.domain.llm_calls.llm_batch_repo.markBatchSubmitting, {
-      batch_id,
-      owner: "owner",
-      now: Date.now(),
-      lease_ms: 10_000,
-      submission_id: "sub_1",
-    });
-
-    const batchAfterSubmit = await t.run(async (ctx) => ctx.db.get(batch_id));
-    expect(batchAfterSubmit?.attempt_index).toBe(1);
 
     const job_id = await t.mutation(
       internal.domain.llm_calls.llm_job_repo.createLlmJob,
@@ -285,9 +257,17 @@ describe("reliability guarantees", () => {
       } as never,
       job_id,
       now: Date.now(),
+      anyErrors: false,
     });
-    const jobAfterRetry = await t.run(async (ctx) => ctx.db.get(job_id));
-    expect(jobAfterRetry?.attempt_index).toBe(2);
+    const jobs = await t.run(async (ctx) => ctx.db.query("llm_jobs").collect());
+    const matchingJobs = jobs.filter((job) => job.custom_key === "run:test:rubric_gen");
+    expect(matchingJobs).toHaveLength(2);
+    const originalJob = matchingJobs.find((job) => job._id === job_id);
+    const retryJob = matchingJobs.find((job) => job._id !== job_id);
+    expect(originalJob?.attempt_index).toBe(1);
+    expect(originalJob?.status).toBe("success");
+    expect(retryJob?.attempt_index).toBe(2);
+    expect(retryJob?.status).toBe("running");
   });
 
 

@@ -59,3 +59,22 @@ export async function syncSampleScoreCounts(
   await ctx.db.patch(sampleId, counts);
   return counts;
 }
+
+export async function incrementSampleScoreCounter(
+  ctx: MutationCtx,
+  sampleId: Id<"samples">,
+  field: "score_count" | "score_critic_count",
+) {
+  const sample = await ctx.db.get(sampleId);
+  if (!sample) return null;
+
+  const nextValue = (sample[field] ?? 0) + 1;
+  await ctx.db.patch(sampleId, {
+    [field]: nextValue,
+  });
+
+  return {
+    ...sample,
+    [field]: nextValue,
+  } as Doc<"samples">;
+}

@@ -8,6 +8,8 @@ const CreateLlmBatchArgsSchema = LlmBatchesTableSchema.pick({
   provider: true,
   model: true,
   custom_key: true,
+}).extend({
+  attempt_index: z.number().int().positive().optional(),
 });
 
 export const createLlmBatch = zInternalMutation({
@@ -17,7 +19,7 @@ export const createLlmBatch = zInternalMutation({
     return ctx.db.insert("llm_batches", {
       ...args,
       status: "queued",
-      attempt_index: 1,
+      attempt_index: args.attempt_index ?? 1,
     });
   },
 });

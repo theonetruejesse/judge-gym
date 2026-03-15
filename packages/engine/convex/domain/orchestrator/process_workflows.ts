@@ -184,7 +184,7 @@ export async function handleQueuedJobWorkflow(
     });
 
     if (anyPending) {
-      await scheduleJobRun({ ctx: step, job_id: job._id, now });
+      await scheduleJobRun({ ctx: step, job_id: job._id, now, anyErrors });
       await emitTraceEvent(step, {
         trace_id: traceIdForCustomKey(job.custom_key),
         entity_type: "job",
@@ -292,7 +292,7 @@ export async function handleRunningJobWorkflow(
     });
 
     if (anyPending) {
-      await scheduleJobRun({ ctx: step, job_id: job._id, now });
+      await scheduleJobRun({ ctx: step, job_id: job._id, now, anyErrors });
       await emitTraceEvent(step, {
         trace_id: traceIdForCustomKey(job.custom_key),
         entity_type: "job",

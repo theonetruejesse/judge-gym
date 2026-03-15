@@ -2240,6 +2240,12 @@ export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation
         score_id?: Id<"scores"> | null;
         score_critic_id?: Id<"score_critics"> | null;
       };
+      const scoreTargetTotal = typeof sample.score_target_total === "number"
+        ? sample.score_target_total
+        : (await ctx.db
+          .query("sample_score_targets")
+          .withIndex("by_sample", (q) => q.eq("sample_id", sample._id))
+          .collect()).length;
       const counts = await getSampleScoreCounts(ctx, sample._id);
       const previousScoreCount = typeof sample.score_count === "number"
         ? sample.score_count
@@ -2248,8 +2254,10 @@ export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation
         ? sample.score_critic_count
         : null;
       const removedLegacyFields = "score_id" in rawSample || "score_critic_id" in rawSample;
+      const missingScoreTargetTotal = typeof sample.score_target_total !== "number";
       const changed =
-        previousScoreCount !== counts.score_count
+        missingScoreTargetTotal
+        || previousScoreCount !== counts.score_count
         || previousScoreCriticCount !== counts.score_critic_count
         || removedLegacyFields;
 
@@ -2261,6 +2269,7 @@ export const backfillSampleScoreCounts: ReturnType<typeof zMutation> = zMutation
           seed: sample.seed,
           rubric_id: sample.rubric_id,
           rubric_critic_id: sample.rubric_critic_id,
+          score_target_total: scoreTargetTotal,
           score_count: counts.score_count,
           score_critic_count: counts.score_critic_count,
         });

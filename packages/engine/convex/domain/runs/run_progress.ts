@@ -29,6 +29,13 @@ export function countCompletedSamples(
 ): number {
   if (samples.length === 0) return 0;
 
+  if (samples.every((sample) => typeof sample.score_target_total === "number")) {
+    return samples.filter((sample) =>
+      sample.score_target_total > 0
+      && (sample.score_critic_count ?? 0) >= sample.score_target_total
+    ).length;
+  }
+
   if (scoreTargets.length === 0) {
     return samples.filter((sample) => (sample.score_critic_count ?? 0) > 0).length;
   }

@@ -9,6 +9,7 @@ export const SamplesTableSchema = z.object({
     seed: z.number(),
     rubric_id: zid("rubrics").nullable(),
     rubric_critic_id: zid("rubric_critics").nullable(),
+    score_target_total: z.number(),
     score_count: z.number(),
     score_critic_count: z.number(),
 });
