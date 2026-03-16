@@ -29,6 +29,15 @@
       "first_seen_iteration_id": "20260316T024532Z_run_target_state_divergence",
       "validated_iteration_id": "20260316T024532Z_run_target_state_divergence",
       "fix_summary": "Removed shared run/experiment counter writes from the per-request hot path, made live run summaries compute stage counts from progress snapshots, and taught process_request_targets refresh to treat stored stage artifacts as authoritative success."
+    },
+    {
+      "bug_id": "retry_batch_can_strand_without_scheduler_kick",
+      "failure_domain": "transport_requeue",
+      "status": "validated",
+      "summary": "A retry-created queued batch could be inserted after the scheduler drained, leaving the engine with one queued retry batch, no active scheduler lock, and run rows still marked running indefinitely.",
+      "first_seen_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
+      "validated_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
+      "fix_summary": "Retry-created batches now explicitly kick startScheduler, and getStuckWork now treats queued-only transport backlog with no scheduler heartbeat as a real scheduler_not_running stall."
     }
   ]
 }
