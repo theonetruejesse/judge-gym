@@ -34,6 +34,29 @@ type TableDeletePlan = {
   count: number;
 };
 
+const RUN_STAGES = [
+  "rubric_gen",
+  "rubric_critic",
+  "score_gen",
+  "score_critic",
+] as const;
+
+const BATCH_STATUSES = [
+  "queued",
+  "submitting",
+  "running",
+  "finalizing",
+  "success",
+  "error",
+] as const;
+
+const JOB_STATUSES = [
+  "queued",
+  "running",
+  "success",
+  "error",
+] as const;
+
 type RunDeleteSummary = {
   runs: number;
   samples: number;
@@ -49,6 +72,61 @@ type RunDeleteSummary = {
   process_request_targets: number;
   process_observability: number;
 };
+
+async function listRunBatches(
+  ctx: any,
+  runId: Doc<"runs">["_id"],
+): Promise<Doc<"llm_batches">[]> {
+  const keys = RUN_STAGES.map((stage) => `run:${runId}:${stage}`);
+  const rows = await Promise.all(
+    keys.flatMap((customKey) =>
+      BATCH_STATUSES.map((status) =>
+        ctx.db
+          .query("llm_batches")
+          .withIndex("by_custom_key_status", (q: any) =>
+            q.eq("custom_key", customKey).eq("status", status),
+          )
+          .collect(),
+      ),
+    ),
+  );
+  return rows.flat();
+}
+
+async function listRunJobs(
+  ctx: any,
+  runId: Doc<"runs">["_id"],
+): Promise<Doc<"llm_jobs">[]> {
+  const keys = RUN_STAGES.map((stage) => `run:${runId}:${stage}`);
+  const rows = await Promise.all(
+    keys.flatMap((customKey) =>
+      JOB_STATUSES.map((status) =>
+        ctx.db
+          .query("llm_jobs")
+          .withIndex("by_custom_key_status", (q: any) =>
+            q.eq("custom_key", customKey).eq("status", status),
+          )
+          .collect(),
+      ),
+    ),
+  );
+  return rows.flat();
+}
+
+async function listOwnedScoreTargetItems(
+  ctx: any,
+  scoreTargets: Doc<"sample_score_targets">[],
+): Promise<Doc<"sample_score_target_items">[]> {
+  const rows = await Promise.all(
+    scoreTargets.map((target) =>
+      ctx.db
+        .query("sample_score_target_items")
+        .withIndex("by_score_target", (q: any) => q.eq("score_target_id", target._id))
+        .collect(),
+    ),
+  );
+  return rows.flat();
+}
 
 async function deleteSingleRunData(
   ctx: any,
@@ -99,9 +177,13 @@ async function deleteSingleRunData(
     );
   }
 
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
+    .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+    .collect();
+
   const [
     samples,
-    scoreTargets,
     scoreTargetItems,
     rubrics,
     rubricCritics,
@@ -110,12 +192,11 @@ async function deleteSingleRunData(
     runRequests,
     runTargetStateRows,
     processObservabilityRows,
-    allBatches,
-    allJobs,
+    runBatches,
+    runJobs,
   ] = await Promise.all([
     ctx.db.query("samples").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("sample_score_targets").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("sample_score_target_items").collect(),
+    listOwnedScoreTargetItems(ctx, scoreTargets),
     ctx.db.query("rubrics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
     ctx.db.query("rubric_critics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
     ctx.db.query("scores").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
@@ -127,15 +208,9 @@ async function deleteSingleRunData(
     ctx.db.query("process_observability").withIndex("by_process", (q: any) =>
       q.eq("process_type", "run").eq("process_id", String(args.run_id)),
     ).collect(),
-    ctx.db.query("llm_batches").collect(),
-    ctx.db.query("llm_jobs").collect(),
+    listRunBatches(ctx, args.run_id),
+    listRunJobs(ctx, args.run_id),
   ]);
-
-  const runBatches = allBatches.filter((batch: Doc<"llm_batches">) => batch.custom_key.startsWith(`${traceId}:`));
-  const runJobs = allJobs.filter((job: Doc<"llm_jobs">) => job.custom_key.startsWith(`${traceId}:`));
-  const ownedScoreTargetItems = scoreTargetItems.filter((item: Doc<"sample_score_target_items">) =>
-    scoreTargets.some((target: Doc<"sample_score_targets">) => target._id === item.score_target_id),
-  );
 
   if (!isDryRun) {
     const docsToDelete = [
@@ -143,7 +218,7 @@ async function deleteSingleRunData(
       ...scores,
       ...rubricCritics,
       ...rubrics,
-      ...ownedScoreTargetItems,
+      ...scoreTargetItems,
       ...scoreTargets,
       ...samples,
       ...runRequests,
@@ -164,7 +239,7 @@ async function deleteSingleRunData(
       runs: 1,
       samples: samples.length,
       sample_score_targets: scoreTargets.length,
-      sample_score_target_items: ownedScoreTargetItems.length,
+      sample_score_target_items: scoreTargetItems.length,
       rubrics: rubrics.length,
       rubric_critics: rubricCritics.length,
       scores: scores.length,

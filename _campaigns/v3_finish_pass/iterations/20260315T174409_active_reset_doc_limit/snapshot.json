@@ -1,0 +1,159 @@
+{
+  "iteration_id": "20260315T174409_active_reset_doc_limit",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "request": {
+    "reset": {
+      "dry_run": false,
+      "allow_active": true
+    },
+    "start": {
+      "target_count": 30,
+      "pause_after": null,
+      "start_policy": "all",
+      "start_scheduler": true,
+      "dry_run": false
+    }
+  },
+  "expected": {
+    "selected_experiments": 22,
+    "reset_rows": 22,
+    "started_runs": 22
+  },
+  "observed": {
+    "reset_rows": 0,
+    "started_runs": 0,
+    "start_skipped_reason": "active_run_exists"
+  },
+  "cohort_status": {
+    "campaign_state": "complete",
+    "scientific_validity": "scientifically_valid",
+    "counts": {
+      "paused": 22,
+      "running": 0,
+      "error": 0,
+      "completed": 0
+    },
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 22
+      },
+      {
+        "stage": "score_gen",
+        "count": 0
+      },
+      {
+        "stage": "score_critic",
+        "count": 0
+      }
+    ],
+    "stuck_summary": []
+  },
+  "active_runs": [
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+      "run_id": "kh7bs81ndmkx3dqxtjpakfg9a1830mv9"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_true",
+      "run_id": "kh7bb68fvgxx8axqe8x16k91n5830tpg"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+      "run_id": "kh7ct5wtrxn8wg0cypj1bw3zhx8317wz"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_true",
+      "run_id": "kh70yx9y6mqrnwf37591ptm6x5830vfa"
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_4_1_l3",
+      "run_id": "kh7emy4chf8mgg20f4b21r03tn831rr6"
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_5_2_l3",
+      "run_id": "kh718fdd36k86j9ttkb54348xh831aaq"
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_4_1_scale_5",
+      "run_id": "kh7fce8d19sgvmb6gkp0qngy41831xkm"
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_5_2_scale_5",
+      "run_id": "kh7frfbghg7jdcn9rgmy3srj15831zsb"
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "run_id": "kh71jwx633a3z1mspb1y68wajh830zwv"
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "run_id": "kh792q650sndxm3zf5bet34w69830kw9"
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+      "run_id": "kh78rxk9me2h4ethyzxqwrf4kh831v50"
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy",
+      "run_id": "kh7d1yd4v29ekbd5r4k5464pw5830h2r"
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_4_1_bundle_5_l2",
+      "run_id": "kh7cmh6fn6cwf0m20qygfe46098317eb"
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_5_2_bundle_5_l2",
+      "run_id": "kh7b8hg1c4pne8vwj6yab71rcs8305c6"
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_4_1_bundle_5_l3",
+      "run_id": "kh7ay50wd9bm34ms9wgsdx3d2h831wc7"
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_5_2_bundle_5_l3",
+      "run_id": "kh73pd3q2es7gd2bcrtm4qaapn830hcx"
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_false",
+      "run_id": "kh73e5z3vkwwwwhgh0fztvzkj5830xxg"
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true",
+      "run_id": "kh7d15k38gzrm92sqk749fpa49830db7"
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_false",
+      "run_id": "kh78f6q1ehvnhbpggyz9jchnnd8307f5"
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_true",
+      "run_id": "kh7201bhjxmhqhb6kzqj1vrxcs830sg9"
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_4_1",
+      "run_id": "kh7e0jszfdpd7khpqpy4sdmn7h831qm9"
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_5_2",
+      "run_id": "kh756e93gyvw0925dm4kqmkc6d8318jq"
+    }
+  ],
+  "failure": {
+    "domain": "artifact_apply",
+    "error": "Too many documents read in a single function execution (limit: 32000)",
+    "stack": [
+      "deleteSingleRunData -> danger.ts:115",
+      "deleteExperimentRunData -> danger.ts:378",
+      "resetRuns -> v3_campaign.ts:283"
+    ]
+  },
+  "safe_heal_attempted": false,
+  "validation_outcome": "pending",
+  "commit_hash": "16dc8ff"
+}
