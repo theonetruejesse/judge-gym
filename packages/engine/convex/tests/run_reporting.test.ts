@@ -536,6 +536,51 @@ describe("run reporting", () => {
     expect(experiment?.latest_run?.has_failures).toBe(false);
   });
 
+  test("score-stage reporting stays correct when sample_score_target links are unset", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    await t.run(async (ctx) => {
+      const scoreTargets = (await ctx.db.query("sample_score_targets").collect())
+        .filter((target) => target.run_id === started.run_id);
+      for (const target of scoreTargets) {
+        await ctx.db.patch(target._id, {
+          score_id: null,
+          score_critic_id: null,
+        });
+      }
+    });
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.completed_count).toBe(2);
+    expect(summary.has_failures).toBe(false);
+    expect(summary.stage_counts).toEqual({
+      rubric_gen: 2,
+      rubric_critic: 2,
+      score_gen: 2,
+      score_critic: 2,
+    });
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.latest_run?.completed_count).toBe(2);
+    expect(experiment?.latest_run?.has_failures).toBe(false);
+    expect(experiment?.latest_run?.stage_counts).toEqual({
+      rubric_gen: 2,
+      rubric_critic: 2,
+      score_gen: 2,
+      score_critic: 2,
+    });
+  });
+
   test("experiment total_count aggregates completed_count across runs", async () => {
     const t = initTest();
     const { experiment_id } = await setupExperiment(t);

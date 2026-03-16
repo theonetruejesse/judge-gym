@@ -36,23 +36,10 @@ function latestRun(runs: Array<Doc<"runs">>) {
     .sort((a, b) => b._creationTime - a._creationTime)[0];
 }
 
-function runNeedsScoreTargets(run: Doc<"runs">) {
-  return run.status === "completed"
-    || run.status === "error"
-    || run.status === "canceled"
-    || run.current_stage === "score_gen"
-    || run.current_stage === "score_critic";
-}
-
 function sumSampleScoreCount(
   samples: Array<Doc<"samples">>,
-  scoreTargets: Array<Doc<"sample_score_targets">>,
   field: "score_count" | "score_critic_count",
-  unitField: "score_id" | "score_critic_id",
 ) {
-  if (scoreTargets.length > 0) {
-    return scoreTargets.filter((target) => target[unitField] != null).length;
-  }
   return samples.reduce((sum, sample) => sum + (sample[field] ?? 0), 0);
 }
 
@@ -60,9 +47,8 @@ async function latestRunHasFailures(
   ctx: QueryCtx,
   run: Doc<"runs">,
   samples: Array<Doc<"samples">>,
-  scoreTargets: Array<Doc<"sample_score_targets">>,
 ): Promise<{ hasFailures: boolean; completedCount: number }> {
-  const completedCount = countCompletedSamples(samples, scoreTargets);
+  const completedCount = countCompletedSamples(samples, []);
 
   if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
     if (samples.length < run.target_count) {
@@ -72,18 +58,11 @@ async function latestRunHasFailures(
       return { hasFailures: true, completedCount };
     }
 
-    if (scoreTargets.length > 0) {
-      return {
-        hasFailures: scoreTargets.some(
-          (target) => target.score_id == null || target.score_critic_id == null,
-        ),
-        completedCount,
-      };
-    }
-
     return {
       hasFailures: samples.some(
-        (sample) => (sample.score_count ?? 0) === 0 || (sample.score_critic_count ?? 0) === 0,
+        (sample) =>
+          (sample.score_count ?? 0) < (sample.score_target_total ?? 0)
+          || (sample.score_critic_count ?? 0) < (sample.score_target_total ?? 0),
       ),
       completedCount,
     };
@@ -104,13 +83,12 @@ async function latestRunHasFailures(
 
 function stageCountsFromArtifacts(
   samples: Array<Doc<"samples">>,
-  scoreTargets: Array<Doc<"sample_score_targets">>,
 ) {
   return {
     rubric_gen: samples.filter((sample) => sample.rubric_id != null).length,
     rubric_critic: samples.filter((sample) => sample.rubric_critic_id != null).length,
-    score_gen: sumSampleScoreCount(samples, scoreTargets, "score_count", "score_id"),
-    score_critic: sumSampleScoreCount(samples, scoreTargets, "score_critic_count", "score_critic_id"),
+    score_gen: sumSampleScoreCount(samples, "score_count"),
+    score_critic: sumSampleScoreCount(samples, "score_critic_count"),
   };
 }
 
@@ -205,21 +183,14 @@ export const listExperiments = zInternalQuery({
         ? experiment.total_count
         : await getExperimentTotalCount(ctx, experiment._id);
       let latestSamples: Array<Doc<"samples">> = [];
-      let latestScoreTargets: Array<Doc<"sample_score_targets">> = [];
       if (latest) {
         latestSamples = await ctx.db
           .query("samples")
           .withIndex("by_run", (q) => q.eq("run_id", latest._id))
           .collect();
-        latestScoreTargets = runNeedsScoreTargets(latest)
-          ? await ctx.db
-            .query("sample_score_targets")
-            .withIndex("by_run", (q) => q.eq("run_id", latest._id))
-            .collect()
-          : [];
       }
       const latestRunState = latest
-        ? await latestRunHasFailures(ctx, latest, latestSamples, latestScoreTargets)
+        ? await latestRunHasFailures(ctx, latest, latestSamples)
         : { hasFailures: false, completedCount: 0 };
 
       results.push({
@@ -239,7 +210,7 @@ export const listExperiments = zInternalQuery({
             target_count: latest.target_count,
             completed_count: latestRunState.completedCount,
             pause_after: latest.pause_after ?? null,
-            stage_counts: stageCountsFromArtifacts(latestSamples, latestScoreTargets),
+            stage_counts: stageCountsFromArtifacts(latestSamples),
             created_at: latest._creationTime,
             has_failures: latestRunState.hasFailures,
           }
@@ -267,17 +238,11 @@ export const getExperimentSummary = zInternalQuery({
     const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
     const runArtifacts = await Promise.all(
       runs.map(async (run) => {
-        const [samples, scoreTargets] = await Promise.all([
-          ctx.db
-            .query("samples")
-            .withIndex("by_run", (q) => q.eq("run_id", run._id))
-            .collect(),
-          ctx.db
-            .query("sample_score_targets")
-            .withIndex("by_run", (q) => q.eq("run_id", run._id))
-            .collect(),
-        ]);
-        return { run, samples, scoreTargets };
+        const samples = await ctx.db
+          .query("samples")
+          .withIndex("by_run", (q) => q.eq("run_id", run._id))
+          .collect();
+        return { run, samples };
       }),
     );
 
@@ -291,22 +256,14 @@ export const getExperimentSummary = zInternalQuery({
         (sum, artifact) => sum + artifact.samples.filter((sample) => sample.rubric_critic_id != null).length,
         0,
       ),
-      scores: runArtifacts.reduce((sum, artifact) => {
-        return sum + sumSampleScoreCount(
-          artifact.samples,
-          artifact.scoreTargets,
-          "score_count",
-          "score_id",
-        );
-      }, 0),
-      score_critics: runArtifacts.reduce((sum, artifact) => {
-        return sum + sumSampleScoreCount(
-          artifact.samples,
-          artifact.scoreTargets,
-          "score_critic_count",
-          "score_critic_id",
-        );
-      }, 0),
+      scores: runArtifacts.reduce(
+        (sum, artifact) => sum + sumSampleScoreCount(artifact.samples, "score_count"),
+        0,
+      ),
+      score_critics: runArtifacts.reduce(
+        (sum, artifact) => sum + sumSampleScoreCount(artifact.samples, "score_critic_count"),
+        0,
+      ),
     };
 
     const latest = latestRun(runs);
@@ -314,21 +271,14 @@ export const getExperimentSummary = zInternalQuery({
       ? experiment.total_count
       : await getExperimentTotalCount(ctx, experiment._id);
     let latestSamples: Array<Doc<"samples">> = [];
-    let latestScoreTargets: Array<Doc<"sample_score_targets">> = [];
     if (latest) {
       latestSamples = await ctx.db
         .query("samples")
         .withIndex("by_run", (q) => q.eq("run_id", latest._id))
         .collect();
-      latestScoreTargets = runNeedsScoreTargets(latest)
-        ? await ctx.db
-          .query("sample_score_targets")
-          .withIndex("by_run", (q) => q.eq("run_id", latest._id))
-          .collect()
-        : [];
     }
     const latestRunState = latest
-      ? await latestRunHasFailures(ctx, latest, latestSamples, latestScoreTargets)
+      ? await latestRunHasFailures(ctx, latest, latestSamples)
       : { hasFailures: false, completedCount: 0 };
 
     return {
@@ -350,7 +300,7 @@ export const getExperimentSummary = zInternalQuery({
           target_count: latest.target_count,
           completed_count: latestRunState.completedCount,
           pause_after: latest.pause_after ?? null,
-          stage_counts: stageCountsFromArtifacts(latestSamples, latestScoreTargets),
+          stage_counts: stageCountsFromArtifacts(latestSamples),
           created_at: latest._creationTime,
           has_failures: latestRunState.hasFailures,
         }

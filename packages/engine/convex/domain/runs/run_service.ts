@@ -33,6 +33,26 @@ import { resolveEvidenceStrategy } from "./run_strategies";
 
 const RUN_STAGE_ENQUEUE_CHUNK_SIZE = 50;
 
+async function getScoreForTarget(
+  ctx: MutationCtx,
+  scoreTargetId: Id<"sample_score_targets">,
+) {
+  return ctx.db
+    .query("scores")
+    .withIndex("by_score_target", (q) => q.eq("score_target_id", scoreTargetId))
+    .first();
+}
+
+async function getScoreCriticForTarget(
+  ctx: MutationCtx,
+  scoreTargetId: Id<"sample_score_targets">,
+) {
+  return ctx.db
+    .query("score_critics")
+    .withIndex("by_score_target", (q) => q.eq("score_target_id", scoreTargetId))
+    .first();
+}
+
 export const startRunFlow = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -456,7 +476,11 @@ export const applyRequestResult = zInternalMutation({
         }, { defer: true });
         return;
       }
-      if (stage === "score_gen" && scoreTarget?.score_id) {
+      if (
+        stage === "score_gen"
+        && scoreTarget
+        && await getScoreForTarget(ctx, scoreTarget._id)
+      ) {
         if (request.status === "success") return;
         await ctx.runMutation(
           internal.domain.llm_calls.llm_request_repo.patchRequest,
@@ -478,7 +502,8 @@ export const applyRequestResult = zInternalMutation({
       }
       if (
         stage === "score_critic" &&
-        scoreTarget?.score_critic_id
+        scoreTarget
+        && await getScoreCriticForTarget(ctx, scoreTarget._id)
       ) {
         if (request.status === "success") return;
         await ctx.runMutation(
@@ -573,7 +598,7 @@ export const applyRequestResult = zInternalMutation({
         const justification = extractReasoningBeforeVerdict(args.output);
 
         const decodedScores = verdict.decodedScores ?? [];
-        const score_id = await ctx.db.insert("scores", {
+        await ctx.db.insert("scores", {
           run_id: sample.run_id,
           sample_id: sampleId,
           score_target_id: scoreTarget._id,
@@ -583,19 +608,20 @@ export const applyRequestResult = zInternalMutation({
           decoded_scores: decodedScores,
         });
 
-        if (scoreTarget) {
-          await ctx.db.patch(scoreTarget._id, { score_id });
-          await incrementSampleScoreCounter(ctx, sampleId, "score_count");
-        } else {
+        if (!scoreTarget) {
           throw new Error("Score stage requires sample_score_target");
         }
+        await incrementSampleScoreCounter(ctx, sampleId, "score_count");
       }
 
       if (stage === "score_critic") {
-        const score_id = scoreTarget?.score_id;
-        if (!score_id) throw new Error("Score missing for sample");
+        if (!scoreTarget) {
+          throw new Error("Score critic stage requires sample_score_target");
+        }
+        const score = await getScoreForTarget(ctx, scoreTarget._id);
+        if (!score) throw new Error("Score missing for sample");
         const parsed = parseExpertAgreementResponse(args.output);
-        const score_critic_id = await ctx.db.insert("score_critics", {
+        await ctx.db.insert("score_critics", {
           run_id: sample.run_id,
           sample_id: sampleId,
           score_target_id: scoreTarget._id,
@@ -605,12 +631,7 @@ export const applyRequestResult = zInternalMutation({
           expert_agreement_prob: parsed.expertAgreementProb,
         });
 
-        if (scoreTarget) {
-          await ctx.db.patch(scoreTarget._id, { score_critic_id });
-          await incrementSampleScoreCounter(ctx, sampleId, "score_critic_count");
-        } else {
-          throw new Error("Score critic stage requires sample_score_target");
-        }
+        await incrementSampleScoreCounter(ctx, sampleId, "score_critic_count");
       }
     } catch (error) {
       await markRequestParseFailure(

@@ -159,12 +159,22 @@ async function resolveArtifactSuccessRequestId(
     const scoreTarget = await ctx.db.get(parsed.target_id as Id<"sample_score_targets">);
     if (!scoreTarget) return null;
 
-    if (parsed.stage === "score_gen" && scoreTarget.score_id) {
-      const score = await ctx.db.get(scoreTarget.score_id);
+    if (parsed.stage === "score_gen") {
+      const score = await ctx.db
+        .query("scores")
+        .withIndex("by_score_target", (q) =>
+          q.eq("score_target_id", scoreTarget._id),
+        )
+        .first();
       return score?.llm_request_id ?? null;
     }
-    if (parsed.stage === "score_critic" && scoreTarget.score_critic_id) {
-      const scoreCritic = await ctx.db.get(scoreTarget.score_critic_id);
+    if (parsed.stage === "score_critic") {
+      const scoreCritic = await ctx.db
+        .query("score_critics")
+        .withIndex("by_score_target", (q) =>
+          q.eq("score_target_id", scoreTarget._id),
+        )
+        .first();
       return scoreCritic?.llm_request_id ?? null;
     }
     return null;
