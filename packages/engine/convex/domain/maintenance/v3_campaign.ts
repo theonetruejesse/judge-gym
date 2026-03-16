@@ -250,6 +250,7 @@ export const resetRuns = zMutation({
   args: z.object({
     dry_run: z.boolean().default(true),
     experiment_tags: z.array(z.string()).optional(),
+    allow_active: z.boolean().default(false),
   }),
   returns: z.object({
     dry_run: z.boolean(),
@@ -284,7 +285,7 @@ export const resetRuns = zMutation({
         {
           experiment_id: experiment.experiment_id,
           isDryRun: args.dry_run,
-          allow_active: false,
+          allow_active: args.allow_active,
         },
       );
       rows.push({

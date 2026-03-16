@@ -48,6 +48,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Job request execution is bounded-parallel per job tick via `run_policy.job_request_concurrency`.
 - Paused V3 cohort runs can be resumed in place through `packages/codex:resumeV3Experiments`.
 - `packages/codex:startV3Experiments` and `packages/codex:resumeV3Experiments` are asynchronous control-plane entrypoints: they schedule per-run work first, then the per-run task creates or resumes the run and kicks the scheduler.
+- `packages/codex:resetRuns` supports `allow_active=true` for explicit destructive wipes of paused/running V3 cohort runs before a fresh pass.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps

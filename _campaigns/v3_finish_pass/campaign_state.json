@@ -10,6 +10,7 @@
     "Validated dev canary: 22/22 runs paused at rubric_critic on 2026-03-15 after scheduler kickoff patch.",
     "Forensics captured for bulk resume read-limit failure on 2026-03-15 before any paused run changed state.",
     "Completed dev full n=1 canary: 22/22 latest V3 runs resumed from rubric_critic and finished on 2026-03-15.",
-    "Resolved the launch/resume control-plane read-budget hotspot on 2026-03-15 by fanning out V3 start/resume work into one scheduled internal mutation per experiment."
+    "Resolved the launch/resume control-plane read-budget hotspot on 2026-03-15 by fanning out V3 start/resume work into one scheduled internal mutation per experiment.",
+    "Validated fresh dev rubric_gate launch on 2026-03-15: 22/22 latest runs reached pause_after=rubric_critic with target_count=30 and no cohort failures."
   ]
 }

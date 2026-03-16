@@ -355,4 +355,44 @@ describe("v3 campaign control plane", () => {
       expect(experiments.every((experiment) => experiment.total_count === 0)).toBe(true);
     });
   });
+
+  test("resetRuns can wipe paused cohort runs when allow_active is true", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const alpha = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+
+    const runId = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: alpha,
+      target_count: 1,
+      pause_after: "rubric_critic",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, {
+        status: "paused",
+        current_stage: "rubric_critic",
+      });
+    });
+
+    await expect(
+      t.mutation(api.packages.codex.resetRuns, {
+        dry_run: false,
+      }),
+    ).rejects.toThrow(/Refusing to delete active run/);
+
+    const reset = await t.mutation(api.packages.codex.resetRuns, {
+      dry_run: false,
+      allow_active: true,
+    });
+    expect(reset.selected_experiment_count).toBe(1);
+    expect(reset.totals.runs).toBe(1);
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("runs").collect()).toHaveLength(0);
+      expect(await ctx.db.query("samples").collect()).toHaveLength(0);
+    });
+  });
 });
