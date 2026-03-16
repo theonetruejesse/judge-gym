@@ -251,17 +251,26 @@ export const resetRuns = zMutation({
     dry_run: z.boolean().default(true),
     experiment_tags: z.array(z.string()).optional(),
     allow_active: z.boolean().default(false),
+    cursor: z.number().int().min(0).optional(),
+    max_experiments: z.number().int().min(1).max(22).default(2),
   }),
   returns: z.object({
     dry_run: z.boolean(),
     selected_experiment_count: z.number(),
+    processed_experiment_count: z.number(),
     missing_experiment_tags: z.array(z.string()),
+    next_cursor: z.number().nullable(),
     rows: z.array(ResetExperimentRowSchema),
     totals: ResetExperimentRowSchema.shape.deleted,
   }),
   handler: async (ctx, args) => {
     const experiments = await listAllExperiments(ctx);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const cursor = args.cursor ?? 0;
+    const page = filtered.selected.slice(cursor, cursor + args.max_experiments);
+    const nextCursor = cursor + page.length < filtered.selected.length
+      ? cursor + page.length
+      : null;
     const totals = {
       runs: 0,
       samples: 0,
@@ -279,7 +288,7 @@ export const resetRuns = zMutation({
     };
 
     const rows = [] as z.infer<typeof ResetExperimentRowSchema>[];
-    for (const experiment of filtered.selected) {
+    for (const experiment of page) {
       const result = await ctx.runMutation(
         internal.domain.maintenance.danger.deleteExperimentRunData,
         {
@@ -302,7 +311,9 @@ export const resetRuns = zMutation({
     return {
       dry_run: args.dry_run,
       selected_experiment_count: filtered.selected.length,
+      processed_experiment_count: page.length,
       missing_experiment_tags: filtered.missingTags,
+      next_cursor: nextCursor,
       rows,
       totals,
     };
