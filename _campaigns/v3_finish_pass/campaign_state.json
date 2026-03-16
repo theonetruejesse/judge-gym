@@ -1,10 +1,10 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "validated",
-  "latest_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
+  "latest_iteration_id": "20260316T055858Z_rubric_gen_parser_contract",
   "last_successful_gate": "full",
   "current_blockers": [
-    "Stalled full n=30 dev cohort is waiting on a destructive reset after validating the chunked score_gen handoff fix."
+    "Scientifically invalid full n=30 dev cohort is waiting on a reset after validating the rubric_gen parser-contract fix."
   ],
   "reset_allowed": true,
   "notes": [
@@ -22,6 +22,7 @@
     "Captured forensics on 2026-03-16 for a recoverable full-pass stall where one queued retry batch remained after the scheduler drained; validated a scheduler handoff fix that explicitly wakes the scheduler after retry batch creation.",
     "Hardened active V3 resets on 2026-03-16 so heavy running cohorts can be wiped under Convex read limits, then relaunched a fresh full n=30 pass on dev.",
     "Validated on 2026-03-16 that the heavy-family full-pass stall was a score_gen handoff rollback: rubric_critic artifacts completed, score target rows existed, and no transport was ever enqueued.",
-    "Validated on 2026-03-16 that run stage handoff is now chunked and asynchronous, and that getStuckWork/getV3CampaignStatus surface stage_transition_no_transport for this failure class."
+    "Validated on 2026-03-16 that run stage handoff is now chunked and asynchronous, and that getStuckWork/getV3CampaignStatus surface stage_transition_no_transport for this failure class.",
+    "Validated on 2026-03-16 that rubric_gen parser failures were caused by under-splitting comma-delimited criteria inside rubric stage lines; the parser now recovers this pattern, the prompt requires semicolon-only top-level criteria delimiters, and rubric parser failures classify as parse_error."
   ]
 }

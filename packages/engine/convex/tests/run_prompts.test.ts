@@ -20,6 +20,7 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("Do not use outside knowledge.");
     expect(prompt.system_prompt).toContain("<output_contract>");
     expect(prompt.system_prompt).toContain("Do not wrap the `RUBRIC:` block in markdown fences or backticks.");
+    expect(prompt.system_prompt).toContain("Separate top-level criteria with semicolons only");
     expect(prompt.system_prompt).toContain("Example:");
     expect(prompt.system_prompt).toContain("1) Minimal or Indirect Signal :: Criterion one; Criterion two; Criterion three");
     expect(prompt.user_prompt).toContain("<prompt_variables>");

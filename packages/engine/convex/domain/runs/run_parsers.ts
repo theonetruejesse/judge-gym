@@ -34,11 +34,8 @@ export function parseRubricResponse(
       throw new Error(`Invalid rubric line: ${line}`);
     }
     const label = match[1].trim();
-    const criteria = match[2]
-      .split(";")
-      .map((c) => c.trim())
-      .filter((c) => c.length > 0);
-    if (criteria.length < 3 || criteria.length > 5) {
+    const criteria = parseRubricCriteria(match[2]);
+    if (criteria.length < 3 || criteria.length > 6) {
       throw new Error(
         `Invalid criteria count (${criteria.length}) for stage "${label}"`,
       );
@@ -53,6 +50,46 @@ export function parseRubricResponse(
   }
 
   return { reasoning, stages };
+}
+
+function parseRubricCriteria(rawCriteria: string): string[] {
+  const semicolonSegments = rawCriteria
+    .split(";")
+    .map((criterion) => normalizeCriterion(criterion))
+    .filter((criterion) => criterion.length > 0);
+
+  if (semicolonSegments.length >= 3 && semicolonSegments.length <= 5) {
+    return semicolonSegments;
+  }
+
+  if (semicolonSegments.length >= 3) {
+    return semicolonSegments;
+  }
+
+  const commaExpanded = semicolonSegments
+    .flatMap((criterion) => splitCriterionOnComma(criterion))
+    .map((criterion) => normalizeCriterion(criterion))
+    .filter((criterion) => criterion.length > 0);
+
+  if (commaExpanded.length >= 3 && commaExpanded.length <= 6) {
+    return commaExpanded;
+  }
+
+  return semicolonSegments;
+}
+
+function splitCriterionOnComma(criterion: string): string[] {
+  return criterion
+    .split(",")
+    .map((part) => normalizeCriterion(part))
+    .filter((part) => part.length > 0);
+}
+
+function normalizeCriterion(rawCriterion: string): string {
+  return rawCriterion
+    .trim()
+    .replace(/^(?:and|or)\s+/i, "")
+    .trim();
 }
 
 export function parseQualityResponse(raw: string): {

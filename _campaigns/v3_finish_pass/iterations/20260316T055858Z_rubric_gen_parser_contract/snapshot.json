@@ -1,0 +1,112 @@
+{
+  "iteration_id": "20260316T055858Z_rubric_gen_parser_contract",
+  "manifest_version": 1,
+  "launch_mode": {
+    "target_count": 30,
+    "pause_after": null
+  },
+  "expected_counts": {
+    "experiments": 22
+  },
+  "observed_campaign_status": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid_parser",
+    "counts": {
+      "with_latest_run": 22,
+      "running": 21,
+      "error": 1,
+      "completed": 0,
+      "latest_runs_with_failures": 1
+    },
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 2
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 10
+      },
+      {
+        "stage": "score_gen",
+        "count": 10
+      },
+      {
+        "stage": "score_critic",
+        "count": 0
+      }
+    ],
+    "stuck_summary": []
+  },
+  "dominant_failure_domain": "parser_contract",
+  "safe_heal": {
+    "attempted": false,
+    "changed": false
+  },
+  "failed_run": {
+    "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true",
+    "run_id": "kh74skmag0d54p3eyrndzw342n830a3f",
+    "status": "error",
+    "current_stage": "rubric_gen",
+    "artifact_counts": {
+      "samples": 30,
+      "rubrics": 29,
+      "rubric_critics": 0,
+      "sample_score_targets": 600,
+      "scores": 0,
+      "score_critics": 0
+    },
+    "request_counts": {
+      "total": 32,
+      "historical_error": 3,
+      "terminal_failed_targets": 1
+    },
+    "terminal_failed_target_summary": [
+      {
+        "stage": "rubric_gen",
+        "count": 1,
+        "sample_ordinals": [
+          22
+        ]
+      }
+    ],
+    "terminal_failed_targets": [
+      {
+        "sample_ordinal": 22,
+        "target_type": "sample",
+        "stage": "rubric_gen",
+        "attempt_count": 3,
+        "retry_count": 2,
+        "error_class": "unknown",
+        "error_message": "Invalid criteria count (2) for stage \"Extensive or Overt Signal\""
+      }
+    ],
+    "failed_requests": [
+      {
+        "attempt_index": 1,
+        "status": "error",
+        "last_error": "Invalid criteria count (2) for stage \"Strong and Extensive Signal\""
+      },
+      {
+        "attempt_index": 2,
+        "status": "error",
+        "last_error": "Invalid criteria count (2) for stage \"Clear but Limited Pattern\""
+      },
+      {
+        "attempt_index": 3,
+        "status": "error",
+        "last_error": "Invalid criteria count (2) for stage \"Extensive or Overt Signal\""
+      }
+    ]
+  },
+  "notes": [
+    "The previous heavy-family stage handoff bug is fixed in the current build: multiple 600-target runs reached score_gen in the same pass.",
+    "This new failure is a strict rubric_gen parser-contract failure on one sample, which makes the cohort scientifically invalid even though transport remains active for other runs."
+  ],
+  "patch_hypothesis": "Harden rubric_gen parser and prompt contract so malformed two-criterion stages are either repaired safely or prevented deterministically before target exhaustion.",
+  "validation_outcome": {
+    "validate_convex": "passed",
+    "targeted_tests": "passed"
+  },
+  "commit_hash": null
+}
