@@ -152,10 +152,11 @@ export function extractReasoningBeforeQuality(raw: string): string {
   return reasoning;
 }
 
-const VERDICT_REGEX = /(?:^|\n)\s*VERDICT:\s*([^\n\r]*)/gim;
+const VERDICT_REGEX = /(?:^|\n)\s*(?:[-*]\s*)?VERDICT:\s*([^\n\r]*)/gim;
 
 function normalizeVerdictLine(line: string): string {
   let normalized = line.trim();
+  normalized = normalized.replace(/^[-*]\s*/, "");
   normalized = normalized.replace(/^`+|`+$/g, "");
   normalized = normalized.replace(/^VERDICT:\s*/i, "");
   normalized = normalized.replace(/^VERDICT:\s*/i, "");
@@ -167,6 +168,7 @@ function normalizeVerdictLine(line: string): string {
 function normalizeVerdictToken(token: string): string {
   return token
     .trim()
+    .replace(/^[-*]\s*/, "")
     .replace(/^`+|`+$/g, "")
     .replace(/^VERDICT:\s*/i, "")
     .replace(/^["']|["']$/g, "")

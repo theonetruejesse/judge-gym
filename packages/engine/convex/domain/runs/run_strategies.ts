@@ -138,13 +138,15 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
       buildOutputContract: () => abstainEnabled
         ? [
           "End with exactly one final line using one of these forms:",
-          "- `VERDICT: <one rubric stage identifier from the user prompt>`",
-          "- `VERDICT: ABSTAIN`",
+          "`VERDICT: <one rubric stage identifier from the user prompt>`",
+          "`VERDICT: ABSTAIN`",
+          "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
         ]
         : [
           "End with exactly one final line in this form:",
-          "- `VERDICT: <one rubric stage identifier from the user prompt>`",
-          "- Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
+          "`VERDICT: <one rubric stage identifier from the user prompt>`",
+          "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
+          "Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
         ],
       parseVerdict: (raw, labelMapping) => {
         const parsed = parseSingleVerdict(raw, labelMapping);
@@ -167,14 +169,16 @@ export function resolveScoringStrategy(config: ExperimentConfig): ScoringStrateg
         return abstainEnabled
           ? [
             "End with exactly one final line in one of these forms:",
-            "- `VERDICT: <comma-separated rubric stage identifiers from the user prompt>`",
-            "- `VERDICT: ABSTAIN`",
+            "`VERDICT: <comma-separated rubric stage identifiers from the user prompt>`",
+            "`VERDICT: ABSTAIN`",
+            "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
           ]
           : [
             "End with exactly one final line in this form:",
-            "- `VERDICT: <comma-separated rubric stage identifiers from the user prompt>`",
-            "- The final line must contain at least one displayed rubric stage identifier.",
-            "- Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
+            "`VERDICT: <comma-separated rubric stage identifiers from the user prompt>`",
+            "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
+            "The final line must contain at least one displayed rubric stage identifier.",
+            "Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
           ];
       },
       parseVerdict: (raw, labelMapping) => {

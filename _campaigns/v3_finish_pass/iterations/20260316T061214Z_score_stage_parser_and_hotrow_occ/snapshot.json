@@ -1,0 +1,95 @@
+{
+  "iteration_id": "20260316T061214Z_score_stage_parser_and_hotrow_occ",
+  "manifest_version": 1,
+  "launch_mode": {
+    "target_count": 30,
+    "pause_after": null
+  },
+  "expected_counts": {
+    "experiments": 22
+  },
+  "observed_campaign_status": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid_parser",
+    "status_source": "runOneoffQuery fallback",
+    "control_plane_status_error": "packages/codex:getV3CampaignStatus exceeded the Convex document-read limit while scanning process_request_targets for the hot score-stage cohort.",
+    "counts": {
+      "with_latest_run": 22,
+      "running": 16,
+      "completed": 5,
+      "error": 1
+    },
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 1
+      },
+      {
+        "stage": "score_gen",
+        "count": 3
+      },
+      {
+        "stage": "score_critic",
+        "count": 18
+      }
+    ],
+    "stuck_summary": []
+  },
+  "dominant_failure_domain": "artifact_apply",
+  "secondary_failure_domains": [
+    "parser_contract",
+    "observability_blind_spot"
+  ],
+  "safe_heal": {
+    "attempted": false,
+    "changed": false
+  },
+  "representative_run": {
+    "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+    "run_id": "kh7dss3z45phxgy23r2jppvcbn830k1a",
+    "status": "running",
+    "current_stage": "score_critic",
+    "artifact_counts": {
+      "samples": 30,
+      "rubrics": 30,
+      "rubric_critics": 30,
+      "sample_score_targets": 600,
+      "scores": 600,
+      "score_critics": 400
+    },
+    "request_counts": {
+      "total": 1169,
+      "historical_error": 206,
+      "terminal_failed_targets": 0
+    },
+    "stage_rollup": {
+      "score_gen": {
+        "success": 503,
+        "error": 106,
+        "pending": 0
+      },
+      "score_critic": {
+        "success": 300,
+        "error": 100,
+        "pending": 100
+      }
+    },
+    "sample_failures": [
+      {
+        "kind": "score_parser_contract",
+        "last_error": "Failed to parse verdict line because the model emitted a bullet-form final line like `- VERDICT: ...`"
+      },
+      {
+        "kind": "score_target_hot_row_occ",
+        "last_error": "terminal:orchestrator_error:Documents read from or written to the \"sample_score_targets\" table changed while this mutation was being run and on every subsequent retry."
+      }
+    ]
+  },
+  "notes": [
+    "The previous heavy rubric_critic -> score_gen handoff bug is fixed in the current build: most heavy runs are now in score_gen/score_critic.",
+    "The new blockers are concentrated in score stages: strict verdict-line parsing and sample_score_target hot-row OCC during apply."
+  ],
+  "patch_hypothesis": "Loosen score verdict parsing to accept bullet-prefixed final lines and remove score_target hot-row contention from score-stage apply logic.",
+  "validation_outcome": null,
+  "commit_hash": null
+}

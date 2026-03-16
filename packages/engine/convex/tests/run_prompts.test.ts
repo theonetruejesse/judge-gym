@@ -104,6 +104,7 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("End with exactly one final line in one of these forms:");
     expect(prompt.system_prompt).toContain("`VERDICT: <comma-separated rubric stage identifiers from the user prompt>`");
     expect(prompt.system_prompt).toContain("`VERDICT: ABSTAIN`");
+    expect(prompt.system_prompt).toContain("must not start with a bullet, dash, or numbering");
     expect(prompt.user_prompt).toContain("<rubric_stages>");
     expect(prompt.user_prompt).toContain("A: \"Minimal\" - Criteria: a; b; c");
     expect(prompt.label_tokens).toEqual(["A", "B", "C", "D"]);
@@ -143,6 +144,7 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.");
     expect(prompt.system_prompt).toContain("The final line must contain at least one displayed rubric stage identifier.");
     expect(prompt.system_prompt).toContain("Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.");
+    expect(prompt.system_prompt).toContain("must not start with a bullet, dash, or numbering");
     expect(prompt.system_prompt).toContain("If none of the stronger stages are supported, use the weakest displayed rubric stage identifier as your fallback instead of leaving the verdict blank.");
   });
 
