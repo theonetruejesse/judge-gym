@@ -1,7 +1,8 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
+import { internal } from "../../_generated/api";
 import { type ModelType } from "../../platform/providers/provider_types";
-import { BaseOrchestrator } from "../orchestrator/base";
+import { BaseOrchestrator, type PendingTarget } from "../orchestrator/base";
 import {
   buildScoreCriticVerdictSummary,
   buildRubricCriticPrompt,
@@ -50,6 +51,11 @@ type HydratedScoreTarget = {
     item: SampleScoreTargetItemDoc;
     evidence: Doc<"evidences">;
   }>;
+};
+
+type PendingTargetPage = {
+  targets: PendingTarget[];
+  hasMore: boolean;
 };
 
 function renderBundledEvidence(
@@ -151,6 +157,65 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   }
 
   protected async listPendingTargets(runId: Id<"runs">, stage: RunStage) {
+    return (await this.listPendingTargetsPage(runId, stage, Number.MAX_SAFE_INTEGER)).targets;
+  }
+
+  public async enqueueStageChunk(
+    runId: Id<"runs">,
+    stage: RunStage,
+    maxTargets: number,
+  ): Promise<{
+    enqueued_count: number;
+    has_more: boolean;
+    route: "batch" | "job" | "none";
+  }> {
+    const page = await this.listPendingTargetsPage(runId, stage, maxTargets);
+    if (page.targets.length === 0) {
+      return {
+        enqueued_count: 0,
+        has_more: false,
+        route: "none",
+      };
+    }
+
+    const model = await this.getModelForStage(runId, stage);
+    const requestIds: Id<"llm_requests">[] = [];
+    for (const target of page.targets) {
+      const prompts = this.buildPrompts(stage, target.input);
+      const custom_key = this.makeRequestKey(target.targetId, stage);
+      const requestId = (await this.ctx.runMutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model,
+          system_prompt: prompts.system,
+          user_prompt: prompts.user,
+          custom_key,
+          attempt_index: 1,
+        },
+      )) as Id<"llm_requests">;
+      await this.onRequestCreated(target.targetId, stage, requestId);
+      requestIds.push(requestId);
+    }
+
+    const route = this.decideRoute(model, requestIds.length);
+    if (route === "batch") {
+      await this.createBatch(runId, stage, model, requestIds);
+    } else {
+      await this.createJob(runId, stage, model, requestIds);
+    }
+
+    return {
+      enqueued_count: requestIds.length,
+      has_more: page.hasMore,
+      route,
+    };
+  }
+
+  private async listPendingTargetsPage(
+    runId: Id<"runs">,
+    stage: RunStage,
+    limit: number,
+  ): Promise<PendingTargetPage> {
     const run = await this.ctx.db.get(runId);
     if (!run) throw new Error("Run not found");
     const rawExperiment = await this.ctx.db.get(run.experiment_id);
@@ -158,11 +223,11 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     const config = normalizeExperimentConfig(rawExperiment);
 
     if (!SCORE_STAGES.includes(stage)) {
-      return this.listPendingSampleTargets(runId, stage as SampleStage, config);
+      return this.listPendingSampleTargetsPage(runId, stage as SampleStage, config, limit);
     }
 
     const scoreTargets = await this.listScoreTargetsForRun(runId);
-    return this.listPendingSampleScoreTargets(scoreTargets, stage, config, runId);
+    return this.listPendingSampleScoreTargetsPage(scoreTargets, stage, config, runId, limit);
   }
 
   protected async getModelForStage(
@@ -264,12 +329,13 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     return sample.rubric_id == null || target.score_id == null;
   }
 
-  private async listPendingSampleTargets(
+  private async listPendingSampleTargetsPage(
     runId: Id<"runs">,
     stage: SampleStage,
     config: ExperimentConfig,
-  ) {
-    const pending: Array<{ targetId: string; input: string }> = [];
+    limit: number,
+  ): Promise<PendingTargetPage> {
+    const pending: PendingTarget[] = [];
     const samples = await this.ctx.db
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", runId))
@@ -293,43 +359,79 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
 
       const payload = await this.buildRubricPayload(stage, sample, config);
       if (!payload) continue;
+      if (pending.length >= limit) {
+        return { targets: pending, hasMore: true };
+      }
       pending.push({ targetId: sample._id, input: JSON.stringify(payload) });
     }
 
-    return pending;
+    return { targets: pending, hasMore: false };
   }
 
-  private async listPendingSampleScoreTargets(
+  private async listPendingSampleScoreTargetsPage(
     scoreTargets: SampleScoreTargetDoc[],
     stage: RunStage,
     config: ExperimentConfig,
     runId: Id<"runs">,
-  ) {
-    const pending: Array<{ targetId: string; input: string }> = [];
+    limit: number,
+  ): Promise<PendingTargetPage> {
+    const pending: PendingTarget[] = [];
     const sampleById = await this.mapSamplesByRun(runId);
-    const hydratedTargets = await this.hydrateScoreTargets(scoreTargets);
     const candidateKeys = new Set<string>();
-    const runnableTargets: HydratedScoreTarget[] = [];
+    const runnableTargets: SampleScoreTargetDoc[] = [];
 
-    for (const hydrated of hydratedTargets) {
-      const outputId = stage === "score_gen" ? hydrated.target.score_id : hydrated.target.score_critic_id;
+    for (const target of scoreTargets) {
+      const sample = sampleById.get(String(target.sample_id));
+      if (!sample) continue;
+      const outputId = stage === "score_gen" ? target.score_id : target.score_critic_id;
       if (outputId) continue;
-      if (this.isScoreTargetStageBlocked(hydrated.target, hydrated.sample, stage)) continue;
-      if (!sampleById.get(String(hydrated.sample._id))) continue;
-      runnableTargets.push(hydrated);
-      candidateKeys.add(this.makeRequestKey(hydrated.target._id, stage));
+      if (this.isScoreTargetStageBlocked(target, sample, stage)) continue;
+      runnableTargets.push(target);
+      candidateKeys.add(this.makeRequestKey(target._id, stage));
     }
 
     const requestStateIndex = await this.buildRequestStateIndex(runId, candidateKeys, stage);
-    const rubricBySampleId = await this.mapRubricsBySampleId(runnableTargets);
-    const scoreByTargetId =
-      stage === "score_critic" ? await this.mapScoresByTargetId(runnableTargets) : new Map();
+    const selectedTargets: SampleScoreTargetDoc[] = [];
 
-    for (const hydrated of runnableTargets) {
-      const customKey = this.makeRequestKey(hydrated.target._id, stage);
+    for (const target of runnableTargets) {
+      const customKey = this.makeRequestKey(target._id, stage);
       const state = this.classifyRequestState(requestStateIndex, customKey);
       if (state === "pending" || state === "exhausted") continue;
+      if (selectedTargets.length >= limit) {
+        const hydratedTargets = await this.hydrateScoreTargets(selectedTargets);
+        const rubricBySampleId = await this.mapRubricsBySampleId(hydratedTargets);
+        const scoreByTargetId =
+          stage === "score_critic" ? await this.mapScoresByTargetId(hydratedTargets) : new Map();
 
+        for (const hydrated of hydratedTargets) {
+          const payload = this.buildScorePayloadForTarget(
+            stage,
+            hydrated,
+            config,
+            rubricBySampleId.get(String(hydrated.sample._id)),
+            scoreByTargetId.get(String(hydrated.target._id)),
+          );
+          if (!payload) continue;
+          pending.push({
+            targetId: hydrated.target._id,
+            input: JSON.stringify(payload),
+          });
+        }
+        return { targets: pending, hasMore: true };
+      }
+      selectedTargets.push(target);
+    }
+
+    if (selectedTargets.length === 0) {
+      return { targets: pending, hasMore: false };
+    }
+
+    const hydratedTargets = await this.hydrateScoreTargets(selectedTargets);
+    const rubricBySampleId = await this.mapRubricsBySampleId(hydratedTargets);
+    const scoreByTargetId =
+      stage === "score_critic" ? await this.mapScoresByTargetId(hydratedTargets) : new Map();
+
+    for (const hydrated of hydratedTargets) {
       const payload = this.buildScorePayloadForTarget(
         stage,
         hydrated,
@@ -345,7 +447,7 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       });
     }
 
-    return pending;
+    return { targets: pending, hasMore: false };
   }
 
   private async buildRubricPayload(stage: RunStage, sample: SampleDoc, config: ExperimentConfig) {

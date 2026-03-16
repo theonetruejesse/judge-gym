@@ -31,6 +31,8 @@ import { getRunCompletedCount, getRunStageProgress } from "./run_progress";
 import { classifyRequestError } from "../llm_calls/llm_request_repo";
 import { resolveEvidenceStrategy } from "./run_strategies";
 
+const RUN_STAGE_ENQUEUE_CHUNK_SIZE = 50;
+
 export const startRunFlow = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -150,10 +152,27 @@ const ResumePausedRunResultSchema = z.object({
   current_stage: RunStageSchema.nullable(),
 });
 
+const EnqueueRunStageResultSchema = z.object({
+  run_id: zid("runs").nullable(),
+  stage: RunStageSchema,
+  enqueued_requests: z.number(),
+  has_more: z.boolean(),
+  route: z.enum(["batch", "job", "none"]),
+  outcome: z.enum([
+    "missing_run",
+    "terminal_noop",
+    "stage_mismatch",
+    "enqueued",
+  ]),
+  status: StateStatusSchema.nullable(),
+  current_stage: RunStageSchema.nullable(),
+});
+
 export const resumePausedRunFlow = zInternalMutation({
   args: z.object({
     run_id: zid("runs"),
     pause_after: RunStageSchema.nullable().optional(),
+    start_scheduler: z.boolean().default(true),
   }),
   returns: ResumePausedRunResultSchema,
   handler: async (ctx, args): Promise<z.infer<typeof ResumePausedRunResultSchema>> => {
@@ -196,23 +215,17 @@ export const resumePausedRunFlow = zInternalMutation({
       }),
     });
 
-    const result = await maybeAdvanceRunStage(ctx, run._id, resumedStage);
+    const result = await maybeAdvanceRunStage(ctx, run._id, resumedStage, {
+      start_scheduler: args.start_scheduler,
+    });
     if (result.outcome === "deferred_pending") {
       const hasTransport = await hasActiveRunTransportWork(ctx, run._id, resumedStage);
       if (!hasTransport) {
-        const orchestrator = new RunOrchestrator(ctx);
-        await orchestrator.enqueueStage(run._id, resumedStage);
-        await emitTraceEvent(ctx, {
-          trace_id: `run:${run._id}`,
-          entity_type: "run",
-          entity_id: String(run._id),
-          event_name: "run_stage_enqueued",
+        await scheduleRunStageEnqueue(ctx, {
+          run_id: run._id,
           stage: resumedStage,
-          status: "queued",
-          payload_json: JSON.stringify({
-            resumed: true,
-            pause_after: nextPauseAfter,
-          }),
+          reason: "resume_requeue_current_stage",
+          start_scheduler: args.start_scheduler,
         });
         const refreshed = await ctx.db.get(run._id);
         return {
@@ -237,6 +250,117 @@ export const resumePausedRunFlow = zInternalMutation({
   },
 });
 
+export const enqueueRunStage = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageSchema,
+    reason: z.string().optional(),
+    max_requests: z.number().int().min(1).optional(),
+    start_scheduler: z.boolean().default(true),
+  }),
+  returns: EnqueueRunStageResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof EnqueueRunStageResultSchema>> => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      return {
+        run_id: null,
+        stage: args.stage,
+        enqueued_requests: 0,
+        has_more: false,
+        route: "none",
+        outcome: "missing_run" as const,
+        status: null,
+        current_stage: null,
+      };
+    }
+
+    if (
+      run.status === "completed"
+      || run.status === "paused"
+      || run.status === "canceled"
+      || run.status === "error"
+    ) {
+      return {
+        run_id: run._id,
+        stage: args.stage,
+        enqueued_requests: 0,
+        has_more: false,
+        route: "none",
+        outcome: "terminal_noop" as const,
+        status: run.status,
+        current_stage: run.current_stage,
+      };
+    }
+
+    if (run.current_stage !== args.stage) {
+      return {
+        run_id: run._id,
+        stage: args.stage,
+        enqueued_requests: 0,
+        has_more: false,
+        route: "none",
+        outcome: "stage_mismatch" as const,
+        status: run.status,
+        current_stage: run.current_stage,
+      };
+    }
+
+    const orchestrator = new RunOrchestrator(ctx);
+    const result = await orchestrator.enqueueStageChunk(
+      run._id,
+      args.stage,
+      args.max_requests ?? RUN_STAGE_ENQUEUE_CHUNK_SIZE,
+    );
+
+    if (result.enqueued_count > 0) {
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${run._id}`,
+        entity_type: "run",
+        entity_id: String(run._id),
+        event_name: "run_stage_enqueued",
+        stage: args.stage,
+        status: "queued",
+        payload_json: JSON.stringify({
+          enqueued_requests: result.enqueued_count,
+          has_more: result.has_more,
+          route: result.route,
+          reason: args.reason ?? null,
+          chunk_size: args.max_requests ?? RUN_STAGE_ENQUEUE_CHUNK_SIZE,
+        }),
+      });
+    }
+
+    if (result.has_more) {
+      await scheduleRunStageEnqueue(ctx, {
+        run_id: run._id,
+        stage: args.stage,
+        reason: args.reason ?? "continuation",
+        max_requests: args.max_requests,
+        start_scheduler: args.start_scheduler,
+      });
+    }
+
+    if (args.start_scheduler && result.enqueued_count > 0) {
+      await ctx.runMutation(
+        internal.domain.orchestrator.scheduler.startScheduler,
+        {},
+      );
+    }
+
+    const refreshed = await ctx.db.get(run._id);
+    return {
+      run_id: run._id,
+      stage: args.stage,
+      enqueued_requests: result.enqueued_count,
+      has_more: result.has_more,
+      route: result.route,
+      outcome: "enqueued" as const,
+      status: refreshed?.status ?? null,
+      current_stage: refreshed?.current_stage ?? null,
+    };
+  },
+});
+
 export const resumePausedRunFlowForCampaign = zInternalMutation({
   args: z.object({
     run_id: zid("runs"),
@@ -250,6 +374,7 @@ export const resumePausedRunFlowForCampaign = zInternalMutation({
       {
         run_id: args.run_id,
         pause_after: args.pause_after ?? null,
+        start_scheduler: args.start_scheduler,
       },
     );
 
@@ -789,6 +914,9 @@ async function maybeAdvanceRunStage(
   ctx: MutationCtx,
   runId: Id<"runs">,
   stage: RunStage,
+  options?: {
+    start_scheduler?: boolean;
+  },
 ) {
   const run = await ctx.db.get(runId);
   if (!run) {
@@ -944,7 +1072,12 @@ async function maybeAdvanceRunStage(
       failed: progress.failed,
     }),
   });
-  await orchestrator.enqueueStage(runId, nextStage);
+  await scheduleRunStageEnqueue(ctx, {
+    run_id: runId,
+    stage: nextStage,
+    reason: `advance_from_${stage}`,
+    start_scheduler: options?.start_scheduler,
+  });
   return {
     outcome: "advanced" as const,
     completed: progress.completed,
@@ -1011,6 +1144,29 @@ async function hasActiveRunTransportWork(
     || finalizingBatch
     || queuedJob
     || runningJob,
+  );
+}
+
+async function scheduleRunStageEnqueue(
+  ctx: MutationCtx,
+  args: {
+    run_id: Id<"runs">;
+    stage: RunStage;
+    reason: string;
+    max_requests?: number;
+    start_scheduler?: boolean;
+  },
+): Promise<void> {
+  await ctx.scheduler.runAfter(
+    0,
+    internal.domain.runs.run_service.enqueueRunStage,
+    {
+      run_id: args.run_id,
+      stage: args.stage,
+      reason: args.reason,
+      max_requests: args.max_requests,
+      start_scheduler: args.start_scheduler ?? true,
+    },
   );
 }
 

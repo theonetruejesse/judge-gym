@@ -1,10 +1,10 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "validated",
-  "latest_iteration_id": "20260316T024532Z_run_target_state_divergence",
+  "latest_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
   "last_successful_gate": "full",
   "current_blockers": [
-    "Fresh live rerun still pending after the validated run-target-state accounting fix; current scientifically invalid dev cohort should be wiped before the next pass."
+    "Stalled full n=30 dev cohort is waiting on a destructive reset after validating the chunked score_gen handoff fix."
   ],
   "reset_allowed": true,
   "notes": [
@@ -18,6 +18,10 @@
     "Captured a second full-pass forensic iteration on 2026-03-16 showing a strict 600-score-target workload split: all 16 heavy families failed at rubric_critic=29/30 while 6 lighter families progressed but began surfacing applyRequestResult OCC conflicts on sample_score_targets.",
     "Validated a rubric-stage hot-path fix on 2026-03-16: per-request apply/error handlers no longer advance run stages inline, and rubric-stage progress no longer scans sample_score_targets before score stages.",
     "Captured forensics on 2026-03-16 for a stricter divergence failure: heavy-family runs stored real rubric_critic artifacts while process_request_targets remained exhausted and runs-row stage counts continued to cause OCC conflicts.",
-    "Validated a run-target-state accounting fix on 2026-03-16: per-request apply no longer mutates shared run/experiment counters, run summaries derive live stage counts from progress snapshots, and process_request_targets now treat applied artifacts as authoritative success."
+    "Validated a run-target-state accounting fix on 2026-03-16: per-request apply no longer mutates shared run/experiment counters, run summaries derive live stage counts from progress snapshots, and process_request_targets now treat applied artifacts as authoritative success.",
+    "Captured forensics on 2026-03-16 for a recoverable full-pass stall where one queued retry batch remained after the scheduler drained; validated a scheduler handoff fix that explicitly wakes the scheduler after retry batch creation.",
+    "Hardened active V3 resets on 2026-03-16 so heavy running cohorts can be wiped under Convex read limits, then relaunched a fresh full n=30 pass on dev.",
+    "Validated on 2026-03-16 that the heavy-family full-pass stall was a score_gen handoff rollback: rubric_critic artifacts completed, score target rows existed, and no transport was ever enqueued.",
+    "Validated on 2026-03-16 that run stage handoff is now chunked and asynchronous, and that getStuckWork/getV3CampaignStatus surface stage_transition_no_transport for this failure class."
   ]
 }

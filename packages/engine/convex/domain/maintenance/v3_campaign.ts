@@ -33,6 +33,7 @@ const StuckReasonSchema = z.enum([
   "pending_request_no_owner",
   "raw_collection_no_progress",
   "retryable_no_transport",
+  "stage_transition_no_transport",
   "stage_waiting_on_exhausted_requests",
   "scheduler_not_running",
 ]);
