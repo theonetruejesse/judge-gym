@@ -52,6 +52,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `packages/codex:resetRuns` supports `allow_active=true` for explicit destructive wipes of paused/running V3 cohort runs before a fresh pass.
 - `packages/codex:resetRuns` is paginated via `cursor` and `max_experiments` so large cohort wipes stay under Convex read limits.
 - Heavy active wipes now prioritize deleting orchestration state plus the run row for `allow_active=true` resets, and they batch-delete large `llm_requests` / `process_request_targets` sets by index instead of hydrating the whole active run in one mutation, which keeps fresh relaunches under Convex read limits even when a running cohort has already materialized large score-stage artifacts.
+- Completed/error run wipes now page through `scores`, `score_critics`, `sample_score_targets`, and `sample_score_target_items` by index instead of preloading the full run tree into one delete plan, which keeps heavy score-stage resets under the Convex bytes-read ceiling.
 - Run reconciliation now terminalizes exhausted stages instead of leaving scientifically invalid runs in `running` once no pending work remains.
 - `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
 - `packages/codex:getRunSummary`, `packages/codex:getRunDiagnostics`, and `packages/codex:listRunScoreTargets` mirror the lab debug queries onto the main codex control surface for live loop triage.
