@@ -122,6 +122,43 @@ async function listOwnedScoreTargetItems(
   return rows.flat();
 }
 
+async function deleteDocsChunk(
+  ctx: any,
+  docs: Array<{ _id: string } | { _id: unknown }>,
+): Promise<number> {
+  if (docs.length === 0) return 0;
+  await ctx.runMutation(
+    internal.domain.maintenance.danger.deleteDocIdsChunk,
+    {
+      ids: docs.map((doc) => String(doc._id)),
+    },
+  );
+  return docs.length;
+}
+
+async function drainIndexedDocs(
+  ctx: any,
+  args: {
+    fetch: () => Promise<Array<{ _id: unknown }>>;
+    isDryRun: boolean;
+  },
+): Promise<number> {
+  let deletedCount = 0;
+  for (;;) {
+    const docs = await args.fetch();
+    if (docs.length === 0) {
+      return deletedCount;
+    }
+    deletedCount += docs.length;
+    if (!args.isDryRun) {
+      await deleteDocsChunk(ctx, docs);
+    }
+    if (args.isDryRun) {
+      return deletedCount;
+    }
+  }
+}
+
 async function deleteSingleRunData(
   ctx: any,
   args: {
@@ -173,13 +210,19 @@ async function deleteSingleRunData(
   const leanActiveDelete = activeStatuses.has(run.status) && args.allow_active;
 
   const [runRequests, runTargetStateRows, processObservabilityRows, runBatches, runJobs] = await Promise.all([
-    ctx.db.query("llm_requests").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("process_request_targets").withIndex("by_process", (q: any) =>
-      q.eq("process_type", "run").eq("process_id", String(args.run_id)),
-    ).collect(),
-    ctx.db.query("process_observability").withIndex("by_process", (q: any) =>
-      q.eq("process_type", "run").eq("process_id", String(args.run_id)),
-    ).collect(),
+    leanActiveDelete && !isDryRun
+      ? []
+      : ctx.db.query("llm_requests").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+    leanActiveDelete && !isDryRun
+      ? []
+      : ctx.db.query("process_request_targets").withIndex("by_process", (q: any) =>
+        q.eq("process_type", "run").eq("process_id", String(args.run_id)),
+      ).collect(),
+    leanActiveDelete && !isDryRun
+      ? []
+      : ctx.db.query("process_observability").withIndex("by_process", (q: any) =>
+        q.eq("process_type", "run").eq("process_id", String(args.run_id)),
+      ).collect(),
     listRunBatches(ctx, args.run_id),
     listRunJobs(ctx, args.run_id),
   ]);
@@ -210,6 +253,53 @@ async function deleteSingleRunData(
     ]);
 
   if (!isDryRun) {
+    if (leanActiveDelete) {
+      await deleteDocsChunk(ctx, [...runBatches, ...runJobs]);
+      const deletedRunRequests = await drainIndexedDocs(ctx, {
+        fetch: () => ctx.db
+          .query("llm_requests")
+          .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+          .take(16),
+        isDryRun,
+      });
+      const deletedTargetStateRows = await drainIndexedDocs(ctx, {
+        fetch: () => ctx.db
+          .query("process_request_targets")
+          .withIndex("by_process", (q: any) =>
+            q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+          .take(64),
+        isDryRun,
+      });
+      const deletedObservabilityRows = await drainIndexedDocs(ctx, {
+        fetch: () => ctx.db
+          .query("process_observability")
+          .withIndex("by_process", (q: any) =>
+            q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+          .take(16),
+        isDryRun,
+      });
+      await deleteDocsChunk(ctx, [run]);
+
+      return {
+        trace_id: traceId,
+        deleted: {
+          runs: 1,
+          samples: 0,
+          sample_score_targets: 0,
+          sample_score_target_items: 0,
+          rubrics: 0,
+          rubric_critics: 0,
+          scores: 0,
+          score_critics: 0,
+          llm_batches: runBatches.length,
+          llm_jobs: runJobs.length,
+          llm_requests: deletedRunRequests,
+          process_request_targets: deletedTargetStateRows,
+          process_observability: deletedObservabilityRows,
+        },
+      };
+    }
+
     const docsToDelete = [
       ...scoreCritics,
       ...scores,
@@ -226,16 +316,52 @@ async function deleteSingleRunData(
       run,
     ];
     for (let i = 0; i < docsToDelete.length; i += 16) {
-      const chunk = docsToDelete
-        .slice(i, i + 16)
-        .map((doc) => String(doc._id));
-      await ctx.runMutation(
-        internal.domain.maintenance.danger.deleteDocIdsChunk,
-        {
-          ids: chunk,
-        },
-      );
+      const chunk = docsToDelete.slice(i, i + 16);
+      await deleteDocsChunk(ctx, chunk);
     }
+  } else if (leanActiveDelete) {
+    const deletedRunRequests = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("llm_requests")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(16),
+      isDryRun,
+    });
+    const deletedTargetStateRows = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("process_request_targets")
+        .withIndex("by_process", (q: any) =>
+          q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+        .take(64),
+      isDryRun,
+    });
+    const deletedObservabilityRows = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("process_observability")
+        .withIndex("by_process", (q: any) =>
+          q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+        .take(16),
+      isDryRun,
+    });
+
+    return {
+      trace_id: traceId,
+      deleted: {
+        runs: 1,
+        samples: 0,
+        sample_score_targets: 0,
+        sample_score_target_items: 0,
+        rubrics: 0,
+        rubric_critics: 0,
+        scores: 0,
+        score_critics: 0,
+        llm_batches: runBatches.length,
+        llm_jobs: runJobs.length,
+        llm_requests: deletedRunRequests,
+        process_request_targets: deletedTargetStateRows,
+        process_observability: deletedObservabilityRows,
+      },
+    };
   }
 
   return {
