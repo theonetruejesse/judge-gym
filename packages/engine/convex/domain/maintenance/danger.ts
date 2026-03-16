@@ -2,6 +2,7 @@ import z from "zod";
 import { zInternalMutation } from "../../utils/custom_fns";
 import { zid } from "convex-helpers/server/zod4";
 import type { DataModel, Doc } from "../../_generated/dataModel";
+import { internal } from "../../_generated/api";
 
 const tableNames = [
   "llm_prompt_templates",
@@ -41,22 +42,6 @@ const RUN_STAGES = [
   "score_critic",
 ] as const;
 
-const BATCH_STATUSES = [
-  "queued",
-  "submitting",
-  "running",
-  "finalizing",
-  "success",
-  "error",
-] as const;
-
-const JOB_STATUSES = [
-  "queued",
-  "running",
-  "success",
-  "error",
-] as const;
-
 type RunDeleteSummary = {
   runs: number;
   samples: number;
@@ -73,23 +58,36 @@ type RunDeleteSummary = {
   process_observability: number;
 };
 
+export const deleteDocIdsChunk = zInternalMutation({
+  args: z.object({
+    ids: z.array(z.string()).max(1000),
+  }),
+  returns: z.object({
+    deleted_count: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    for (const id of args.ids) {
+      await ctx.db.delete(id as any);
+    }
+    return {
+      deleted_count: args.ids.length,
+    };
+  },
+});
+
 async function listRunBatches(
   ctx: any,
   runId: Doc<"runs">["_id"],
 ): Promise<Doc<"llm_batches">[]> {
   const keys = RUN_STAGES.map((stage) => `run:${runId}:${stage}`);
-  const rows = await Promise.all(
-    keys.flatMap((customKey) =>
-      BATCH_STATUSES.map((status) =>
-        ctx.db
-          .query("llm_batches")
-          .withIndex("by_custom_key_status", (q: any) =>
-            q.eq("custom_key", customKey).eq("status", status),
-          )
-          .collect(),
-      ),
-    ),
-  );
+  const rows = await Promise.all(keys.map((customKey) =>
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_attempt_index", (q: any) =>
+        q.eq("custom_key", customKey),
+      )
+      .collect(),
+  ));
   return rows.flat();
 }
 
@@ -98,18 +96,14 @@ async function listRunJobs(
   runId: Doc<"runs">["_id"],
 ): Promise<Doc<"llm_jobs">[]> {
   const keys = RUN_STAGES.map((stage) => `run:${runId}:${stage}`);
-  const rows = await Promise.all(
-    keys.flatMap((customKey) =>
-      JOB_STATUSES.map((status) =>
-        ctx.db
-          .query("llm_jobs")
-          .withIndex("by_custom_key_status", (q: any) =>
-            q.eq("custom_key", customKey).eq("status", status),
-          )
-          .collect(),
-      ),
-    ),
-  );
+  const rows = await Promise.all(keys.map((customKey) =>
+    ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_attempt_index", (q: any) =>
+        q.eq("custom_key", customKey),
+      )
+      .collect(),
+  ));
   return rows.flat();
 }
 
@@ -176,31 +170,9 @@ async function deleteSingleRunData(
       + "Pass allow_active=true to override.",
     );
   }
+  const leanActiveDelete = activeStatuses.has(run.status) && args.allow_active;
 
-  const scoreTargets = await ctx.db
-    .query("sample_score_targets")
-    .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
-    .collect();
-
-  const [
-    samples,
-    scoreTargetItems,
-    rubrics,
-    rubricCritics,
-    scores,
-    scoreCritics,
-    runRequests,
-    runTargetStateRows,
-    processObservabilityRows,
-    runBatches,
-    runJobs,
-  ] = await Promise.all([
-    ctx.db.query("samples").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    listOwnedScoreTargetItems(ctx, scoreTargets),
-    ctx.db.query("rubrics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("rubric_critics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("scores").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    ctx.db.query("score_critics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+  const [runRequests, runTargetStateRows, processObservabilityRows, runBatches, runJobs] = await Promise.all([
     ctx.db.query("llm_requests").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
     ctx.db.query("process_request_targets").withIndex("by_process", (q: any) =>
       q.eq("process_type", "run").eq("process_id", String(args.run_id)),
@@ -211,6 +183,31 @@ async function deleteSingleRunData(
     listRunBatches(ctx, args.run_id),
     listRunJobs(ctx, args.run_id),
   ]);
+
+  const scoreTargets = leanActiveDelete
+    ? []
+    : await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+      .collect();
+
+  const [
+    samples,
+    scoreTargetItems,
+    rubrics,
+    rubricCritics,
+    scores,
+    scoreCritics,
+  ] = leanActiveDelete
+    ? [[], [], [], [], [], []]
+    : await Promise.all([
+      ctx.db.query("samples").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+      listOwnedScoreTargetItems(ctx, scoreTargets),
+      ctx.db.query("rubrics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+      ctx.db.query("rubric_critics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+      ctx.db.query("scores").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+      ctx.db.query("score_critics").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
+    ]);
 
   if (!isDryRun) {
     const docsToDelete = [
@@ -228,8 +225,16 @@ async function deleteSingleRunData(
       ...processObservabilityRows,
       run,
     ];
-    for (const doc of docsToDelete) {
-      await ctx.db.delete(doc._id);
+    for (let i = 0; i < docsToDelete.length; i += 16) {
+      const chunk = docsToDelete
+        .slice(i, i + 16)
+        .map((doc) => String(doc._id));
+      await ctx.runMutation(
+        internal.domain.maintenance.danger.deleteDocIdsChunk,
+        {
+          ids: chunk,
+        },
+      );
     }
   }
 
