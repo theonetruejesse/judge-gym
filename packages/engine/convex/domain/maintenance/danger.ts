@@ -58,7 +58,7 @@ type RunDeleteSummary = {
   process_observability: number;
 };
 
-const DELETE_DOC_IDS_CHUNK_SIZE = 4;
+const DELETE_DOC_IDS_CHUNK_SIZE = 1;
 
 export const deleteDocIdsChunk = zInternalMutation({
   args: z.object({
