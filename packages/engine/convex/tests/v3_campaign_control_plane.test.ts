@@ -345,6 +345,8 @@ describe("v3 campaign control plane", () => {
       dry_run: false,
     });
     expect(reset.selected_experiment_count).toBe(2);
+    expect(reset.processed_experiment_count).toBe(2);
+    expect(reset.next_cursor).toBeNull();
     expect(reset.totals.runs).toBe(2);
 
     await t.run(async (ctx) => {
@@ -388,6 +390,8 @@ describe("v3 campaign control plane", () => {
       allow_active: true,
     });
     expect(reset.selected_experiment_count).toBe(1);
+    expect(reset.processed_experiment_count).toBe(1);
+    expect(reset.next_cursor).toBeNull();
     expect(reset.totals.runs).toBe(1);
 
     await t.run(async (ctx) => {
