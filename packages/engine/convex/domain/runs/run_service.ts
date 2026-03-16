@@ -839,6 +839,30 @@ async function maybeAdvanceRunStage(
     };
   }
 
+  if (progress.failed > 0) {
+    await ctx.db.patch(runId, {
+      status: "error",
+      current_stage: stage,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${runId}`,
+      entity_type: "run",
+      entity_id: String(runId),
+      event_name: "run_terminal_error",
+      stage,
+      status: "error",
+      payload_json: JSON.stringify({
+        completed: progress.completed,
+        failed: progress.failed,
+      }),
+    });
+    return {
+      outcome: "terminal_error" as const,
+      completed: progress.completed,
+      failed: progress.failed,
+    };
+  }
+
   if (run.pause_after === stage) {
     await ctx.db.patch(runId, {
       status: "paused",
@@ -859,30 +883,6 @@ async function maybeAdvanceRunStage(
     });
     return {
       outcome: "paused" as const,
-      completed: progress.completed,
-      failed: progress.failed,
-    };
-  }
-
-  if (progress.completed === 0 && progress.failed > 0) {
-    await ctx.db.patch(runId, {
-      status: "error",
-      current_stage: stage,
-    });
-    await emitTraceEvent(ctx, {
-      trace_id: `run:${runId}`,
-      entity_type: "run",
-      entity_id: String(runId),
-      event_name: "run_terminal_error",
-      stage,
-      status: "error",
-      payload_json: JSON.stringify({
-        completed: progress.completed,
-        failed: progress.failed,
-      }),
-    });
-    return {
-      outcome: "terminal_error" as const,
       completed: progress.completed,
       failed: progress.failed,
     };

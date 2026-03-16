@@ -50,9 +50,12 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `packages/codex:startV3Experiments` and `packages/codex:resumeV3Experiments` are asynchronous control-plane entrypoints: they schedule per-run work first, then the per-run task creates or resumes the run and kicks the scheduler.
 - `packages/codex:resetRuns` supports `allow_active=true` for explicit destructive wipes of paused/running V3 cohort runs before a fresh pass.
 - `packages/codex:resetRuns` is paginated via `cursor` and `max_experiments` so large cohort wipes stay under Convex read limits.
+- Run reconciliation now terminalizes exhausted stages instead of leaving scientifically invalid runs in `running` once no pending work remains.
+- `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
+  - timeout classification recognizes both `timeout` and `timed out` style provider/runtime failures
 - Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
 - One-off run metadata repairs go through `packages/codex:backfillRunCompletedCounts` with `dry_run`, `cursor`, and `max_runs`.
 - One-off experiment aggregate repairs go through `packages/codex:backfillExperimentTotalCounts` with `dry_run`, `cursor`, and `max_experiments`.
