@@ -1,10 +1,10 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "validated",
-  "latest_iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
+  "latest_iteration_id": "20260316T024532Z_run_target_state_divergence",
   "last_successful_gate": "full",
   "current_blockers": [
-    "Fresh live rerun still pending after the validated rubric-stage hot-path fix; current dev cohort should be wiped before the next pass."
+    "Fresh live rerun still pending after the validated run-target-state accounting fix; current scientifically invalid dev cohort should be wiped before the next pass."
   ],
   "reset_allowed": true,
   "notes": [
@@ -16,6 +16,8 @@
     "Validated fresh dev rubric_gate launch on 2026-03-15: 22/22 latest runs reached pause_after=rubric_critic with target_count=30 and no cohort failures.",
     "Captured forensics for full n=30 dev pass on 2026-03-16 after 16 runs became scientifically invalid at rubric_critic with exhausted final request targets and repeated timeout errors in apply/error/reconcile mutations.",
     "Captured a second full-pass forensic iteration on 2026-03-16 showing a strict 600-score-target workload split: all 16 heavy families failed at rubric_critic=29/30 while 6 lighter families progressed but began surfacing applyRequestResult OCC conflicts on sample_score_targets.",
-    "Validated a rubric-stage hot-path fix on 2026-03-16: per-request apply/error handlers no longer advance run stages inline, and rubric-stage progress no longer scans sample_score_targets before score stages."
+    "Validated a rubric-stage hot-path fix on 2026-03-16: per-request apply/error handlers no longer advance run stages inline, and rubric-stage progress no longer scans sample_score_targets before score stages.",
+    "Captured forensics on 2026-03-16 for a stricter divergence failure: heavy-family runs stored real rubric_critic artifacts while process_request_targets remained exhausted and runs-row stage counts continued to cause OCC conflicts.",
+    "Validated a run-target-state accounting fix on 2026-03-16: per-request apply no longer mutates shared run/experiment counters, run summaries derive live stage counts from progress snapshots, and process_request_targets now treat applied artifacts as authoritative success."
   ]
 }

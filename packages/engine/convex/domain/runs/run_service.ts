@@ -405,7 +405,6 @@ export const applyRequestResult = zInternalMutation({
         });
 
         await ctx.db.patch(sampleId, { rubric_id });
-        await incrementRunStageCount(ctx, sample.run_id, "rubric_gen");
       }
 
       if (stage === "rubric_critic") {
@@ -427,7 +426,6 @@ export const applyRequestResult = zInternalMutation({
         });
 
         await ctx.db.patch(sampleId, { rubric_critic_id });
-        await incrementRunStageCount(ctx, sample.run_id, "rubric_critic");
       }
 
       if (stage === "score_gen") {
@@ -463,7 +461,6 @@ export const applyRequestResult = zInternalMutation({
         if (scoreTarget) {
           await ctx.db.patch(scoreTarget._id, { score_id });
           await incrementSampleScoreCounter(ctx, sampleId, "score_count");
-          await incrementRunStageCount(ctx, sample.run_id, "score_gen");
         } else {
           throw new Error("Score stage requires sample_score_target");
         }
@@ -485,9 +482,7 @@ export const applyRequestResult = zInternalMutation({
 
         if (scoreTarget) {
           await ctx.db.patch(scoreTarget._id, { score_critic_id });
-          const updatedSample = await incrementSampleScoreCounter(ctx, sampleId, "score_critic_count");
-          await incrementRunStageCount(ctx, sample.run_id, "score_critic");
-          await incrementRunCompletedCountForScoreTarget(ctx, sample.run_id, updatedSample ?? sample);
+          await incrementSampleScoreCounter(ctx, sampleId, "score_critic_count");
         } else {
           throw new Error("Score critic stage requires sample_score_target");
         }
@@ -757,22 +752,6 @@ function getRunStageCountField(
   }
 }
 
-async function incrementRunStageCount(
-  ctx: MutationCtx,
-  runId: Id<"runs">,
-  stage: RunStage,
-) {
-  const run = await ctx.db.get(runId);
-  if (!run) return null;
-
-  const field = getRunStageCountField(stage);
-  const nextValue = (run[field] ?? 0) + 1;
-  await ctx.db.patch(runId, {
-    [field]: nextValue,
-  });
-  return nextValue;
-}
-
 async function resolveRunTarget(
   ctx: MutationCtx,
   targetType: RunRequestTargetType,
@@ -971,40 +950,6 @@ async function maybeAdvanceRunStage(
     completed: progress.completed,
     failed: progress.failed,
   };
-}
-
-async function incrementRunCompletedCountForCompletedSample(
-  ctx: MutationCtx,
-  runId: Id<"runs">,
-) {
-  const run = await ctx.db.get(runId);
-  if (!run) return;
-
-  if (typeof run.completed_count !== "number") {
-    const completedCount = await getRunCompletedCount(ctx, runId);
-    await ctx.db.patch(runId, {
-      completed_count: completedCount,
-    });
-    await syncExperimentTotalCount(ctx, run.experiment_id);
-    return;
-  }
-
-  const nextCompletedCount = Math.min(run.target_count, run.completed_count + 1);
-  await ctx.db.patch(runId, {
-    completed_count: nextCompletedCount,
-  });
-  await syncExperimentTotalCount(ctx, run.experiment_id);
-}
-
-async function incrementRunCompletedCountForScoreTarget(
-  ctx: MutationCtx,
-  runId: Id<"runs">,
-  sample: Doc<"samples">,
-) {
-  if (sample.score_target_total <= 0) return;
-  if ((sample.score_critic_count ?? 0) < sample.score_target_total) return;
-
-  await incrementRunCompletedCountForCompletedSample(ctx, runId);
 }
 
 async function hasActiveRunTransportWork(
