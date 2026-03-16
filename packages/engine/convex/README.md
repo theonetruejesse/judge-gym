@@ -45,6 +45,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Batch/job lease claims are renewed during long-running workflow sections to reduce duplicate execution after lease expiry.
 - Batch submit uses a durable `submitting` state plus provider metadata lookup recovery for unknown-outcome submit failures.
 - Batch poll lease claims prevent duplicate concurrent polls.
+- Batch retry creation now explicitly kicks the scheduler, so an attempt-2 queued retry cannot be stranded after the previous scheduler loop drains.
 - Job request execution is bounded-parallel per job tick via `run_policy.job_request_concurrency`.
 - Paused V3 cohort runs can be resumed in place through `packages/codex:resumeV3Experiments`.
 - `packages/codex:startV3Experiments` and `packages/codex:resumeV3Experiments` are asynchronous control-plane entrypoints: they schedule per-run work first, then the per-run task creates or resumes the run and kicks the scheduler.
@@ -58,6 +59,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `process_request_targets` now treats existing stage artifacts as authoritative success for run/window targets, so stale exhausted request rows cannot mask a successfully applied rubric, rubric critic, score, or score critic artifact.
 - Lab/codex run summaries now compute live stage counts from run progress snapshots instead of trusting potentially stale persisted per-stage counters on the `runs` row.
 - `getRunDiagnostics` now reports workload score-target estimates plus exhausted-target sample ordinals, so another `29/30` failure can be classified as tail-skewed and workload-coupled from a single query.
+- `packages/codex:getStuckWork` now treats queued-only transport backlog with no scheduler heartbeat as a real stall, which catches the “one queued retry batch and nothing else moving” failure mode.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps

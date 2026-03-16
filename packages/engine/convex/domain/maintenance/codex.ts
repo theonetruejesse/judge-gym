@@ -1081,9 +1081,11 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       scan_caps_hit: z.boolean(),
       health_checks_limited: z.boolean(),
       scanned: z.object({
+        queued_batches: z.number(),
         submitting_batches: z.number(),
         running_batches: z.number(),
         finalizing_batches: z.number(),
+        queued_jobs: z.number(),
         orphaned_requests: z.number(),
         candidate_runs: z.number(),
         candidate_windows: z.number(),
@@ -1096,24 +1098,30 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     const cutoff = now - args.older_than_ms;
     const items: Array<z.infer<typeof StuckWorkSchema>> = [];
 
+    const queuedBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "queued"));
     const submittingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "submitting"));
     const runningBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "running"));
     const finalizingBatchQuery = ctx.db.query("llm_batches").withIndex("by_status", (q) => q.eq("status", "finalizing"));
+    const queuedJobQuery = ctx.db.query("llm_jobs").withIndex("by_status", (q) => q.eq("status", "queued"));
     const runQuery = ctx.db.query("runs");
     const windowQuery = ctx.db.query("windows");
 
     const [
+      queuedBatches,
       submittingBatches,
       runningBatches,
       finalizingBatches,
+      queuedJobs,
       orphaned,
       runs,
       windows,
       schedulerScheduled,
     ] = await Promise.all([
+      queuedBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       submittingBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       runningBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       finalizingBatchQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
+      queuedJobQuery.take(STUCK_BATCH_SCAN_MAX_ROWS),
       ctx.runQuery(internal.domain.llm_calls.llm_request_repo.listOrphanedRequests, {
         limit: STUCK_BATCH_SCAN_MAX_ROWS,
       }),
@@ -1126,9 +1134,11 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       hasScheduledScheduler(ctx),
     ]);
     const scanCapsHit = (
-      submittingBatches.length === STUCK_BATCH_SCAN_MAX_ROWS
+      queuedBatches.length === STUCK_BATCH_SCAN_MAX_ROWS
+      || submittingBatches.length === STUCK_BATCH_SCAN_MAX_ROWS
       || runningBatches.length === STUCK_BATCH_SCAN_MAX_ROWS
       || finalizingBatches.length === STUCK_BATCH_SCAN_MAX_ROWS
+      || queuedJobs.length === STUCK_BATCH_SCAN_MAX_ROWS
       || orphaned.length === STUCK_BATCH_SCAN_MAX_ROWS
       || runs.length === STUCK_PROCESS_SCAN_MAX_ROWS
       || windows.length === STUCK_PROCESS_SCAN_MAX_ROWS
@@ -1242,10 +1252,35 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     }
 
     if (!schedulerScheduled) {
-      const hasBacklog = submittingBatches.length > 0 || runningBatches.length > 0 || finalizingBatches.length > 0 || orphaned.length > 0;
+      const backlogBatch = queuedBatches.find((row) => isAllowedProcess(row.custom_key))
+        ?? submittingBatches.find((row) => isAllowedProcess(row.custom_key))
+        ?? runningBatches.find((row) => isAllowedProcess(row.custom_key))
+        ?? finalizingBatches.find((row) => isAllowedProcess(row.custom_key));
+      const backlogJob = queuedJobs.find((row) => isAllowedProcess(row.custom_key));
+      const backlogRequest = orphaned.find((row) => isAllowedProcess(row.custom_key));
+      const hasBacklog = backlogBatch != null || backlogJob != null || backlogRequest != null;
       if (hasBacklog) {
-        const processType = args.process_type ?? "run";
-        const processId = args.process_type === "window" ? String(windows[0]?._id ?? "unknown") : String(runs[0]?._id ?? "unknown");
+        const parsedBacklog = backlogBatch != null
+          ? parseProcessFromCustomKey(backlogBatch.custom_key)
+          : backlogJob != null
+            ? parseProcessFromCustomKey(backlogJob.custom_key)
+            : backlogRequest != null
+              ? (() => {
+                const parsed = parseCustomKey(backlogRequest.custom_key);
+                if (parsed.targetType === "sample" || parsed.targetType === "sample_score_target") {
+                  return { process_type: "run" as const, process_id: "unknown" };
+                }
+                if (parsed.targetType === "evidence") {
+                  return { process_type: "window" as const, process_id: "unknown" };
+                }
+                return { process_type: null, process_id: null };
+              })()
+              : { process_type: null, process_id: null };
+        const processType = parsedBacklog.process_type ?? args.process_type ?? "run";
+        const processId = parsedBacklog.process_id
+          ?? (args.process_type === "window"
+            ? String(windows[0]?._id ?? "unknown")
+            : String(runs[0]?._id ?? "unknown"));
         items.push({
           process_type: processType,
           process_id: processId,
@@ -1254,7 +1289,7 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
           entity_id: "scheduler",
           custom_key: "scheduler:global",
           age_ms: null,
-          details: "Scheduler has backlog work but no scheduled run",
+          details: "Scheduler has queued transport or orphaned work but no scheduled run",
         });
       }
     }
@@ -1404,9 +1439,11 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
           || windowRows.length > STUCK_HEALTH_CHECK_MAX_PROCESSES
         ),
         scanned: {
+          queued_batches: queuedBatches.length,
           submitting_batches: submittingBatches.length,
           running_batches: runningBatches.length,
           finalizing_batches: finalizingBatches.length,
+          queued_jobs: queuedJobs.length,
           orphaned_requests: orphaned.length,
           candidate_runs: runRows.length,
           candidate_windows: windowRows.length,
