@@ -58,6 +58,8 @@ type RunDeleteSummary = {
   process_observability: number;
 };
 
+const DELETE_DOC_IDS_CHUNK_SIZE = 4;
+
 export const deleteDocIdsChunk = zInternalMutation({
   args: z.object({
     ids: z.array(z.string()).max(1000),
@@ -127,12 +129,16 @@ async function deleteDocsChunk(
   docs: Array<{ _id: string } | { _id: unknown }>,
 ): Promise<number> {
   if (docs.length === 0) return 0;
-  await ctx.runMutation(
-    internal.domain.maintenance.danger.deleteDocIdsChunk,
-    {
-      ids: docs.map((doc) => String(doc._id)),
-    },
-  );
+
+  for (let index = 0; index < docs.length; index += DELETE_DOC_IDS_CHUNK_SIZE) {
+    const chunk = docs.slice(index, index + DELETE_DOC_IDS_CHUNK_SIZE);
+    await ctx.runMutation(
+      internal.domain.maintenance.danger.deleteDocIdsChunk,
+      {
+        ids: chunk.map((doc) => String(doc._id)),
+      },
+    );
+  }
   return docs.length;
 }
 
