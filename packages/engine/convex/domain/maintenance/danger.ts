@@ -310,22 +310,6 @@ async function deleteSingleRunData(
   if (!isDryRun) {
     if (leanActiveDelete) {
       await deleteDocsChunk(ctx, [...runBatches, ...runJobs]);
-      const deletedTargetStateRows = await drainIndexedDocs(ctx, {
-        fetch: () => ctx.db
-          .query("process_request_targets")
-          .withIndex("by_process", (q: any) =>
-            q.eq("process_type", "run").eq("process_id", String(args.run_id)))
-          .take(64),
-        isDryRun,
-      });
-      const deletedObservabilityRows = await drainIndexedDocs(ctx, {
-        fetch: () => ctx.db
-          .query("process_observability")
-          .withIndex("by_process", (q: any) =>
-            q.eq("process_type", "run").eq("process_id", String(args.run_id)))
-          .take(16),
-        isDryRun,
-      });
       await deleteDocsChunk(ctx, [run]);
 
       return {
@@ -342,8 +326,8 @@ async function deleteSingleRunData(
           llm_batches: runBatches.length,
           llm_jobs: runJobs.length,
           llm_requests: 0,
-          process_request_targets: deletedTargetStateRows,
-          process_observability: deletedObservabilityRows,
+          process_request_targets: 0,
+          process_observability: 0,
         },
       };
     }
