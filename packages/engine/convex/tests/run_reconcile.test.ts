@@ -6,6 +6,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import { ENGINE_SETTINGS } from "../settings";
+import { getRunStageProgress } from "../domain/runs/run_progress";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
@@ -252,6 +253,53 @@ describe("run reconcile", () => {
       rubric_critic: 1,
       score_gen: 0,
       score_critic: 0,
+    });
+  });
+
+  test("rubric_critic progress does not query sample_score_targets", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id,
+      target_count: 2,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run_id, {
+        status: "running",
+        current_stage: "rubric_gen",
+      });
+    });
+
+    await markRunWithExhaustedRubricCriticTarget(t, run_id);
+
+    await t.run(async (ctx) => {
+      const db = new Proxy(ctx.db, {
+        get(target, prop, receiver) {
+          if (prop === "query") {
+            return (tableName: string) => {
+              if (tableName === "sample_score_targets") {
+                throw new Error("rubric progress should not read sample_score_targets");
+              }
+              return target.query(tableName as never);
+            };
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+
+      const progress = await getRunStageProgress(
+        { ...ctx, db } as typeof ctx,
+        run_id,
+        "rubric_critic",
+      );
+      expect(progress).toEqual({
+        completed: 1,
+        failed: 1,
+        hasPending: false,
+        total: 2,
+      });
     });
   });
 });

@@ -11,5 +11,15 @@
     "observability_blind_spot",
     "spec_or_manifest_mismatch"
   ],
-  "entries": []
+  "entries": [
+    {
+      "bug_id": "run_stage_progress_overreads_score_targets",
+      "failure_domain": "stage_reconciliation",
+      "status": "validated",
+      "summary": "Rubric-stage apply/error/reconcile paths recomputed full-run progress by scanning all precreated sample_score_targets, causing 600-target families to time out and exhaust at rubric_critic=29/30.",
+      "first_seen_iteration_id": "20260316T010116Z_rubric_critic_timeout_exhaustion",
+      "validated_iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
+      "fix_summary": "Made rubric-stage progress stage-local and removed inline stage advancement from the per-request apply/error hot path so early stages no longer pay later score-target fanout costs."
+    }
+  ]
 }
