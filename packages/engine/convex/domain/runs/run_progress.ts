@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { type RunStage } from "../../models/experiments";
+import { buildScoreArtifactIndex, type ScoreArtifactIndex } from "./sample_progress";
 
 type RunProgressCtx = QueryCtx | MutationCtx;
 type SampleDoc = Doc<"samples">;
@@ -26,6 +27,7 @@ export type RunProgressSnapshot = {
 export function countCompletedSamples(
   samples: SampleDoc[],
   scoreTargets: SampleScoreTargetDoc[],
+  artifactIndex?: ScoreArtifactIndex,
 ): number {
   if (samples.length === 0) return 0;
 
@@ -52,7 +54,11 @@ export function countCompletedSamples(
   for (const sample of samples) {
     const sampleTargets = targetsBySampleId.get(String(sample._id)) ?? [];
     if (sampleTargets.length === 0) continue;
-    if (sampleTargets.every((target) => target.score_critic_id != null)) {
+    if (sampleTargets.every((target) =>
+      artifactIndex
+        ? artifactIndex.scoreTargetIdsWithScoreCritic.has(String(target._id))
+        : target.score_critic_id != null
+    )) {
       completed += 1;
     }
   }
@@ -173,6 +179,7 @@ function buildScoreStageProgress(
   scoreTargets: SampleScoreTargetDoc[],
   statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
   stage: "score_gen" | "score_critic",
+  artifactIndex: ScoreArtifactIndex,
 ): RunStageProgress | null {
   if (scoreTargets.length === 0) return null;
 
@@ -188,8 +195,10 @@ function buildScoreStageProgress(
       continue;
     }
 
-    const outputId = stage === "score_gen" ? target.score_id : target.score_critic_id;
-    if (outputId) {
+    const hasOutput = stage === "score_gen"
+      ? artifactIndex.scoreTargetIdsWithScore.has(String(target._id))
+      : artifactIndex.scoreTargetIdsWithScoreCritic.has(String(target._id));
+    if (hasOutput) {
       completed += 1;
       continue;
     }
@@ -206,7 +215,10 @@ function buildScoreStageProgress(
       continue;
     }
 
-    if (stage === "score_critic" && !target.score_id) {
+    if (
+      stage === "score_critic"
+      && !artifactIndex.scoreTargetIdsWithScore.has(String(target._id))
+    ) {
       const blockedState = statesByStage.score_gen.get(
         makeRequestKeyForTarget("sample_score_target", String(target._id), "score_gen"),
       );
@@ -240,21 +252,36 @@ export async function getRunProgressSnapshot(
   ctx: RunProgressCtx,
   runId: Id<"runs">,
 ): Promise<RunProgressSnapshot | null> {
-  const [samples, scoreTargets, targetStates] = await Promise.all([
+  const [samples, scoreTargets, targetStates, scores, scoreCritics] = await Promise.all([
     ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
     ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
     ctx.db.query("process_request_targets").withIndex("by_process", (q) =>
       q.eq("process_type", "run").eq("process_id", runId),
     ).collect(),
+    ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
   ]);
 
   if (samples.length === 0) return null;
 
   const statesByStage = buildTargetStateIndex(targetStates);
+  const artifactIndex = buildScoreArtifactIndex(scores, scoreCritics);
   const rubricGen = buildSampleStageProgress(samples, statesByStage, "rubric_gen");
   const rubricCritic = buildSampleStageProgress(samples, statesByStage, "rubric_critic");
-  const scoreGen = buildScoreStageProgress(samples, scoreTargets, statesByStage, "score_gen");
-  const scoreCritic = buildScoreStageProgress(samples, scoreTargets, statesByStage, "score_critic");
+  const scoreGen = buildScoreStageProgress(
+    samples,
+    scoreTargets,
+    statesByStage,
+    "score_gen",
+    artifactIndex,
+  );
+  const scoreCritic = buildScoreStageProgress(
+    samples,
+    scoreTargets,
+    statesByStage,
+    "score_critic",
+    artifactIndex,
+  );
 
   const byStage = {
     rubric_gen: rubricGen ?? { completed: 0, failed: 0, hasPending: false, total: 0 },
@@ -275,12 +302,18 @@ export async function getRunCompletedCount(
   ctx: RunProgressCtx,
   runId: Id<"runs">,
 ): Promise<number> {
-  const [samples, scoreTargets] = await Promise.all([
+  const [samples, scoreTargets, scores, scoreCritics] = await Promise.all([
     ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
     ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
   ]);
 
-  return countCompletedSamples(samples, scoreTargets);
+  return countCompletedSamples(
+    samples,
+    scoreTargets,
+    buildScoreArtifactIndex(scores, scoreCritics),
+  );
 }
 
 export async function getRunStageProgress(
@@ -304,15 +337,23 @@ export async function getRunStageProgress(
     return buildSampleStageProgress(samples, statesByStage, stage);
   }
 
-  const scoreTargets = await ctx.db
-    .query("sample_score_targets")
-    .withIndex("by_run", (q) => q.eq("run_id", runId))
-    .collect();
+  const [scoreTargets, scores, scoreCritics] = await Promise.all([
+    ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect(),
+    ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+    ctx.db
+      .query("score_critics")
+      .withIndex("by_run", (q) => q.eq("run_id", runId))
+      .collect(),
+  ]);
   if (scoreTargets.length === 0) return null;
+  const artifactIndex = buildScoreArtifactIndex(scores, scoreCritics);
 
   if (stage === "score_gen") {
     const statesByStage = await listTargetStatesForStages(ctx, runId, ["rubric_gen", "score_gen"]);
-    return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage);
+    return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage, artifactIndex);
   }
 
   const statesByStage = await listTargetStatesForStages(ctx, runId, [
@@ -320,7 +361,7 @@ export async function getRunStageProgress(
     "score_gen",
     "score_critic",
   ]);
-  return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage);
+  return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage, artifactIndex);
 }
 
 export function stageIsScoreStage(stage: RunStage) {

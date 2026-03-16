@@ -17,6 +17,7 @@ import {
 } from "./run_strategies";
 import { type RunStage } from "../../models/experiments";
 import { getRunStageProgress } from "./run_progress";
+import { buildScoreArtifactIndex } from "./sample_progress";
 
 type SampleDoc = Doc<"samples">;
 type SampleScoreTargetDoc = Doc<"sample_score_targets">;
@@ -322,11 +323,12 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
     target: SampleScoreTargetDoc,
     sample: SampleDoc,
     stage: RunStage,
+    scoreTargetIdsWithScore: Set<string>,
   ) {
     if (stage === "score_gen") {
       return sample.rubric_id == null;
     }
-    return sample.rubric_id == null || target.score_id == null;
+    return sample.rubric_id == null || !scoreTargetIdsWithScore.has(String(target._id));
   }
 
   private async listPendingSampleTargetsPage(
@@ -377,15 +379,35 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
   ): Promise<PendingTargetPage> {
     const pending: PendingTarget[] = [];
     const sampleById = await this.mapSamplesByRun(runId);
+    const [scores, scoreCritics] = await Promise.all([
+      this.ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", runId)).collect(),
+      this.ctx.db
+        .query("score_critics")
+        .withIndex("by_run", (q) => q.eq("run_id", runId))
+        .collect(),
+    ]);
+    const artifactIndex = buildScoreArtifactIndex(scores, scoreCritics);
+    const scoreByTargetId = new Map(
+      scores.map((score) => [String(score.score_target_id), score] as const),
+    );
     const candidateKeys = new Set<string>();
     const runnableTargets: SampleScoreTargetDoc[] = [];
 
     for (const target of scoreTargets) {
       const sample = sampleById.get(String(target.sample_id));
       if (!sample) continue;
-      const outputId = stage === "score_gen" ? target.score_id : target.score_critic_id;
-      if (outputId) continue;
-      if (this.isScoreTargetStageBlocked(target, sample, stage)) continue;
+      const hasOutput = stage === "score_gen"
+        ? artifactIndex.scoreTargetIdsWithScore.has(String(target._id))
+        : artifactIndex.scoreTargetIdsWithScoreCritic.has(String(target._id));
+      if (hasOutput) continue;
+      if (
+        this.isScoreTargetStageBlocked(
+          target,
+          sample,
+          stage,
+          artifactIndex.scoreTargetIdsWithScore,
+        )
+      ) continue;
       runnableTargets.push(target);
       candidateKeys.add(this.makeRequestKey(target._id, stage));
     }
@@ -400,8 +422,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       if (selectedTargets.length >= limit) {
         const hydratedTargets = await this.hydrateScoreTargets(selectedTargets);
         const rubricBySampleId = await this.mapRubricsBySampleId(hydratedTargets);
-        const scoreByTargetId =
-          stage === "score_critic" ? await this.mapScoresByTargetId(hydratedTargets) : new Map();
 
         for (const hydrated of hydratedTargets) {
           const payload = this.buildScorePayloadForTarget(
@@ -428,8 +448,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
 
     const hydratedTargets = await this.hydrateScoreTargets(selectedTargets);
     const rubricBySampleId = await this.mapRubricsBySampleId(hydratedTargets);
-    const scoreByTargetId =
-      stage === "score_critic" ? await this.mapScoresByTargetId(hydratedTargets) : new Map();
 
     for (const hydrated of hydratedTargets) {
       const payload = this.buildScorePayloadForTarget(
@@ -600,30 +618,6 @@ export class RunOrchestrator extends BaseOrchestrator<Id<"runs">, RunStage> {
       );
     }
     return rubricBySampleId;
-  }
-
-  private async mapScoresByTargetId(
-    targets: HydratedScoreTarget[],
-  ): Promise<Map<string, Doc<"scores"> | null>> {
-    const scoreIds = new Set<string>();
-    for (const { target } of targets) {
-      if (target.score_id) scoreIds.add(String(target.score_id));
-    }
-
-    const scoreById = new Map<string, Doc<"scores"> | null>();
-    for (const scoreId of scoreIds) {
-      const score = await this.ctx.db.get(scoreId as Id<"scores">);
-      scoreById.set(scoreId, score ?? null);
-    }
-
-    const scoreByTargetId = new Map<string, Doc<"scores"> | null>();
-    for (const { target } of targets) {
-      scoreByTargetId.set(
-        String(target._id),
-        target.score_id ? (scoreById.get(String(target.score_id)) ?? null) : null,
-      );
-    }
-    return scoreByTargetId;
   }
 
   private async listScoreTargetsForRun(runId: Id<"runs">) {
