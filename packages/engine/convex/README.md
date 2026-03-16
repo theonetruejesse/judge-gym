@@ -54,7 +54,9 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
 - `packages/codex:getRunSummary`, `packages/codex:getRunDiagnostics`, and `packages/codex:listRunScoreTargets` mirror the lab debug queries onto the main codex control surface for live loop triage.
 - Run stage progress is stage-local: `rubric_gen` and `rubric_critic` reconciliation do not scan `sample_score_targets`, which keeps early-stage accounting independent of later score-target fanout.
-- Request apply/error mutations no longer run full stage reconciliation inline; they update durable counters, and authoritative stage advance/failure still happens when the owning batch/job transport finalizes.
+- Request apply/error mutations no longer run full stage reconciliation inline, and they no longer patch shared run/experiment aggregate counters in the per-result hot path; authoritative stage counts and terminal/completed state are synchronized during reconcile.
+- `process_request_targets` now treats existing stage artifacts as authoritative success for run/window targets, so stale exhausted request rows cannot mask a successfully applied rubric, rubric critic, score, or score critic artifact.
+- Lab/codex run summaries now compute live stage counts from run progress snapshots instead of trusting potentially stale persisted per-stage counters on the `runs` row.
 - `getRunDiagnostics` now reports workload score-target estimates plus exhausted-target sample ordinals, so another `29/30` failure can be classified as tail-skewed and workload-coupled from a single query.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal

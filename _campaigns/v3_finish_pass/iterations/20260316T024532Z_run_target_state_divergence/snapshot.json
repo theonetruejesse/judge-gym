@@ -1,0 +1,275 @@
+{
+  "iteration_id": "20260316T024532Z_run_target_state_divergence",
+  "captured_at_utc": "2026-03-16T02:45:32Z",
+  "manifest_version": 1,
+  "campaign_id": "v3_finish_pass",
+  "launch_mode": "full",
+  "launch": {
+    "target_count": 30,
+    "pause_after": null,
+    "start_policy": "all",
+    "expected_experiment_count": 22
+  },
+  "expected_vs_observed": {
+    "expected_experiments": 22,
+    "observed_latest_runs": 22,
+    "expected_run_shape": "22 latest V3 runs progressing end-to-end with target_count=30 and no pauses",
+    "observed_run_shape": "3 light-family runs completed, 3 light-family runs still progressing, and 10/16 heavy-family runs scientifically invalid at rubric_critic with exhausted targets."
+  },
+  "cohort_status": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid",
+    "counts": {
+      "total": 22,
+      "with_latest_run": 22,
+      "running": 19,
+      "completed": 3,
+      "paused": 0,
+      "error": 0,
+      "latest_runs_with_failures": 10
+    },
+    "stage_distribution": [
+      { "stage": "rubric_gen", "count": 0 },
+      { "stage": "rubric_critic", "count": 16 },
+      { "stage": "score_gen", "count": 1 },
+      { "stage": "score_critic", "count": 5 }
+    ],
+    "stuck_summary": [
+      { "reason": "stage_waiting_on_exhausted_requests", "count": 10 }
+    ],
+    "workload_family_summary": [
+      {
+        "estimated_total_score_targets": 120,
+        "experiment_count": 6,
+        "running": 3,
+        "completed": 3,
+        "with_failures": 0
+      },
+      {
+        "estimated_total_score_targets": 600,
+        "experiment_count": 16,
+        "running": 16,
+        "completed": 0,
+        "with_failures": 10
+      }
+    ]
+  },
+  "launched_runs": [
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+      "run_id": "kh7c703r8fspwe2b4xsth6a7cd831m8x",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_true",
+      "run_id": "kh7bx2zedf845tnmzaa88esqz9830ek1",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+      "run_id": "kh752efmrqays0yqzkn7cjf5px8302dk",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_true",
+      "run_id": "kh7860wh8a3jrq4wnerzhhfv0d8311dm",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_4_1_l3",
+      "run_id": "kh74995vajex1t7z15casypa71831fgd",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_5_2_l3",
+      "run_id": "kh7ahhwsqaeepp58mykfvpbyv5830b90",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_4_1_scale_5",
+      "run_id": "kh7baedrpa2fxacnfzmr9xwn5d8309dz",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_5_2_scale_5",
+      "run_id": "kh7b494fj8g591k6j17fdgfyhn831r96",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "run_id": "kh780fr94jrbs04bm73jh716as830x9z",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "run_id": "kh7bb30a3t8pgjmr3m1fzb1m7x831tz5",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+      "run_id": "kh79jys51y731gf6sc34sr70zn831wfx",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy",
+      "run_id": "kh7d6d28tpw5ycy1c5wb9nge118304kn",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_4_1_bundle_5_l2",
+      "run_id": "kh7cg6wz2kj67jqrgt9gkaxck983074e",
+      "status": "completed",
+      "current_stage": "score_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_5_2_bundle_5_l2",
+      "run_id": "kh7dnxs1dvagtd0csr9jraqh91830q6x",
+      "status": "running",
+      "current_stage": "score_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_4_1_bundle_5_l3",
+      "run_id": "kh7f91vr6e69cwm4skm0eyn0n98309s2",
+      "status": "completed",
+      "current_stage": "score_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_5_2_bundle_5_l3",
+      "run_id": "kh7fgpjzngrvd5mjs79d9qjcbx831kk7",
+      "status": "running",
+      "current_stage": "score_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_false",
+      "run_id": "kh76w7032z3ym7483d3ddx6k5h8313bb",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true",
+      "run_id": "kh77kgeh1sk4ybvp6ckjefqac1831snk",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_false",
+      "run_id": "kh7c515j437dckrpsq8qp0tahh830ze0",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_true",
+      "run_id": "kh72kwwzvgh9bmdwqfntrnrw8d830kcz",
+      "status": "running",
+      "current_stage": "rubric_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_4_1",
+      "run_id": "kh7ax9fsy7wckgttcbym358g29831q27",
+      "status": "completed",
+      "current_stage": "score_critic",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_5_2",
+      "run_id": "kh7drh9w4tw3kp6kakk7da18hs8315s5",
+      "status": "running",
+      "current_stage": "score_gen",
+      "has_failures": false
+    }
+  ],
+  "representative_failure": {
+    "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true",
+    "run_id": "kh77kgeh1sk4ybvp6ckjefqac1831snk",
+    "current_stage": "rubric_critic",
+    "run_row_stage_counts": {
+      "rubric_gen": 30,
+      "rubric_critic": 30,
+      "score_gen": 0,
+      "score_critic": 0
+    },
+    "artifact_truth": {
+      "sample_count": 30,
+      "rubric_id_count": 30,
+      "rubric_critic_id_count": 30,
+      "rubric_critic_rows": 30
+    },
+    "target_state_truth": {
+      "rubric_critic_target_rows": 30,
+      "resolution_counts": {
+        "exhausted": 30
+      },
+      "success_request_id_present": false
+    },
+    "process_health": {
+      "status": "running",
+      "stage_progress": [
+        { "stage": "rubric_gen", "completed": 30, "failed": 0, "pending": 0, "target_total": 30 },
+        { "stage": "rubric_critic", "completed": 0, "failed": 30, "pending": 0, "target_total": 30 }
+      ],
+      "active_transport": {
+        "queued_batches": 0,
+        "running_batches": 0,
+        "queued_jobs": 0,
+        "running_jobs": 0,
+        "orphaned_requests": 0
+      },
+      "error_summary": [
+        { "class": "timeout", "count": 30 }
+      ]
+    }
+  },
+  "recent_failure_signals": {
+    "convex_logs": [
+      "reconcileRunStage timed out repeatedly during rubric_critic",
+      "applyRequestResult hit OCC conflicts on the runs table while retrying",
+      "applyRequestResult also hit OCC conflicts on the experiments table in a smaller number of cases"
+    ]
+  },
+  "dominant_failure_domain": "count_accounting",
+  "scientific_validity_judgment": "scientifically_invalid_accounting",
+  "safe_heal": {
+    "attempted": false,
+    "reason": "The run/target-state disagreement makes results untrustworthy; healing would not restore scientific validity."
+  },
+  "patch_hypothesis": {
+    "primary": "Remove shared runs-row stage-count increments from applyRequestResult and make reconcile the only authoritative stage-count sync/advance path.",
+    "secondary": "Teach process_request_targets refresh to treat stage artifacts as authoritative success so exhausted target rows cannot override real outputs."
+  },
+  "validation_outcome": {
+    "status": "pending",
+    "commit_hash": null
+  }
+}

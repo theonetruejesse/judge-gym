@@ -7,7 +7,6 @@ import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
 import { getExperimentTotalCount } from "./experiment_progress";
 import {
-  countCompletedSamples,
   getRunCompletedCount,
   getRunProgressSnapshot,
 } from "./run_progress";
@@ -52,21 +51,20 @@ async function latestRunHasFailures(
   ctx: QueryCtx,
   run: Doc<"runs">,
 ): Promise<{ hasFailures: boolean; completedCount: number }> {
-  if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
-    const [samples, scoreTargets] = await Promise.all([
-      ctx.db
-        .query("samples")
-        .withIndex("by_run", (q) => q.eq("run_id", run._id))
-        .collect(),
-      ctx.db
-        .query("sample_score_targets")
-        .withIndex("by_run", (q) => q.eq("run_id", run._id))
-        .collect(),
-    ]);
-    const completedCount = typeof run.completed_count === "number"
-      ? run.completed_count
-      : countCompletedSamples(samples, scoreTargets);
+  const [samples, scoreTargets, snapshot, completedCount] = await Promise.all([
+    ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
+      .collect(),
+    ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
+      .collect(),
+    getRunProgressSnapshot(ctx, run._id),
+    getRunCompletedCount(ctx, run._id),
+  ]);
 
+  if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
     if (samples.length < run.target_count) {
       return { hasFailures: true, completedCount };
     }
@@ -91,18 +89,20 @@ async function latestRunHasFailures(
     };
   }
 
-  const targetStates = await ctx.db
-    .query("process_request_targets")
-    .withIndex("by_process", (q) =>
-      q.eq("process_type", "run").eq("process_id", run._id),
-    )
-    .collect();
-
   return {
-    hasFailures: targetStates.some((state) => state.resolution === "exhausted"),
-    completedCount: typeof run.completed_count === "number"
-      ? run.completed_count
-      : await getRunCompletedCount(ctx, run._id),
+    hasFailures: snapshot?.hasFailures ?? false,
+    completedCount,
+  };
+}
+
+function stageCountsFromSnapshot(
+  snapshot: Awaited<ReturnType<typeof getRunProgressSnapshot>> | null,
+) {
+  return {
+    rubric_gen: snapshot?.byStage.rubric_gen.completed ?? 0,
+    rubric_critic: snapshot?.byStage.rubric_critic.completed ?? 0,
+    score_gen: snapshot?.byStage.score_gen.completed ?? 0,
+    score_critic: snapshot?.byStage.score_critic.completed ?? 0,
   };
 }
 
@@ -188,6 +188,9 @@ export const listExperiments = zInternalQuery({
       const latestRunState = latest
         ? await latestRunHasFailures(ctx, latest)
         : { hasFailures: false, completedCount: 0 };
+      const latestRunSnapshot = latest
+        ? await getRunProgressSnapshot(ctx, latest._id)
+        : null;
 
       results.push({
         experiment_id: experiment._id,
@@ -206,12 +209,7 @@ export const listExperiments = zInternalQuery({
             target_count: latest.target_count,
             completed_count: latestRunState.completedCount,
             pause_after: latest.pause_after ?? null,
-            stage_counts: {
-              rubric_gen: latest.rubric_gen_count ?? 0,
-              rubric_critic: latest.rubric_critic_count ?? 0,
-              score_gen: latest.score_gen_count ?? 0,
-              score_critic: latest.score_critic_count ?? 0,
-            },
+            stage_counts: stageCountsFromSnapshot(latestRunSnapshot),
             created_at: latest._creationTime,
             has_failures: latestRunState.hasFailures,
           }
@@ -288,6 +286,9 @@ export const getExperimentSummary = zInternalQuery({
     const latestRunState = latest
       ? await latestRunHasFailures(ctx, latest)
       : { hasFailures: false, completedCount: 0 };
+    const latestRunSnapshot = latest
+      ? await getRunProgressSnapshot(ctx, latest._id)
+      : null;
 
     return {
       experiment_id: experiment._id,
@@ -308,12 +309,7 @@ export const getExperimentSummary = zInternalQuery({
           target_count: latest.target_count,
           completed_count: latestRunState.completedCount,
           pause_after: latest.pause_after ?? null,
-          stage_counts: {
-            rubric_gen: latest.rubric_gen_count ?? 0,
-            rubric_critic: latest.rubric_critic_count ?? 0,
-            score_gen: latest.score_gen_count ?? 0,
-            score_critic: latest.score_critic_count ?? 0,
-          },
+          stage_counts: stageCountsFromSnapshot(latestRunSnapshot),
           created_at: latest._creationTime,
           has_failures: latestRunState.hasFailures,
         }
@@ -360,9 +356,7 @@ export const getRunSummary = zInternalQuery({
     const run = await ctx.db.get(run_id);
     if (!run) throw new Error("Run not found");
     const snapshot = await getRunProgressSnapshot(ctx, run._id);
-    const completedCount = typeof run.completed_count === "number"
-      ? run.completed_count
-      : await getRunCompletedCount(ctx, run._id);
+    const completedCount = await getRunCompletedCount(ctx, run._id);
     const stageResults = RunStageSchema.options.map((stage) => {
       const progress = snapshot?.byStage[stage];
       if (!progress) {
@@ -401,12 +395,7 @@ export const getRunSummary = zInternalQuery({
       pause_after: run.pause_after ?? null,
       target_count: run.target_count,
       completed_count: completedCount,
-      stage_counts: {
-        rubric_gen: run.rubric_gen_count ?? 0,
-        rubric_critic: run.rubric_critic_count ?? 0,
-        score_gen: run.score_gen_count ?? 0,
-        score_critic: run.score_critic_count ?? 0,
-      },
+      stage_counts: stageCountsFromSnapshot(snapshot),
       has_failures: snapshot?.hasFailures ?? false,
       failed_stage_count,
       stages: stageResults,

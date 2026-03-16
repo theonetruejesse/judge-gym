@@ -20,6 +20,15 @@
       "first_seen_iteration_id": "20260316T010116Z_rubric_critic_timeout_exhaustion",
       "validated_iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
       "fix_summary": "Made rubric-stage progress stage-local and removed inline stage advancement from the per-request apply/error hot path so early stages no longer pay later score-target fanout costs."
+    },
+    {
+      "bug_id": "run_target_state_diverges_from_applied_artifacts",
+      "failure_domain": "count_accounting",
+      "status": "validated",
+      "summary": "Heavy-family runs could store real rubric_critic artifacts while process_request_targets stayed exhausted and per-request run counter writes kept colliding on the shared runs row, making live status scientifically invalid even with applied outputs.",
+      "first_seen_iteration_id": "20260316T024532Z_run_target_state_divergence",
+      "validated_iteration_id": "20260316T024532Z_run_target_state_divergence",
+      "fix_summary": "Removed shared run/experiment counter writes from the per-request hot path, made live run summaries compute stage counts from progress snapshots, and taught process_request_targets refresh to treat stored stage artifacts as authoritative success."
     }
   ]
 }

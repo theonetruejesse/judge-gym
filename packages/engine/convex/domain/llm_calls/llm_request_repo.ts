@@ -127,6 +127,56 @@ async function resolveRunIdForCustomKey(
   return processRef.process_id as Id<"runs">;
 }
 
+async function resolveArtifactSuccessRequestId(
+  ctx: MutationCtx,
+  parsed: ParsedRequestCustomKey,
+): Promise<Id<"llm_requests"> | null> {
+  if (parsed.target_type === "sample") {
+    const sample = await ctx.db.get(parsed.target_id as Id<"samples">);
+    if (!sample) return null;
+
+    if (parsed.stage === "rubric_gen" && sample.rubric_id) {
+      const rubric = await ctx.db.get(sample.rubric_id);
+      return rubric?.llm_request_id ?? null;
+    }
+    if (parsed.stage === "rubric_critic" && sample.rubric_critic_id) {
+      const rubricCritic = await ctx.db.get(sample.rubric_critic_id);
+      return rubricCritic?.llm_request_id ?? null;
+    }
+    return null;
+  }
+
+  if (parsed.target_type === "sample_score_target") {
+    const scoreTarget = await ctx.db.get(parsed.target_id as Id<"sample_score_targets">);
+    if (!scoreTarget) return null;
+
+    if (parsed.stage === "score_gen" && scoreTarget.score_id) {
+      const score = await ctx.db.get(scoreTarget.score_id);
+      return score?.llm_request_id ?? null;
+    }
+    if (parsed.stage === "score_critic" && scoreTarget.score_critic_id) {
+      const scoreCritic = await ctx.db.get(scoreTarget.score_critic_id);
+      return scoreCritic?.llm_request_id ?? null;
+    }
+    return null;
+  }
+
+  const evidence = await ctx.db.get(parsed.target_id as Id<"evidences">);
+  if (!evidence) return null;
+
+  if (parsed.stage === "l1_cleaned" && evidence.l1_cleaned_content) {
+    return evidence.l1_request_id ?? null;
+  }
+  if (parsed.stage === "l2_neutralized" && evidence.l2_neutralized_content) {
+    return evidence.l2_request_id ?? null;
+  }
+  if (parsed.stage === "l3_abstracted" && evidence.l3_abstracted_content) {
+    return evidence.l3_request_id ?? null;
+  }
+
+  return null;
+}
+
 async function refreshProcessRequestTargetState(
   ctx: MutationCtx,
   customKey: string,
@@ -194,14 +244,17 @@ async function refreshProcessRequestTargetState(
     ? classifyRequestError(latestErrorRequest.last_error)
     : null;
   const latestErrorMessage = latestErrorRequest?.last_error ?? null;
+  const artifactSuccessRequestId = await resolveArtifactSuccessRequestId(ctx, parsed);
+  const authoritativeSuccessRequestId = successRequest?._id
+    ?? (activeRequest ? null : artifactSuccessRequestId);
   const resolution = activeRequest
     ? "pending"
-    : successRequest
+    : authoritativeSuccessRequestId
       ? "succeeded"
       : latestErrorRequest
         && (latestErrorRequest.attempt_index ?? 1) >= ENGINE_SETTINGS.run_policy.max_request_attempts
         ? "exhausted"
-      : "retryable";
+        : "retryable";
 
   const basePayload = {
     process_type: processRef.process_type,
@@ -213,7 +266,7 @@ async function refreshProcessRequestTargetState(
     resolution,
     active_request_id: activeRequest?._id ?? null,
     latest_request_id: latestRequest?._id ?? null,
-    success_request_id: successRequest?._id ?? null,
+    success_request_id: authoritativeSuccessRequestId ?? null,
     latest_error_request_id: latestErrorRequest?._id ?? null,
     attempt_count: attemptCount,
     retry_count: retryCount,

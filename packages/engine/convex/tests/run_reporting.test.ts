@@ -4,18 +4,20 @@ import schema from "../schema";
 import { buildModules } from "./test.setup";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import { ENGINE_SETTINGS } from "../settings";
+import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
 const rateLimiterModules = import.meta.glob(
   "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
 );
+const activeTests: ConvexTestInstance[] = [];
 
 function initTest(): ConvexTestInstance {
   const t = convexTest(schema, buildModules());
   t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
+  activeTests.push(t);
   return t;
 }
 
@@ -358,13 +360,22 @@ describe("run reporting", () => {
   const originalSkipExport = process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-16T00:00:00.000Z"));
     process.env.AXIOM_DATASET = "judge-gym-test";
     process.env.AXIOM_TOKEN = "test-token";
     process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = "1";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    while (activeTests.length > 0) {
+      const t = activeTests.pop();
+      if (!t) continue;
+      await t.finishAllScheduledFunctions(() => {
+        vi.runAllTimers();
+      });
+    }
     if (originalDataset === undefined) {
       delete process.env.AXIOM_DATASET;
     } else {
@@ -380,6 +391,7 @@ describe("run reporting", () => {
     } else {
       process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = originalSkipExport;
     }
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -709,5 +721,51 @@ describe("run reporting", () => {
       score_gen: 0,
       score_critic: 0,
     });
+  });
+
+  test("artifact-backed success overrides exhausted target-state snapshots", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(api.packages.lab.startExperimentRun, {
+      experiment_id,
+      target_count: 1,
+    });
+    await markRunThroughRubricCritic(t, started.run_id);
+
+    const rubricCriticRequest = await t.run(async (ctx) => {
+      const requests = await ctx.db.query("llm_requests").collect();
+      return requests.find((request) => request.custom_key.endsWith(":rubric_critic")) ?? null;
+    });
+    expect(rubricCriticRequest).not.toBeNull();
+
+    await t.mutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+      request_id: rubricCriticRequest!._id,
+      patch: {
+        status: "error",
+        attempt_index: ENGINE_SETTINGS.run_policy.max_request_attempts,
+        last_error: "retryable:timeout:Your request timed out.",
+      },
+    });
+
+    const targetState = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("process_request_targets").collect();
+      return rows.find((row) => row.custom_key === rubricCriticRequest!.custom_key) ?? null;
+    });
+    expect(targetState?.resolution).toBe("succeeded");
+    expect(targetState?.success_request_id).toBe(rubricCriticRequest!._id);
+
+    const diagnostics = await t.query(api.packages.codex.getProcessHealth, {
+      process_type: "run",
+      process_id: started.run_id,
+    });
+    expect(diagnostics.stage_progress.find((stage: (typeof diagnostics.stage_progress)[number]) => stage.stage === "rubric_critic")).toEqual(
+      expect.objectContaining({
+        completed: 1,
+        failed: 0,
+        pending: 0,
+      }),
+    );
+
   });
 });
