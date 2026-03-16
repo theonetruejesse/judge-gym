@@ -7,6 +7,7 @@ import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/
 import { normalizeOpenAiBatchStatus } from "../platform/providers/openai_batch";
 import { __findMockBatchByMetadata, __resetMockProviders, __setMockSubmitMode, __submitMockBatch } from "./provider_services_mock";
 import { handleQueuedBatchWorkflow, handleRunningBatchWorkflow } from "../domain/orchestrator/process_workflows";
+import { handleBatchError } from "../domain/llm_calls/llm_batch_service";
 import { markJobRunning, scheduleJobRun } from "../domain/llm_calls/llm_job_service";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
@@ -223,6 +224,96 @@ describe("reliability guarantees", () => {
       expect(locks).toHaveLength(1);
       expect(locks[0]?.status).toBe("idle");
       expect(locks[0]?.heartbeat_ts_ms).toBe(Date.parse("2026-03-09T12:00:00.000Z"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("retry batch creation wakes the scheduler", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-15T21:45:00.000Z"));
+      const t = initTest();
+
+      const requestId = await t.mutation(
+        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+        {
+          model: "gpt-4.1",
+          user_prompt: "Retry me.",
+          custom_key: "sample_score_target:target_1:score_gen",
+          attempt_index: 1,
+        },
+      );
+
+      const batchId = await t.mutation(
+        internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+        {
+          provider: "openai",
+          model: "gpt-4.1",
+          custom_key: "run:test_run:score_gen",
+          attempt_index: 1,
+        },
+      );
+
+      await t.mutation(
+        internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
+        {
+          request_ids: [requestId],
+          batch_id: batchId,
+        },
+      );
+
+      const { batch, requests } = await t.query(
+        internal.domain.llm_calls.llm_batch_repo.getBatchWithRequests,
+        { batch_id: batchId },
+      );
+
+      await handleBatchError({
+        ctx: {
+          runMutation: t.mutation,
+        } as never,
+        batch,
+        requests,
+        error: "retryable:timeout:Your request timed out.",
+      });
+
+      const lockRows = await t.run(async (ctx) =>
+        ctx.db.query("scheduler_locks").collect(),
+      );
+      expect(lockRows.some((row) => row.lock_key === "scheduler_lock")).toBe(true);
+
+      const batches = await t.run(async (ctx) =>
+        ctx.db.query("llm_batches").collect(),
+      );
+      expect(batches.some((row) => row._id !== batchId && row.status === "queued" && row.attempt_index === 2)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("queued-only backlog without scheduler is reported as stuck", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-15T21:50:00.000Z"));
+      const t = initTest();
+
+      await t.mutation(
+        internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+        {
+          provider: "openai",
+          model: "gpt-4.1",
+          custom_key: "run:test_run:score_gen",
+          attempt_index: 1,
+        },
+      );
+
+      const stuck = await t.query(api.packages.codex.getStuckWork, {
+        process_type: "run",
+        older_than_ms: 1,
+        limit: 20,
+      });
+
+      expect(stuck.items.some((item: { reason: string }) => item.reason === "scheduler_not_running")).toBe(true);
     } finally {
       vi.useRealTimers();
     }

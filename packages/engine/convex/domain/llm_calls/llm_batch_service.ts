@@ -233,6 +233,12 @@ export async function handleBatchError(args: HandleBatchErrorArgs) {
         },
       },
     );
+    if (retryRequestIds.length > 0) {
+      await ctx.runMutation(
+        internal.domain.orchestrator.scheduler.startScheduler,
+        {},
+      );
+    }
     return;
   }
   await ctx.runMutation(
