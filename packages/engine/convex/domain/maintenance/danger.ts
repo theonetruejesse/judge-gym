@@ -261,7 +261,7 @@ async function deleteSingleRunData(
       + "Pass allow_active=true to override.",
     );
   }
-  const leanActiveDelete = activeStatuses.has(run.status) && args.allow_active;
+  const leanActiveDelete = args.allow_active && !isDryRun;
 
   const collectFullDeletePlan = isDryRun;
   const [runRequests, runTargetStateRows, processObservabilityRows, runBatches, runJobs] = await Promise.all([
