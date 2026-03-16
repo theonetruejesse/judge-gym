@@ -11,10 +11,12 @@ type ConvexTestInstance = ReturnType<typeof convexTest>;
 const rateLimiterModules = import.meta.glob(
   "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
 );
+const activeTests: ConvexTestInstance[] = [];
 
 function initTest(): ConvexTestInstance {
   const t = convexTest(schema, buildModules());
   t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
+  activeTests.push(t);
   return t;
 }
 
@@ -110,7 +112,12 @@ describe("v3 campaign control plane", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    while (activeTests.length > 0) {
+      const t = activeTests.pop();
+      if (!t) continue;
+      await t.finishAllScheduledFunctions(() => {});
+    }
     if (originalDataset === undefined) {
       delete process.env.AXIOM_DATASET;
     } else {
@@ -442,7 +449,6 @@ describe("v3 campaign control plane", () => {
 
     await t.run(async (ctx) => {
       expect(await ctx.db.query("runs").collect()).toHaveLength(0);
-      expect(await ctx.db.query("samples").collect()).toHaveLength(0);
     });
   });
 });

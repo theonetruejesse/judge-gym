@@ -21,6 +21,8 @@ const DebugActionTypeSchema = z.enum([
 ]);
 
 const WindowStageSchema = z.enum(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
+const RUN_STAGE_ORDER = ["rubric_gen", "rubric_critic", "score_gen", "score_critic"] as const;
+const WINDOW_STAGE_ORDER = ["l1_cleaned", "l2_neutralized", "l3_abstracted"] as const;
 
 const StageProgressSchema = z.object({
   stage: z.string(),
@@ -105,6 +107,7 @@ const StuckReasonSchema = z.enum([
   "pending_request_no_owner",
   "raw_collection_no_progress",
   "retryable_no_transport",
+  "stage_transition_no_transport",
   "stage_waiting_on_exhausted_requests",
   "scheduler_not_running",
 ]);
@@ -119,6 +122,16 @@ const StuckWorkSchema = z.object({
   age_ms: z.number().nullable().optional(),
   details: z.string(),
 });
+
+function getNextStageForProcess(
+  processType: "run" | "window",
+  stage: string,
+): string | null {
+  const order = processType === "run" ? RUN_STAGE_ORDER : WINDOW_STAGE_ORDER;
+  const index = order.indexOf(stage as never);
+  if (index === -1) return null;
+  return order[index + 1] ?? null;
+}
 
 const DebugActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start_scheduler_if_idle") }),
@@ -1318,11 +1331,13 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         row.stage === health.current_stage,
       );
       if (!currentStage) continue;
+      const inactivityMs = health.stalled_signals.no_progress_for_ms
+        ?? Math.max(0, now - run._creationTime);
       const recoverableStall = health.stalled_signals.recoverable_stage_stalls
         .find((row) => row.stage === health.current_stage);
       if (
         recoverableStall
-        && (health.stalled_signals.no_progress_for_ms ?? 0) >= args.older_than_ms
+        && inactivityMs >= args.older_than_ms
       ) {
         items.push({
           process_type: "run",
@@ -1331,8 +1346,48 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
           entity_type: "run",
           entity_id: String(run._id),
           custom_key: `run:${run._id}:${health.current_stage}`,
-          age_ms: health.stalled_signals.no_progress_for_ms,
+          age_ms: inactivityMs,
           details: `Current stage has ${recoverableStall.retryable_targets} retryable targets and no active transport`,
+        });
+      }
+      const hasActiveTransport = (
+        health.active_transport.queued_batches > 0
+        || health.active_transport.running_batches > 0
+        || health.active_transport.queued_jobs > 0
+        || health.active_transport.running_jobs > 0
+        || health.active_transport.orphaned_requests > 0
+      );
+      const nextStageName = getNextStageForProcess("run", health.current_stage);
+      const sampleRows = nextStageName == null
+        ? []
+        : await ctx.db
+          .query("samples")
+          .withIndex("by_run", (q) => q.eq("run_id", run._id))
+          .collect();
+      const nextStageTargetTotal = nextStageName == null
+        ? 0
+        : nextStageName === "rubric_gen" || nextStageName === "rubric_critic"
+          ? sampleRows.length
+          : sampleRows.reduce((sum, sample) => sum + (sample.score_target_total ?? 0), 0);
+      if (
+        !hasActiveTransport
+        && nextStageName != null
+        && currentStage.target_total > 0
+        && currentStage.completed >= currentStage.target_total
+        && currentStage.pending === 0
+        && currentStage.failed === 0
+        && nextStageTargetTotal > 0
+        && inactivityMs >= args.older_than_ms
+      ) {
+        items.push({
+          process_type: "run",
+          process_id: String(run._id),
+          reason: "stage_transition_no_transport",
+          entity_type: "run",
+          entity_id: String(run._id),
+          custom_key: `run:${run._id}:${health.current_stage}`,
+          age_ms: inactivityMs,
+          details: `Current stage is complete but ${nextStageName} has ${nextStageTargetTotal} target rows and no active transport`,
         });
       }
       if (currentStage.failed === 0 || currentStage.pending > 0) continue;

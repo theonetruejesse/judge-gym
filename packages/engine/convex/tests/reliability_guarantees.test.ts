@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
@@ -22,7 +22,175 @@ function initTest(): ConvexTestInstance {
   return t;
 }
 
+async function setupRunReadyForScoreGen(t: ConvexTestInstance) {
+  const { window_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindow,
+    {
+      country: "USA",
+      model: "gpt-4.1-mini",
+      start_date: "2026-03-01",
+      end_date: "2026-03-02",
+      query: "score gen handoff test",
+    },
+  );
+
+  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
+    window_id,
+    evidences: [
+      {
+        title: "Evidence 1",
+        url: "https://example.com/evidence-1",
+        raw_content: "First evidence paragraph about institutions.",
+      },
+      {
+        title: "Evidence 2",
+        url: "https://example.com/evidence-2",
+        raw_content: "Second evidence paragraph about institutions.",
+      },
+    ],
+  });
+
+  const evidenceRows = await t.run(async (ctx) => ctx.db.query("evidences").collect());
+  const pool = await t.mutation(api.packages.lab.createPool, {
+    evidence_ids: evidenceRows.map((row) => row._id),
+  });
+
+  const experiment = await t.mutation(api.packages.lab.initExperiment, {
+    experiment_config: {
+      rubric_config: {
+        model: "gpt-4.1-mini",
+        scale_size: 4,
+        concept: "fascism",
+      },
+      scoring_config: {
+        model: "gpt-4.1-mini",
+        method: "subset",
+        abstain_enabled: true,
+        evidence_view: "l0_raw",
+        randomizations: [],
+        evidence_bundle_size: 1,
+      },
+    },
+    pool_id: pool.pool_id,
+  });
+
+  const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
+    experiment_id: experiment.experiment_id,
+    target_count: 1,
+  });
+
+  await t.run(async (ctx) => {
+    const sample = (await ctx.db.query("samples").collect())
+      .find((row) => row.run_id === run_id);
+    if (!sample) throw new Error("sample_not_found");
+
+    const rubricRequestId = await ctx.runMutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: "gpt-4.1-mini",
+        user_prompt: "rubric request",
+        custom_key: `sample:${sample._id}:rubric_gen`,
+        attempt_index: 1,
+      },
+    );
+    await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+      request_id: rubricRequestId,
+      patch: {
+        status: "success",
+        assistant_output: "rubric output",
+      },
+    });
+
+    const rubricId = await ctx.db.insert("rubrics", {
+      run_id,
+      sample_id: sample._id,
+      model: "gpt-4.1-mini",
+      concept: "fascism",
+      scale_size: 4,
+      llm_request_id: rubricRequestId,
+      justification: "ok",
+      stages: [
+        { stage_number: 1, label: "Weak", criteria: ["a", "b", "c"] },
+        { stage_number: 2, label: "Medium", criteria: ["a", "b", "c"] },
+        { stage_number: 3, label: "Strong", criteria: ["a", "b", "c"] },
+        { stage_number: 4, label: "Max", criteria: ["a", "b", "c"] },
+      ],
+      label_mapping: {},
+    });
+
+    const rubricCriticRequestId = await ctx.runMutation(
+      internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+      {
+        model: "gpt-4.1-mini",
+        user_prompt: "rubric critic request",
+        custom_key: `sample:${sample._id}:rubric_critic`,
+        attempt_index: 1,
+      },
+    );
+    await ctx.runMutation(internal.domain.llm_calls.llm_request_repo.patchRequest, {
+      request_id: rubricCriticRequestId,
+      patch: {
+        status: "success",
+        assistant_output: "rubric critic output",
+      },
+    });
+
+    const rubricCriticId = await ctx.db.insert("rubric_critics", {
+      run_id,
+      sample_id: sample._id,
+      model: "gpt-4.1-mini",
+      llm_request_id: rubricCriticRequestId,
+      justification: "ok",
+      expert_agreement_prob: {
+        observability_score: 0.9,
+        discriminability_score: 0.8,
+      },
+    });
+
+    await ctx.db.patch(sample._id, {
+      rubric_id: rubricId,
+      rubric_critic_id: rubricCriticId,
+    });
+    await ctx.db.patch(run_id, {
+      status: "running",
+      current_stage: "rubric_critic",
+      rubric_gen_count: 1,
+      rubric_critic_count: 1,
+    });
+  });
+
+  return { run_id };
+}
+
 describe("reliability guarantees", () => {
+  const originalDataset = process.env.AXIOM_DATASET;
+  const originalToken = process.env.AXIOM_TOKEN;
+  const originalSkipExport = process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
+
+  beforeEach(() => {
+    process.env.AXIOM_DATASET = "judge-gym-test";
+    process.env.AXIOM_TOKEN = "test-token";
+    process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = "1";
+  });
+
+  afterEach(() => {
+    if (originalDataset === undefined) {
+      delete process.env.AXIOM_DATASET;
+    } else {
+      process.env.AXIOM_DATASET = originalDataset;
+    }
+    if (originalToken === undefined) {
+      delete process.env.AXIOM_TOKEN;
+    } else {
+      process.env.AXIOM_TOKEN = originalToken;
+    }
+    if (originalSkipExport === undefined) {
+      delete process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
+    } else {
+      process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = originalSkipExport;
+    }
+  });
+
   test("normalizes non-completed OpenAI batch states conservatively", () => {
     expect(normalizeOpenAiBatchStatus("validating")).toEqual({ status: "running" });
     expect(normalizeOpenAiBatchStatus("in_progress")).toEqual({ status: "running" });
@@ -359,6 +527,83 @@ describe("reliability guarantees", () => {
     expect(originalJob?.status).toBe("success");
     expect(retryJob?.attempt_index).toBe(2);
     expect(retryJob?.status).toBe("running");
+  });
+
+  test("enqueueRunStage chunks score generation fanout and schedules continuation", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-16T05:40:00.000Z"));
+      const t = initTest();
+      const { run_id } = await setupRunReadyForScoreGen(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(run_id, {
+          current_stage: "score_gen",
+          rubric_critic_count: 1,
+        });
+      });
+
+      const firstChunk = await t.mutation(
+        internal.domain.runs.run_service.enqueueRunStage,
+        {
+          run_id,
+          stage: "score_gen",
+          reason: "test_chunking",
+          max_requests: 1,
+          start_scheduler: false,
+        },
+      );
+
+      expect(firstChunk.outcome).toBe("enqueued");
+      expect(firstChunk.enqueued_requests).toBe(1);
+      expect(firstChunk.has_more).toBe(true);
+      expect(firstChunk.route).toBe("job");
+
+      const initialScoreRequests = await t.run(async (ctx) => {
+        return (await ctx.db.query("llm_requests").collect())
+          .filter((request) => request.custom_key.endsWith(":score_gen")).length;
+      });
+      expect(initialScoreRequests).toBe(1);
+
+      await t.finishAllScheduledFunctions(() => {
+        vi.runAllTimers();
+      });
+
+      const finalScoreRequests = await t.run(async (ctx) => {
+        return (await ctx.db.query("llm_requests").collect())
+          .filter((request) => request.custom_key.endsWith(":score_gen")).length;
+      });
+      expect(finalScoreRequests).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("getStuckWork flags completed-stage handoff stalls with no transport", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-16T05:45:00.000Z"));
+      const t = initTest();
+      const { run_id } = await setupRunReadyForScoreGen(t);
+
+      vi.advanceTimersByTime(5);
+
+      const stuck = await t.query(api.packages.codex.getStuckWork, {
+        process_type: "run",
+        older_than_ms: 1,
+        limit: 20,
+      });
+
+      expect(stuck.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            process_id: String(run_id),
+            reason: "stage_transition_no_transport",
+          }),
+        ]),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
 

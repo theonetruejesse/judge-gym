@@ -38,6 +38,15 @@
       "first_seen_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
       "validated_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
       "fix_summary": "Retry-created batches now explicitly kick startScheduler, and getStuckWork now treats queued-only transport backlog with no scheduler heartbeat as a real scheduler_not_running stall."
+    },
+    {
+      "bug_id": "heavy_stage_handoff_rolls_back_before_score_gen_enqueue",
+      "failure_domain": "stage_reconciliation",
+      "status": "validated",
+      "summary": "Heavy 600-target runs could complete rubric_critic artifacts but never enter score_gen because reconcileRunStage advanced and faned out the next stage in one mutation, rolling back the handoff and leaving no transport.",
+      "first_seen_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
+      "validated_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
+      "fix_summary": "Run stage handoff now commits the stage advance first, then enqueueRunStage fans out downstream work asynchronously in bounded chunks, and getStuckWork surfaces stage_transition_no_transport when the handoff fails."
     }
   ]
 }

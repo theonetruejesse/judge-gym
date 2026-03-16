@@ -13,10 +13,12 @@ type ConvexTestInstance = ReturnType<typeof convexTest>;
 const rateLimiterModules = import.meta.glob(
   "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
 );
+const activeTests: ConvexTestInstance[] = [];
 
 function initTest(): ConvexTestInstance {
   const t = convexTest(schema, buildModules());
   t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
+  activeTests.push(t);
   return t;
 }
 
@@ -186,13 +188,22 @@ describe("run reconcile", () => {
   const originalSkipExport = process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-16T00:00:00.000Z"));
     process.env.AXIOM_DATASET = "judge-gym-test";
     process.env.AXIOM_TOKEN = "test-token";
     process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = "1";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("ok", { status: 200 })));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    while (activeTests.length > 0) {
+      const t = activeTests.pop();
+      if (!t) continue;
+      await t.finishAllScheduledFunctions(() => {
+        vi.runAllTimers();
+      });
+    }
     if (originalDataset === undefined) {
       delete process.env.AXIOM_DATASET;
     } else {
@@ -208,6 +219,7 @@ describe("run reconcile", () => {
     } else {
       process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = originalSkipExport;
     }
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });

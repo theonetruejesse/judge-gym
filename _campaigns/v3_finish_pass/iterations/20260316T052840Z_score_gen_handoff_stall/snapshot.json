@@ -1,0 +1,77 @@
+{
+  "iteration_id": "20260316T052840Z_score_gen_handoff_stall",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "target_count": 30,
+  "pause_after": null,
+  "expected_counts": {
+    "experiments": 22,
+    "latest_run_rubrics": 660,
+    "latest_run_rubric_critics": 660
+  },
+  "observed_counts": {
+    "campaign_state": "stalled_unknown",
+    "scientific_validity": "scientifically_unknown",
+    "total": 22,
+    "completed": 6,
+    "running": 16,
+    "error": 0,
+    "stuck_items": 16,
+    "stuck_reason": "stage_transition_no_transport"
+  },
+  "workload_family_summary": [
+    {
+      "estimated_total_score_targets": 120,
+      "experiment_count": 6,
+      "completed": 6,
+      "running": 0
+    },
+    {
+      "estimated_total_score_targets": 600,
+      "experiment_count": 16,
+      "completed": 0,
+      "running": 16
+    }
+  ],
+  "launched_runs": {
+    "completed_120_target_families": [
+      "kh76v2kh4tf6c24zj5n1z6yp19830e2e",
+      "kh71b2gz95zbznxk3y1xrzknjx830g2n",
+      "kh76gsdx667107r6hzyvsw1w698313qs",
+      "kh7fcfxg6mneq28cse7z2f8p8183032z",
+      "kh7c2snwnk7mwbgw9s2qzk1js5830ea6",
+      "kh7027akpywc15gwhb1yvspq6h831szf"
+    ],
+    "stalled_600_target_families": [
+      "kh7bvq448shq6gdm7qv48hcwws831nmr",
+      "kh7cstxmshbqtkezeab7c3x7q98313vy",
+      "kh7fn8zr0ejhybnv6b3486jbbh831b4y",
+      "kh7f7aq54mnvjjeyaz94g40hkx830kds",
+      "kh7cn3pgsdwhxb8s1whzjw7s01830km7",
+      "kh76xzdf0pw1adk346gcxy0gzs831178",
+      "kh75fm4y1vzedd2wkxzkn0by1n8315bf",
+      "kh71jby9s647ea9hyd9gm6wsed830557",
+      "kh77rzmzahc1asws49g2d158h183086w",
+      "kh7ct4mmwvf64046wwv4asfv898313f9",
+      "kh76rn77r5mqvcsetcr3wj18rx8304dh",
+      "kh7aq99whptarg8a7dxps3vvwd830fcq",
+      "kh7e6t5wsqv55e9kam53mheqx583045w",
+      "kh76kzdae6039sbkpv3qeqhwrx830k51",
+      "kh7f22nnxapct52p5xdgcmfy09831j5x",
+      "kh7fmcwgjhv6h7qgpdqfs2gwvh831hpb"
+    ]
+  },
+  "raw_table_evidence": {
+    "latest_run_rubrics": 660,
+    "latest_run_rubric_critics": 660,
+    "total_rubrics_table": 1050,
+    "total_rubric_critics_table": 1050,
+    "note": "Total rubric tables still include residual rows from prior active wipes; latest-run scoped counts are correct."
+  },
+  "dominant_failure_domain": "stage_reconciliation",
+  "scientific_validity_judgment": "scientifically_unknown",
+  "safe_heal_attempted": false,
+  "chosen_patch_hypothesis": "The rubric_critic to score_gen handoff was advancing and enqueueing heavy 600-target score_gen fanout inside one mutation, causing stage transition rollback and leaving current_stage/runs counters stale while rubric artifacts were already complete.",
+  "validation_outcome": "Pending commit; code validation and targeted tests passed before reset.",
+  "commit_hash": null
+}
