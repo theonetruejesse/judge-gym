@@ -63,6 +63,7 @@ async function seedExperiment(
   args: {
     experiment_tag: string;
     pool_id: Id<"pools">;
+    evidence_bundle_size?: number;
   },
 ) {
   const created = await t.mutation(api.packages.lab.initExperiment, {
@@ -82,7 +83,7 @@ async function seedExperiment(
           "hide_label_text",
           "shuffle_rubric_order",
         ],
-        evidence_bundle_size: 1,
+        evidence_bundle_size: args.evidence_bundle_size ?? 1,
       },
     },
     pool_id: args.pool_id,
@@ -135,10 +136,12 @@ describe("v3 campaign control plane", () => {
     await seedExperiment(t, {
       experiment_tag: "v3_test_alpha",
       pool_id,
+      evidence_bundle_size: 1,
     });
     await seedExperiment(t, {
       experiment_tag: "v3_test_beta",
       pool_id,
+      evidence_bundle_size: 2,
     });
     await seedExperiment(t, {
       experiment_tag: "not_v3_gamma",
@@ -151,6 +154,21 @@ describe("v3 campaign control plane", () => {
     expect(status.campaign_state).toBe("preflight_clean");
     expect(status.launch_ready).toBe(true);
     expect(status.counts.with_latest_run).toBe(0);
+    expect(status.experiments.map((row: (typeof status.experiments)[number]) => row.score_target_estimate.per_sample)).toEqual([2, 1]);
+    expect(status.workload_family_summary).toEqual([
+      {
+        estimated_total_score_targets: 0,
+        experiment_count: 2,
+        start: 2,
+        queued: 0,
+        completed: 0,
+        running: 0,
+        paused: 0,
+        error: 0,
+        canceled: 0,
+        with_failures: 0,
+      },
+    ]);
   });
 
   test("startV3Experiments launches only cohort rows and persists pause_after", async () => {
@@ -162,10 +180,12 @@ describe("v3 campaign control plane", () => {
       await seedExperiment(t, {
         experiment_tag: "v3_test_alpha",
         pool_id,
+        evidence_bundle_size: 1,
       });
       await seedExperiment(t, {
         experiment_tag: "v3_test_beta",
         pool_id,
+        evidence_bundle_size: 2,
       });
       await seedExperiment(t, {
         experiment_tag: "not_v3_gamma",
@@ -195,6 +215,32 @@ describe("v3 campaign control plane", () => {
       expect(status.experiments.every((experiment: (typeof status.experiments)[number]) =>
         experiment.latest_run?.pause_after === "rubric_critic"
       )).toBe(true);
+      expect(status.workload_family_summary).toEqual([
+        {
+          estimated_total_score_targets: 2,
+          experiment_count: 1,
+          start: 0,
+          queued: 0,
+          completed: 0,
+          running: 1,
+          paused: 0,
+          error: 0,
+          canceled: 0,
+          with_failures: 0,
+        },
+        {
+          estimated_total_score_targets: 4,
+          experiment_count: 1,
+          start: 0,
+          queued: 0,
+          completed: 0,
+          running: 1,
+          paused: 0,
+          error: 0,
+          canceled: 0,
+          with_failures: 0,
+        },
+      ]);
     } finally {
       vi.useRealTimers();
     }

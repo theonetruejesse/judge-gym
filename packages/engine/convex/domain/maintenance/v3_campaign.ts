@@ -44,12 +44,18 @@ const StageCountsSchema = z.object({
   score_critic: z.number(),
 });
 
+const ScoreTargetEstimateSchema = z.object({
+  per_sample: z.number(),
+  total_for_latest_run: z.number().nullable(),
+});
+
 const V3ExperimentStatusRowSchema = z.object({
   experiment_id: zid("experiments"),
   experiment_tag: z.string(),
   total_count: z.number(),
   evidence_selected_count: z.number(),
   window_count: z.number(),
+  score_target_estimate: ScoreTargetEstimateSchema,
   status: StateStatusSchema,
   latest_run: z.object({
     run_id: zid("runs"),
@@ -62,6 +68,19 @@ const V3ExperimentStatusRowSchema = z.object({
     created_at: z.number(),
     has_failures: z.boolean(),
   }).optional(),
+});
+
+const WorkloadFamilySummaryRowSchema = z.object({
+  estimated_total_score_targets: z.number(),
+  experiment_count: z.number(),
+  start: z.number(),
+  queued: z.number(),
+  completed: z.number(),
+  running: z.number(),
+  paused: z.number(),
+  error: z.number(),
+  canceled: z.number(),
+  with_failures: z.number(),
 });
 
 const CampaignStuckSummaryRowSchema = z.object({
@@ -139,24 +158,30 @@ const GetV3CampaignStatusReturnSchema = z.object({
     stage: RunStageSchema,
     count: z.number(),
   })),
+  workload_family_summary: z.array(WorkloadFamilySummaryRowSchema),
   stuck_summary: z.array(CampaignStuckSummaryRowSchema),
   stuck_items: z.array(CampaignStuckItemSchema),
   experiments: z.array(V3ExperimentStatusRowSchema),
 });
 
 type ListedExperiment = z.infer<typeof V3ExperimentStatusRowSchema>;
+type RawListedExperiment = Omit<ListedExperiment, "score_target_estimate"> & {
+  scoring_config: {
+    evidence_bundle_size: number;
+  };
+};
 
-async function listAllExperiments(ctx: any): Promise<ListedExperiment[]> {
+async function listAllExperiments(ctx: any): Promise<RawListedExperiment[]> {
   return ctx.runQuery(
     internal.domain.runs.experiments_data.listExperiments,
     {},
-  );
+  ) as Promise<RawListedExperiment[]>;
 }
 
 function filterV3Experiments(
-  experiments: ListedExperiment[],
+  experiments: RawListedExperiment[],
   experimentTags?: string[],
-): { selected: ListedExperiment[]; missingTags: string[] } {
+): { selected: RawListedExperiment[]; missingTags: string[] } {
   if (experimentTags && experimentTags.length > 0) {
     const wanted = new Set(experimentTags);
     const selected = experiments.filter((experiment) => wanted.has(experiment.experiment_tag));
@@ -171,8 +196,67 @@ function filterV3Experiments(
   };
 }
 
+function estimateScoreTargetsPerSample(experiment: RawListedExperiment): number {
+  if (experiment.evidence_selected_count <= 0) return 0;
+  const bundleSize = Math.max(1, experiment.scoring_config.evidence_bundle_size);
+  return Math.ceil(experiment.evidence_selected_count / bundleSize);
+}
+
+function summarizeWorkloadFamilies(experiments: RawListedExperiment[]) {
+  const summaries = new Map<number, z.infer<typeof WorkloadFamilySummaryRowSchema>>();
+
+  for (const experiment of experiments) {
+    const perSample = estimateScoreTargetsPerSample(experiment);
+    const estimatedTotal = experiment.latest_run
+      ? perSample * experiment.latest_run.target_count
+      : 0;
+    const current = summaries.get(estimatedTotal) ?? {
+      estimated_total_score_targets: estimatedTotal,
+      experiment_count: 0,
+      start: 0,
+      queued: 0,
+      completed: 0,
+      running: 0,
+      paused: 0,
+      error: 0,
+      canceled: 0,
+      with_failures: 0,
+    };
+    current.experiment_count += 1;
+    current[experiment.status] += 1;
+    if (experiment.latest_run?.has_failures) {
+      current.with_failures += 1;
+    }
+    summaries.set(estimatedTotal, current);
+  }
+
+  return [...summaries.values()].sort(
+    (left, right) =>
+      left.estimated_total_score_targets - right.estimated_total_score_targets,
+  );
+}
+
+function toCampaignExperimentRow(experiment: RawListedExperiment): ListedExperiment {
+  const perSample = estimateScoreTargetsPerSample(experiment);
+  return {
+    experiment_id: experiment.experiment_id,
+    experiment_tag: experiment.experiment_tag,
+    total_count: experiment.total_count,
+    evidence_selected_count: experiment.evidence_selected_count,
+    window_count: experiment.window_count,
+    score_target_estimate: {
+      per_sample: perSample,
+      total_for_latest_run: experiment.latest_run
+        ? perSample * experiment.latest_run.target_count
+        : null,
+    },
+    status: experiment.status,
+    latest_run: experiment.latest_run,
+  };
+}
+
 function classifyCampaignState(args: {
-  experiments: ListedExperiment[];
+  experiments: RawListedExperiment[];
   missingTags: string[];
   expectedPauseAfter: z.infer<typeof RunStageSchema> | null;
   stuckItems: z.infer<typeof CampaignStuckItemSchema>[];
@@ -504,8 +588,9 @@ export const getV3CampaignStatus = zQuery({
   handler: async (ctx, args): Promise<z.infer<typeof GetV3CampaignStatusReturnSchema>> => {
     const experiments = await listAllExperiments(ctx);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const selectedRows = filtered.selected.map(toCampaignExperimentRow);
     const latestRunIds = new Set(
-      filtered.selected
+      selectedRows
         .map((experiment) => experiment.latest_run?.run_id)
         .filter((runId): runId is Id<"runs"> => runId != null)
         .map((runId) => String(runId)),
@@ -514,7 +599,7 @@ export const getV3CampaignStatus = zQuery({
     const stuck: { items: z.infer<typeof CampaignStuckItemSchema>[] } = await ctx.runQuery(
       api.packages.codex.getStuckWork,
       {
-        older_than_ms: args.older_than_ms,
+      older_than_ms: args.older_than_ms,
       },
     );
     const stuckItems: z.infer<typeof CampaignStuckItemSchema>[] = stuck.items.filter((item: z.infer<typeof CampaignStuckItemSchema>) =>
@@ -528,7 +613,7 @@ export const getV3CampaignStatus = zQuery({
       ["score_critic", 0],
     ]);
     const counts = {
-      total: filtered.selected.length,
+      total: selectedRows.length,
       with_latest_run: 0,
       start: 0,
       queued: 0,
@@ -540,7 +625,7 @@ export const getV3CampaignStatus = zQuery({
       latest_runs_with_failures: 0,
     };
 
-    for (const experiment of filtered.selected) {
+    for (const experiment of selectedRows) {
       counts[experiment.status] += 1;
       if (experiment.latest_run) {
         counts.with_latest_run += 1;
@@ -569,7 +654,7 @@ export const getV3CampaignStatus = zQuery({
       .sort((left, right) => left.reason.localeCompare(right.reason));
 
     return {
-      selected_experiment_count: filtered.selected.length,
+      selected_experiment_count: selectedRows.length,
       missing_experiment_tags: filtered.missingTags,
       campaign_state: classification.campaign_state,
       scientific_validity: classification.scientific_validity,
@@ -578,9 +663,10 @@ export const getV3CampaignStatus = zQuery({
         && filtered.missingTags.length === 0,
       counts,
       stage_distribution: [...stageCounts.entries()].map(([stage, count]) => ({ stage, count })),
+      workload_family_summary: summarizeWorkloadFamilies(filtered.selected),
       stuck_summary: stuckSummary,
       stuck_items: stuckItems,
-      experiments: filtered.selected,
+      experiments: selectedRows,
     };
   },
 });

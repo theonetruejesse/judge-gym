@@ -63,7 +63,13 @@ export function classifyRequestError(error: string | null | undefined): string {
     return "quota_exhausted";
   }
   if (value.includes("parse")) return "parse_error";
-  if (value.includes("timeout")) return "timeout";
+  if (
+    value.includes("timeout")
+    || value.includes("timed out")
+    || value.includes("deadline exceeded")
+  ) {
+    return "timeout";
+  }
   if (
     value.includes("try again later")
     || value.includes("temporarily unavailable")
