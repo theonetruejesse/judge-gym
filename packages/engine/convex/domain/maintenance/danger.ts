@@ -159,6 +159,54 @@ async function drainIndexedDocs(
   }
 }
 
+async function drainRunScoreTargets(
+  ctx: any,
+  args: {
+    run_id: Doc<"runs">["_id"];
+    isDryRun: boolean;
+  },
+): Promise<{
+  sample_score_targets: number;
+  sample_score_target_items: number;
+}> {
+  let deletedTargets = 0;
+  let deletedItems = 0;
+
+  for (;;) {
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+      .take(8);
+
+    if (scoreTargets.length === 0) {
+      return {
+        sample_score_targets: deletedTargets,
+        sample_score_target_items: deletedItems,
+      };
+    }
+
+    for (const target of scoreTargets) {
+      deletedItems += await drainIndexedDocs(ctx, {
+        fetch: () => ctx.db
+          .query("sample_score_target_items")
+          .withIndex("by_score_target", (q: any) => q.eq("score_target_id", target._id))
+          .take(32),
+        isDryRun: args.isDryRun,
+      });
+    }
+
+    deletedTargets += scoreTargets.length;
+    if (!args.isDryRun) {
+      await deleteDocsChunk(ctx, scoreTargets);
+    } else {
+      return {
+        sample_score_targets: deletedTargets,
+        sample_score_target_items: deletedItems,
+      };
+    }
+  }
+}
+
 async function deleteSingleRunData(
   ctx: any,
   args: {
@@ -209,16 +257,17 @@ async function deleteSingleRunData(
   }
   const leanActiveDelete = activeStatuses.has(run.status) && args.allow_active;
 
+  const collectFullDeletePlan = isDryRun;
   const [runRequests, runTargetStateRows, processObservabilityRows, runBatches, runJobs] = await Promise.all([
-    leanActiveDelete && !isDryRun
+    (leanActiveDelete && !isDryRun) || !collectFullDeletePlan
       ? []
       : ctx.db.query("llm_requests").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
-    leanActiveDelete && !isDryRun
+    (leanActiveDelete && !isDryRun) || !collectFullDeletePlan
       ? []
       : ctx.db.query("process_request_targets").withIndex("by_process", (q: any) =>
         q.eq("process_type", "run").eq("process_id", String(args.run_id)),
       ).collect(),
-    leanActiveDelete && !isDryRun
+    (leanActiveDelete && !isDryRun) || !collectFullDeletePlan
       ? []
       : ctx.db.query("process_observability").withIndex("by_process", (q: any) =>
         q.eq("process_type", "run").eq("process_id", String(args.run_id)),
@@ -227,7 +276,7 @@ async function deleteSingleRunData(
     listRunJobs(ctx, args.run_id),
   ]);
 
-  const scoreTargets = leanActiveDelete
+  const scoreTargets = leanActiveDelete || !collectFullDeletePlan
     ? []
     : await ctx.db
       .query("sample_score_targets")
@@ -241,7 +290,7 @@ async function deleteSingleRunData(
     rubricCritics,
     scores,
     scoreCritics,
-  ] = leanActiveDelete
+  ] = leanActiveDelete || !collectFullDeletePlan
     ? [[], [], [], [], [], []]
     : await Promise.all([
       ctx.db.query("samples").withIndex("by_run", (q: any) => q.eq("run_id", args.run_id)).collect(),
@@ -300,25 +349,88 @@ async function deleteSingleRunData(
       };
     }
 
-    const docsToDelete = [
-      ...scoreCritics,
-      ...scores,
-      ...rubricCritics,
-      ...rubrics,
-      ...scoreTargetItems,
-      ...scoreTargets,
-      ...samples,
-      ...runRequests,
-      ...runBatches,
-      ...runJobs,
-      ...runTargetStateRows,
-      ...processObservabilityRows,
-      run,
-    ];
-    for (let i = 0; i < docsToDelete.length; i += 16) {
-      const chunk = docsToDelete.slice(i, i + 16);
-      await deleteDocsChunk(ctx, chunk);
-    }
+    const deletedRunRequests = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("llm_requests")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(16),
+      isDryRun,
+    });
+    const deletedTargetStateRows = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("process_request_targets")
+        .withIndex("by_process", (q: any) =>
+          q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+        .take(64),
+      isDryRun,
+    });
+    const deletedObservabilityRows = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("process_observability")
+        .withIndex("by_process", (q: any) =>
+          q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+        .take(16),
+      isDryRun,
+    });
+    const deletedScoreCritics = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("score_critics")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(32),
+      isDryRun,
+    });
+    const deletedScores = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("scores")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(32),
+      isDryRun,
+    });
+    const deletedRubricCritics = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("rubric_critics")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(16),
+      isDryRun,
+    });
+    const deletedRubrics = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("rubrics")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(16),
+      isDryRun,
+    });
+    const deletedScoreTargetData = await drainRunScoreTargets(ctx, {
+      run_id: args.run_id,
+      isDryRun,
+    });
+    const deletedSamples = await drainIndexedDocs(ctx, {
+      fetch: () => ctx.db
+        .query("samples")
+        .withIndex("by_run", (q: any) => q.eq("run_id", args.run_id))
+        .take(16),
+      isDryRun,
+    });
+    await deleteDocsChunk(ctx, [...runBatches, ...runJobs, run]);
+
+    return {
+      trace_id: traceId,
+      deleted: {
+        runs: 1,
+        samples: deletedSamples,
+        sample_score_targets: deletedScoreTargetData.sample_score_targets,
+        sample_score_target_items: deletedScoreTargetData.sample_score_target_items,
+        rubrics: deletedRubrics,
+        rubric_critics: deletedRubricCritics,
+        scores: deletedScores,
+        score_critics: deletedScoreCritics,
+        llm_batches: runBatches.length,
+        llm_jobs: runJobs.length,
+        llm_requests: deletedRunRequests,
+        process_request_targets: deletedTargetStateRows,
+        process_observability: deletedObservabilityRows,
+      },
+    };
   } else if (leanActiveDelete) {
     const deletedRunRequests = await drainIndexedDocs(ctx, {
       fetch: () => ctx.db
