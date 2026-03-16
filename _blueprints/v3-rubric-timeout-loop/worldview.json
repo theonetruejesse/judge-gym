@@ -1,0 +1,125 @@
+{
+  "meta": {
+    "originalQuestion": "Given the current V3 full-pass evidence, do we have enough confidence to terminate the scientifically invalid cohort, what minimal patches should be applied before the next reset/relaunch, and is a deeper research pass materially useful versus direct implementation?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-rubric-timeout-loop",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "Codex",
+    "researchers": [
+      {
+        "agentId": "019cf42e-e5aa-7301-b7e1-47d921b71a40",
+        "nickname": "Poincare",
+        "role": "researcher",
+        "areaId": "A_01"
+      },
+      {
+        "agentId": "019cf42e-e790-7701-8bfd-b165bc23f1f6",
+        "nickname": "Boyle",
+        "role": "researcher",
+        "areaId": "A_02"
+      },
+      {
+        "agentId": "019cf42e-e682-74d3-bc77-cac0b9be8ede",
+        "nickname": "Laplace",
+        "role": "researcher",
+        "areaId": "A_03"
+      }
+    ],
+    "falsifier": "Codex-falsification-pass",
+    "certaintyScorer": "Codex-certainty-pass",
+    "synthesizer": "Codex"
+  },
+  "assignments": [
+    {
+      "areaId": "A_01",
+      "scope": "Local run-stage semantics and terminal-state policy for exhausted rubric_critic targets",
+      "assignedAgentId": "019cf42e-e5aa-7301-b7e1-47d921b71a40"
+    },
+    {
+      "areaId": "A_02",
+      "scope": "Live telemetry, logs, and state evidence for whether the current cohort is recoverable or should be terminated",
+      "assignedAgentId": "019cf42e-e790-7701-8bfd-b165bc23f1f6"
+    },
+    {
+      "areaId": "A_03",
+      "scope": "Official Convex operational constraints relevant to timeout-heavy apply/error/reconcile mutations",
+      "assignedAgentId": "019cf42e-e682-74d3-bc77-cac0b9be8ede"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_local_stage_semantics_evidence.md",
+      "knowledge/k_002_live_cohort_failure_evidence.md",
+      "knowledge/k_003_convex_limits_and_scheduler_evidence.md"
+    ]
+  },
+  "evidenceReviews": [
+    {
+      "reviewer": "Codex-falsification-pass",
+      "artifacts": [
+        "null_challenges/nc_h_A_01_001_challenge.json",
+        "null_challenges/nc_h_A_02_001_challenge.json",
+        "null_challenges/nc_h_A_03_001_challenge.json"
+      ]
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "k_001",
+        "score": 0.9
+      },
+      {
+        "id": "k_002",
+        "score": 0.94
+      },
+      {
+        "id": "k_003",
+        "score": 0.79
+      },
+      {
+        "id": "h_A_01_001",
+        "score": 0.88
+      },
+      {
+        "id": "h_A_02_001",
+        "score": 0.9
+      },
+      {
+        "id": "h_A_03_001",
+        "score": 0.67
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaId": "A_01",
+      "title": "Run-State Semantics",
+      "question": "Why do exhausted rubric_critic targets leave runs in running state, and what is the smallest policy/code change to make the failure terminal and operable?"
+    },
+    {
+      "areaId": "A_02",
+      "title": "Live Failure Evidence",
+      "question": "Do the current logs and run-state rows provide enough confidence to terminate the cohort now instead of waiting for more evidence?"
+    },
+    {
+      "areaId": "A_03",
+      "title": "Convex Runtime Constraints",
+      "question": "Which Convex runtime limits and design recommendations most likely explain the timeout-heavy mutation pattern, and what architectural adjustments are indicated?"
+    }
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A_01_v1_terminalize_exhausted_nonterminal.json",
+    "hypotheses/hyp_A_02_v1_kill_current_invalid_cohort.json",
+    "hypotheses/hyp_A_03_v1_shrink_timeout_prone_mutations.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "hypothesis": "h_A_03_001",
+      "conflict": "Timeout reduction may be secondary to the terminal-policy bug and should not delay the first patch."
+    }
+  ],
+  "synthesisOutput": "blueprint.md"
+}

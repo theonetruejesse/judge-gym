@@ -1,0 +1,352 @@
+{
+  "iteration_id": "20260316T010116Z_rubric_critic_timeout_exhaustion",
+  "captured_at": "2026-03-16T01:01:16Z",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "deployment_selector": "ownDev:eyJwcm9qZWN0RGlyIjoiL1VzZXJzL2plc3NlbGVlL2Rldi9yZXNlYXJjaC9qZy9qdWRnZS1neW0vcGFja2FnZXMvZW5naW5lIiwiZGVwbG95bWVudCI6eyJraW5kIjoib3duRGV2In19",
+  "expected_counts": {
+    "experiments": 22,
+    "target_count_per_run": 30,
+    "pause_after": null
+  },
+  "observed_counts": {
+    "completed_runs": 1,
+    "running_runs": 21,
+    "paused_runs": 0,
+    "error_runs": 0,
+    "latest_runs_with_failures": 16
+  },
+  "campaign_status": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid",
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 16
+      },
+      {
+        "stage": "score_gen",
+        "count": 2
+      },
+      {
+        "stage": "score_critic",
+        "count": 4
+      }
+    ],
+    "stuck_summary": [
+      {
+        "reason": "stage_waiting_on_exhausted_requests",
+        "count": 16
+      }
+    ]
+  },
+  "launched_runs": [
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+      "run_id": "kh70efr3a1e1cx4wsc5h0180h5831yag",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_true",
+      "run_id": "kh7dg12ktvshr36a0yw989hb9d830gt7",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+      "run_id": "kh7feh8k16nddd79zst77016sn830dx0",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_true",
+      "run_id": "kh7cj0gavvctz8ryxhrcpbet1n83189n",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_4_1_l3",
+      "run_id": "kh7fwr5yy5mt5q2xcehdx14zx1831aar",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_5_2_l3",
+      "run_id": "kh7ccsk44a8q00jdyvybjag5j9831p3d",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_4_1_scale_5",
+      "run_id": "kh7adf3644s6np9j1tevq5qded830npn",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a3_gpt_5_2_scale_5",
+      "run_id": "kh72mq3x7xye61nz5cq54jrjed830js5",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "run_id": "kh715nk239nx256c0e633wkkms831deb",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "run_id": "kh7da61j0twqef3cpmytfbg4cs83064a",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+      "run_id": "kh77g35cyrn0cncx3n9083jat5830kj0",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy",
+      "run_id": "kh7egmeag9h8xv752qhpxp8c8h830fvw",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_4_1_bundle_5_l2",
+      "run_id": "kh7fwc9kv22qhr64tttxynte0h830p2k",
+      "current_stage": "score_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 120,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a6_gpt_5_2_bundle_5_l2",
+      "run_id": "kh7ahx8df9nzgevpdyc46nnshn831224",
+      "current_stage": "score_gen",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_4_1_bundle_5_l3",
+      "run_id": "kh7des7qzt13bmg2t50e0t9j0d831d5n",
+      "current_stage": "score_gen",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 44,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_a7_gpt_5_2_bundle_5_l3",
+      "run_id": "kh76m8d5sad5x0h20xw8v1vttd831r17",
+      "current_stage": "score_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 120,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_false",
+      "run_id": "kh703mv3nqcy7pyngj7my9ehq5831jws",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true",
+      "run_id": "kh76pg60yggh8t314ynw1qw0yx831byg",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_false",
+      "run_id": "kh7etpgvhw0pwdez0ra3eep6y583084b",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_true",
+      "run_id": "kh7e00zva7m36z9cfw2pbamj0n8311wv",
+      "current_stage": "rubric_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 29,
+        "score_gen": 0,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": true
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_4_1",
+      "run_id": "kh7eyxj554g60rgf8a8b6ngkjs831cmm",
+      "current_stage": "score_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 120,
+        "score_critic": 120
+      },
+      "status": "completed",
+      "has_failures": false
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_5_2",
+      "run_id": "kh7294t09m0va4kt3hgq912jvd8314ns",
+      "current_stage": "score_critic",
+      "stage_counts": {
+        "rubric_gen": 30,
+        "rubric_critic": 30,
+        "score_gen": 120,
+        "score_critic": 0
+      },
+      "status": "running",
+      "has_failures": false
+    }
+  ],
+  "representative_failed_target": {
+    "run_id": "kh77g35cyrn0cncx3n9083jat5830kj0",
+    "stage": "rubric_critic",
+    "custom_key": "sample:ks72twtg6jr7ccy8rxc2evvpjh830w2c:rubric_critic",
+    "resolution": "exhausted",
+    "notes": [
+      "29 rubric_critic targets succeeded and 1 target resolved to exhausted.",
+      "No parser output was recorded for the failed target according to run diagnostics.",
+      "All observed failures on the representative target ended with 'Your request timed out.'"
+    ]
+  },
+  "dominant_failure_domain": "stage_reconciliation",
+  "scientific_validity_judgment": "scientifically_invalid",
+  "safe_heal_attempted": false,
+  "chosen_patch_hypothesis": "Timeout-heavy rubric_critic request apply/error handling leaves the final target exhausted after max attempts and the run remains in a nonterminal scientifically invalid state. Patch the smallest blocker by improving timeout classification and defining a terminal policy for exhausted nonterminal stage targets rather than leaving runs running indefinitely.",
+  "validation_outcome": "pending",
+  "commit_hash": "3f9a3b3233379f26133656c1057ce94be9ddaa81"
+}

@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Maybe the reconcile/apply timeout logs are incidental noise and do not require any performance-oriented patch.",
+      "falsificationQueries": [
+        "Review repeated failure log families",
+        "Check official Convex guidance on mutation execution limits"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_live_cohort_failure_evidence.md",
+        "knowledge/k_003_convex_limits_and_scheduler_evidence.md"
+      ],
+      "falsificationAnalysis": "This challenge only partially fails. The primary blocker is policy around exhausted targets, but repeated mutation timeout logs on the apply/error/reconcile path make it likely that some workload reduction or targeted instrumentation is still needed.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}
