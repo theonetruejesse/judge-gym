@@ -11,6 +11,11 @@ export {
   testAxiomIngest,
 } from "../domain/maintenance/codex";
 export {
+  getRunDiagnostics,
+  getRunSummary,
+  listRunScoreTargets,
+} from "./lab";
+export {
   getV3CampaignStatus,
   resumeV3Experiments,
   resetRuns,

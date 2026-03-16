@@ -52,8 +52,10 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `packages/codex:resetRuns` is paginated via `cursor` and `max_experiments` so large cohort wipes stay under Convex read limits.
 - Run reconciliation now terminalizes exhausted stages instead of leaving scientifically invalid runs in `running` once no pending work remains.
 - `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
+- `packages/codex:getRunSummary`, `packages/codex:getRunDiagnostics`, and `packages/codex:listRunScoreTargets` mirror the lab debug queries onto the main codex control surface for live loop triage.
 - Run stage progress is stage-local: `rubric_gen` and `rubric_critic` reconciliation do not scan `sample_score_targets`, which keeps early-stage accounting independent of later score-target fanout.
 - Request apply/error mutations no longer run full stage reconciliation inline; they update durable counters, and authoritative stage advance/failure still happens when the owning batch/job transport finalizes.
+- `getRunDiagnostics` now reports workload score-target estimates plus exhausted-target sample ordinals, so another `29/30` failure can be classified as tail-skewed and workload-coupled from a single query.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
