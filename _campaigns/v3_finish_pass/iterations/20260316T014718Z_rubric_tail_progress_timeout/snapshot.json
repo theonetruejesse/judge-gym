@@ -1,0 +1,106 @@
+{
+  "iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "launched_args": {
+    "target_count": 30,
+    "pause_after": null,
+    "start_policy": "all"
+  },
+  "cohort_selector": {
+    "experiment_tags": [
+      "v3_a1_gpt_4_1_abstain_true",
+      "v3_a1_gpt_4_1_abstain_false",
+      "v3_a1_gpt_5_2_abstain_true",
+      "v3_a1_gpt_5_2_abstain_false",
+      "v3_a2_gpt_4_1_l3",
+      "v3_a2_gpt_5_2_l3",
+      "v3_a3_gpt_4_1_scale_5",
+      "v3_a3_gpt_5_2_scale_5",
+      "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "v3_a5_gpt_4_1_illiberal_democracy",
+      "v3_a5_gpt_5_2_illiberal_democracy",
+      "v3_a6_gpt_4_1_bundle_5_l2",
+      "v3_a6_gpt_5_2_bundle_5_l2",
+      "v3_a7_gpt_4_1_bundle_5_l3",
+      "v3_a7_gpt_5_2_bundle_5_l3",
+      "v3_b1_gpt_4_1_mini_abstain_true",
+      "v3_b1_gpt_4_1_mini_abstain_false",
+      "v3_b1_gpt_5_2_chat_abstain_true",
+      "v3_b1_gpt_5_2_chat_abstain_false",
+      "v3_d1_control_gpt_4_1",
+      "v3_d1_control_gpt_5_2"
+    ]
+  },
+  "expected_counts": {
+    "experiments": 22,
+    "run_target_count": 30
+  },
+  "observed_status": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid",
+    "counts": {
+      "total": 22,
+      "running": 6,
+      "error": 16,
+      "paused": 0,
+      "completed": 0,
+      "latest_runs_with_failures": 16
+    },
+    "stage_distribution": {
+      "rubric_critic": 16,
+      "score_gen": 3,
+      "score_critic": 3
+    },
+    "workload_family_summary": [
+      {
+        "estimated_total_score_targets": 120,
+        "experiment_count": 6,
+        "running": 6,
+        "error": 0,
+        "with_failures": 0
+      },
+      {
+        "estimated_total_score_targets": 600,
+        "experiment_count": 16,
+        "running": 0,
+        "error": 16,
+        "with_failures": 16
+      }
+    ]
+  },
+  "stuck_summary": [
+    {
+      "kind": "rubric_critic_terminal_exhaustion",
+      "count": 16
+    }
+  ],
+  "dominant_failure_domain": "stage_reconciliation",
+  "scientific_validity_judgment": "scientifically_invalid_accounting",
+  "safe_heal": {
+    "attempted": false,
+    "reason": "Deterministic failure pattern and terminal exhausted targets; heal would not produce trustworthy data."
+  },
+  "key_evidence": {
+    "representative_failed_run_id": "kh729fctezs0wrvjqtcp25h8q1831qsd",
+    "representative_failed_target": {
+      "custom_key": "sample:ks71xbxdrs771m1rwwb6xz5zgx8307sj:rubric_critic",
+      "attempt_count": 3,
+      "retry_count": 2,
+      "error_class": "timeout",
+      "error_message": "Your request timed out."
+    },
+    "tail_request_pattern": {
+      "failed_sample_ordinal_29_count": 15,
+      "other_failed_ordinals": [
+        4
+      ]
+    },
+    "recent_failure_logs": [
+      "applyRequestResult OCC conflict on sample_score_targets during score-stage application",
+      "applyRequestResult / handleRequestError / reconcileRunStage timeouts observed earlier in the same pass"
+    ]
+  },
+  "chosen_patch_hypothesis": "Rubric-stage apply/error/reconcile paths repeatedly call maybeAdvanceRunStage, which recomputes full-run progress through getRunStageProgress/getRunProgressSnapshot. That snapshot always scans all precreated sample_score_targets, so 600-target runs pay score-stage read cost during rubric stages and the tail requests time out or exhaust."
+}

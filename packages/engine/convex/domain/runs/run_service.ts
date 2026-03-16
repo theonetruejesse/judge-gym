@@ -405,6 +405,7 @@ export const applyRequestResult = zInternalMutation({
         });
 
         await ctx.db.patch(sampleId, { rubric_id });
+        await incrementRunStageCount(ctx, sample.run_id, "rubric_gen");
       }
 
       if (stage === "rubric_critic") {
@@ -426,6 +427,7 @@ export const applyRequestResult = zInternalMutation({
         });
 
         await ctx.db.patch(sampleId, { rubric_critic_id });
+        await incrementRunStageCount(ctx, sample.run_id, "rubric_critic");
       }
 
       if (stage === "score_gen") {
@@ -461,6 +463,7 @@ export const applyRequestResult = zInternalMutation({
         if (scoreTarget) {
           await ctx.db.patch(scoreTarget._id, { score_id });
           await incrementSampleScoreCounter(ctx, sampleId, "score_count");
+          await incrementRunStageCount(ctx, sample.run_id, "score_gen");
         } else {
           throw new Error("Score stage requires sample_score_target");
         }
@@ -483,6 +486,7 @@ export const applyRequestResult = zInternalMutation({
         if (scoreTarget) {
           await ctx.db.patch(scoreTarget._id, { score_critic_id });
           const updatedSample = await incrementSampleScoreCounter(ctx, sampleId, "score_critic_count");
+          await incrementRunStageCount(ctx, sample.run_id, "score_critic");
           await incrementRunCompletedCountForScoreTarget(ctx, sample.run_id, updatedSample ?? sample);
         } else {
           throw new Error("Score critic stage requires sample_score_target");
@@ -513,7 +517,6 @@ export const applyRequestResult = zInternalMutation({
           output_tokens: args.output_tokens ?? null,
         }),
       }, { defer: true });
-      await maybeAdvanceRunStage(ctx, sample.run_id, stage);
       return;
     }
 
@@ -539,7 +542,6 @@ export const applyRequestResult = zInternalMutation({
       status: "success",
       custom_key: args.custom_key,
     }, { defer: true });
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
   },
 });
 
@@ -570,7 +572,6 @@ export const handleRequestError = zInternalMutation({
         attempt_index: request.attempt_index ?? null,
       }),
     }, { defer: true });
-    await maybeAdvanceRunStage(ctx, sample.run_id, stage);
   },
 });
 
@@ -754,6 +755,22 @@ function getRunStageCountField(
     case "score_critic":
       return "score_critic_count";
   }
+}
+
+async function incrementRunStageCount(
+  ctx: MutationCtx,
+  runId: Id<"runs">,
+  stage: RunStage,
+) {
+  const run = await ctx.db.get(runId);
+  if (!run) return null;
+
+  const field = getRunStageCountField(stage);
+  const nextValue = (run[field] ?? 0) + 1;
+  await ctx.db.patch(runId, {
+    [field]: nextValue,
+  });
+  return nextValue;
 }
 
 async function resolveRunTarget(

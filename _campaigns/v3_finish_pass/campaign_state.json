@@ -1,9 +1,11 @@
 {
   "campaign_id": "v3_finish_pass",
-  "phase": "complete",
-  "latest_iteration_id": "20260315T165541_resume_bulk_read_limit",
+  "phase": "validated",
+  "latest_iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
   "last_successful_gate": "full",
-  "current_blockers": [],
+  "current_blockers": [
+    "Fresh live rerun still pending after the validated rubric-stage hot-path fix; current dev cohort should be wiped before the next pass."
+  ],
   "reset_allowed": true,
   "notes": [
     "Forensics captured for rubric_gate n=1 canary launch failure on 2026-03-15.",
@@ -11,6 +13,9 @@
     "Forensics captured for bulk resume read-limit failure on 2026-03-15 before any paused run changed state.",
     "Completed dev full n=1 canary: 22/22 latest V3 runs resumed from rubric_critic and finished on 2026-03-15.",
     "Resolved the launch/resume control-plane read-budget hotspot on 2026-03-15 by fanning out V3 start/resume work into one scheduled internal mutation per experiment.",
-    "Validated fresh dev rubric_gate launch on 2026-03-15: 22/22 latest runs reached pause_after=rubric_critic with target_count=30 and no cohort failures."
+    "Validated fresh dev rubric_gate launch on 2026-03-15: 22/22 latest runs reached pause_after=rubric_critic with target_count=30 and no cohort failures.",
+    "Captured forensics for full n=30 dev pass on 2026-03-16 after 16 runs became scientifically invalid at rubric_critic with exhausted final request targets and repeated timeout errors in apply/error/reconcile mutations.",
+    "Captured a second full-pass forensic iteration on 2026-03-16 showing a strict 600-score-target workload split: all 16 heavy families failed at rubric_critic=29/30 while 6 lighter families progressed but began surfacing applyRequestResult OCC conflicts on sample_score_targets.",
+    "Validated a rubric-stage hot-path fix on 2026-03-16: per-request apply/error handlers no longer advance run stages inline, and rubric-stage progress no longer scans sample_score_targets before score stages."
   ]
 }

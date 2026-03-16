@@ -109,6 +109,22 @@ function buildTargetStateIndex(rows: RequestTargetStateDoc[]) {
   return index;
 }
 
+async function listTargetStatesForStages(
+  ctx: RunProgressCtx,
+  runId: Id<"runs">,
+  stages: RunStage[],
+): Promise<Record<RunStage, Map<string, RequestTargetStateDoc>>> {
+  const uniqueStages = Array.from(new Set(stages));
+  const rowsByStage = await Promise.all(
+    uniqueStages.map((stage) =>
+      ctx.db.query("process_request_targets").withIndex("by_process_stage", (q) =>
+        q.eq("process_type", "run").eq("process_id", runId).eq("stage", stage),
+      ).collect()),
+  );
+
+  return buildTargetStateIndex(rowsByStage.flat());
+}
+
 function buildSampleStageProgress(
   samples: SampleDoc[],
   statesByStage: Record<RunStage, Map<string, RequestTargetStateDoc>>,
@@ -272,9 +288,39 @@ export async function getRunStageProgress(
   runId: Id<"runs">,
   stage: RunStage,
 ): Promise<RunStageProgress | null> {
-  const snapshot = await getRunProgressSnapshot(ctx, runId);
-  if (!snapshot) return null;
-  return snapshot.byStage[stage];
+  const samples = await ctx.db
+    .query("samples")
+    .withIndex("by_run", (q) => q.eq("run_id", runId))
+    .collect();
+  if (samples.length === 0) return null;
+
+  if (stage === "rubric_gen") {
+    const statesByStage = await listTargetStatesForStages(ctx, runId, ["rubric_gen"]);
+    return buildSampleStageProgress(samples, statesByStage, stage);
+  }
+
+  if (stage === "rubric_critic") {
+    const statesByStage = await listTargetStatesForStages(ctx, runId, ["rubric_gen", "rubric_critic"]);
+    return buildSampleStageProgress(samples, statesByStage, stage);
+  }
+
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
+    .withIndex("by_run", (q) => q.eq("run_id", runId))
+    .collect();
+  if (scoreTargets.length === 0) return null;
+
+  if (stage === "score_gen") {
+    const statesByStage = await listTargetStatesForStages(ctx, runId, ["rubric_gen", "score_gen"]);
+    return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage);
+  }
+
+  const statesByStage = await listTargetStatesForStages(ctx, runId, [
+    "rubric_gen",
+    "score_gen",
+    "score_critic",
+  ]);
+  return buildScoreStageProgress(samples, scoreTargets, statesByStage, stage);
 }
 
 export function stageIsScoreStage(stage: RunStage) {
