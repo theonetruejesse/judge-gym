@@ -8,6 +8,7 @@ import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getProviderForModel } from "../../platform/providers/provider_types";
 import { RunStageSchema, type RunStage } from "../../models/experiments";
+import { StateStatusSchema } from "../../models/_shared";
 import {
   extractReasoningBeforeVerdict,
   parseExpertAgreementResponse,
@@ -79,6 +80,187 @@ export const startRunFlow = zInternalMutation({
     });
 
     return { run_id };
+  },
+});
+
+export const startRunFlowForCampaign = zInternalMutation({
+  args: z.object({
+    experiment_id: zid("experiments"),
+    experiment_tag: z.string(),
+    target_count: z.number().int().min(1),
+    pause_after: RunStageSchema.nullable().optional(),
+    start_scheduler: z.boolean().default(true),
+  }),
+  returns: z.object({
+    run_id: zid("runs"),
+  }),
+  handler: async (ctx, args): Promise<{ run_id: Id<"runs"> }> => {
+    const result: { run_id: Id<"runs"> } = await ctx.runMutation(
+      internal.domain.runs.run_service.startRunFlow,
+      {
+        experiment_id: args.experiment_id,
+        target_count: args.target_count,
+        pause_after: args.pause_after ?? null,
+      },
+    );
+
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${result.run_id}`,
+      entity_type: "run",
+      entity_id: String(result.run_id),
+      event_name: "run_started",
+      stage: "rubric_gen",
+      status: "queued",
+      payload_json: JSON.stringify({
+        experiment_id: args.experiment_id,
+        experiment_tag: args.experiment_tag,
+        target_count: args.target_count,
+        pause_after: args.pause_after ?? null,
+      }),
+    });
+
+    if (args.start_scheduler) {
+      await ctx.runMutation(
+        internal.domain.orchestrator.scheduler.startScheduler,
+        {},
+      );
+    }
+
+    return result;
+  },
+});
+
+const ResumePausedRunResultSchema = z.object({
+  run_id: zid("runs").nullable(),
+  outcome: z.enum([
+    "missing_run",
+    "not_paused",
+    "deferred_missing_progress",
+    "deferred_pending",
+    "deferred_active_transport",
+    "deferred_stage_mismatch",
+    "advanced",
+    "completed",
+    "terminal_error",
+    "failed",
+    "paused",
+    "requeued_current_stage",
+  ]),
+  status: StateStatusSchema.nullable(),
+  current_stage: RunStageSchema.nullable(),
+});
+
+export const resumePausedRunFlow = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: RunStageSchema.nullable().optional(),
+  }),
+  returns: ResumePausedRunResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof ResumePausedRunResultSchema>> => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      return {
+        run_id: null,
+        outcome: "missing_run" as const,
+        status: null,
+        current_stage: null,
+      };
+    }
+
+    if (run.status !== "paused") {
+      return {
+        run_id: run._id,
+        outcome: "not_paused" as const,
+        status: run.status,
+        current_stage: run.current_stage,
+      };
+    }
+
+    const resumedStage = run.current_stage;
+    const nextPauseAfter = args.pause_after ?? null;
+    await ctx.db.patch(run._id, {
+      status: "running",
+      pause_after: nextPauseAfter,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${run._id}`,
+      entity_type: "run",
+      entity_id: String(run._id),
+      event_name: "run_resumed",
+      stage: resumedStage,
+      status: "running",
+      payload_json: JSON.stringify({
+        resumed_stage: resumedStage,
+        previous_pause_after: run.pause_after ?? null,
+        pause_after: nextPauseAfter,
+      }),
+    });
+
+    const result = await maybeAdvanceRunStage(ctx, run._id, resumedStage);
+    if (result.outcome === "deferred_pending") {
+      const hasTransport = await hasActiveRunTransportWork(ctx, run._id, resumedStage);
+      if (!hasTransport) {
+        const orchestrator = new RunOrchestrator(ctx);
+        await orchestrator.enqueueStage(run._id, resumedStage);
+        await emitTraceEvent(ctx, {
+          trace_id: `run:${run._id}`,
+          entity_type: "run",
+          entity_id: String(run._id),
+          event_name: "run_stage_enqueued",
+          stage: resumedStage,
+          status: "queued",
+          payload_json: JSON.stringify({
+            resumed: true,
+            pause_after: nextPauseAfter,
+          }),
+        });
+        const refreshed = await ctx.db.get(run._id);
+        return {
+          run_id: run._id,
+          outcome: "requeued_current_stage" as const,
+          status: refreshed?.status ?? null,
+          current_stage: refreshed?.current_stage ?? null,
+        };
+      }
+    }
+
+    const refreshed = await ctx.db.get(run._id);
+    const normalizedOutcome = result.outcome === "terminal_noop"
+      ? "not_paused"
+      : result.outcome;
+    return {
+      run_id: run._id,
+      outcome: normalizedOutcome,
+      status: refreshed?.status ?? null,
+      current_stage: refreshed?.current_stage ?? null,
+    };
+  },
+});
+
+export const resumePausedRunFlowForCampaign = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: RunStageSchema.nullable().optional(),
+    start_scheduler: z.boolean().default(true),
+  }),
+  returns: ResumePausedRunResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof ResumePausedRunResultSchema>> => {
+    const result = await ctx.runMutation(
+      internal.domain.runs.run_service.resumePausedRunFlow,
+      {
+        run_id: args.run_id,
+        pause_after: args.pause_after ?? null,
+      },
+    );
+
+    if (args.start_scheduler && result.status === "running") {
+      await ctx.runMutation(
+        internal.domain.orchestrator.scheduler.startScheduler,
+        {},
+      );
+    }
+
+    return result;
   },
 });
 

@@ -21,7 +21,6 @@ const MAX_RUNNING_JOBS_PER_TICK = 30;
 const MAX_ORPHANED_REQUESTS_PER_TICK = 30;
 const MAX_RETRYABLE_RECOVERIES_PER_TICK = 40;
 const SCHEDULER_SCAN_MULTIPLIER = 3;
-const SCHEDULED_SCAN_MAX_ROWS = 2_000;
 
 export const requeueRequest = zInternalMutation({
   args: z.object({
@@ -40,13 +39,6 @@ export const requeueRequest = zInternalMutation({
   },
 });
 
-function isSchedulerRun(name: string): boolean {
-  return (
-    name === "domain/orchestrator/scheduler:runScheduler" ||
-    name === "domain/orchestrator/scheduler.js:runScheduler"
-  );
-}
-
 function hasActiveBatchPollLease(
   batch: ActiveBatchesResult["running_batches"][number],
   now: number,
@@ -63,16 +55,6 @@ function hasActiveJobRunLease(
   return job.run_claim_owner != null
     && job.run_claim_expires_at != null
     && job.run_claim_expires_at > now;
-}
-
-async function isSchedulerScheduled(ctx: MutationCtx): Promise<boolean> {
-  const scheduled = await ctx.db.system
-    .query("_scheduled_functions")
-    .order("desc")
-    .take(SCHEDULED_SCAN_MAX_ROWS);
-  return scheduled.some(
-    (row) => isSchedulerRun(row.name) && row.completedTime == null,
-  );
 }
 
 async function listSchedulerLocks(
@@ -281,9 +263,6 @@ export const startScheduler = zInternalMutation({
     const recentlyKickedOff = existing != null
       && existing.heartbeat_ts_ms >= now - SCHEDULER_START_DEBOUNCE_MS;
     if (recentlyKickedOff) return;
-
-    const hasScheduled = await isSchedulerScheduled(ctx);
-    if (hasScheduled) return;
 
     if (!existing) {
       await ctx.db.insert("scheduler_locks", {

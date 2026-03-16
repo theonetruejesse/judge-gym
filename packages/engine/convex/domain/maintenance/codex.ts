@@ -1259,12 +1259,12 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       }
     }
 
-    const runRows = args.process_type === "window"
+    const runRows: Doc<"runs">[] = args.process_type === "window"
       ? []
       : runs;
     let healthChecks = 0;
     const runHealthRows = runRows
-      .filter((run) =>
+      .filter((run: Doc<"runs">) =>
         run.status !== "completed"
         && run.status !== "error"
         && run.status !== "canceled",

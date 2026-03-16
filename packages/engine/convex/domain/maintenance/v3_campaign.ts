@@ -108,6 +108,15 @@ const LaunchRowSchema = z.object({
   reason: z.string(),
   run_id: zid("runs").nullable(),
 });
+
+const ResumeRowSchema = z.object({
+  experiment_id: zid("experiments"),
+  experiment_tag: z.string(),
+  action: z.enum(["resumed", "skipped"]),
+  reason: z.string(),
+  run_id: zid("runs").nullable(),
+});
+
 const GetV3CampaignStatusReturnSchema = z.object({
   selected_experiment_count: z.number(),
   missing_experiment_tags: z.array(z.string()),
@@ -363,42 +372,105 @@ export const startV3Experiments = zMutation({
         continue;
       }
 
-      const result = await ctx.runMutation(
-        internal.domain.runs.run_service.startRunFlow,
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.startRunFlowForCampaign,
         {
-          experiment_id: experiment.experiment_id,
-          target_count: args.target_count,
-          pause_after: args.pause_after ?? null,
-        },
-      );
-      await emitTraceEvent(ctx, {
-        trace_id: `run:${result.run_id}`,
-        entity_type: "run",
-        entity_id: String(result.run_id),
-        event_name: "run_started",
-        stage: "rubric_gen",
-        status: "queued",
-        payload_json: JSON.stringify({
           experiment_id: experiment.experiment_id,
           experiment_tag: experiment.experiment_tag,
           target_count: args.target_count,
           pause_after: args.pause_after ?? null,
-        }),
-      });
+          start_scheduler: args.start_scheduler,
+        },
+      );
       rows.push({
         experiment_id: experiment.experiment_id,
         experiment_tag: experiment.experiment_tag,
         action: "started",
-        reason: "started",
-        run_id: result.run_id,
+        reason: "scheduled_start",
+        run_id: null,
       });
     }
 
-    if (!args.dry_run && args.start_scheduler && rows.some((row) => row.action === "started")) {
-      await ctx.runMutation(
-        internal.domain.orchestrator.scheduler.startScheduler,
-        {},
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
+      rows,
+    };
+  },
+});
+
+export const resumeV3Experiments = zMutation({
+  args: z.object({
+    pause_after: RunStageSchema.nullable().optional(),
+    experiment_tags: z.array(z.string()).optional(),
+    start_scheduler: z.boolean().default(true),
+    dry_run: z.boolean().default(false),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    selected_experiment_count: z.number(),
+    missing_experiment_tags: z.array(z.string()),
+    rows: z.array(ResumeRowSchema),
+  }),
+  handler: async (ctx, args) => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const rows = [] as z.infer<typeof ResumeRowSchema>[];
+
+    for (const experiment of filtered.selected) {
+      const latestRun = experiment.latest_run;
+      if (!latestRun) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "no_latest_run",
+          run_id: null,
+        });
+        continue;
+      }
+
+      if (latestRun.status !== "paused") {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "latest_run_not_paused",
+          run_id: latestRun.run_id,
+        });
+        continue;
+      }
+
+      if (args.dry_run) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "resumed",
+          reason: "dry_run",
+          run_id: latestRun.run_id,
+        });
+        continue;
+      }
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.resumePausedRunFlowForCampaign,
+        {
+          run_id: latestRun.run_id,
+          pause_after: args.pause_after ?? null,
+          start_scheduler: args.start_scheduler,
+        },
       );
+
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        action: "resumed",
+        reason: "scheduled_resume",
+        run_id: latestRun.run_id,
+      });
     }
 
     return {
