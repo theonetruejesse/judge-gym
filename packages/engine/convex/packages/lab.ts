@@ -514,10 +514,27 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const run = await ctx.runQuery(internal.domain.runs.run_repo.getRun, {
       run_id,
     });
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) {
+      throw new Error("Experiment not found");
+    }
     const samples = await ctx.db
       .query("samples")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
+    const orderedSamples = samples
+      .slice()
+      .sort((left, right) => left._creationTime - right._creationTime);
+    const sampleOrdinalById = new Map(
+      orderedSamples.map((sample, index) => [String(sample._id), index] as const),
+    );
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+    const sampleIdByScoreTargetId = new Map(
+      scoreTargets.map((target) => [String(target._id), target.sample_id] as const),
+    );
     const requestRows = await ctx.db
       .query("llm_requests")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
@@ -532,6 +549,16 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.experiments_data.getRunSummary,
       { run_id },
     );
+    const evidenceLinks = await ctx.db
+      .query("pool_evidences")
+      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
+      .collect();
+    const scoreTargetsPerSample = evidenceLinks.length > 0
+      ? Math.ceil(
+        evidenceLinks.length
+          / Math.max(1, experiment.scoring_config.evidence_bundle_size),
+      )
+      : 0;
 
     const stageRollup = {
       rubric_gen: { pending: 0, success: 0, error: 0 },
@@ -575,6 +602,12 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const terminal_failed_targets = targetStates
       .filter((state) => state.resolution === "exhausted")
       .map((state) => ({
+        sample_id: state.target_type === "sample"
+          ? state.target_id as Id<"samples">
+          : sampleIdByScoreTargetId.get(state.target_id) ?? null,
+        sample_ordinal: state.target_type === "sample"
+          ? sampleOrdinalById.get(state.target_id) ?? null
+          : sampleOrdinalById.get(String(sampleIdByScoreTargetId.get(state.target_id) ?? "")) ?? null,
         target_type: state.target_type,
         target_id: state.target_id,
         stage: state.stage,
@@ -584,6 +617,25 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
         error_class: state.latest_error_class,
         error_message: state.latest_error_message,
       }));
+
+    const terminal_failed_target_summary = Object.entries(
+      terminal_failed_targets.reduce<Record<string, { count: number; sample_ordinals: number[] }>>(
+        (acc, target) => {
+          const current = acc[target.stage] ?? { count: 0, sample_ordinals: [] };
+          current.count += 1;
+          if (typeof target.sample_ordinal === "number") {
+            current.sample_ordinals.push(target.sample_ordinal);
+          }
+          acc[target.stage] = current;
+          return acc;
+        },
+        {},
+      ),
+    ).map(([stage, value]) => ({
+      stage,
+      count: value.count,
+      sample_ordinals: value.sample_ordinals.slice().sort((left, right) => left - right),
+    }));
 
     const [rubrics, rubric_critics, scores, score_critics] = await Promise.all([
       ctx.db
@@ -606,9 +658,14 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
 
     return {
       run_id: run._id,
+      experiment_tag: experiment.experiment_tag,
       status: run.status,
       current_stage: run.current_stage,
       target_count: run.target_count,
+      score_target_estimate: {
+        per_sample: scoreTargetsPerSample,
+        total_for_run: scoreTargetsPerSample * run.target_count,
+      },
       request_counts: {
         total: requestRows.length,
         error: terminal_failed_targets.length,
@@ -618,6 +675,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       stage_rollup: stageRollup,
       failed_requests,
       terminal_failed_targets,
+      terminal_failed_target_summary,
       terminal_stage_rollup: Object.fromEntries(
         runSummary.stages.map((stage: (typeof runSummary.stages)[number]) => [
           stage.stage,
@@ -630,6 +688,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       ),
       artifact_counts: {
         samples: samples.length,
+        sample_score_targets: scoreTargets.length,
         rubrics: rubrics.length,
         rubric_critics: rubric_critics.length,
         scores: scores.length,

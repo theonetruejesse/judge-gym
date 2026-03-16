@@ -449,6 +449,11 @@ describe("run reporting", () => {
     const diagnostics = await t.query(api.packages.lab.getRunDiagnostics, {
       run_id: started.run_id,
     });
+    expect(diagnostics.experiment_tag).toBeDefined();
+    expect(diagnostics.score_target_estimate).toEqual({
+      per_sample: 1,
+      total_for_run: 3,
+    });
     expect(diagnostics.request_counts.error).toBe(1);
     expect(diagnostics.request_counts.historical_error).toBe(1);
     expect(diagnostics.request_counts.terminal_failed_targets).toBe(1);
@@ -463,7 +468,15 @@ describe("run reporting", () => {
         stage: "rubric_gen",
         attempt_count: 1,
         error_message: "synthetic rubric failure",
+        sample_ordinal: 0,
       }),
+    ]);
+    expect(diagnostics.terminal_failed_target_summary).toEqual([
+      {
+        stage: "rubric_gen",
+        count: 1,
+        sample_ordinals: [0],
+      },
     ]);
     expect(diagnostics.terminal_stage_rollup).toEqual({
       rubric_gen: { completed: 2, failed: 1, pending: 0 },
@@ -471,6 +484,18 @@ describe("run reporting", () => {
       score_gen: { completed: 2, failed: 1, pending: 0 },
       score_critic: { completed: 2, failed: 1, pending: 0 },
     });
+    expect(diagnostics.artifact_counts.sample_score_targets).toBe(3);
+
+    const codexDiagnostics = await t.query(api.packages.codex.getRunDiagnostics, {
+      run_id: started.run_id,
+    });
+    expect(codexDiagnostics.terminal_failed_target_summary).toEqual([
+      {
+        stage: "rubric_gen",
+        count: 1,
+        sample_ordinals: [0],
+      },
+    ]);
   });
 
   test("getRunSummary keeps clean runs failure-free", async () => {
