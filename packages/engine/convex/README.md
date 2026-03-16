@@ -59,6 +59,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Request apply/error mutations no longer run full stage reconciliation inline, and they no longer patch shared run/experiment aggregate counters in the per-result hot path; authoritative stage counts and terminal/completed state are synchronized during reconcile.
 - Run stage handoff is chunked and asynchronous: `reconcileRunStage` now commits the stage advance first, then `enqueueRunStage` fans out downstream requests in bounded chunks so heavy `score_gen` launches cannot roll back the run-row stage transition.
 - `process_request_targets` now treats existing stage artifacts as authoritative success for run/window targets, so stale exhausted request rows cannot mask a successfully applied rubric, rubric critic, score, or score critic artifact.
+- Rubric parsing now tolerates the common model failure mode where one stage line uses only one or two semicolons but still contains comma-delimited top-level criteria; recovered rubric stages may accept up to six criteria when the model compresses a long enumerated clause into one line, and the rubric-gen prompt now explicitly requires semicolon-only criterion separation.
 - Lab/codex run summaries now compute live stage counts from run progress snapshots instead of trusting potentially stale persisted per-stage counters on the `runs` row.
 - `getRunDiagnostics` now reports workload score-target estimates plus exhausted-target sample ordinals, so another `29/30` failure can be classified as tail-skewed and workload-coupled from a single query.
 - `packages/codex:getStuckWork` now treats queued-only transport backlog with no scheduler heartbeat as a real stall, and it also flags `stage_transition_no_transport` when a run stage is artifact-complete but the next stage never enqueues any transport.
@@ -66,6 +67,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
   - timeout classification recognizes both `timeout` and `timed out` style provider/runtime failures
+  - rubric parser contract violations such as `Invalid criteria count` are classified as `parse_error`
 - Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
 - One-off run metadata repairs go through `packages/codex:backfillRunCompletedCounts` with `dry_run`, `cursor`, and `max_runs`.
 - One-off experiment aggregate repairs go through `packages/codex:backfillExperimentTotalCounts` with `dry_run`, `cursor`, and `max_experiments`.

@@ -64,6 +64,15 @@ export function classifyRequestError(error: string | null | undefined): string {
   }
   if (value.includes("parse")) return "parse_error";
   if (
+    value.includes("invalid criteria count")
+    || value.includes("invalid rubric line")
+    || value.includes("failed to find rubric block")
+    || value.includes("expected ") && value.includes(" stages")
+    || value.includes("missing reasoning before rubric block")
+  ) {
+    return "parse_error";
+  }
+  if (
     value.includes("timeout")
     || value.includes("timed out")
     || value.includes("deadline exceeded")

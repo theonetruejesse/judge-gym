@@ -142,6 +142,7 @@ export function buildRubricGenPrompt(args: {
       ? `Stage ${midpoint} must be labeled "Ambiguous / Mixed Evidence."`
       : "Because this is an even-numbered scale, there is no midpoint stage.",
     "Include 3 to 5 criteria per stage.",
+    "Separate top-level criteria with semicolons only; do not use commas as the top-level delimiter between criteria.",
     "Make each stage meaningfully distinct from adjacent stages.",
   ];
   return {
@@ -162,6 +163,7 @@ export function buildRubricGenPrompt(args: {
           "Then output a single `RUBRIC:` block.",
           "Do not wrap the `RUBRIC:` block in markdown fences or backticks.",
           "Do not add any extra lines before, after, or between rubric stage lines.",
+          "Within each stage line, separate criteria with semicolons only.",
           "In that block, each line must use this format:",
           `\`${1}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>\``,
           `\`${scale_size}) <Stage Label> :: <criterion 1>; <criterion 2>; <criterion 3>\``,
