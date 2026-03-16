@@ -288,7 +288,11 @@ export async function submitBatch(args: SubmitBatchArgs) {
       request_id: Id<"llm_requests">;
       system_prompt: string | null;
       user_prompt: string;
-    }) => [row.request_id, row]),
+    }): [Id<"llm_requests">, {
+      request_id: Id<"llm_requests">;
+      system_prompt: string | null;
+      user_prompt: string;
+    }] => [row.request_id, row]),
   );
   const payload = requests.map((req) => ({
     custom_key: req.custom_key,

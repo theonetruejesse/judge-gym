@@ -39,11 +39,15 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 
 - The run/window hot path does not depend on `@convex-dev/workflow`.
 - Scheduler dispatch is bounded per tick to avoid fanout explosions.
+- Scheduler kickoff relies on the scheduler lock plus debounce guard and avoids scanning Convex `_scheduled_functions` during launch.
+- V3 campaign start/resume fan out one scheduled internal mutation per experiment so large cohort launches and bulk resumes do not accumulate run-stage enqueue reads inside a single control-plane call.
 - Scheduler requeues due orphaned requests before they require manual heal actions.
 - Batch/job lease claims are renewed during long-running workflow sections to reduce duplicate execution after lease expiry.
 - Batch submit uses a durable `submitting` state plus provider metadata lookup recovery for unknown-outcome submit failures.
 - Batch poll lease claims prevent duplicate concurrent polls.
 - Job request execution is bounded-parallel per job tick via `run_policy.job_request_concurrency`.
+- Paused V3 cohort runs can be resumed in place through `packages/codex:resumeV3Experiments`.
+- `packages/codex:startV3Experiments` and `packages/codex:resumeV3Experiments` are asynchronous control-plane entrypoints: they schedule per-run work first, then the per-run task creates or resumes the run and kicks the scheduler.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
@@ -66,5 +70,6 @@ For V3 campaign execution, use:
 - campaign control plane:
   - `_campaigns/v3_finish_pass/manifest.json`
   - `packages/codex:getV3CampaignStatus`
+  - `packages/codex:resumeV3Experiments`
   - `packages/codex:resetRuns`
   - `packages/codex:startV3Experiments`
