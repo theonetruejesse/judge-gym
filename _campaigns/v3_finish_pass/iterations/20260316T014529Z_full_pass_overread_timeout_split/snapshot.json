@@ -1,0 +1,115 @@
+{
+  "iteration_id": "20260316T014529Z_full_pass_overread_timeout_split",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "deployment": "ownDev",
+  "commit_at_capture": "ace3a92708c936f31da3d6b6dbac63d8e9b4704f",
+  "experiment_tags": [
+    "v3_a1_gpt_4_1_abstain_true",
+    "v3_a1_gpt_4_1_abstain_false",
+    "v3_a1_gpt_5_2_abstain_true",
+    "v3_a1_gpt_5_2_abstain_false",
+    "v3_a2_gpt_4_1_l3",
+    "v3_a2_gpt_5_2_l3",
+    "v3_a3_gpt_4_1_scale_5",
+    "v3_a3_gpt_5_2_scale_5",
+    "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+    "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+    "v3_a5_gpt_4_1_illiberal_democracy",
+    "v3_a5_gpt_5_2_illiberal_democracy",
+    "v3_a6_gpt_4_1_bundle_5_l2",
+    "v3_a6_gpt_5_2_bundle_5_l2",
+    "v3_a7_gpt_4_1_bundle_5_l3",
+    "v3_a7_gpt_5_2_bundle_5_l3",
+    "v3_b1_gpt_4_1_mini_abstain_true",
+    "v3_b1_gpt_4_1_mini_abstain_false",
+    "v3_b1_gpt_5_2_chat_abstain_true",
+    "v3_b1_gpt_5_2_chat_abstain_false",
+    "v3_d1_control_gpt_4_1",
+    "v3_d1_control_gpt_5_2"
+  ],
+  "expected": {
+    "experiment_count": 22,
+    "target_count": 30,
+    "pause_after": null
+  },
+  "observed": {
+    "campaign_state": "scientifically_invalid",
+    "scientific_validity": "scientifically_invalid",
+    "counts": {
+      "total": 22,
+      "with_latest_run": 22,
+      "completed": 0,
+      "running": 6,
+      "paused": 0,
+      "error": 16,
+      "canceled": 0,
+      "latest_runs_with_failures": 16
+    },
+    "stage_distribution": [
+      { "stage": "rubric_gen", "count": 0 },
+      { "stage": "rubric_critic", "count": 16 },
+      { "stage": "score_gen", "count": 3 },
+      { "stage": "score_critic", "count": 3 }
+    ],
+    "stuck_summary": [],
+    "workload_family_summary": [
+      {
+        "estimated_total_score_targets": 120,
+        "experiment_count": 6,
+        "running": 6,
+        "completed": 0,
+        "paused": 0,
+        "error": 0,
+        "canceled": 0,
+        "queued": 0,
+        "start": 0,
+        "with_failures": 0
+      },
+      {
+        "estimated_total_score_targets": 600,
+        "experiment_count": 16,
+        "running": 0,
+        "completed": 0,
+        "paused": 0,
+        "error": 16,
+        "canceled": 0,
+        "queued": 0,
+        "start": 0,
+        "with_failures": 16
+      }
+    ]
+  },
+  "representative_failed_run": {
+    "run_id": "kh729fctezs0wrvjqtcp25h8q1831qsd",
+    "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+    "status": "error",
+    "current_stage": "rubric_critic",
+    "stage_counts": {
+      "rubric_gen": 30,
+      "rubric_critic": 29,
+      "score_gen": 0,
+      "score_critic": 0
+    },
+    "failed_target": {
+      "custom_key": "sample:ks71xbxdrs771m1rwwb6xz5zgx8307sj:rubric_critic",
+      "resolution": "exhausted",
+      "attempt_count": 3,
+      "retry_count": 2,
+      "historical_error_count": 3,
+      "latest_error_class": "timeout",
+      "latest_error_message": "Your request timed out.",
+      "latest_request_id": "jn79n1pahn3jph7r2jeak9r30h8313z9"
+    }
+  },
+  "additional_live_failures": {
+    "convex_log_signatures": [
+      "domain/runs/run_service:applyRequestResult Documents read from or written to the \"sample_score_targets\" table changed while this mutation was being run and on every subsequent retry.",
+      "domain/runs/run_service:applyRequestResult Your request couldn't be completed. Try again later."
+    ],
+    "interpretation": "The progressing 120-score families are not exhausting rubric_critic targets, but they are already surfacing OCC and timeout symptoms in score-stage apply paths."
+  },
+  "dominant_failure_domain": "stage_reconciliation",
+  "safe_heal_attempted": false,
+  "chosen_patch_hypothesis": "Stage reconciliation over-reads run state by loading all score-target rows for every stage. In the 600-score families this inflates rubric_critic apply/reconcile cost enough to turn the last target into repeated timeout-classified errors, and in later score stages it increases OCC risk by reading many score_target rows inside every apply mutation."
+}

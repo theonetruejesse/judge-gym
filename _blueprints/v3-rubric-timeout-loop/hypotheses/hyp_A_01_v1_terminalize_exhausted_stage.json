@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The primary product bug is missing terminalization for nonterminal stages where failed > 0 and hasPending is false after retries are exhausted.",
+  "confidence": 0.88,
+  "rationale": "This best explains why runs remain running at 29/30 even though progress computation and stuck-work surfaces already classify the stage as failed and non-pending.",
+  "keyAssumptions": [
+    "The intended product behavior is to stop treating partially exhausted rubric_critic stages as running.",
+    "Existing downstream reporting can absorb a transition from running to error for these runs."
+  ],
+  "validationCriteria": [
+    "A reconstructed full pass marks exhausted rubric_critic runs terminal instead of leaving them running.",
+    "Stuck-work no longer shows scientifically invalid runs remaining in running status with no pending work."
+  ],
+  "critiquePoints": [
+    "If product intent is to degrade gracefully and continue, a different stage-skip policy may be required."
+  ],
+  "questions": [
+    "Should the terminal state be error, canceled, or a new scientifically-invalid terminal status?"
+  ]
+}

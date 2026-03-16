@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The primary product bug is that nonterminal stages with exhausted targets remain in `running` instead of transitioning to a terminal invalid or error state.",
+  "confidence": 0.88,
+  "rationale": "Local code shows terminal error is only emitted when completed == 0 and failed > 0, while the live cohort has 29 completed and 1 failed at rubric_critic across 16 runs.",
+  "keyAssumptions": [
+    "The intended engine behavior is to surface scientifically invalid nonterminal stage exhaustion as terminal failure rather than indefinite running."
+  ],
+  "validationCriteria": [
+    "A targeted test reproduces 29 completed / 1 exhausted / 0 pending and verifies the run becomes terminal instead of staying running.",
+    "Control-plane status after patch no longer reports these runs as running forever."
+  ],
+  "critiquePoints": [
+    "The desired terminal state may be `error`, `canceled`, or a new invalid status."
+  ],
+  "questions": [
+    "Should partial rubric-stage failure terminate immediately or pause into an operator-visible repair state?"
+  ]
+}
