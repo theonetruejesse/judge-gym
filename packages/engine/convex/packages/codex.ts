@@ -5,6 +5,7 @@ export {
   backfillRunCompletedCounts,
   backfillSampleScoreCounts,
   getProcessHealth,
+  repairRunStageTransport,
   getStuckWork,
   runDebugActions,
   tailTrace,
