@@ -55,6 +55,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Run reconciliation now terminalizes exhausted stages instead of leaving scientifically invalid runs in `running` once no pending work remains.
 - `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
 - `packages/codex:getRunSummary`, `packages/codex:getRunDiagnostics`, and `packages/codex:listRunScoreTargets` mirror the lab debug queries onto the main codex control surface for live loop triage.
+- `packages/codex:repairRunStageTransport` repairs a running run stage in place by detaching pending requests from dead/missing transport and reattaching the same request ids to fresh batch/job transport.
 - Run stage progress is stage-local: `rubric_gen` and `rubric_critic` reconciliation do not scan `sample_score_targets`, which keeps early-stage accounting independent of later score-target fanout.
 - Request apply/error mutations no longer run full stage reconciliation inline, and they no longer patch shared run/experiment aggregate counters in the per-result hot path; authoritative stage counts and terminal/completed state are synchronized during reconcile.
 - Run stage handoff is chunked and asynchronous: `reconcileRunStage` now commits the stage advance first, then `enqueueRunStage` fans out downstream requests in bounded chunks so heavy `score_gen` launches cannot roll back the run-row stage transition.
@@ -64,7 +65,8 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - Score-stage artifact truth now comes from the `scores` / `score_critics` tables rather than hot `sample_score_targets.score_id` link fields, so score apply and stage-progress readers can tolerate unset legacy target links without stalling score progression.
 - Lab/codex run summaries now compute live stage counts from run progress snapshots instead of trusting potentially stale persisted per-stage counters on the `runs` row.
 - `getRunDiagnostics` now reports workload score-target estimates plus exhausted-target sample ordinals, so another `29/30` failure can be classified as tail-skewed and workload-coupled from a single query.
-- `packages/codex:getStuckWork` now treats queued-only transport backlog with no scheduler heartbeat as a real stall, and it also flags `stage_transition_no_transport` when a run stage is artifact-complete but the next stage never enqueues any transport.
+- `packages/codex:getStuckWork` now treats queued-only transport backlog with no scheduler heartbeat as a real stall, flags `stage_transition_no_transport` when a run stage is artifact-complete but the next stage never enqueues any transport, and flags `pending_requests_on_dead_transport` when a stage still has pending requests pinned to an error/missing batch or job.
+- `packages/codex:autoHealProcess` now plans `repair_stage_transport` actions for pending requests stuck on dead transport instead of only reporting that no active orchestration work exists.
 - Retry behavior is class-aware:
   - parse/orchestrator-side apply failures are terminal
   - transient provider classes retry up to configured caps
