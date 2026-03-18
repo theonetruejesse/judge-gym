@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_09_001",
+  "areaOfAnalysisID": "A_09",
+  "statement": "Temporal remains the best default workflow runtime for judge-gym, with Node as the production worker runtime, Bun kept as an experimental compatibility spike, and Worker Versioning plus continue-as-new treated as first-class operational concerns.",
+  "confidence": 0.71,
+  "rationale": "Temporal still fits the orchestration problem best, but Bun support is not mature enough to anchor the rewrite and long-lived workflow versioning cannot be deferred.",
+  "keyAssumptions": [
+    "Restate and Inngest do not prove materially better on judge-gym's long-running orchestration and debugging needs",
+    "The team is willing to accept Temporal's operational overhead in exchange for deleting the current scheduler substrate"
+  ],
+  "validationCriteria": [
+    "The runtime plan defines a safe worker deployment/versioning story before the first serious rollout",
+    "Bun is validated by spike rather than assumed into production"
+  ],
+  "critiquePoints": [
+    "If self-hosted Temporal operational overhead dominates, a lighter runtime could become more attractive later"
+  ],
+  "questions": [
+    "What is the minimum viable versioning and replay-testing workflow for judge-gym workers?"
+  ]
+}

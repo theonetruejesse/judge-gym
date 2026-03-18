@@ -1,0 +1,107 @@
+# Certainty Report
+
+## Evidence Scores
+- `k_001`: 0.80. Strong local grounding in the current schema and scheduler code; still missing more excerpt-level proof for some higher-level characterizations.
+- `k_002`: 0.68. Good fit between Temporal concepts and judge-gym needs, but still mostly conceptual rather than validated against a repo-level proof of concept.
+- `k_003`: 0.62. Plausible and directionally strong, but runtime layout recommendations need concrete repo bootstrap details and worker entrypoint validation.
+- `k_004`: 0.56. Useful conceptual observability split, but source quality was uneven and the original Visibility emphasis was overstated.
+- `k_005`: 0.78. Strong schema-based split between domain and runtime tables; deletion/retention judgments are still normative rather than experimentally proven.
+- `k_006`: 0.58. Convex scheduling tradeoff argument is plausible but still needs sharper empirical grounding.
+- `k_007_activity_idempotency_and_audit_ledger`: 0.80. Strongly grounded in Temporal's at-least-once Activity model, retry semantics, and event-history constraints; the external audit-ledger conclusion is solid for LLM-sized payloads, but exact retention policy is still a design choice.
+- `k_008_workflow_activity_surface_and_control_semantics`: 0.74. Good TS SDK grounding plus repo-local mapping; remaining uncertainty is the exact Signal-vs-Update boundary in the chosen deployment.
+- `k_009_start_and_projection_consistency`: 0.78. Clear and correct on the lack of cross-system atomicity and the need for idempotent projection; the open risk is choosing the minimal handoff pattern without recreating queue complexity.
+- `k_010_observability_truth_and_control_plane`: 0.76. Strong support that Visibility/Search Attributes can lag and should not be the sole automation-grade truth; the strong-truth read path remains underspecified.
+- `k_011_runtime_versioning_and_option_pressure`: 0.69. Well-supported on Node-first workers, Bun experimental status, and the need for versioning/continue-as-new; weaker on alternatives because the comparison is not yet requirements-driven.
+- `k_012_control_contract_and_action_taxonomy`: 0.68. The direction is strong, but the exact action table still needs to be finalized in the blueprint.
+- `k_013_ledger_schema_and_provider_semantics`: 0.66. Strong on why the ledger must exist and what OpenAI metadata matters; weaker on exact retention and replay guarantees.
+- `k_014_start_handoff_patterns_decision_matrix`: 0.80. The strongest pass-3 area; it turns consistency into a real decision matrix with explicit repair states.
+- `k_015_observability_truth_stack_and_projection_schema`: 0.69. Good on precedence order and projection shape, but the exact projection fields are still not final.
+- `k_016_versioning_and_replay_workflow`: 0.62. Important and useful, but still conditional and not yet a full operational SOP.
+- `k_017_requirements_based_alternatives_matrix`: 0.56. Still the weakest evidence area; the alternatives comparison is meaningful but not yet decisive enough to fully close the question.
+- `k_018_settings_and_config_flow`: 0.73. Strong repo grounding on the current settings and env usage; remaining uncertainty is the exact boundary between snapshotted policy and emergency override fields.
+- `k_019_monorepo_package_runtime_split`: 0.77. Strong repo-local evidence that the current package is mixed-runtime and that package boundaries would make the new runtime split enforceable rather than aspirational.
+- `k_020_execution_policy_and_tooling_boundary`: 0.71. Strong enough to move provider-facing enforcement and tooling toward the worker side, but weaker on the exact global rate-limit mechanism across multiple workers.
+- `k_021_global_rate_limit_strategy`: 0.76. Strong enough to justify a layered design and rule out both Temporal-only and Redis-only simplifications; the remaining uncertainty is the exact Redis bucket schema and refund/reconciliation policy.
+- `k_022_provider_capability_divergence`: 0.78. Strong official-provider grounding that the engine cannot stay honest with an OpenAI-shaped core once Anthropic and Gemini enter the picture.
+- `k_023_provider_portable_code_architecture`: 0.74. Strong enough to justify a registry-plus-adapter architecture; remaining uncertainty is the exact minimal v0 capability schema and extension-field strategy.
+- `k_024_minimal_v0_capability_registry_schema`: 0.77. Strong enough to define the minimal first-class registry surface; the remaining work is choosing the exact enum/value set for quota dimensions and operation types.
+- `k_025_llm_attempt_envelope_and_upstash_key_model`: 0.75. Strong enough to define the generic attempt envelope and normalized Upstash key vocabulary; the remaining work is deciding which provider-specific fields get promoted out of extensions.
+- `k_026_v0_quota_dimensions_and_tracking_split`: 0.77. Strong enough to freeze the supported normalized quota vocabulary and the tracked-versus-enforced split; the remaining work has narrowed to provider-plan overrides and concrete implementation details on top of that frozen enum.
+- `k_027_upstash_v0_settlement_policy`: 0.74. Strong enough to freeze the conservative Upstash settlement direction; the remaining work has narrowed to plan-specific overrides and final ledger-field promotion, not the broad settlement shape itself.
+- `k_028_initial_provider_dimension_mapping`: 0.79. Strong enough to freeze the first registry snapshot for OpenAI PAYG, Anthropic, and Gemini without forcing one provider's quota model onto the others; the remaining work is how plan-specific overrides like OpenAI Scale Tier should be represented.
+- `k_029_provider_aware_output_budget_policy`: 0.78. Strong enough to reject a generic bounded output heuristic and adopt provider-aware output reservation rules; the remaining work is the exact shape of plan-specific overrides and how much output-cap metadata to promote into first-class attempt fields.
+- `k_030_control_contract_v0`: 0.76. Strong enough to write the final action-by-action control contract; the remaining uncertainty is the degraded fallback when Updates are unavailable or workers are down, plus exact pause strictness.
+- `k_031_llm_attempts_schema_and_retention`: 0.80. Strong enough to freeze the metadata-first attempt ledger, retention classes, and replay boundaries; the remaining uncertainty is the exact payload storage backend and whether quota events must be fully normalized in v0.
+- `k_032_convex_temporal_worker_api_boundary`: 0.77. Strong enough to freeze the public worker API boundary and repo ownership; the remaining uncertainty is the exact auth mechanism and how much type coupling to generated Convex references is acceptable.
+- `k_033_process_observability_projection_v2`: 0.74. Strong enough to freeze the discovery-versus-truth split and a compact projection direction; the remaining uncertainty is the exact required field set and anti-staleness gating.
+- `k_034_safe_deployment_and_versioning_sop`: 0.78. Strong enough to adopt replay testing and continue-as-new as v0 requirements and to stage Worker Versioning; the remaining uncertainty is when the stronger Worker Versioning tier becomes mandatory.
+
+## Hypothesis Scores
+- `h_A_01_001`: 0.72. Supported, but only if Convex is not treated as authoritative for live execution truth and projection rules are explicit.
+- `h_A_02_001`: 0.63. Node-only workers were the right first default, though Bun experimental support now softens this into a spike path rather than a hard impossibility claim.
+- `h_A_03_001`: 0.57. Directionally right but overstated if it relies on Visibility alone; now superseded by the stronger split in `h_A_08_001`.
+- `h_A_04_001`: 0.74. Strong on deleting the queue substrate, weaker on the exact audit/idempotency replacement.
+- `h_A_05_001`: 0.77. Correct direction for templates plus an append-only attempt ledger keyed by Temporal identifiers; biggest uncertainty is Convex storage pressure if payload handling is naive.
+- `h_A_06_001`: 0.73. Two top-level workflows and no child workflows initially is coherent; mixed Signals/Updates is right, but still depends on the exact operational posture around Updates.
+- `h_A_07_001`: 0.78. Strong and necessary: explicit handoff, Temporal as execution truth, Convex as projected product state.
+- `h_A_08_001`: 0.75. Good observability split that matches Temporal's documented caveats; remaining work is pinning the exact projection fields and confirmation path.
+- `h_A_09_001`: 0.68. Node workers plus a Bun spike is strongly supported; "Temporal remains best default" is plausible but still contingent on ops tolerance and a sharper alternatives matrix.
+- `h_A_10_001`: 0.67. The control contract split is right in principle, but still needs literal per-action rows.
+- `h_A_11_001`: 0.65. The metadata-first ledger is plausible and likely right, but replay and retention semantics remain under-specified.
+- `h_A_12_001`: 0.79. This is now a strong hypothesis: handoff really should be pattern-selected per flow.
+- `h_A_13_001`: 0.69. Good observability precedence order, but the Convex projection and repair gating rules still need to be written explicitly.
+- `h_A_14_001`: 0.63. Replay testing and continue-as-new are strong defaults, but pinned rollout is only conditionally justified.
+- `h_A_15_001`: 0.58. Temporal still leads, but the case against Restate/Inngest is not fully closed.
+- `h_A_16_001`: 0.73. Strong on the defaults-policy-secrets split; main open issue is which fields are allowed to drift under ops override.
+- `h_A_17_001`: 0.76. Strong default for a greenfield rewrite because it creates enforceable runtime boundaries; the optionality of `engine-tools` is the main narrowing factor.
+- `h_A_18_001`: 0.70. Strong on ownership, weaker on implementation because multi-worker provider fairness may require more than worker-local throttling.
+- `h_A_19_001`: 0.76. Strong enough to replace the vague “shared external limiter maybe” idea with a concrete layered default; still open on the exact per-scope reservation and reconciliation rules.
+- `h_A_20_001`: 0.78. Strong and increasingly necessary: explicit capability metadata is the cleanest way to keep provider differences out of core workflow logic.
+- `h_A_21_001`: 0.74. Strong architectural default for maintainability; the remaining gap is deciding which fields are truly first-class versus provider extensions.
+- `h_A_22_001`: 0.77. Strong enough to freeze a minimal registry shape without overfitting it to provider wire formats.
+- `h_A_23_001`: 0.75. Strong enough to freeze the generic attempt envelope direction and Upstash key vocabulary before implementation.
+- `h_A_24_001`: 0.78. Strong enough to replace the vague quota-dimension shortlist with an honest normalized superset.
+- `h_A_25_001`: 0.75. Strong enough to adopt Upstash and conservative settlement rules as the default v0 direction.
+- `h_A_26_001`: 0.79. Strong enough to freeze the initial provider mapping table for standard interactive workloads while leaving plan-specific overrides explicit rather than implicit.
+- `h_A_27_001`: 0.78. Strong enough to make the first output-budget policy provider-aware and to reject under-reserving Anthropic relative to its own documented OTPM semantics.
+- `h_A_28_001`: 0.76. Correct direction for the final control contract; the main risk is underestimating worker-availability and pause-semantics edge cases.
+- `h_A_29_001`: 0.81. Very strong architectural default for the audit layer; the main risk is overspecifying the physical normalization of quota-event storage too early.
+- `h_A_30_001`: 0.78. Strong boundary choice that keeps runtime ownership enforceable; the main risk is auth creep or a fat worker API surface.
+- `h_A_31_001`: 0.74. Strong enough to freeze the projection/truth split; the main risk is projection drift into a de facto control surface.
+- `h_A_32_001`: 0.78. Strong enough to stop treating safe deployment as “later research”; the main risk is adopting too much Worker Versioning complexity too early for a small team.
+
+## Null Challenge Scores
+- `nc_pass2_runtime_boundary_and_control_challenge`: 0.72. Useful and mostly correct: it narrowed the control-plane recommendation, challenged outbox defaulting, and warned about ledger cost and Visibility overreach.
+- `nc_pass3_contracts_and_alternatives_challenge`: 0.74. Helpful on sharpening the truth precedence order, softening the pinned-rollout default, and forcing explicit rejection criteria for alternatives.
+- `nc_pass4_package_and_policy_boundary_challenge`: 0.72. Helpful on keeping `engine-tools` optional, constraining the shared-config idea to pure code only, and surfacing the unresolved question of cross-worker global rate limiting.
+- `nc_pass5_global_rate_limit_challenge`: 0.78. Useful and sharper than the earlier placeholder: it cleanly rejects Temporal-only and Redis-only extremes while narrowing the remaining work to quota schema and refund rules.
+- `nc_pass6_provider_portability_challenge`: 0.77. Helpful on ruling out a silent generic provider interface and on keeping v0 provider-portable without promising every provider-specific implementation immediately.
+- `nc_pass7_registry_and_ledger_schema_challenge`: 0.78. Helpful on ruling out registry bloat, schema over-promotion, and provider-wire-named Upstash keys.
+- `nc_pass8_quota_and_settlement_challenge`: 0.79. Helpful on forcing `total_tokens` into the normalized vocabulary, keeping tracked-only usage fields out of independent buckets, and making conservative settlement the explicit default.
+- `nc_pass9_provider_mapping_and_output_policy_challenge`: 0.80. Helpful on ruling out fake provider symmetry, under-reserved Anthropic output policy, and invented Gemini output buckets while preserving a clean override path for special billing modes.
+- `nc_pass10_remaining_pre_refactor_passes_challenge`: 0.77. Helpful on staging Worker Versioning, softening the hard requirement for three physical ledger tables in v0, and forcing explicit fallback/guardrail language around Updates and projection trust.
+
+## Step Scores
+- `S1 Ownership and table matrix`: 0.70. Enough evidence to define ownership and interfaces, but still not enough to skip explicit idempotency design.
+- `S2 Package / runtime boundary`: 0.76. Strong enough to adopt the multi-package default; the remaining work is the exact API shape between packages and the migration order.
+- `S3 Settings / config flow`: 0.73. Strong on separating defaults, policy snapshots, and secrets; the remaining gap is deciding what can drift under emergency ops overrides.
+- `S4 Execution policy / tooling boundary`: 0.69. Strong on worker ownership of provider-facing policy, weaker on the exact multi-worker rate-limit mechanism and when a separate tools package becomes worthwhile.
+- `S4b Global quota strategy`: 0.76. Strong enough to proceed with a layered design; the remaining implementation risk is choosing the exact Redis data model and usage reconciliation semantics.
+- `S4c Provider capability registry and adapter boundary`: 0.76. Strong enough to treat provider portability as a real architecture requirement rather than future cleanup; the remaining work is the minimal schema and operation taxonomy.
+- `S4d Minimal registry and attempt envelope`: 0.76. Strong enough to start shared-contract design; the remaining work is the exact enum set, provider-extension policy, and reservation/refund mechanics.
+- `S4e V0 quota enum and settlement policy`: 0.77. Strong enough to start concrete quota-contract design; it now serves as the stable enum/settlement base for the pass-9 provider mapping and reservation rules.
+- `S4f Initial provider mapping and output reservation`: 0.79. Strong enough to freeze the first registry snapshot and provider-aware output reservation policy; the remaining work is explicit plan-override modeling and any future enterprise billing variants.
+- `S6 Control contract table`: 0.76. Ready to write now; the remaining work is exact timeout/fallback behavior and the final `cmdId` format.
+- `S7 Audit ledger + idempotency contract`: 0.82. Ready to specify schemas, dedupe keys, retention classes, and the replay contract; the main open choice is payload backend and exact quota-event normalization.
+- `S8 Start/projection boundary and worker API`: 0.77. Ready to lock the public worker API plus repo-wrapper boundary; the main open choice is worker auth.
+- `S9 Observability model`: 0.74. Ready to lock the projection direction and truth precedence; the main open work is the exact field set and anti-staleness rule.
+- `S10 Versioning / rollout SOP`: 0.78. Ready to adopt replay-testing and continue-as-new defaults, with Worker Versioning treated as a staged later tier.
+- `Idempotency / Audit Ledger`: 0.78. Main remaining gap is exact schema, retention, blob strategy, and dedupe indices.
+- `Workflow / Control Design`: 0.72. Main remaining gap is the explicit control contract table and the decision on when Updates are required.
+- `Start / Projection Boundary`: 0.76. Main remaining gap is the default handoff pattern per flow and the reconciliation rules around failed handoff/projection.
+- `Observability / Control Plane`: 0.74. Main remaining gap is the exact strong-truth read path and metrics routing into Axiom.
+- `Runtime / Versioning / Options`: 0.66. Main remaining gap is a concrete versioning/replay workflow and a requirement-based alternatives comparison.
+- `Control contract`: 0.67. Enough to justify the contract shape, not enough to skip writing the final action table.
+- `Ledger schema / provider semantics`: 0.65. Enough to justify the split and major fields, not enough to finalize replay and retention rules.
+- `Start handoff matrix`: 0.80. This is now the most implementation-ready class in the blueprint.
+- `Observability truth stack / projection schema`: 0.68. Stronger now, but the exact projection schema and repair gating path still need to be nailed down.

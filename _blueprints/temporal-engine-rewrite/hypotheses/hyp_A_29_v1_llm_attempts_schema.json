@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_29_001",
+  "areaOfAnalysisID": "A_29",
+  "statement": "The v0 audit layer should use a metadata-first, append-only `llm_attempts` design split across a compact attempt envelope, a separate payload/blob reference shape, and an append-only quota-event shape, with `provider_extensions` carrying provider-wire details and first-class columns limited to cross-provider operational needs.",
+  "confidence": 0.79,
+  "rationale": "This is the smallest schema that keeps idempotency, retention, provider reconciliation, and quota auditing explicit without running into Convex document limits or forcing provider-wire details into core columns.",
+  "keyAssumptions": [
+    "The team is willing to accept a slightly more explicit multi-shape design instead of a single oversized attempts table",
+    "Reproducibility depends on preserving render-input references and hashes, not only raw payload blobs",
+    "The attempt ledger remains append-only and separate from scientific artifact dedupe"
+  ],
+  "validationCriteria": [
+    "Real LLM payload sizes fit the storage model without depending on giant inline docs",
+    "Ambiguous provider outcomes can be reconciled via first-class correlation ids",
+    "Quota reservations and refunds remain auditable per attempt"
+  ],
+  "critiquePoints": [
+    "Schema sprawl is a real complexity cost",
+    "Replay guarantees weaken if render inputs are later redacted or lost"
+  ],
+  "questions": [
+    "Which provider-specific fields deserve promotion out of `provider_extensions` in v0 versus later?"
+  ]
+}

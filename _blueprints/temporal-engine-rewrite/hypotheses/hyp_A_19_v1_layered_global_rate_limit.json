@@ -1,0 +1,25 @@
+{
+  "microHypothesisID": "h_A_19_001",
+  "areaOfAnalysisID": "A_19",
+  "statement": "Judge-gym should use a layered rate-limit design in the Temporal rewrite: queue partitioning plus Temporal queue-level dispatch caps for coarse cross-worker shaping, worker concurrency controls for host protection, and a Redis-backed distributed limiter only for provider/model quotas that require shared request and token accounting across workers.",
+  "confidence": 0.76,
+  "rationale": "The current system enforces request, input-token, output-token, and batch scopes per model. Temporal natively handles queue dispatch and worker saturation, but not shared provider token budgets. A layered design preserves the existing business behavior without overusing Redis for everything.",
+  "keyAssumptions": [
+    "Judge-gym will continue to care about per-model request and token quotas after the rewrite",
+    "Temporal task queues can be kept coarse enough that queue sprawl does not become an operational burden",
+    "An external Redis dependency is acceptable if it is limited to quota enforcement rather than general orchestration"
+  ],
+  "validationCriteria": [
+    "Multiple workers cannot collectively exceed a shared provider/model token budget even when they scale horizontally",
+    "Queue-level dispatch throttling can be changed centrally without worker option thrash",
+    "The design distinguishes host-protection limits from provider-quota limits"
+  ],
+  "critiquePoints": [
+    "If v0 runs on a single worker deployment, the Redis layer may be unnecessary overhead at first",
+    "Batch APIs may require a different reservation/reconciliation policy than synchronous chat calls"
+  ],
+  "questions": [
+    "Which quota dimensions should reserve estimated output tokens before a call, and which should reconcile only after actual usage is known?",
+    "Is a single Redis-backed token bucket algorithm enough, or do some scopes want a sliding-window approximation instead?"
+  ]
+}

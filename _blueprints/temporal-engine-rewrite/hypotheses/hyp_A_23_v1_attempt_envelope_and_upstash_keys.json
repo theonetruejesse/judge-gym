@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_23_001",
+  "areaOfAnalysisID": "A_23",
+  "statement": "The rewritten `llm_attempts` ledger and Upstash quota keys should share one normalized vocabulary from the capability registry: keep attempt identity, domain linkage, normalized usage, and payload references as first-class fields, and push provider-specific metadata into `provider_extensions`.",
+  "confidence": 0.75,
+  "rationale": "If the ledger and rate-limit layer derive from different provider vocabularies, the engine will drift back into provider-specific branching. A normalized envelope plus extension payload gives maintainability without erasing provider-specific metadata.",
+  "keyAssumptions": [
+    "Normalized usage fields like `input_tokens`, `output_tokens`, and `cached_input_tokens` are enough for most cross-provider analytics and quota accounting",
+    "Provider-specific metadata can remain queryable and debuggable inside structured extension payloads"
+  ],
+  "validationCriteria": [
+    "A new provider can map usage into the generic envelope without changing the top-level attempt schema",
+    "Quota keys are generated from normalized dimension IDs instead of provider-specific field names",
+    "Provider-specific IDs such as batch/file/request identifiers do not force schema churn in the generic ledger envelope"
+  ],
+  "critiquePoints": [
+    "If too many important provider details are buried in extensions, analytics and debugging could become cumbersome",
+    "Some provider fields may eventually deserve promotion to first-class columns after real usage"
+  ],
+  "questions": [
+    "Which provider-specific fields should be promoted immediately because they are operationally critical across multiple providers?"
+  ]
+}

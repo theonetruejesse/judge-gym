@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_05_001",
+  "areaOfAnalysisID": "A_05",
+  "statement": "Judge-gym should keep llm_prompt_templates and replace runtime-shaped llm_requests behavior with an append-only Convex LLM attempt ledger keyed by Temporal activity idempotency identifiers.",
+  "confidence": 0.81,
+  "rationale": "Temporal Activities are not exactly once, Temporal history is a poor default store for large LLM payloads, and judge-gym still needs reproducibility plus dedupe across retries.",
+  "keyAssumptions": [
+    "Convex can store metadata and hashes/blob references without becoming the primary payload bottleneck",
+    "Activity writes into the ledger are made idempotent with unique idempotency keys"
+  ],
+  "validationCriteria": [
+    "Duplicate Activity execution does not create duplicate scientific artifacts or duplicate ledger effects",
+    "Prompts and outputs remain queryable and reproducible without relying on Temporal history retention"
+  ],
+  "critiquePoints": [
+    "Blindly storing full prompt and output bodies in Convex could create avoidable cost and throughput pressure"
+  ],
+  "questions": [
+    "Which payloads stay inline in Convex and which move to blob/object storage?"
+  ]
+}

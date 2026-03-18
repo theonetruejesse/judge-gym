@@ -1,0 +1,64 @@
+{
+  "challengeID": "nc_pass2_001",
+  "microHypothesisIDs": [
+    "h_A_05_001",
+    "h_A_06_001",
+    "h_A_07_001",
+    "h_A_08_001",
+    "h_A_09_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Signals-first control plane as a blanket default",
+      "falsificationQueries": [
+        "Temporal updates vs signals acknowledgement official docs",
+        "Temporal update with start GA operator control"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Signals alone are too weak for acknowledged operator actions. Updates are now mature enough that the blueprint should distinguish best-effort nudges from validated control operations instead of avoiding Updates wholesale.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Convex append-only attempt ledger is obviously safe and cheap",
+      "falsificationQueries": [
+        "Convex limits append only logs",
+        "Temporal large payload history limits"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "An external ledger is still justified, but only if it is scoped, deduped, and stores blob references or hashes where necessary. Raw full-body storage by default could create unnecessary Convex pressure.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "DB-first outbox is always the right start-consistency pattern",
+      "falsificationQueries": [
+        "Temporal signal with start update with start consistency",
+        "Temporal start workflow in transaction guidance"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Outbox is not automatically required. With-Start primitives plus idempotent workflow IDs may be sufficient for some flows, so the blueprint must narrow where an outbox is actually justified.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Visibility can be trusted for automation-grade correctness",
+      "falsificationQueries": [
+        "Temporal visibility eventual consistency",
+        "Temporal search attribute lag"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Visibility remains useful for discovery but is still too weak as a sole correctness oracle. The blueprint should keep stronger per-execution truth or a projection path for automation.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Temporal is clearly best by default with no meaningful runtime caveats",
+      "falsificationQueries": [
+        "Temporal TypeScript bun support limitations",
+        "Restate versioning long running handlers",
+        "Inngest durable execution versioning"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Temporal remains the strongest default, but only with Node workers and an explicit versioning plan. Bun support is still experimental, and alternatives are not obviously better on the current evidence.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}

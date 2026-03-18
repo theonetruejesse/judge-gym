@@ -1,0 +1,74 @@
+{
+  "challengeID": "nc_pass3_001",
+  "microHypothesisIDs": [
+    "h_A_10_001",
+    "h_A_11_001",
+    "h_A_12_001",
+    "h_A_13_001",
+    "h_A_14_001",
+    "h_A_15_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Updates should be the blanket default for acknowledged control actions",
+      "falsificationQueries": [
+        "Temporal TypeScript message passing updates worker availability",
+        "Temporal update with start version requirements"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Updates are the right primitive when validation, receipts, or returned values matter, but they are more availability-sensitive than Signals and should not be described as the universal answer for every write.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Blob-ref-first llm_attempts ledger is safe by default",
+      "falsificationQueries": [
+        "Convex state limits document size bandwidth",
+        "Temporal event history limits"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "The ledger split holds, but replay and reproducibility become fragile unless the blueprint specifies blob retention, hashing, inline metadata, and redaction/expiry behavior.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Create-then-start is the universal default handoff",
+      "falsificationQueries": [
+        "Temporal signal with start update with start official docs",
+        "start workflow in transaction Temporal community guidance"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Create-then-start is only one of several sane patterns. The choice needs to be flow-specific and should not be presented as if idempotent workflow IDs solve cross-system consistency by themselves.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Describe plus Query together define the strong-truth tier",
+      "falsificationQueries": [
+        "Temporal visibility approximate count query worker online",
+        "DescribeWorkflowExecution api docs"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Query depends on worker availability and should not share the same truth tier as Describe. The strong-truth ordering needs to be explicit.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Pinned rollout is the free early default",
+      "falsificationQueries": [
+        "Temporal worker versioning preview draining caveats",
+        "continue as new update signal handler restriction"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Replay testing and continue-as-new remain strong defaults, but pinned rollout carries preview and draining costs that make it conditional rather than universal.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Temporal clearly wins over Restate and Inngest without explicit rejection criteria",
+      "falsificationQueries": [
+        "Restate workflow exactly once per id official docs",
+        "Inngest durable execution official docs"
+      ],
+      "falsificationEvidenceFound": [],
+      "falsificationAnalysis": "Temporal still leads, but the alternatives are credible enough that the blueprint needs explicit rejection criteria rather than broad default claims.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}

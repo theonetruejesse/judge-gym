@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "Temporal Visibility should replace Convex runtime tables as the primary liveness index, while Convex becomes a read model and Axiom remains deep telemetry for monitor-triggered agent loops.",
+  "confidence": 0.76,
+  "rationale": "Visibility and Search Attributes are designed for listing/filtering workflow executions, while Updates/Signals/Queries provide a cleaner control model than custom auto-heal mutations.",
+  "keyAssumptions": [
+    "Visibility backend is configured strongly enough for required fleet queries",
+    "The team is comfortable using Temporal UI or MCP-backed status over direct table scans"
+  ],
+  "validationCriteria": [
+    "A monitoring loop can answer which executions are running, stalled, or failed from Temporal first",
+    "Bounded repair operations can be expressed as workflow updates"
+  ],
+  "critiquePoints": [
+    "Visibility may need extra backend setup and search-attribute design",
+    "MCP interaction rules may still require explicit approval for some fixes"
+  ],
+  "questions": [
+    "How much execution detail should still be mirrored into Convex for product surfaces?"
+  ]
+}
+

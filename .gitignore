@@ -10,6 +10,8 @@ packages/analysis/.venv/
 packages/analysis/__pycache__/
 packages/analysis/src/**/__pycache__/
 packages/analysis/scripts/output/
+packages/analysis/_cache/
+packages/analysis/_outputs/
 *.pyc
 *.egg-info/
 

@@ -1,0 +1,73 @@
+{
+  "challengeID": "nc_pass10_001",
+  "microHypothesisIDs": [
+    "h_A_28_001",
+    "h_A_29_001",
+    "h_A_30_001",
+    "h_A_31_001",
+    "h_A_32_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Updates are always available and should be the unconditional control primitive for acknowledged state changes",
+      "falsificationQueries": [
+        "Do Updates depend on worker availability or server enablement in ways that require a degraded fallback mode?",
+        "Is Update-With-Start safe enough to use by default for correctness-sensitive config changes?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_030_control_contract_v0.md"
+      ],
+      "falsificationAnalysis": "The direction still holds, but the blueprint needs a guardrail: Updates are the preferred acknowledged control primitive only when the Temporal deployment supports them reliably. Update-With-Start should remain banned by default for correctness-sensitive controls because it is not atomic.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "The v0 attempt ledger must ship as three separate tables or the design is incomplete",
+      "falsificationQueries": [
+        "Can the architectural principle be preserved without forcing three distinct tables on day one?",
+        "Which part is essential: metadata-first separation, or the exact physical split?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_031_llm_attempts_schema_and_retention.md"
+      ],
+      "falsificationAnalysis": "The architectural direction is right, but the blueprint should not over-specify the physical table count for v0. What matters is append-only attempt metadata, out-of-line payload bodies, and auditable reservation/reconciliation. The exact quota-event normalization can be staged.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Workers can safely use Convex internals or admin-only client hooks as the long-term RPC surface",
+      "falsificationQueries": [
+        "Does Convex's public/internal function split support using internals as an external worker API?",
+        "Does the proposed worker boundary still need one unresolved hard decision?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_032_convex_temporal_worker_api_boundary.md"
+      ],
+      "falsificationAnalysis": "The worker-API boundary passes, but it still requires one explicit auth decision. The blueprint should not overcommit to a specific auth mechanism before that choice is made.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Visibility/Search Attributes are safe enough to act on directly in the future repair loop",
+      "falsificationQueries": [
+        "Are Visibility counts exact and Search Attributes safe for low-latency business logic?",
+        "Would a projection drift back into execution truth if the repair loop does not hard-gate actions?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_033_process_observability_projection_v2.md"
+      ],
+      "falsificationAnalysis": "The observability split still holds. The narrowing requirement is explicit hard-gating: discovery via Visibility and projection, but repair actions only after stronger Temporal confirmation and acknowledged action receipts.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Worker Versioning, replay testing, patching, and ramping are all mandatory v0 requirements from day one",
+      "falsificationQueries": [
+        "Can the safe-deployment SOP be staged without losing the core safety benefits?",
+        "Which parts are minimum viable v0 and which parts should remain later operational upgrades?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_034_safe_deployment_and_versioning_sop.md"
+      ],
+      "falsificationAnalysis": "The safe-deployment direction passes, but the blueprint should stage it. Replay testing and continue-as-new discipline are minimum v0 requirements; Worker Versioning ramping and pinned-versus-auto-upgrade routing should be treated as the stronger later tier unless early workflows are already long-lived enough to justify it.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

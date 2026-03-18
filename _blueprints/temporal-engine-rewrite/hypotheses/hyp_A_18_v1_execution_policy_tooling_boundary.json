@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_18_001",
+  "areaOfAnalysisID": "A_18",
+  "statement": "Provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling should live with the Node worker runtime, while Convex remains the owner of versioned policy inputs, policy snapshots, and data-facing audit/projection rows.",
+  "confidence": 0.7,
+  "rationale": "The current rate limiter and execution settings are embedded in Convex because execution lives there today. After the rewrite, the side that experiences provider pressure, retries, and concurrency is the worker side, so correctness-critical enforcement should move with it.",
+  "keyAssumptions": [
+    "Worker processes can fetch or cache policy snapshots without compromising reproducibility",
+    "Global provider throttling, if required, can be solved in the worker plane without moving execution ownership back into Convex"
+  ],
+  "validationCriteria": [
+    "No provider-facing limiter remains correctness-critical inside Convex after cutover",
+    "Runs and windows retain stable policy identifiers for reproducibility",
+    "Temporal-facing CLIs do not require Bun runtime assumptions to function"
+  ],
+  "critiquePoints": [
+    "Cross-worker global rate limiting may still require a shared external store or stricter Temporal queue partitioning",
+    "Some simple admin tooling may not justify a separate package on day one"
+  ],
+  "questions": [
+    "Do provider quotas require a globally coordinated limiter, or are task-queue and worker-level controls enough for v0?"
+  ]
+}

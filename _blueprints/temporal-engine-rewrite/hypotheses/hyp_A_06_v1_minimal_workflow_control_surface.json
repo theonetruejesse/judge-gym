@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_06_001",
+  "areaOfAnalysisID": "A_06",
+  "statement": "The first rewrite should use exactly two top-level workflows, RunWorkflow and WindowWorkflow, no child workflows initially, and a mixed control plane where Signals handle fire-and-forget nudges while Updates are reserved for validated or acknowledged operator actions.",
+  "confidence": 0.76,
+  "rationale": "A small workflow surface reduces operational and agent complexity, while a mixed Signals/Updates model maps better to real control semantics than a strict signals-only approach.",
+  "keyAssumptions": [
+    "Initial run and window fanout can be handled with bounded parallelism and continue-as-new before child workflows become necessary",
+    "Temporal Updates are available and acceptable in the chosen self-hosted environment when acknowledgement is required"
+  ],
+  "validationCriteria": [
+    "pause_after, pause, resume, cancel, and bounded repair all map cleanly onto Temporal control primitives without extra queue machinery",
+    "The workflow histories remain manageable under realistic run and window sizes"
+  ],
+  "critiquePoints": [
+    "Overusing Updates could complicate deployment and compatibility if feature assumptions are wrong"
+  ],
+  "questions": [
+    "Which operator actions require acknowledgement versus best-effort delivery?"
+  ]
+}
