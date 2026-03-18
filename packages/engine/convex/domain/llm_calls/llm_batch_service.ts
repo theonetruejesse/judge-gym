@@ -288,7 +288,11 @@ export async function submitBatch(args: SubmitBatchArgs) {
   const resolvedPrompts = await ctx.runQuery(
     internal.domain.llm_calls.llm_request_repo.resolveRequestPrompts,
     { request_ids: requests.map((req) => req._id) },
-  );
+  ) as Array<{
+    request_id: Id<"llm_requests">;
+    system_prompt: string | null;
+    user_prompt: string;
+  }>;
   const promptByRequestId = new Map(
     resolvedPrompts.map((row: {
       request_id: Id<"llm_requests">;

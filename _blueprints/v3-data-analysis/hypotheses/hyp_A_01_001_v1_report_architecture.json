@@ -1,0 +1,29 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01_PilotFraming",
+  "statement": "A comprehensive V3 pilot report will be most informative and least misleading if it is structured as (1) global overview of adjudicative-geometry axes, (2) matched within-family effect analyses on the 30 shared samples, and (3) per-experiment drilldowns and case studies for high-instability samples/evidence bundles, with explicit labeling of exploratory vs confirmatory claims and effect-size-first uncertainty reporting.",
+  "confidence": 0.75,
+  "rationale": "V2's strongest narrative frame is 'adjudicative geometry' with explicit descriptive caveats; V3 is an intervention matrix with natural family groupings and matched samples, so matched family deltas are the cleanest unit for causal-ish interpretation without overclaiming. Exploratory-matrix reporting risks (multiple comparisons, garden-of-forking-paths) are mitigated by effect-size-first reporting, structured limitations, and consistent per-experiment/family 'report card' sections.",
+  "keyAssumptions": [
+    "V3 experiment families are intended as matched comparisons with shared samples and comparable evidence pools.",
+    "The current exported summary metrics (abstain/singleton/subset size/conflict) are directionally meaningful even if their absolute values may shift with alternate aggregation rules.",
+    "Readers will benefit from a few primary endpoints and a clear exploratory vs confirmatory distinction."
+  ],
+  "validationCriteria": [
+    "The report can be generated deterministically from SQLite snapshots into a stable markdown + images bundle with overview, per-family, and per-experiment sections.",
+    "For each family, matched deltas over the 30 samples can be computed and visualized (e.g., paired delta plots, bootstrap CIs) without requiring cross-family pooling.",
+    "A reviewer can trace every headline claim to a table/figure and to the underlying snapshot(s).",
+    "The report explicitly labels which findings are exploratory and which are supported by prespecified comparisons/metrics."
+  ],
+  "critiquePoints": [
+    "The belief/conflict metrics (TBM and closed-world) may be too sensitive to aggregation choices to be used as primary endpoints without additional validation.",
+    "Family-level conclusions may be unstable at n=30 samples; some families may be underpowered to detect small effects.",
+    "If evidence pools differ across experiments more than expected, matched-sample comparisons could be confounded."
+  ],
+  "questions": [
+    "What should be the prespecified primary endpoints for V3 (e.g., abstain rate, singleton rate, expected stage, entropy, divergence) to avoid metric cherry-picking?",
+    "What baseline/control should each family compare against (e.g., d1_control, or within-family baseline tag)?",
+    "Do we need additional derived tables (sample-level metrics, per-evidence metrics, response-item exploded tables) to support the case-study sections?"
+  ]
+}
+

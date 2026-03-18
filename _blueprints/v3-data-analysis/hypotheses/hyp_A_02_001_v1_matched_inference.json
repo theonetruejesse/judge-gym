@@ -1,0 +1,31 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02_statistical_methods",
+  "statement": "For V3, within-family matched-sample inference (paired bootstrap CIs and paired permutation/sign-flip tests over sample-level deltas) will produce materially different and more reliable conclusions than comparing per-experiment aggregate means, because it respects the repeated-measures structure (shared samples and shared evidence pools) and reduces variance.",
+  "confidence": 0.72,
+  "rationale": "The V3 matrix shares a fixed set of sample ordinals and evidence across configurations, creating a natural paired design. Paired estimators and nonparametric resampling tests make fewer assumptions than parametric tests and are better behaved at n=30. Mixed-effects models can further partition sample/evidence variance and improve interpretability via partial pooling.",
+  "keyAssumptions": [
+    "Sample ordinals are meaningfully matched across experiments (same underlying sample instances or equivalent sampling process).",
+    "Within-family contrasts are well-defined (clear baseline vs variant mapping).",
+    "Per-sample aggregates summarize the underlying evidence-level responses without discarding critical structure.",
+    "Permutation exchangeability holds approximately at the chosen unit of analysis (or can be made to hold via stratification)."
+  ],
+  "validationCriteria": [
+    "For each family, compute paired deltas for a primary endpoint panel (abstain_rate, singleton_rate, mean_subset_size, entropy/compression, conflict).",
+    "Show that paired bootstrap CI widths are meaningfully tighter than unpaired bootstrap CI widths for the same endpoints.",
+    "Run paired permutation tests for at least one primary endpoint per family and confirm qualitative agreement with bootstrap inference.",
+    "Fit a simple mixed-effects model with random intercepts for sample and evidence (or bundle) and confirm it yields consistent directionality with paired delta inference."
+  ],
+  "critiquePoints": [
+    "If sample matching is weak or sample ordinals encode different draws per experiment, pairing could bias inference and understate uncertainty.",
+    "Some metrics are non-linear aggregates (e.g., DST conflict) and may require careful unit-of-analysis choices to avoid misleading CIs.",
+    "Small n=30 makes mixed-model random-slope specifications brittle; overly complex models can mislead more than help.",
+    "Multiplicity remains a major risk: many endpoints and families can generate false positives without explicit correction or prioritization."
+  ],
+  "questions": [
+    "What is the canonical baseline for each family (especially families with >2 variants), and should baselines differ by model?",
+    "Do we treat evidence-level responses as independent within sample, or do we explicitly model within-sample correlation?",
+    "Which endpoints are primary vs secondary for V3 reporting, and what multiple-comparison policy should we enforce?"
+  ]
+}
+

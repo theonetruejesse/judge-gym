@@ -514,7 +514,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const run = await ctx.runQuery(internal.domain.runs.run_repo.getRun, {
       run_id,
     });
-    const experiment = await ctx.db.get(run.experiment_id);
+    const experiment = await ctx.db.get(run.experiment_id) as Doc<"experiments"> | null;
     if (!experiment) {
       throw new Error("Experiment not found");
     }

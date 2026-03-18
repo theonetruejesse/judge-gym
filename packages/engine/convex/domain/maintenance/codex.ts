@@ -1742,12 +1742,12 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     }
 
     if (!schedulerScheduled) {
-      const backlogBatch = queuedBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? submittingBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? runningBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? finalizingBatches.find((row) => isAllowedProcess(row.custom_key));
-      const backlogJob = queuedJobs.find((row) => isAllowedProcess(row.custom_key));
-      const backlogRequest = orphaned.find((row) => isAllowedProcess(row.custom_key));
+      const backlogBatch = queuedBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? submittingBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? runningBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? finalizingBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
+      const backlogJob = queuedJobs.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
+      const backlogRequest = orphaned.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
       const hasBacklog = backlogBatch != null || backlogJob != null || backlogRequest != null;
       if (hasBacklog) {
         const parsedBacklog = backlogBatch != null
