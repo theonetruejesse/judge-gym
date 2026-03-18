@@ -60,7 +60,7 @@
 - `k_014`: start handoff should be chosen per flow through a decision matrix, not by one universal create/start rule.
 - `k_015`: observability needs a precedence order: Visibility, Describe, Update receipt, Query, Convex projection, then Axiom.
 - `k_016`: replay testing and `continue-as-new` are low-regret defaults, but pinned rollout is conditional rather than free.
-- `k_017`: Temporal still leads, but only if Restate and Inngest are rejected against explicit judge-gym requirements.
+- `k_017`: Temporal is the chosen workflow runtime after requirements-based comparison, and alternatives should stay closed unless implementation reveals a concrete blocker.
 - `k_018`: settings/config should split into shared defaults, Convex-stored versioned operator policy, and runtime-local secrets/env parsing.
 - `k_019`: the rewrite should split the current engine into runtime-specific packages rather than keep a mixed Bun/Node/Convex package.
 - `k_020`: provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling should move with the worker runtime.
@@ -108,71 +108,75 @@ Critical corrections carried forward:
 
 ## 3. Refined Areas of Analysis
 
-| Area ID | Scope | Evidence IDs |
-| ------- | ----- | ------------ |
-| `A_05` | Activity idempotency and LLM audit ledger | `k_007` |
-| `A_06` | Workflow/activity breakdown and control semantics | `k_008` |
-| `A_07` | Start consistency and Convex projection boundary | `k_009` |
-| `A_08` | Observability/control-plane truth split | `k_010` |
-| `A_09` | Runtime/versioning constraints and option pressure | `k_011` |
-| `A_10` | Action taxonomy and control contract | `k_012` |
-| `A_11` | Provider-aware LLM attempt ledger | `k_013` |
-| `A_12` | Per-flow start handoff matrix | `k_014` |
-| `A_13` | Observability truth stack and projection schema | `k_015` |
-| `A_14` | Versioning and replay workflow | `k_016` |
-| `A_15` | Requirements-based alternatives matrix | `k_017` |
-| `A_16` | Settings and config flow | `k_018` |
-| `A_17` | Monorepo package and runtime boundary | `k_019` |
-| `A_18` | Execution policy, rate limiting, and tooling boundary | `k_020` |
-| `A_19` | Global provider quota strategy | `k_021` |
-| `A_20` | Provider capability divergence | `k_022` |
-| `A_21` | Provider-portable code architecture | `k_023` |
-| `A_22` | Minimal v0 capability registry schema | `k_024` |
-| `A_23` | `llm_attempts` envelope and Upstash key model | `k_025` |
-| `A_24` | V0 quota-dimension and tracking split | `k_026` |
-| `A_25` | Upstash v0 settlement policy | `k_027` |
-| `A_26` | Initial provider-to-dimension mapping | `k_028` |
-| `A_27` | Provider-aware output reservation policy | `k_029` |
-| `A_28` | Final control contract | `k_030` |
-| `A_29` | `llm_attempts` schema and retention contract | `k_031` |
-| `A_30` | Convex to Temporal worker API boundary | `k_032` |
-| `A_31` | Observability projection and repair-read model | `k_033` |
-| `A_32` | Safe deployment and versioning SOP | `k_034` |
+
+| Area ID | Scope                                                 | Evidence IDs |
+| ------- | ----------------------------------------------------- | ------------ |
+| `A_05`  | Activity idempotency and LLM audit ledger             | `k_007`      |
+| `A_06`  | Workflow/activity breakdown and control semantics     | `k_008`      |
+| `A_07`  | Start consistency and Convex projection boundary      | `k_009`      |
+| `A_08`  | Observability/control-plane truth split               | `k_010`      |
+| `A_09`  | Runtime/versioning constraints and option pressure    | `k_011`      |
+| `A_10`  | Action taxonomy and control contract                  | `k_012`      |
+| `A_11`  | Provider-aware LLM attempt ledger                     | `k_013`      |
+| `A_12`  | Per-flow start handoff matrix                         | `k_014`      |
+| `A_13`  | Observability truth stack and projection schema       | `k_015`      |
+| `A_14`  | Versioning and replay workflow                        | `k_016`      |
+| `A_15`  | Requirements-based alternatives matrix                | `k_017`      |
+| `A_16`  | Settings and config flow                              | `k_018`      |
+| `A_17`  | Monorepo package and runtime boundary                 | `k_019`      |
+| `A_18`  | Execution policy, rate limiting, and tooling boundary | `k_020`      |
+| `A_19`  | Global provider quota strategy                        | `k_021`      |
+| `A_20`  | Provider capability divergence                        | `k_022`      |
+| `A_21`  | Provider-portable code architecture                   | `k_023`      |
+| `A_22`  | Minimal v0 capability registry schema                 | `k_024`      |
+| `A_23`  | `llm_attempts` envelope and Upstash key model         | `k_025`      |
+| `A_24`  | V0 quota-dimension and tracking split                 | `k_026`      |
+| `A_25`  | Upstash v0 settlement policy                          | `k_027`      |
+| `A_26`  | Initial provider-to-dimension mapping                 | `k_028`      |
+| `A_27`  | Provider-aware output reservation policy              | `k_029`      |
+| `A_28`  | Final control contract                                | `k_030`      |
+| `A_29`  | `llm_attempts` schema and retention contract          | `k_031`      |
+| `A_30`  | Convex to Temporal worker API boundary                | `k_032`      |
+| `A_31`  | Observability projection and repair-read model        | `k_033`      |
+| `A_32`  | Safe deployment and versioning SOP                    | `k_034`      |
+
 
 ---
 
 ## 4. Active Micro-Hypotheses
 
-| Hypothesis ID | Statement | Evidence | Confidence |
-| ------------- | --------- | -------- | ---------- |
-| `h_A_05_001` | Keep `llm_prompt_templates` and replace runtime-shaped `llm_requests` behavior with an append-only Convex LLM attempt ledger keyed by Temporal Activity idempotency identifiers. | `k_007` | `0.77` |
-| `h_A_06_001` | Start with exactly two top-level workflows, `RunWorkflow` and `WindowWorkflow`, no child workflows initially, and a mixed control plane where Signals handle fire-and-forget nudges while Updates are reserved for validated or acknowledged actions. | `k_008` | `0.73` |
-| `h_A_07_001` | Model start/projection consistency as an explicit idempotent handoff problem, with Temporal as execution truth and Convex as projected product state. | `k_009` | `0.78` |
-| `h_A_08_001` | Use Temporal Visibility and Search Attributes for discovery, stronger per-execution inspection plus a small Convex read model for automation-grade decisions, and Axiom plus Temporal metrics for deep telemetry. | `k_010` | `0.75` |
-| `h_A_09_001` | Keep Temporal as the default workflow runtime, with Node workers in production, Bun only as an experimental spike, and Worker Versioning plus `continue-as-new` treated as mandatory design inputs. | `k_011` | `0.68` |
-| `h_A_10_001` | Adopt a literal control contract where Updates are used only when validation or acknowledgement matters, Signals remain cheaper best-effort writes, Describe outranks Query for execution truth, and cancel uses Temporal cancellation. | `k_012` | `0.67` |
-| `h_A_11_001` | Keep `llm_prompt_templates` and add an append-only `llm_attempts` ledger with provider correlation IDs, usage, and hashes/blob refs for large payloads. | `k_013` | `0.65` |
-| `h_A_12_001` | Select start handoff patterns per flow using business-keyed workflow IDs and explicit reconciliation states instead of forcing one global create/start rule. | `k_014` | `0.79` |
-| `h_A_13_001` | The automation truth stack should be `Visibility -> Describe -> Update receipt -> Query -> Convex projection`, with Convex remaining a compact ergonomics mirror only. | `k_015` | `0.69` |
-| `h_A_14_001` | Require replay testing and continue-as-new discipline by default, while making pinned worker rollout conditional rather than universal. | `k_016` | `0.63` |
-| `h_A_15_001` | Keep Temporal as the default only with explicit rejection criteria for Restate and Inngest tied to judge-gym’s control-plane and long-running workflow needs. | `k_017` | `0.58` |
-| `h_A_16_001` | Split configuration into shared schemas/defaults, Convex-stored versioned operator policy that runs/windows snapshot, and runtime-local secrets/env parsing, rather than keeping one `ENGINE_SETTINGS` module imported everywhere. | `k_018` | `0.73` |
-| `h_A_17_001` | Split the engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`, with hard bans on runtime-specific imports inside shared packages. | `k_019` | `0.76` |
-| `h_A_18_001` | Move provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling to the worker runtime, while Convex remains the owner of policy inputs, policy snapshots, and data-facing ledgers. | `k_020` | `0.70` |
-| `h_A_19_001` | Use a layered rate-limit design: Temporal queue partitioning and queue-level dispatch caps for coarse shaping, worker concurrency for host protection, and Redis-backed shared buckets only for provider/model quotas that require cross-worker request and token accounting. | `k_021` | `0.76` |
-| `h_A_20_001` | Introduce a provider capability registry and provider-specific extension points so the core engine consumes normalized capabilities and quota dimensions instead of baking OpenAI-shaped assumptions into workflows, ledgers, and limiter code. | `k_022` | `0.78` |
-| `h_A_21_001` | Inside `engine-temporal`, use a three-layer split of core execution logic, capability registry, and provider adapters, with a generic attempt-ledger envelope plus `provider_extensions` for provider-specific metadata. | `k_023` | `0.74` |
-| `h_A_22_001` | The minimal v0 provider capability registry should normalize only identity, operation flags, usage-field mapping, and quota dimensions, leaving provider wire formats and transport details inside adapters. | `k_024` | `0.77` |
-| `h_A_23_001` | The rewritten `llm_attempts` ledger and Upstash quota keys should share one normalized vocabulary from the capability registry: keep attempt identity, domain linkage, normalized usage, and payload references as first-class fields, and push provider-specific metadata into `provider_extensions`. | `k_025` | `0.75` |
-| `h_A_24_001` | The v0 normalized quota-dimension enum should support `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`; providers select the subset they enforce, while `cached_input_tokens`, `thinking_tokens`, and `service_tier` remain tracked usage fields. | `k_026` | `0.78` |
-| `h_A_25_001` | V0 should use Upstash token buckets from day one, with normalized quota keys and a conservative settlement policy: `requests=preflight`, `input_tokens=preflight_then_reconcile`, `output_tokens=preflight_then_reconcile`, `total_tokens=preflight_then_reconcile`, and optional `batch_enqueued_input_tokens=preflight_then_reconcile`. | `k_027` | `0.75` |
-| `h_A_26_001` | The initial v0 registry snapshot should map OpenAI PAYG interactive models to `requests` plus `total_tokens`, Anthropic interactive models to `requests` plus split `input_tokens` and `output_tokens`, and Gemini interactive models to `requests` plus `input_tokens`, while leaving room for provider-plan overrides such as OpenAI Scale Tier. | `k_028` | `0.79` |
-| `h_A_27_001` | V0 should use provider-aware output reservation rules instead of one generic bounded heuristic: OpenAI PAYG `total_tokens` reserves estimated input plus the full effective output cap, Anthropic `output_tokens` reserves full `max_tokens`, and Gemini v0 makes no output-side shared-bucket reservation because Gemini's documented quota shape does not require one. | `k_029` | `0.78` |
-| `h_A_28_001` | Judge-gym should implement operator and agent control as an explicit contract: `StartWorkflow` for start, `Update` for acknowledged state changes like `pause_after`, `pause`, `resume`, and bounded repair, workflow cancellation for `cancel`, and Signals only for best-effort nudges, with explicit command ids for every mutating action. | `k_030` | `0.76` |
-| `h_A_29_001` | The v0 audit layer should use a metadata-first, append-only `llm_attempts` design split across a compact attempt envelope, a separate payload/blob reference shape, and a quota-audit shape, with `provider_extensions` carrying provider-wire details and first-class columns limited to cross-provider operational needs. | `k_031` | `0.81` |
-| `h_A_30_001` | Temporal workers should talk to Convex only through a small public worker API of auth-gated, idempotent functions that delegate to internal mutations, while `engine-temporal` owns a `ConvexRepo` client wrapper and shared packages remain runtime-pure. | `k_032` | `0.78` |
-| `h_A_31_001` | V0 should add a compact Convex `process_observability_v2` projection keyed by `{process_kind, process_id}` that mirrors only linkage, coarse stage/status, pause state, bounded progress, last error summary, and freshness/correlation fields, while the agent loop treats Temporal Visibility as discovery-only and confirms any repair action through stronger Temporal surfaces. | `k_033` | `0.74` |
-| `h_A_32_001` | Judge-gym v0 should adopt a safe-deployment SOP where replay tests against recent histories are mandatory for workflow-code changes, `continue-as-new` is a first-class workflow-design input, deterministic workflow changes use TypeScript patching, and Worker Versioning/ramping is treated as a staged operational tier rather than an unconditional day-one requirement. | `k_034` | `0.78` |
+
+| Hypothesis ID | Statement                                                                                                                                                                                                                                                                                                                                                                         | Evidence | Confidence |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- |
+| `h_A_05_001`  | Keep `llm_prompt_templates` and replace runtime-shaped `llm_requests` behavior with an append-only Convex LLM attempt ledger keyed by Temporal Activity idempotency identifiers.                                                                                                                                                                                                  | `k_007`  | `0.77`     |
+| `h_A_06_001`  | Start with exactly two top-level workflows, `RunWorkflow` and `WindowWorkflow`, no child workflows initially, and a mixed control plane where Signals handle fire-and-forget nudges while Updates are reserved for validated or acknowledged actions.                                                                                                                             | `k_008`  | `0.73`     |
+| `h_A_07_001`  | Model start/projection consistency as an explicit idempotent handoff problem, with Temporal as execution truth and Convex as projected product state.                                                                                                                                                                                                                             | `k_009`  | `0.78`     |
+| `h_A_08_001`  | Use Temporal Visibility and Search Attributes for discovery, stronger per-execution inspection plus a small Convex read model for automation-grade decisions, and Axiom plus Temporal metrics for deep telemetry.                                                                                                                                                                 | `k_010`  | `0.75`     |
+| `h_A_09_001`  | Keep Temporal as the default workflow runtime, with Node workers in production, Bun only as an experimental spike, and treat replay safety plus `continue-as-new` as mandatory design inputs while staging heavier Worker Versioning machinery if needed later.                                                                                                                   | `k_011`  | `0.68`     |
+| `h_A_10_001`  | Adopt a literal control contract where Updates are used only when validation or acknowledgement matters, Signals remain cheaper best-effort writes, Describe outranks Query for execution truth, and cancel uses Temporal cancellation.                                                                                                                                           | `k_012`  | `0.67`     |
+| `h_A_11_001`  | Keep `llm_prompt_templates` and add an append-only `llm_attempts` ledger with provider correlation IDs, usage, and hashes/blob refs for large payloads.                                                                                                                                                                                                                           | `k_013`  | `0.65`     |
+| `h_A_12_001`  | Select start handoff patterns per flow using business-keyed workflow IDs and explicit reconciliation states instead of forcing one global create/start rule.                                                                                                                                                                                                                      | `k_014`  | `0.79`     |
+| `h_A_13_001`  | The automation truth stack should be `Visibility -> Describe -> Update receipt -> Query -> Convex projection`, with Convex remaining a compact ergonomics mirror only.                                                                                                                                                                                                            | `k_015`  | `0.69`     |
+| `h_A_14_001`  | Require replay testing and continue-as-new discipline by default, while making pinned worker rollout conditional rather than universal.                                                                                                                                                                                                                                           | `k_016`  | `0.63`     |
+| `h_A_15_001`  | Treat Temporal as the chosen workflow runtime for the rewrite and do not reopen Restate or Inngest unless implementation reveals a concrete blocker.                                                                                                                                                                                                                              | `k_017`  | `0.58`     |
+| `h_A_16_001`  | Split configuration into shared schemas/defaults, Convex-stored versioned operator policy that runs/windows snapshot, and runtime-local secrets/env parsing, rather than keeping one `ENGINE_SETTINGS` module imported everywhere.                                                                                                                                                | `k_018`  | `0.73`     |
+| `h_A_17_001`  | Split the engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`, with hard bans on runtime-specific imports inside shared packages.                                                                                                                                                                                                   | `k_019`  | `0.76`     |
+| `h_A_18_001`  | Move provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling to the worker runtime, while Convex remains the owner of policy inputs, policy snapshots, and data-facing ledgers.                                                                                                                                                                 | `k_020`  | `0.70`     |
+| `h_A_19_001`  | Use a layered rate-limit design: Temporal queue partitioning and queue-level dispatch caps for coarse shaping, worker concurrency for host protection, and Redis-backed shared buckets only for provider/model quotas that require cross-worker request and token accounting.                                                                                                     | `k_021`  | `0.76`     |
+| `h_A_20_001`  | Introduce a provider capability registry and provider-specific extension points so the core engine consumes normalized capabilities and quota dimensions instead of baking OpenAI-shaped assumptions into workflows, ledgers, and limiter code.                                                                                                                                   | `k_022`  | `0.78`     |
+| `h_A_21_001`  | Inside `engine-temporal`, use a three-layer split of core execution logic, capability registry, and provider adapters, with a generic attempt-ledger envelope plus `provider_extensions` for provider-specific metadata.                                                                                                                                                          | `k_023`  | `0.74`     |
+| `h_A_22_001`  | The minimal v0 provider capability registry should normalize only identity, operation flags, usage-field mapping, and quota dimensions, leaving provider wire formats and transport details inside adapters.                                                                                                                                                                      | `k_024`  | `0.77`     |
+| `h_A_23_001`  | The rewritten `llm_attempts` ledger and Upstash quota keys should share one normalized vocabulary from the capability registry: keep attempt identity, domain linkage, normalized usage, and payload references as first-class fields, and push provider-specific metadata into `provider_extensions`.                                                                            | `k_025`  | `0.75`     |
+| `h_A_24_001`  | The v0 normalized quota-dimension enum should support `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`; providers select the subset they enforce, while `cached_input_tokens`, `thinking_tokens`, and `service_tier` remain tracked usage fields.                                                                          | `k_026`  | `0.78`     |
+| `h_A_25_001`  | V0 should use Upstash token buckets from day one, with normalized quota keys and a conservative settlement policy: `requests=preflight`, `input_tokens=preflight_then_reconcile`, `output_tokens=preflight_then_reconcile`, `total_tokens=preflight_then_reconcile`, and optional `batch_enqueued_input_tokens=preflight_then_reconcile`.                                         | `k_027`  | `0.75`     |
+| `h_A_26_001`  | The initial v0 registry snapshot should map OpenAI PAYG interactive models to `requests` plus `total_tokens`, Anthropic interactive models to `requests` plus split `input_tokens` and `output_tokens`, and Gemini interactive models to `requests` plus `input_tokens`, while leaving room for provider-plan overrides such as OpenAI Scale Tier.                                | `k_028`  | `0.79`     |
+| `h_A_27_001`  | V0 should use provider-aware output reservation rules instead of one generic bounded heuristic: OpenAI PAYG `total_tokens` reserves estimated input plus the full effective output cap, Anthropic `output_tokens` reserves full `max_tokens`, and Gemini v0 makes no output-side shared-bucket reservation because Gemini's documented quota shape does not require one.          | `k_029`  | `0.78`     |
+| `h_A_28_001`  | Judge-gym should implement operator and agent control as an explicit contract: `StartWorkflow` for start, `Update` for acknowledged state changes like `pause_after`, `pause`, `resume`, and bounded repair, workflow cancellation for `cancel`, and Signals only for best-effort nudges, with explicit command ids for every mutating action.                                    | `k_030`  | `0.76`     |
+| `h_A_29_001`  | The v0 audit layer should use a metadata-first, append-only `llm_attempts` design split across a compact attempt envelope, a separate payload/blob reference shape, and a quota-audit shape, with `provider_extensions` carrying provider-wire details and first-class columns limited to cross-provider operational needs.                                                       | `k_031`  | `0.81`     |
+| `h_A_30_001`  | Temporal workers should talk to Convex only through a small public worker API of auth-gated, idempotent functions that delegate to internal mutations, while `engine-temporal` owns a `ConvexRepo` client wrapper and shared packages remain runtime-pure.                                                                                                                        | `k_032`  | `0.78`     |
+| `h_A_31_001`  | V0 should add a compact Convex `process_observability` projection keyed by `{process_kind, process_id}` that mirrors only linkage, coarse stage/status, pause state, bounded progress, last error summary, and freshness/correlation fields, while the agent loop treats Temporal Visibility as discovery-only and confirms any repair action through stronger Temporal surfaces. | `k_033`  | `0.74`     |
+| `h_A_32_001`  | Judge-gym v0 should adopt a safe-deployment SOP where replay tests against recent histories are mandatory for workflow-code changes, `continue-as-new` is a first-class workflow-design input, deterministic workflow changes use TypeScript patching, and Worker Versioning/ramping is treated as a staged operational tier rather than an unconditional day-one requirement.    | `k_034`  | `0.78`     |
+
 
 Foundational hypotheses from pass 1 remain directionally valid, but the later-pass hypotheses now carry the real implementation pressure.
 
@@ -195,7 +199,7 @@ Pass 3 falsification tightened the defaults further:
 - `DescribeWorkflowExecution` should outrank `Query` in the automation truth stack.
 - Pinned worker rollout is conditional, not a free early default.
 - The ledger split holds, but blob-retention and replay semantics must be explicit.
-- Temporal still leads, but Restate and Inngest now need explicit rejection criteria in the blueprint.
+- The alternatives question is now closed; Temporal remains the chosen stack unless implementation reveals a concrete blocker.
 
 See `null_challenges/nc_pass3_contracts_and_alternatives_challenge.json`.
 
@@ -273,8 +277,8 @@ See `null_challenges/nc_pass10_remaining_pre_refactor_passes_challenge.json`.
 - **Most grounded pass-8 item:** the supported quota enum and settlement policy (`k_026 = 0.77`, `k_027 = 0.74`), which are strong enough to replace the remaining vague limiter placeholders with concrete defaults.
 - **Most grounded pass-9 item:** the initial provider mapping and output reservation policy (`k_028 = 0.79`, `k_029 = 0.78`), which are strong enough to freeze the first registry snapshot and remove the last broad output-budget ambiguity from v0 quota design.
 - **Most grounded pass-10 item:** the audit-ledger shape and the staged control/versioning closure (`k_031 = 0.80`, `k_030 = 0.76`, `k_034 = 0.78`), which are strong enough to stop treating those topics as missing architecture passes.
-- **Still weak after pass 10:** alternatives matrix (`k_017 = 0.56`) remains the weakest area, and observability projection exactness (`k_033 = 0.74`) still carries some anti-drift risk.
-- **Main gaps left open:** worker auth choice for the Convex API boundary, exact `cmdId` and command replay format, exact `process_observability_v2` field set and anti-staleness rules, exact payload storage backend and replay-after-redaction policy, plan-specific registry overrides such as OpenAI Scale Tier, and explicit rejection criteria for Restate/Inngest in a judge-gym requirement checklist.
+- **Still weaker than the rest:** observability projection exactness (`k_033 = 0.74`) carries more implementation drift risk than the other finalized defaults, so it should get extra review during coding.
+- **Architecture status:** the remaining work is implementation and rollout, not another research pass.
 
 See `certainty/certainty_report.md`.
 
@@ -290,7 +294,7 @@ See `certainty/certainty_report.md`.
 - **Start boundary:** do not assume atomicity between Convex and Temporal; choose create-then-start, start-then-project, with-start, or outbox per flow, and keep reconciliation states explicit. Evidence: `k_014`.
 - **Observability split:** use `Visibility -> Describe -> Update receipt -> Query -> Convex projection -> Axiom` as the truth and telemetry precedence order. Evidence: `k_015`.
 - **Runtime/versioning:** run workers on Node in production, treat Bun as a spike path only, require replay testing and continue-as-new discipline, and make pinned worker rollout conditional rather than automatic. Evidence: `k_016`.
-- **Alternatives stance:** keep Temporal as the leading default only while documenting why Restate and Inngest are not the better fit for judge-gym’s specific requirements. Evidence: `k_017`.
+- **Alternatives stance:** Temporal is the chosen stack for the rewrite; no further alternatives research is required before implementation unless a concrete blocker appears. Evidence: `k_017`.
 - **Package graph:** split the current engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`, with runtime-specific imports banned from shared packages. Evidence: `k_019`.
 - **Config flow:** keep shared defaults and schemas pure, store versioned operator policy in Convex, snapshot policy onto runs/windows, and parse secrets locally in each runtime. Evidence: `k_018`.
 - **Execution policy boundary:** keep provider adapters, provider-facing rate limiting, and Temporal-facing operational tooling on the worker side, while Convex keeps policy inputs and audit/projection data. Evidence: `k_020`.
@@ -301,10 +305,12 @@ See `certainty/certainty_report.md`.
 - **Initial provider mapping:** start with OpenAI PAYG as `requests + total_tokens`, Anthropic as `requests + input_tokens + output_tokens`, and Gemini as `requests + input_tokens`, with plan-specific overrides added explicitly in the registry instead of hidden in limiter code. Evidence: `k_028`.
 - **Output reservation direction:** reserve output according to provider-documented quota semantics rather than one generic heuristic: OpenAI PAYG reserves the full effective output cap inside `total_tokens`, Anthropic reserves full `max_tokens` inside `output_tokens`, and Gemini has no output-side shared-bucket reservation in v0. Evidence: `k_029`.
 - **Control contract direction:** use `StartWorkflow` for start, Updates for acknowledged state changes, cancellation for cancel, and Signals only for best-effort nudges; if Updates are not reliably available in the deployed Temporal environment, define an explicit degraded fallback instead of blurring the contract. Evidence: `k_030`.
-- **Audit-ledger direction:** commit to metadata-first attempt envelopes, out-of-line payload bodies, and explicit replay/retention classes, while leaving the exact physical quota-event normalization free to stay simple in v0. Evidence: `k_031`.
-- **Boundary direction:** make external workers go through a narrow public Convex worker API owned by `engine-convex`, with `engine-temporal` owning the only repo wrapper that can call it. Evidence: `k_032`.
-- **Projection direction:** keep `process_observability_v2` intentionally small and non-authoritative, with Temporal confirmation required before any automated repair action. Evidence: `k_033`.
-- **Deployment direction:** require replay testing and continue-as-new discipline in v0, and stage Worker Versioning/ramping as the stronger later operational tier rather than a hard day-one requirement. Evidence: `k_034`.
+- **Command envelope direction:** use one shared `ControlCommand` envelope with a caller-generated `cmdId`; reuse `cmdId` as the Temporal `UpdateId` and as the correlation key in Convex projection/audit surfaces. Evidence: `k_030`.
+- **Audit-ledger direction:** keep `llm_prompt_templates`, ship `llm_attempts` plus `llm_attempt_payloads` in v0, keep payload bodies out of the main attempt row, and use Convex file storage for payload blobs unless production constraints later justify an object-store move. Evidence: `k_031`.
+- **Boundary direction:** make external workers go through a narrow public Convex worker API owned by `engine-convex`, with `engine-temporal` owning the only repo wrapper that can call it, and use a shared secret as the v0 worker-auth mechanism. Evidence: `k_032`.
+- **Projection direction:** keep `process_observability` intentionally small and non-authoritative, with Temporal confirmation required before any automated repair action. Evidence: `k_033`.
+- **Deployment direction:** require replay testing and continue-as-new discipline in v0, use patching when workflow code changes are replay-sensitive, and stage Worker Versioning/ramping as the stronger later operational tier rather than a hard day-one requirement. Evidence: `k_034`.
+- **Alternatives stance:** Temporal is the chosen stack for the rewrite; no further alternatives research is required before implementation. Evidence: `k_017`.
 
 ---
 
@@ -326,7 +332,7 @@ See `certainty/certainty_report.md`.
 - **Objective:** prevent mixed-runtime ambiguity from surviving the rewrite.
 - **Key decisions:**
   1. Split the current engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`.
-  2. Ban shared packages from importing `convex/_generated`, `@temporalio/*`, provider SDKs, env readers, or filesystem/runtime-specific helpers.
+  2. Ban shared packages from importing `convex/_generated`, `@temporalio/`*, provider SDKs, env readers, or filesystem/runtime-specific helpers.
   3. Give the worker package its own Node-appropriate scripts, tests, and `tsconfig`.
 - **Verification:** each runtime package can typecheck and test without pulling transitive runtime code from another owner.
 - **Evidence:** `k_019`, `nc_pass4_001`
@@ -425,10 +431,46 @@ See `certainty/certainty_report.md`.
 - **Key decisions:**
   1. Use Convex-only create, `StartWorkflow` for start, `Update` for acknowledged state changes, and workflow cancellation for cancel.
   2. Distinguish `startUpdate(..., ACCEPTED)` from `executeUpdate` and reserve Signals for best-effort nudges only.
-  3. Define the degraded fallback if Updates are not reliably available in the deployed Temporal environment.
-  4. Define `pause_now` as cooperative unless in-flight Activity cancellation is explicitly wired and heartbeating.
+  3. Standardize one `ControlCommand` envelope with caller-generated `cmdId`, and reuse `cmdId` as the Temporal `UpdateId` plus the audit/projection correlation key.
+  4. Define the degraded fallback if Updates are not reliably available in the deployed Temporal environment.
+  5. Define `pause_now` as cooperative unless in-flight Activity cancellation is explicitly wired and heartbeating.
 - **Verification:** there is a single action table the future agent loop can rely on.
 - **Evidence:** `k_030`, `nc_pass10_001`
+
+**ControlCommand Envelope**
+
+
+| Field         | Type   | Notes                                                                               |
+| ------------- | ------ | ----------------------------------------------------------------------------------- |
+| `cmdId`       | string | Caller-generated stable command id. Reused as Temporal `UpdateId` where applicable. |
+| `action`      | enum   | `set_pause_after` | `pause_now` | `resume` | `cancel` | `repair_bounded`            |
+| `processKind` | enum   | `run` | `window`                                                                    |
+| `processId`   | string | Convex process id                                                                   |
+| `workflowId`  | string | Business-keyed Temporal workflow id                                                 |
+| `issuedBy`    | enum   | `user` | `agent` | `system`                                                         |
+| `issuedAt`    | number | Epoch ms                                                                            |
+| `payload`     | object | Action-specific payload                                                             |
+
+
+**Action Contract**
+
+
+| Action                         | Primitive                    | Ack mode                     | Idempotency key                          | Success condition                                                         | Fallback                                                                       |
+| ------------------------------ | ---------------------------- | ---------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `create_run` / `create_window` | Convex mutation only         | immediate DB success         | Convex entity id                         | row created                                                               | fail fast                                                                      |
+| `start_run` / `start_window`   | `StartWorkflow`              | service start ack            | `workflowId`                             | workflow start accepted by Temporal                                       | if already exists, attach or error by conflict policy                          |
+| `set_pause_after(stage)`       | `startUpdate(..., ACCEPTED)` | accepted                     | `cmdId`                                  | workflow persisted the new pause target                                   | if Updates unavailable, fallback Signal with same `cmdId` and no ack guarantee |
+| `pause_now`                    | `executeUpdate`              | completed                    | `cmdId`                                  | workflow state marked paused                                              | cooperative pause only; if updates unavailable, do not fake completion         |
+| `resume`                       | `executeUpdate`              | completed                    | `cmdId`                                  | workflow state marked running again                                       | if terminal, surface terminal error                                            |
+| `cancel`                       | workflow cancellation        | accepted, then poll terminal | `workflowId` plus optional audit `cmdId` | Temporal status becomes terminal canceled/terminated state                | if in-flight Activities ignore cancellation, keep polling Describe             |
+| `repair_bounded(op)`           | `executeUpdate`              | completed                    | `cmdId`                                  | workflow accepted bounded repair and returned correlation/result metadata | reject unsafe repairs in validator; no signal fallback for dangerous ops       |
+
+
+**Pause Semantics**
+
+- `pause_now` means: stop scheduling new stage work after the current safe point.
+- It does **not** imply hard interruption of an in-flight Activity unless that Activity is explicitly cancellation-aware and heartbeating.
+- `pause_after` is stage-boundary control, not arbitrary instruction-pointer suspension.
 
 ### S7: Design the Audit Ledger and Idempotency Contract
 
@@ -436,10 +478,120 @@ See `certainty/certainty_report.md`.
 - **Key decisions:**
   1. Use stable Activity idempotency keys and, where needed, business-operation keys.
   2. Store attempt metadata, provider identifiers, provider correlation IDs, outcome, retry info, normalized usage, retention class, and blob refs/hashes in the durable envelope.
-  3. Keep large payloads out of the main attempt envelope and make the replay contract explicit about what survives payload expiry or redaction.
-  4. Keep quota reservation/reconciliation auditable, even if the exact v0 physical normalization stays simpler than a fully separate event table.
+  3. Keep `llm_prompt_templates` as the canonical prompt-definition store.
+  4. Ship `llm_attempts` plus `llm_attempt_payloads` in v0; leave a separate quota-event table as a later normalization option if needed.
+  5. Keep large payloads out of the main attempt envelope, store payload blobs in Convex file storage, and make the replay contract explicit about what survives payload expiry or redaction.
+  6. Keep quota reservation/reconciliation auditable, even if the exact v0 physical normalization stays simpler than a fully separate event table.
 - **Verification:** duplicate Activity execution cannot silently create duplicate scientific artifacts.
 - **Evidence:** `k_031`, `nc_pass10_001`
+
+`**llm_attempts` Required Fields**
+
+
+| Field                                                                      | Notes                                                       |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `attemptId`                                                                | Primary attempt id                                          |
+| `businessOpKey`                                                            | Stable scientific-operation key                             |
+| `idempotencyKey`                                                           | Stable dedupe key for Activity retry/re-entry               |
+| `workflowId` / `workflowRunId`                                             | Temporal linkage                                            |
+| `activityId` / `activityType` / `activityAttempt`                          | Activity linkage                                            |
+| `processKind` / `processId`                                                | Domain linkage                                              |
+| `stageKey` / `operationType`                                               | Stage + operation classification                            |
+| `providerId` / `modelId` / `providerPlan?`                                 | Provider identity                                           |
+| `registrySnapshotId`                                                       | Capability/quota snapshot ref                               |
+| `providerRequestId?` / `providerResponseId?`                               | First-class provider correlation                            |
+| `providerBatchId?` / `providerBatchCustomId?` / `providerBatchRequestId?`  | Batch correlation where applicable                          |
+| `status`                                                                   | `created` | `running` | `succeeded` | `failed` | `canceled` |
+| `createdAt` / `startedAt?` / `finishedAt?` / `durationMs?`                 | Lifecycle timestamps                                        |
+| `errorClass?` / `errorCode?` / `errorMessageShort?`                        | Bounded error metadata                                      |
+| `retryIndex`                                                               | Retry count / attempt number                                |
+| `requests?` / `inputTokens?` / `outputTokens?` / `totalTokens?`            | Normalized usage                                            |
+| `cachedInputTokens?` / `thinkingTokens?` / `serviceTier?`                  | Tracked-only usage                                          |
+| `estimatedInputTokens?` / `reservedOutputBudget?` / `reservedTotalBudget?` | Reservation metadata                                        |
+| `reconciled` / `reconciledAt?`                                             | Quota reconciliation status                                 |
+| `retentionClass`                                                           | `none` | `debug_7d` | `audit_90d` | `forever` | `redacted`  |
+| `requestPayloadRef?` / `responsePayloadRef?`                               | Blob refs                                                   |
+| `requestSha256?` / `responseSha256?`                                       | Content hashes                                              |
+| `payloadExpiresAt?`                                                        | Retention boundary                                          |
+| `providerExtensions`                                                       | Provider-specific structured metadata                       |
+
+
+`**llm_attempt_payloads` Required Fields**
+
+
+| Field                           | Notes                                              |
+| ------------------------------- | -------------------------------------------------- |
+| `attemptId`                     | Parent attempt                                     |
+| `part`                          | `request` | `response` | `events` | `error_detail` |
+| `storageBackend`                | v0 default: `convex_file`                          |
+| `blobRef`                       | Convex file storage ref                            |
+| `sha256`                        | Integrity hash                                     |
+| `sizeBytes` / `contentType`     | Payload metadata                                   |
+| `createdAt` / `expiresAt?`      | Retention timestamps                               |
+| `redacted` / `redactionReason?` | Redaction state                                    |
+
+
+**Replay Contract**
+
+- Full replay is available only when render inputs and required prompt context are still retained.
+- After payload expiry/redaction, the baseline guarantee is auditability via envelope metadata, hashes, and artifact linkage.
+- `llm_prompt_templates` remains the canonical prompt-definition store; `llm_attempts` records concrete rendered executions.
+- After payload expiry/redaction, v0 guarantees:
+  - hash-level audit of the original payload,
+  - re-render eligibility only when the template version, render inputs, and required referenced context are still retained,
+  - no promise of byte-identical provider request reconstruction once raw payloads are gone.
+
+**V0 Schema Defaults**
+
+- `operationType` defaults to:
+  - `sync_inference`
+  - `structured_output`
+  - `tool_loop`
+  - `async_batch_submit`
+  - `async_batch_poll`
+- Promote these fields out of `providerExtensions` in v0 because they are operationally useful across more than one provider:
+  - `finishReason`
+  - `cacheReadInputTokens`
+  - `cacheWriteInputTokens`
+  - `safetyBlocked`
+- Keep provider-wire details, provider-native stop reasons, and request-shape-specific metadata inside `providerExtensions`.
+
+**Policy Snapshot Contract**
+
+- Snapshot these fields into the attempt or process-level execution record for reproducibility:
+  - `providerId`
+  - `modelId`
+  - `providerPlan`
+  - `operationType`
+  - `temperature?`
+  - `topP?`
+  - `maxOutputTokens?`
+  - `toolChoicePolicy?`
+  - `structuredOutputMode?`
+  - `quotaPolicySnapshotId`
+  - `retryPolicyId`
+  - `timeoutPolicyId`
+  - `promptTemplateVersionId`
+- Treat these as emergency ops overrides that may be logged but are explicitly non-reproducible defaults:
+  - temporary worker concurrency caps,
+  - temporary queue pause/drain flags,
+  - temporary quota throttle multipliers,
+  - temporary kill-switch or provider-disable flags.
+
+**Provider Plan Override Shape**
+
+- The registry should support explicit plan-level override entries keyed by:
+  - `providerId`
+  - `providerPlan`
+  - optional `modelMatch`
+  - optional `region`
+- Each override may replace:
+  - enforced quota dimensions,
+  - usage-field mapping,
+  - reservation policy,
+  - queue routing hints,
+  - billing/quota profile metadata.
+- Example use case: OpenAI PAYG versus OpenAI Scale Tier must be modeled as explicit registry overrides, not inferred ad hoc in worker code.
 
 ### S8: Choose the Start/Projection Handoff Pattern
 
@@ -451,16 +603,106 @@ See `certainty/certainty_report.md`.
 - **Verification:** every start path has an explicit, documented handoff rule.
 - **Evidence:** `k_014`, `nc_pass3_001`
 
+**V0 Start Pattern Defaults**
+
+- `create_run` and `create_window` are Convex-only mutations that allocate the domain id first.
+- `start_run` and `start_window` use `create-then-start` with a business-keyed `workflowId` derived from the Convex process id.
+- `with-start` is allowed later for flows that truly need single-call UX, but is not the default v0 pattern.
+- DB-first intent/outbox is not part of v0; only introduce it if a concrete flow proves that create-then-start cannot satisfy its consistency or UX contract.
+- Reconciliation defaults:
+  - `row_exists_but_workflow_missing`: retry start idempotently or surface `not_started`
+  - `workflow_exists_but_row_missing`: treat as invariant violation and require operator repair
+  - `workflow_started_but_projection_missing`: re-run projection write idempotently
+
 ### S9: Build the Two-Layer Observability Model
 
 - **Objective:** support both human and agent monitoring without rebuilding the current scheduler UI.
 - **Key decisions:**
   1. Define the Search Attributes used for fleet discovery.
   2. Define the truth precedence order: Visibility, Describe, Update receipt, Query, Convex projection.
-  3. Define the exact `process_observability_v2` fields for discovery and triage ergonomics, while explicitly banning the projection from becoming repair authority.
+  3. Define the exact `process_observability` fields for discovery and triage ergonomics, while explicitly banning the projection from becoming repair authority.
   4. Route Temporal service/worker metrics through Prometheus/Otel Collector into Axiom.
 - **Verification:** the system can answer what exists, what is truly stalled, and what safe action comes next.
 - **Evidence:** `k_033`, `nc_pass10_001`
+
+`**process_observability` Required Fields**
+
+
+| Field                  | Notes                                                |
+| ---------------------- | ---------------------------------------------------- |
+| `processKind`          | `run` | `window`                                     |
+| `processId`            | Convex process id                                    |
+| `workflowId`           | Temporal workflow id                                 |
+| `workflowRunId`        | Current Temporal run id                              |
+| `workflowType`         | `RunWorkflow` | `WindowWorkflow`                     |
+| `executionStatus`      | Coarse Temporal status mirror                        |
+| `stage`                | Coarse stage name                                    |
+| `stageStatus`          | `pending` | `running` | `paused` | `done` | `failed` |
+| `pauseAfter?`          | Current pause-after target                           |
+| `pausedAt?`            | Pause timestamp                                      |
+| `lastErrorAt?`         | Last error time                                      |
+| `lastErrorCategory?`   | Retryable/provider/quota/projection/etc.             |
+| `lastErrorMessage?`    | Short bounded summary                                |
+| `lastErrorRef?`        | Attempt/activity/correlation ref                     |
+| `projectionSeq`        | Monotonic projection sequence                        |
+| `lastProjectedAt`      | Projection freshness timestamp                       |
+| `lastControlUpdateId?` | Correlates last control action                       |
+| `traceRef?`            | Axiom trace or equivalent                            |
+
+
+**Optional Fields**
+
+
+| Field                    | Notes                    |
+| ------------------------ | ------------------------ |
+| `progressTotal?`         | Total units of work      |
+| `progressDone?`          | Completed units          |
+| `progressFailed?`        | Failed units             |
+| `progressMeta?`          | Small capped JSON only   |
+| `lastTemporalEventTime?` | If cheaply available     |
+| `provider?` / `model?`   | Convenience-only mirrors |
+
+
+**Anti-Staleness Rule**
+
+- Agents may use `process_observability` for discovery and triage only.
+- Before any mutating action, agents must confirm with Temporal directly.
+- A projection row is considered stale for mutation purposes if:
+  - `lastProjectedAt` is older than the configured freshness window, or
+  - the relevant control action has no matching acknowledged Temporal receipt.
+
+**V0 Freshness Defaults**
+
+- Active processes (`running`, `paused`, `failing`) should target a freshness window of `30s`.
+- Terminal processes may use a relaxed freshness window of `5m`.
+- If the projection is stale, automation must fall back to Temporal `Describe` before deciding on repair or control actions.
+
+**V0 Search Attributes**
+
+- Use these Search Attributes for workflow discovery in v0:
+  - `process_kind`
+  - `process_id`
+  - `workflow_type`
+  - `execution_status`
+  - `stage`
+  - `stage_status`
+  - `experiment_id?`
+  - `run_id?`
+  - `window_id?`
+  - `provider_id?`
+  - `model_id?`
+  - `pause_after?`
+  - `paused?`
+- Keep Search Attributes bounded and discovery-oriented.
+- Do not add large or rapidly changing counters to Search Attributes in v0.
+
+**V0 Required vs Optional Cutoff**
+
+- Keep `provider` and `model` optional in `process_observability` for v0.
+- Rationale:
+  - execution truth and repair do not depend on them,
+  - some process states may be pre-provider-selection or multi-provider in the future,
+  - they remain useful convenience mirrors without becoming part of the minimal correctness contract.
 
 ### S10: Define Runtime and Versioning Policy
 
@@ -470,19 +712,67 @@ See `certainty/certainty_report.md`.
   2. Bun is validated only through a narrow spike.
   3. Replay testing becomes a required workflow-code gate.
   4. `continue-as-new` becomes a required workflow-design input for long-lived run/window workflows.
-  5. Treat Worker Versioning, ramping, and pinned-vs-auto-upgrade routing as a staged later tier unless early workflows are already long-lived enough to justify that complexity.
+  5. Use the minimum safe tier in v0: replay testing, patching discipline, and continue-as-new.
+  6. Treat Worker Versioning, ramping, and pinned-vs-auto-upgrade routing as a staged later tier unless early workflows are already long-lived enough to justify that complexity.
 - **Verification:** a deployment policy exists before the first long-lived workflow rollout.
 - **Evidence:** `k_034`, `nc_pass10_001`
 
-### S11: Write the Alternatives and Rejection Criteria Section
+**Minimum Safe Tier (v0)**
 
-- **Objective:** make the choice of Temporal explicit rather than ambient.
+- Replay tests required for workflow-code changes.
+- `continue-as-new` required for long-lived run/window workflows.
+- Use patching when workflow code changes can affect replayed command history.
+
+**Later Tier**
+
+- Worker Versioning rollout ramps.
+- Pinned vs auto-upgrade routing.
+- More advanced rollout/drain policies for long-lived workflows.
+
+**Patching Rubric**
+
+
+| Change Type                                                                                                                                  | Requirement                |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Activity-only implementation change                                                                                                          | no workflow patch required |
+| Config/default change that does not alter workflow command history                                                                           | no patch required          |
+| Workflow logic change affecting command ordering, branching, timers, activity scheduling, child workflow behavior, or message handling order | patch required             |
+| New workflow type with no old histories                                                                                                      | no patch required          |
+
+**Worker Versioning Adoption Rule**
+
+- Do not require Worker Versioning in v0.
+- Revisit it when either of these becomes true:
+  - a typical `RunWorkflow` or `WindowWorkflow` is expected to survive across multiple production deploy windows, or
+  - multiple concurrently active worker builds become a normal operational state rather than an exception.
+
+**Tooling Package Default**
+
+- Keep Temporal-facing CLIs and operational scripts inside `engine-temporal` in v0.
+- Split out `engine-tools` only after the control surface stabilizes enough to justify a dedicated package boundary.
+
+**Worker Auth Rotation Default**
+
+- Use one shared worker secret in v0, stored as runtime-local secret material for both `engine-convex` and `engine-temporal`.
+- Support dual-secret rotation by accepting:
+  - `activeWorkerSecret`
+  - `nextWorkerSecret?`
+- Rotation procedure:
+  - deploy Convex worker API accepting both secrets,
+  - deploy workers using `nextWorkerSecret`,
+  - confirm old workers are drained,
+  - remove the old secret from Convex acceptance.
+
+
+### S11: Record the Runtime Choice
+
+- **Objective:** treat the workflow-runtime decision as closed so implementation can begin.
 - **Key decisions:**
-  1. Compare Temporal, Restate, and Inngest against judge-gym requirements.
-  2. State explicit rejection criteria for Restate and Inngest.
-  3. State the operational trade Temporal imposes in return for its richer execution/control model.
-- **Verification:** the blueprint can justify Temporal without hand-waving the alternatives away.
-- **Evidence:** `k_017`, `nc_pass3_001`
+  1. Use Temporal as the workflow runtime for the rewrite.
+  2. Do not spend more pre-refactor time reopening Restate or Inngest unless implementation reveals a concrete blocker.
+  3. Accept Temporal’s operational complexity in exchange for deleting the homemade orchestration substrate.
+- **Verification:** the refactor plan no longer depends on another alternatives pass.
+- **Evidence:** `k_017`
 
 ### S12: Define the Greenfield Cutover
 
@@ -531,32 +821,26 @@ See `certainty/certainty_report.md`.
 
 ---
 
-## 10. Open Questions
+## 10. Finalized Defaults
 
-- What exact control table do we want for `pause_after`, `pause`, `resume`, `cancel`, and bounded repair: primitive, ack semantics, idempotency key, timeout behavior, and fallback if no worker is polling?
-- Which policy fields must be snapshotted for reproducibility, and which can remain emergency ops overrides that are explicitly non-reproducible?
-- When, if ever, do Temporal fairness keys become worth adopting for judge-gym beyond coarse provider/mode queue partitioning?
-- Which generic operation-type enum should core execution know about in v0: `sync_inference`, `structured_extraction`, `tool_loop`, and an optional `async_batch` hook?
-- Which provider-specific fields deserve promotion out of `provider_extensions` because they are operationally critical across more than one provider?
-- What exact registry fields should distinguish provider plan or billing mode overrides, such as OpenAI PAYG versus OpenAI Scale Tier?
-- Does `engine-tools` start as a separate package, or should v0 keep Temporal-facing CLIs inside `engine-temporal` until the control surface stabilizes?
-- Which flows require `create-then-start`, which require with-start semantics, and which truly justify a DB-first intent/outbox?
-- What exact worker-auth mechanism should the Convex worker API use in v0: shared secret, JWT-style identity, or something else?
-- What exact `cmdId` / command replay format should acknowledged control actions use across Updates and any fallback Signals?
-- What exact payload storage backend should `llm_attempt_payloads` use in v0, and when do we accept “hash-only audit” versus “full re-render” guarantees after expiry or redaction?
-- What exact fields should `process_observability_v2` require versus leave optional, and what anti-staleness rule should gate automated repair decisions?
-- Which workflows, if any, are short enough to justify pinned routing first, and when does Worker Versioning graduate from later tier to required tier?
-- What explicit requirement checklist rules out Restate and Inngest for judge-gym today?
+- **Temporal fairness keys:** do not use them in v0. Revisit only if coarse provider/mode queue partitioning proves insufficient under real multi-tenant or hot-partition load.
+- **`providerExtensions` promotions:** do not promote additional provider fields in v0 beyond `finishReason`, `cacheReadInputTokens`, `cacheWriteInputTokens`, and `safetyBlocked`. Promote later only when a field is operationally important across at least two providers.
+- **With-start / outbox:** no v0 flow requires with-start or DB-first outbox. Default every run/window flow to create-then-start unless a later concrete product contract proves otherwise.
+- **`process_observability` mirrors:** keep `provider` and `model` optional in v0.
 
-Additional investigation that is still worth doing before implementation:
+**V0 Registry Seed Policy**
 
-- a final action-by-action control contract table,
-- a final `llm_attempts` schema with retention and replay rules,
-- a worker-auth decision for the Convex API boundary,
-- a pinned-vs-patching rollout decision rubric,
-- a concrete v0 registry enum set and `llm_attempts` column set,
-- a plan-override policy for registry entries such as OpenAI Scale Tier,
-- and a concrete requirement checklist that either rejects or reopens Restate/Inngest.
+- Seed the registry with one interactive profile per launched provider family:
+  - OpenAI PAYG interactive profile
+  - Anthropic interactive profile
+  - Gemini interactive profile
+- Add explicit plan overrides only where quota or billing semantics differ materially from the base provider profile.
+- In practice, the first required override is expected to be an OpenAI Scale Tier entry rather than a generic runtime guess.
+
+**Convergence Note**
+
+- No further architecture research passes are required before implementation.
+- Remaining work is implementation: scaffold packages, create schemas/tables/APIs, and translate this blueprint into code.
 
 ---
 
