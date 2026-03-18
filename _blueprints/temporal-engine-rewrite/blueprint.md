@@ -287,7 +287,7 @@ See `certainty/certainty_report.md`.
 ## 7. Refined Defaults to Carry Into the Rewrite
 
 - **Execution owner:** Temporal is the sole owner of live execution state for new runs and windows. Evidence: `k_002`, `k_009`.
-- **Domain owner:** Convex owns experiments, windows, runs, samples, evidence, artifacts, and UI-facing projections. Evidence: `k_001`, `k_005`.
+- **Domain owner:** Convex owns experiments, windows, runs, samples, evidence, bundle plans, bundle-plan items, artifacts, and UI-facing projections. Evidence: `k_001`, `k_005`.
 - **LLM audit split:** keep `llm_prompt_templates`; replace the runtime parts of `llm_requests` with an append-only `llm_attempts` ledger that stores provider correlation IDs, usage, outcome metadata, and hashes/blob refs for large payloads. Evidence: `k_007`, `k_013`.
 - **Minimal workflow surface:** begin with `RunWorkflow` and `WindowWorkflow` only, with bounded fanout and no child workflows initially. Evidence: `k_008`.
 - **Control semantics:** use Updates only when validation, acknowledgement, or returned values matter; use Signals for cheaper best-effort writes; use `DescribeWorkflowExecution` as the stronger execution read; use Temporal cancellation for cancel semantics. Evidence: `k_012`, `k_015`.
@@ -321,9 +321,10 @@ See `certainty/certainty_report.md`.
 - **Objective:** label every existing table/module as `keep`, `delete`, `replace`, or `mirror`.
 - **Key decisions:**
   1. Keep domain tables and freeze them as product truth.
-  2. Delete runtime queue substrate after cutover: `scheduler_locks`, `llm_jobs`, `llm_batches`, `process_request_targets`.
-  3. Keep `llm_prompt_templates`.
-  4. Replace `llm_requests` with a deliberate attempt ledger rather than deleting auditability by accident.
+  2. Treat `bundle_plans`, `bundle_plan_items`, and `experiments.bundle_plan_id` as product-state tables/fields that survive the rewrite.
+  3. Delete runtime queue substrate after cutover: `scheduler_locks`, `llm_jobs`, `llm_batches`, `process_request_targets`.
+  4. Keep `llm_prompt_templates`.
+  5. Replace `llm_requests` with a deliberate attempt ledger rather than deleting auditability by accident.
 - **Verification:** no runtime-shaped table remains unlabeled.
 - **Evidence:** `k_005`, `k_007`
 
@@ -422,6 +423,7 @@ See `certainty/certainty_report.md`.
   1. `RunWorkflow(runId, controlConfig)` and `WindowWorkflow(windowId, controlConfig)` are the only top-level workflows in v0.
   2. All external I/O becomes Activities: evidence search, provider calls, batch submit/poll, artifact writes, projection writes, telemetry emission.
   3. No child workflows initially; revisit only if history growth or isolation demands it.
+  4. Run planning must honor explicit `bundle_plan_id` when present; otherwise it may derive bundling from experiment scoring config as a compatibility fallback.
 - **Verification:** every side effect is represented as an Activity, not hidden in Workflow code.
 - **Evidence:** `k_002`, `k_008`
 
@@ -607,6 +609,7 @@ See `certainty/certainty_report.md`.
 
 - `create_run` and `create_window` are Convex-only mutations that allocate the domain id first.
 - `start_run` and `start_window` use `create-then-start` with a business-keyed `workflowId` derived from the Convex process id.
+- `init_experiment` should be allowed to bind an explicit `bundle_plan_id` up front; bundle-plan creation/linkage remains domain setup, not workflow execution state.
 - `with-start` is allowed later for flows that truly need single-call UX, but is not the default v0 pattern.
 - DB-first intent/outbox is not part of v0; only introduce it if a concrete flow proves that create-then-start cannot satisfy its consistency or UX contract.
 - Reconciliation defaults:
