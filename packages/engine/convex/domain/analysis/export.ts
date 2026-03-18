@@ -4,7 +4,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { zInternalQuery } from "../../utils/custom_fns";
 
-export const ANALYSIS_EXPORT_SCHEMA_VERSION = 1;
+export const ANALYSIS_EXPORT_SCHEMA_VERSION = 2;
 const DEFAULT_PAGE_LIMIT = 100;
 const MAX_PAGE_LIMIT = 250;
 
@@ -18,6 +18,22 @@ const NormalizedExperimentSchema = z.object({
   experiment_tag: z.string(),
   pool_id: zid("pools"),
   pool_tag: z.string().nullable(),
+  bundle_plan_id: zid("bundle_plans").nullable(),
+  bundle_plan_tag: z.string().nullable(),
+  bundle_strategy: z.enum([
+    "window_round_robin",
+    "random_bundle",
+    "semantic_cluster",
+    "semantic_cluster_projected",
+  ]),
+  bundle_strategy_version: z.string().nullable(),
+  clustering_seed: z.number().nullable(),
+  bundle_source_view: z.enum([
+    "l0_raw",
+    "l1_cleaned",
+    "l2_neutralized",
+    "l3_abstracted",
+  ]).nullable(),
   evidence_count: z.number().int().nonnegative(),
   model_id: z.string(),
   rubric_model: z.string(),
@@ -89,6 +105,15 @@ export const AnalysisResponseRowSchema = z.object({
     "l3_abstracted",
   ]),
   evidence_bundle_size: z.number().int().positive(),
+  bundle_plan_tag: z.string().nullable(),
+  bundle_strategy: z.enum([
+    "window_round_robin",
+    "random_bundle",
+    "semantic_cluster",
+    "semantic_cluster_projected",
+  ]),
+  bundle_strategy_version: z.string().nullable(),
+  clustering_seed: z.number().nullable(),
   randomizations: z.array(
     z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
   ),
@@ -274,11 +299,27 @@ async function normalizeExperiment(
   experiment: Doc<"experiments">,
 ): Promise<NormalizedExperiment> {
   const poolTag = await getPoolTag(ctx, experiment.pool_id);
+  const bundlePlan = experiment.bundle_plan_id
+    ? await ctx.db.get(experiment.bundle_plan_id)
+    : null;
+  const bundleStrategy = bundlePlan?.strategy
+    ?? experiment.scoring_config.bundle_strategy
+    ?? "window_round_robin";
   return {
     experiment_id: experiment._id,
     experiment_tag: experiment.experiment_tag,
     pool_id: experiment.pool_id,
     pool_tag: poolTag,
+    bundle_plan_id: experiment.bundle_plan_id ?? null,
+    bundle_plan_tag: bundlePlan?.bundle_plan_tag ?? null,
+    bundle_strategy: bundleStrategy,
+    bundle_strategy_version: bundlePlan?.strategy_version
+      ?? experiment.scoring_config.bundle_strategy_version
+      ?? null,
+    clustering_seed: bundlePlan?.seed
+      ?? experiment.scoring_config.clustering_seed
+      ?? null,
+    bundle_source_view: bundlePlan?.source_view ?? null,
     evidence_count: experiment.total_count > 0 ? experiment.total_count : (
       await ctx.db
         .query("pool_evidences")
@@ -543,6 +584,10 @@ export const listAnalysisResponses = zInternalQuery({
         abstain_enabled: normalizedExperiment.abstain_enabled,
         evidence_view: normalizedExperiment.evidence_view,
         evidence_bundle_size: normalizedExperiment.evidence_bundle_size,
+        bundle_plan_tag: normalizedExperiment.bundle_plan_tag,
+        bundle_strategy: normalizedExperiment.bundle_strategy,
+        bundle_strategy_version: normalizedExperiment.bundle_strategy_version,
+        clustering_seed: normalizedExperiment.clustering_seed,
         randomizations: normalizedExperiment.randomizations,
         decoded_scores: score.decoded_scores,
         abstained: score.decoded_scores.length === 0,

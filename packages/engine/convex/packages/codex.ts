@@ -1,6 +1,7 @@
 export {
   analyzeProcessTelemetry,
   autoHealProcess,
+  backfillExperimentBundlePlans,
   backfillExperimentTotalCounts,
   backfillRunCompletedCounts,
   backfillSampleScoreCounts,

@@ -6,6 +6,7 @@ import { zid } from "convex-helpers/server/zod4";
 export const ExperimentsTableSchema = z.object({
     experiment_tag: z.string(),
     pool_id: zid("pools"),
+    bundle_plan_id: zid("bundle_plans").optional(),
     rubric_config: RubricStageConfigSchema,
     scoring_config: ScoringStageConfigSchema,
     total_count: z.number(),

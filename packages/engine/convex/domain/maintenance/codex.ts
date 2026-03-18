@@ -8,6 +8,10 @@ import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
 import { getProviderForModel, isBatchableModel, type ModelType } from "../../platform/providers/provider_types";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
+import {
+  deriveBundlePlanArgsForExperiment,
+  findMatchingBundlePlan,
+} from "../runs/bundle_plan_repo";
 import { getExperimentTotalCount } from "../runs/experiment_progress";
 import { getSampleScoreCounts } from "../runs/sample_progress";
 import { getRunCompletedCount } from "../runs/run_progress";
@@ -2657,6 +2661,124 @@ export const backfillExperimentTotalCounts: ReturnType<typeof zMutation> = zMuta
         previous_total_count: previousTotalCount,
         computed_total_count: computedTotalCount,
         changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: experiments.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillExperimentBundlePlans: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_experiments: z.number().int().min(1).max(500).default(100),
+    experiment_ids: z.array(zid("experiments")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string(),
+      previous_bundle_plan_id: zid("bundle_plans").nullable(),
+      next_bundle_plan_id: zid("bundle_plans").nullable(),
+      bundle_plan_tag: z.string().nullable(),
+      strategy: z.string(),
+      strategy_version: z.string(),
+      changed: z.boolean(),
+      created_bundle_plan: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let experiments: Array<Doc<"experiments">> = [];
+
+    if (args.experiment_ids?.length) {
+      const loaded = await Promise.all(
+        args.experiment_ids.map((experimentId) => ctx.db.get(experimentId)),
+      );
+      experiments = loaded.filter(
+        (experiment): experiment is Doc<"experiments"> => experiment != null,
+      );
+    } else {
+      const orderedExperiments = await ctx.db
+        .query("experiments")
+        .order("asc")
+        .take(cursor + args.max_experiments + 1);
+      const page = orderedExperiments.slice(cursor, cursor + args.max_experiments + 1);
+      experiments = page.slice(0, args.max_experiments);
+      if (page.length > args.max_experiments) {
+        nextCursor = cursor + args.max_experiments;
+      }
+    }
+
+    const rows: Array<{
+      experiment_id: Id<"experiments">;
+      experiment_tag: string;
+      previous_bundle_plan_id: Id<"bundle_plans"> | null;
+      next_bundle_plan_id: Id<"bundle_plans"> | null;
+      bundle_plan_tag: string | null;
+      strategy: string;
+      strategy_version: string;
+      changed: boolean;
+      created_bundle_plan: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const experiment of experiments) {
+      const bundlePlanArgs = deriveBundlePlanArgsForExperiment(experiment);
+      const existing = await findMatchingBundlePlan(ctx, bundlePlanArgs);
+      const previousBundlePlanId = experiment.bundle_plan_id ?? null;
+      let nextBundlePlanId = existing?._id ?? null;
+      let bundlePlanTag = existing?.bundle_plan_tag ?? null;
+      let createdBundlePlan = existing == null;
+
+      if (!args.dry_run) {
+        const ensured = await ctx.runMutation(
+          internal.domain.runs.bundle_plan_repo.createBundlePlan,
+          bundlePlanArgs,
+        );
+        nextBundlePlanId = ensured.bundle_plan_id;
+        bundlePlanTag = ensured.bundle_plan_tag;
+        createdBundlePlan = ensured.created;
+        if (previousBundlePlanId !== nextBundlePlanId) {
+          await ctx.db.patch(experiment._id, {
+            bundle_plan_id: nextBundlePlanId,
+          });
+        }
+      } else if (previousBundlePlanId != null && existing == null) {
+        const currentPlan = await ctx.db.get(previousBundlePlanId);
+        nextBundlePlanId = currentPlan?._id ?? previousBundlePlanId;
+        bundlePlanTag = currentPlan?.bundle_plan_tag ?? null;
+      }
+
+      const changed = args.dry_run
+        ? (existing == null || previousBundlePlanId !== existing._id)
+        : previousBundlePlanId !== nextBundlePlanId;
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        experiment_id: experiment._id,
+        experiment_tag: experiment.experiment_tag,
+        previous_bundle_plan_id: previousBundlePlanId,
+        next_bundle_plan_id: nextBundlePlanId,
+        bundle_plan_tag: bundlePlanTag,
+        strategy: bundlePlanArgs.strategy,
+        strategy_version: bundlePlanArgs.strategy_version,
+        changed,
+        created_bundle_plan: createdBundlePlan,
       });
     }
 

@@ -150,6 +150,7 @@ export const listExperiments = zInternalQuery({
     const results = [] as Array<{
       experiment_id: Id<"experiments">;
       experiment_tag: string;
+      bundle_plan_id?: Id<"bundle_plans">;
       rubric_config: Doc<"experiments">["rubric_config"];
       scoring_config: Doc<"experiments">["scoring_config"];
       total_count: number;
@@ -196,6 +197,7 @@ export const listExperiments = zInternalQuery({
       results.push({
         experiment_id: experiment._id,
         experiment_tag: experiment.experiment_tag,
+        bundle_plan_id: experiment.bundle_plan_id,
         rubric_config: experiment.rubric_config,
         scoring_config: experiment.scoring_config,
         total_count: totalCount,
@@ -284,6 +286,7 @@ export const getExperimentSummary = zInternalQuery({
     return {
       experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
+      bundle_plan_id: experiment.bundle_plan_id,
       rubric_config: experiment.rubric_config,
       scoring_config: experiment.scoring_config,
       total_count: totalCount,
