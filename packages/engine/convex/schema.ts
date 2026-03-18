@@ -68,6 +68,7 @@ export default defineSchema({
   pool_evidences: defineTable(zodOutputToConvex(PoolEvidencesTableSchema))
     .index("by_pool", ["pool_id"]),
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
+    .index("by_experiment_tag", ["experiment_tag"])
     .index("by_pool", ["pool_id"]),
   runs: defineTable(zodOutputToConvex(RunsTableSchema))
     .index("by_experiment", ["experiment_id"]),

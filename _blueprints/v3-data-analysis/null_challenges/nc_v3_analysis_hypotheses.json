@@ -1,0 +1,174 @@
+{
+  "challengeSetID": "nc_v3_analysis_hypotheses",
+  "generatedAt": "2026-03-17",
+  "challenges": [
+    {
+      "challengeID": "nc_h_A_01_001",
+      "microHypothesisID": "h_A_01_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "The proposed report architecture (overview + matched-family effects + drilldowns) reduces misleading inference risk in an exploratory matrix.",
+          "falsificationQueries": [
+            "exploratory analysis forking paths why effect sizes and report structure can still mislead",
+            "p-values vs effect sizes exploratory studies multiple comparisons guidance",
+            "reporting standards for exploratory computational social science reproducibility"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_001_pilot_framing_evidence.md",
+            "https://www.tandfonline.com/doi/full/10.1080/00031305.2016.1154108",
+            "https://stat.columbia.edu/~gelman/research/unpublished/p_hacking.pdf",
+            "https://academic.oup.com/bioinformatics/article/24/10/1225/178402"
+          ],
+          "falsificationAnalysis": "The architecture helps, but it does not by itself prevent garden-of-forking-paths failure modes: any flexible endpoint panel, family baseline choice, exclusion rules, or post-hoc story selection can recreate the same problem even if the report is well structured. The ASA p-values statement supports avoiding mechanical thresholds, but it does not imply effect-size-first narratives are safe from selective reporting. Conclusion: the architecture is necessary but not sufficient; the blueprint must include an explicit endpoint policy + baseline policy + sensitivity analyses and clearly label exploratory findings.",
+          "outcome": "Passed"
+        },
+        {
+          "targetDescription": "Per-experiment and per-family 'report cards' can be generated deterministically from cached exports without hidden analyst degrees of freedom.",
+          "falsificationQueries": [
+            "reproducible research pitfalls deterministic pipelines still have analytic flexibility",
+            "how to ensure deterministic analysis outputs across runs and environments"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_003_mining_visualization_evidence.md",
+            "https://stat.columbia.edu/~gelman/research/unpublished/p_hacking.pdf"
+          ],
+          "falsificationAnalysis": "Even with deterministic code, analyst degrees of freedom exist in design decisions: which metrics exist, how abstentions are treated, how bundles are matched, and how belief/conflict is aggregated. A deterministic pipeline is still compatible with biased reporting if the pipeline is repeatedly modified after seeing results. Conclusion: the claim holds only if the blueprint also specifies a 'frozen' primary endpoint panel (and keeps changes logged).",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed"
+    },
+    {
+      "challengeID": "nc_h_A_02_001",
+      "microHypothesisID": "h_A_02_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Matched-sample inference is valid because sample ordinals are meaningfully matched across experiments/families.",
+          "falsificationQueries": [
+            "paired analysis invalid when pairs are not truly matched",
+            "repeated measures design assumptions exchangeability matched units",
+            "when not to use paired bootstrap or paired tests"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_002_statistical_methods_evidence.md",
+            "_blueprints/v3-data-analysis/knowledge/k_003_mining_visualization_evidence.md",
+            "https://nchenderson.github.io/elements-nonpar-stat/permutation.html",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4010955/"
+          ],
+          "falsificationAnalysis": "Paired estimators reduce variance only if pairing is real. In judge-gym V3, the most likely mismatch is that 'sample_ordinal' indexes different internal objects across experiments (different sample IDs), and some families (a6/a7) change the evidence unit (bundles) so pairing by ordinal alone may not correspond to identical evidence sets. Permutation tests rely on exchangeability under H0, and sign-flip strategies require assumptions about error symmetry/exchangeability. Conclusion: the hypothesis is weakened unless the blueprint includes a verification step that pairing keys (e.g., evidence labels/bundles or explicit export keys) are consistent within family contrasts; otherwise use stratified/partial matching or analyze at evidence/bundle grain instead.",
+          "outcome": "Passed"
+        },
+        {
+          "targetDescription": "Paired bootstrap and paired permutation are robust defaults at n=30 without hidden assumptions.",
+          "falsificationQueries": [
+            "paired bootstrap resample pairs guidance",
+            "paired permutation sign flip assumption symmetry",
+            "limitations of bootstrap confidence intervals small samples"
+          ],
+          "falsificationEvidenceFound": [
+            "https://www.cns.nyu.edu/~eero/math-tools17/Handouts/Efron-bootstrap-ch1%2B2.pdf",
+            "https://www.stat.umn.edu/geyer/old02/5601/examp/bse.html",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4010955/",
+            "https://nchenderson.github.io/elements-nonpar-stat/permutation.html"
+          ],
+          "falsificationAnalysis": "Bootstrap and permutation are good defaults, but they are not assumption-free. Bootstrap CIs can be misleading in small samples for heavy-tailed or highly discrete endpoints, and the correct resampling unit must preserve dependence (resample pairs/samples, not individual responses). Permutation tests require exchangeability; sign flips require an invariance/symmetry assumption for errors. Conclusion: the methods are fine if the blueprint fixes the unit-of-analysis (sample-level aggregates) and includes sensitivity checks (median/trimmed mean, alternative endpoints).",
+          "outcome": "Passed"
+        },
+        {
+          "targetDescription": "Adjusting for rubric quality as a covariate is always a good idea.",
+          "falsificationQueries": [
+            "post-treatment bias controlling for mediator rubric quality covariate",
+            "overcontrol bias bad controls mediator collider",
+            "when covariate adjustment introduces bias"
+          ],
+          "falsificationEvidenceFound": [
+            "https://www.nature.com/articles/s41562-024-01939-z",
+            "https://academic.oup.com/jpr/article/61/3/462/8364833",
+            "https://en.wikipedia.org/wiki/Bad_control",
+            "https://arxiv.org/abs/2306.01211"
+          ],
+          "falsificationAnalysis": "Rubric quality is plausibly post-treatment (generated by the rubric model, which is part of the treatment/config). Conditioning on it can induce over-control / post-treatment bias or collider bias depending on the causal DAG. Therefore, 'control for rubric quality' is not universally valid; it depends on the estimand. Conclusion: the analysis plan must treat rubric quality carefully, e.g., as a descriptive mediator, a stratification dimension, or via explicit mediation analysis if the goal is direct effects, rather than blindly adjusting in regressions.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed"
+    },
+    {
+      "challengeID": "nc_h_A_03_001",
+      "microHypothesisID": "h_A_03_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Ranked instability/sensitivity tables reduce bias compared to manual chart browsing.",
+          "falsificationQueries": [
+            "ranked discovery tables selection bias still possible",
+            "exploratory data analysis ranking pipelines forking paths",
+            "FDR control in exploratory mining limitations"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_003_mining_visualization_evidence.md",
+            "https://stat.columbia.edu/~gelman/research/unpublished/p_hacking.pdf",
+            "https://www.jstor.org/stable/2346101",
+            "https://www.publichealth.columbia.edu/research/population-health-methods/false-discovery-rate"
+          ],
+          "falsificationAnalysis": "Ranked tables help discipline attention, but they can still encode analyst choices (which metrics define instability, which baseline, how abstentions are treated, which aggregation). FDR control is useful as a prioritization discipline, but does not convert exploratory discoveries into confirmatory results. Conclusion: the hypothesis holds if the blueprint makes the ranking policy explicit, logs it, and uses the ranking for candidate generation rather than final claims.",
+          "outcome": "Passed"
+        },
+        {
+          "targetDescription": "Distance maps (clustering/MDS) are useful for discovery and can be validated easily.",
+          "falsificationQueries": [
+            "hierarchical clustering stability bootstrap jaccard caveats",
+            "cluster stability not equal cluster validity",
+            "MDS sensitivity to distance choice"
+          ],
+          "falsificationEvidenceFound": [
+            "https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-42",
+            "https://www.sciencedirect.com/science/article/pii/S0167947306004622",
+            "https://search.r-project.org/CRAN/refmans/fpc/html/clusterboot.html",
+            "https://arxiv.org/abs/1311.5068"
+          ],
+          "falsificationAnalysis": "Cluster stability is nontrivial and sensitive to resampling scheme; stable clusters can still be invalid (method inflexibility), and bootstrap approaches can overestimate stability depending on how membership is mapped across resamples. MDS and clustering are also sensitive to metric scaling and distance choice. Conclusion: distance maps should be explicitly labeled exploratory and backed by stability diagnostics (resampling Jaccard or similar) before being used as claims.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed"
+    },
+    {
+      "challengeID": "nc_h_A_04_001",
+      "microHypothesisID": "h_A_04_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Families a6/a7 are 'true' outliers (not an artifact of different denominators or aggregation).",
+          "falsificationQueries": [
+            "conjunctive DST conflict increases with number of combined masses",
+            "comparing conflict across conditions with different number of items combined is invalid",
+            "how aggregation choice affects Dempster-Shafer conflict"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_004_current_v3_signal_scan.md",
+            "_blueprints/v3-data-analysis/knowledge/k_001_pilot_framing_evidence.md"
+          ],
+          "falsificationAnalysis": "In V3, a6/a7 have materially fewer response rows (120) than most other experiments (600). For conjunctive fusion metrics like TBM conflict, the number of combined evidence-level masses strongly affects saturation: combining more masses tends to increase contradiction. Therefore, lower conflict in a6/a7 could partly be a denominator artifact rather than a substantive stability difference. Conclusion: the prioritization still likely holds due to other geometry shifts (singleton/subset breadth), but any claim about 'stability regime' must include sensitivity checks that equalize the unit (e.g., per-sample fixed-size subsampling of responses) or use conflict-free endpoints (entropy, flip-rate).",
+          "outcome": "Passed"
+        },
+        {
+          "targetDescription": "a4 swap cleanly decomposes rubric quality vs scorer behavior without confounding.",
+          "falsificationQueries": [
+            "post-treatment bias mediator covariate adjustment rubric quality",
+            "interactions in factorial experiments missing cells confounding",
+            "two-factor swap design identifiability"
+          ],
+          "falsificationEvidenceFound": [
+            "_blueprints/v3-data-analysis/knowledge/k_004_current_v3_signal_scan.md",
+            "https://www.nature.com/articles/s41562-024-01939-z",
+            "https://academic.oup.com/jpr/article/61/3/462/8364833"
+          ],
+          "falsificationAnalysis": "The swap is informative, but it is not a fully identified decomposition if rubric quality itself is an outcome of rubric model choice (post-treatment). Treating rubric quality as a separate causal factor can be misleading unless the estimand is defined. Conclusion: report a4 as a descriptive mechanism probe (and show matched deltas) rather than claiming a clean causal decomposition; reserve causal talk for a follow-up with explicit DAGs or additional controls.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed"
+    }
+  ],
+  "overallOutcome": "PassedWithCaveats"
+}
+
