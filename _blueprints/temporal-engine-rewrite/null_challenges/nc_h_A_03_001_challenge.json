@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_03_001",
+  "microHypothesisID": "h_A_03_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Temporal Visibility can safely serve as the primary automation-grade liveness index for monitoring and repair loops.",
+      "falsificationQueries": [
+        "Temporal visibility eventual consistency list workflow executions stale running",
+        "Temporal visibility consistency self hosted"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_004_observability_and_operator_control.md"
+      ],
+      "falsificationAnalysis": "Visibility is excellent for operator discovery but is not strongly consistent enough to be the sole repair-loop truth source. The design must use Visibility for discovery and per-execution workflow calls or a Convex projection for automation-grade decisions.",
+      "outcome": "Failed"
+    }
+  ],
+  "overallOutcome": "Failed"
+}
+

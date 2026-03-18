@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_21_001",
+  "areaOfAnalysisID": "A_21",
+  "statement": "Inside `engine-temporal`, the most maintainable provider-portable architecture is a three-layer split: core execution logic, a capability registry, and provider adapters, with a generic attempt-ledger envelope plus `provider_extensions` for provider-specific fields.",
+  "confidence": 0.74,
+  "rationale": "The repo already centralizes provider metadata and services, but only for OpenAI. A Temporal rewrite needs stronger separation so provider-specific request shapes, cache semantics, and usage reconciliation do not leak into workflow logic.",
+  "keyAssumptions": [
+    "The engine will continue to need a shared attempt ledger and shared observability surface across providers",
+    "Provider-specific metadata can be safely isolated into extension payloads without undermining debugging or replay"
+  ],
+  "validationCriteria": [
+    "Core workflow code does not directly construct provider wire payloads",
+    "New provider support mostly adds a registry entry, one or more adapter implementations, and provider-specific tests",
+    "Provider-specific fields in attempts remain queryable without distorting the generic top-level schema"
+  ],
+  "critiquePoints": [
+    "If the adapter boundary is too narrow, provider-specific recovery logic may leak back into core orchestration",
+    "If the extension payload is unstructured, debugging and analytics may degrade"
+  ],
+  "questions": [
+    "What minimum generic operation types should core execution know about in v0: sync inference, tool loop, structured extraction, and a capability hook for async batch?",
+    "Which provider-specific fields deserve first-class columns in `llm_attempts`, and which should stay in `provider_extensions`?"
+  ]
+}

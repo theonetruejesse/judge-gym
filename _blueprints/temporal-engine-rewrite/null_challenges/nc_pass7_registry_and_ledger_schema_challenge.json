@@ -1,0 +1,48 @@
+{
+  "challengeID": "nc_pass7_001",
+  "microHypothesisIDs": [
+    "h_A_22_001",
+    "h_A_23_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "The registry should include full provider wire formats and endpoint details",
+      "falsificationQueries": [
+        "Does core workflow logic need raw provider request/response shapes to remain portable?",
+        "Would endpoint and payload details in the registry duplicate adapter responsibilities?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_023_provider_portable_code_architecture.md",
+        "knowledge/k_024_minimal_v0_capability_registry_schema.md"
+      ],
+      "falsificationAnalysis": "Putting wire formats into the registry would collapse the adapter boundary and make the registry too large and brittle. The registry only needs the fields the core runtime and Upstash layer consume directly.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "A provider-portable `llm_attempts` ledger should promote all provider metadata to first-class columns",
+      "falsificationQueries": [
+        "Would first-class columns for every provider-specific field make the ledger OpenAI-shaped or schema-unstable?",
+        "Can a generic envelope plus `provider_extensions` preserve enough debugging and replay information?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_025_llm_attempt_envelope_and_upstash_key_model.md"
+      ],
+      "falsificationAnalysis": "Promoting everything would make the ledger unstable and provider-shaped. The better default is a generic envelope with explicit provider extensions, while reserving the option to promote a small number of operationally critical fields later.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Upstash keys can be generated directly from provider wire field names",
+      "falsificationQueries": [
+        "Would provider-specific field names make rate-limit keys unstable across providers?",
+        "Is the capability registry the right source of normalized quota-dimension IDs?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_024_minimal_v0_capability_registry_schema.md",
+        "knowledge/k_025_llm_attempt_envelope_and_upstash_key_model.md"
+      ],
+      "falsificationAnalysis": "Using provider wire names in keys would reintroduce provider-specific branching into the limiter. The registry-backed normalized dimension IDs are the cleaner and more maintainable source of truth.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

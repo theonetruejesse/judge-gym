@@ -6,7 +6,12 @@ import { internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
+import { getProviderForModel, isBatchableModel, type ModelType } from "../../platform/providers/provider_types";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
+import {
+  deriveBundlePlanArgsForExperiment,
+  findMatchingBundlePlan,
+} from "../runs/bundle_plan_repo";
 import { getExperimentTotalCount } from "../runs/experiment_progress";
 import { getSampleScoreCounts } from "../runs/sample_progress";
 import { getRunCompletedCount } from "../runs/run_progress";
@@ -14,6 +19,7 @@ import { getRunCompletedCount } from "../runs/run_progress";
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
   "start_scheduler_if_idle",
+  "repair_stage_transport",
   "requeue_orphan_request",
   "requeue_retryable_request",
   "release_expired_batch_claim",
@@ -104,6 +110,7 @@ const HealthSummarySchema = z.object({
 const StuckReasonSchema = z.enum([
   "batch_missing_ref",
   "finalizing_no_progress",
+  "pending_requests_on_dead_transport",
   "pending_request_no_owner",
   "raw_collection_no_progress",
   "retryable_no_transport",
@@ -135,6 +142,12 @@ function getNextStageForProcess(
 
 const DebugActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start_scheduler_if_idle") }),
+  z.object({
+    action: z.literal("repair_stage_transport"),
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    stage: z.string(),
+  }),
   z.object({ action: z.literal("requeue_orphan_request"), request_id: zid("llm_requests") }),
   z.object({ action: z.literal("requeue_retryable_request"), request_id: zid("llm_requests") }),
   z.object({ action: z.literal("release_expired_batch_claim"), batch_id: zid("llm_batches") }),
@@ -147,6 +160,31 @@ const DebugActionResultSchema = z.object({
   status: z.enum(["applied", "skipped", "failed"]),
   reason: z.string(),
 });
+
+const RepairRunStageTransportResultSchema = z.object({
+  run_id: z.string(),
+  stage: z.string(),
+  dry_run: z.boolean(),
+  outcome: z.enum([
+    "missing_process",
+    "invalid_stage",
+    "not_running",
+    "stage_mismatch",
+    "active_transport_exists",
+    "repaired",
+    "reenqueued_stage",
+    "no_pending_requests",
+    "no_repair_needed",
+  ]),
+  repaired_request_count: z.number(),
+  pending_request_count: z.number(),
+  detached_batch_ids: z.array(z.string()),
+  detached_job_ids: z.array(z.string()),
+  active_transport_present: z.boolean(),
+  scheduler_started: z.boolean(),
+});
+
+type RepairRunStageTransportResult = z.infer<typeof RepairRunStageTransportResultSchema>;
 
 const AnalyzeStageSummarySchema = z.object({
   stage: z.string(),
@@ -649,6 +687,422 @@ async function listActiveBatchesForProcess(
   return rows;
 }
 
+async function hasActiveTransportForProcessStage(
+  ctx: QueryCtx | MutationCtx,
+  processType: "run" | "window",
+  processId: string,
+  stage: string,
+): Promise<boolean> {
+  const customKey = `${processType}:${processId}:${stage}`;
+  const [
+    queuedBatch,
+    submittingBatch,
+    runningBatch,
+    finalizingBatch,
+    queuedJob,
+    runningJob,
+  ] = await Promise.all([
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "queued"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "submitting"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "running"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_batches")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "finalizing"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "queued"),
+      )
+      .first(),
+    ctx.db
+      .query("llm_jobs")
+      .withIndex("by_custom_key_status", (q) =>
+        q.eq("custom_key", customKey).eq("status", "running"),
+      )
+      .first(),
+  ]);
+
+  return Boolean(
+    queuedBatch
+    || submittingBatch
+    || runningBatch
+    || finalizingBatch
+    || queuedJob
+    || runningJob,
+  );
+}
+
+type DeadTransportInfo = {
+  kind: "batch_missing" | "batch_error" | "job_missing" | "job_error";
+  batch_id: Id<"llm_batches"> | null;
+  job_id: Id<"llm_jobs"> | null;
+  details: string;
+};
+
+async function getDeadTransportInfo(
+  ctx: QueryCtx | MutationCtx,
+  request: Doc<"llm_requests">,
+): Promise<DeadTransportInfo | null> {
+  if (request.status !== "pending") return null;
+
+  if (request.batch_id != null) {
+    const batch = await ctx.db.get(request.batch_id);
+    if (!batch) {
+      return {
+        kind: "batch_missing",
+        batch_id: request.batch_id,
+        job_id: null,
+        details: "Pending request points to a missing batch",
+      };
+    }
+    if (batch.status === "error") {
+      return {
+        kind: "batch_error",
+        batch_id: batch._id,
+        job_id: null,
+        details: "Pending request points to an error batch",
+      };
+    }
+  }
+
+  if (request.job_id != null) {
+    const job = await ctx.db.get(request.job_id);
+    if (!job) {
+      return {
+        kind: "job_missing",
+        batch_id: null,
+        job_id: request.job_id,
+        details: "Pending request points to a missing job",
+      };
+    }
+    if (job.status === "error") {
+      return {
+        kind: "job_error",
+        batch_id: null,
+        job_id: job._id,
+        details: "Pending request points to an error job",
+      };
+    }
+  }
+
+  return null;
+}
+
+async function listPendingRequestsForProcessStage(
+  ctx: QueryCtx | MutationCtx,
+  membership: ProcessMembership,
+  stage: string,
+): Promise<Doc<"llm_requests">[]> {
+  const rows = await ctx.db
+    .query("process_request_targets")
+    .withIndex("by_process_stage", (q) =>
+      q.eq("process_type", membership.process_type).eq("process_id", membership.process_id).eq("stage", stage),
+    )
+    .take(PROCESS_TARGET_STATE_SCAN_MAX_ROWS);
+
+  const requestIds = new Set<Id<"llm_requests">>();
+  for (const row of rows) {
+    if (row.resolution !== "pending" || row.active_request_id == null) continue;
+    requestIds.add(row.active_request_id);
+  }
+
+  const requests: Doc<"llm_requests">[] = [];
+  for (const requestId of requestIds) {
+    const request = await ctx.db.get(requestId);
+    if (!request) continue;
+    if (request.status !== "pending") continue;
+    if (!requestBelongsToMembership(membership, request)) continue;
+    if (parseCustomKey(request.custom_key).stage !== stage) continue;
+    requests.push(request);
+  }
+  return requests;
+}
+
+async function attachPendingRequestsToTransport(
+  ctx: MutationCtx,
+  args: {
+    process_type: "run" | "window";
+    process_id: string;
+    stage: string;
+    requests: Doc<"llm_requests">[];
+  },
+): Promise<void> {
+  const grouped = new Map<ModelType, Id<"llm_requests">[]>();
+  for (const request of args.requests) {
+    const key = request.model;
+    const bucket = grouped.get(key) ?? [];
+    bucket.push(request._id);
+    grouped.set(key, bucket);
+  }
+
+  for (const [model, requestIds] of grouped.entries()) {
+    const processKey = `${args.process_type}:${args.process_id}:${args.stage}`;
+    const shouldBatch = isBatchableModel(model)
+      && requestIds.length >= ENGINE_SETTINGS.run_policy.min_batch_size;
+
+    if (!shouldBatch) {
+      const jobId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_job_repo.createLlmJob,
+        {
+          provider: getProviderForModel(model),
+          model,
+          custom_key: processKey,
+        },
+      );
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_job_repo.assignRequestsToJob,
+        {
+          request_ids: requestIds,
+          job_id: jobId,
+        },
+      );
+      continue;
+    }
+
+    const maxBatchSize = Math.max(1, ENGINE_SETTINGS.run_policy.max_batch_size);
+    for (let index = 0; index < requestIds.length; index += maxBatchSize) {
+      const chunk = requestIds.slice(index, index + maxBatchSize);
+      const batchId = await ctx.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+        {
+          provider: getProviderForModel(model),
+          model,
+          custom_key: processKey,
+        },
+      );
+      await ctx.runMutation(
+        internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
+        {
+          request_ids: chunk,
+          batch_id: batchId,
+        },
+      );
+    }
+  }
+}
+
+async function repairProcessStageTransport(
+  ctx: MutationCtx,
+  args: {
+    process_type: "run" | "window";
+    process_id: string;
+    stage: string;
+    dry_run: boolean;
+    start_scheduler: boolean;
+    require_current_stage_match?: boolean;
+  },
+): Promise<RepairRunStageTransportResult> {
+  const membership = await buildMembership(ctx, args.process_type, args.process_id);
+  if (!membership) {
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "missing_process" as const,
+      repaired_request_count: 0,
+      pending_request_count: 0,
+      detached_batch_ids: [],
+      detached_job_ids: [],
+      active_transport_present: false,
+      scheduler_started: false,
+    };
+  }
+
+  if (!stageNamesForProcess(args.process_type).includes(args.stage)) {
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "invalid_stage" as const,
+      repaired_request_count: 0,
+      pending_request_count: 0,
+      detached_batch_ids: [],
+      detached_job_ids: [],
+      active_transport_present: false,
+      scheduler_started: false,
+    };
+  }
+
+  if (args.process_type === "run" && membership.status !== "running") {
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "not_running" as const,
+      repaired_request_count: 0,
+      pending_request_count: 0,
+      detached_batch_ids: [],
+      detached_job_ids: [],
+      active_transport_present: false,
+      scheduler_started: false,
+    };
+  }
+
+  if (args.require_current_stage_match && membership.current_stage !== args.stage) {
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "stage_mismatch" as const,
+      repaired_request_count: 0,
+      pending_request_count: 0,
+      detached_batch_ids: [],
+      detached_job_ids: [],
+      active_transport_present: false,
+      scheduler_started: false,
+    };
+  }
+
+  const activeTransportPresent = await hasActiveTransportForProcessStage(
+    ctx,
+    args.process_type,
+    args.process_id,
+    args.stage,
+  );
+  const pendingRequests = await listPendingRequestsForProcessStage(ctx, membership, args.stage);
+  const detachedBatchIds = new Set<string>();
+  const detachedJobIds = new Set<string>();
+  const repairableRequests: Doc<"llm_requests">[] = [];
+
+  for (const request of pendingRequests) {
+    const deadTransport = await getDeadTransportInfo(ctx, request);
+    if (deadTransport) {
+      if (deadTransport.batch_id) detachedBatchIds.add(String(deadTransport.batch_id));
+      if (deadTransport.job_id) detachedJobIds.add(String(deadTransport.job_id));
+      repairableRequests.push(request);
+      continue;
+    }
+    if (request.batch_id == null && request.job_id == null) {
+      repairableRequests.push(request);
+    }
+  }
+
+  if (activeTransportPresent) {
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "active_transport_exists" as const,
+      repaired_request_count: 0,
+      pending_request_count: pendingRequests.length,
+      detached_batch_ids: [...detachedBatchIds],
+      detached_job_ids: [...detachedJobIds],
+      active_transport_present: true,
+      scheduler_started: false,
+    };
+  }
+
+  if (repairableRequests.length > 0) {
+    if (!args.dry_run) {
+      for (const request of repairableRequests) {
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.patchRequest,
+          {
+            request_id: request._id,
+            patch: {
+              batch_id: null,
+              job_id: null,
+              next_attempt_at: undefined,
+            },
+          },
+        );
+      }
+      await attachPendingRequestsToTransport(ctx, {
+        process_type: args.process_type,
+        process_id: args.process_id,
+        stage: args.stage,
+        requests: repairableRequests,
+      });
+      if (args.start_scheduler) {
+        await ctx.runMutation(internal.domain.orchestrator.scheduler.startScheduler, {});
+      }
+    }
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "repaired" as const,
+      repaired_request_count: repairableRequests.length,
+      pending_request_count: pendingRequests.length,
+      detached_batch_ids: [...detachedBatchIds],
+      detached_job_ids: [...detachedJobIds],
+      active_transport_present: false,
+      scheduler_started: !args.dry_run && args.start_scheduler,
+    };
+  }
+
+  const health = await collectProcessHealth(ctx, {
+    process_type: args.process_type,
+    process_id: args.process_id,
+    include_recent_events: 0,
+  });
+  const stageProgress = health.stage_progress.find((row) => row.stage === args.stage);
+  if (
+    args.process_type === "run"
+    && pendingRequests.length === 0
+    && stageProgress
+    && stageProgress.pending > 0
+  ) {
+    if (!args.dry_run) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.enqueueRunStage,
+        {
+          run_id: args.process_id as Id<"runs">,
+          stage: args.stage as z.infer<typeof RunStageSchema>,
+          reason: "repair_stage_transport",
+          start_scheduler: args.start_scheduler,
+        },
+      );
+    }
+    return {
+      run_id: args.process_id,
+      stage: args.stage,
+      dry_run: args.dry_run,
+      outcome: "reenqueued_stage" as const,
+      repaired_request_count: 0,
+      pending_request_count: 0,
+      detached_batch_ids: [],
+      detached_job_ids: [],
+      active_transport_present: false,
+      scheduler_started: false,
+    };
+  }
+
+  return {
+    run_id: args.process_id,
+    stage: args.stage,
+    dry_run: args.dry_run,
+    outcome: pendingRequests.length === 0
+      ? ("no_pending_requests" as const)
+      : ("no_repair_needed" as const),
+    repaired_request_count: 0,
+    pending_request_count: pendingRequests.length,
+    detached_batch_ids: [...detachedBatchIds],
+    detached_job_ids: [...detachedJobIds],
+    active_transport_present: false,
+    scheduler_started: false,
+  };
+}
+
 async function executeDebugAction(
   ctx: MutationCtx,
   dryRun: boolean,
@@ -691,6 +1145,33 @@ async function executeDebugAction(
       action: action.action,
       status: "applied",
       reason: dryRun ? "Dry run: would schedule scheduler" : "Scheduler started",
+    };
+  }
+
+  if (action.action === "repair_stage_transport") {
+    const result = await repairProcessStageTransport(ctx, {
+      process_type: action.process_type,
+      process_id: action.process_id,
+      stage: action.stage,
+      dry_run: dryRun,
+      start_scheduler: true,
+      require_current_stage_match: false,
+    });
+    if (result.outcome === "repaired" || result.outcome === "reenqueued_stage") {
+      return {
+        action: action.action,
+        entity_id: `${action.process_type}:${action.process_id}:${action.stage}`,
+        status: "applied",
+        reason: dryRun
+          ? `Dry run: would repair ${result.repaired_request_count} request(s) for ${action.stage}`
+          : `Stage transport ${result.outcome}`,
+      };
+    }
+    return {
+      action: action.action,
+      entity_id: `${action.process_type}:${action.process_id}:${action.stage}`,
+      status: "skipped",
+      reason: `Repair not needed: ${result.outcome}`,
     };
   }
 
@@ -1265,12 +1746,12 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
     }
 
     if (!schedulerScheduled) {
-      const backlogBatch = queuedBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? submittingBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? runningBatches.find((row) => isAllowedProcess(row.custom_key))
-        ?? finalizingBatches.find((row) => isAllowedProcess(row.custom_key));
-      const backlogJob = queuedJobs.find((row) => isAllowedProcess(row.custom_key));
-      const backlogRequest = orphaned.find((row) => isAllowedProcess(row.custom_key));
+      const backlogBatch = queuedBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? submittingBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? runningBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key))
+        ?? finalizingBatches.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
+      const backlogJob = queuedJobs.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
+      const backlogRequest = orphaned.find((row: { custom_key: string }) => isAllowedProcess(row.custom_key));
       const hasBacklog = backlogBatch != null || backlogJob != null || backlogRequest != null;
       if (hasBacklog) {
         const parsedBacklog = backlogBatch != null
@@ -1357,6 +1838,34 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         || health.active_transport.running_jobs > 0
         || health.active_transport.orphaned_requests > 0
       );
+      if (inactivityMs >= args.older_than_ms) {
+        const membership = await buildMembership(ctx, "run", String(run._id));
+        if (membership) {
+          const pendingRequests = await listPendingRequestsForProcessStage(ctx, membership, health.current_stage);
+          const deadBatchIds = new Set<string>();
+          const deadJobIds = new Set<string>();
+          let deadTransportCount = 0;
+          for (const request of pendingRequests) {
+            const deadTransport = await getDeadTransportInfo(ctx, request);
+            if (!deadTransport) continue;
+            deadTransportCount += 1;
+            if (deadTransport.batch_id) deadBatchIds.add(String(deadTransport.batch_id));
+            if (deadTransport.job_id) deadJobIds.add(String(deadTransport.job_id));
+          }
+          if (deadTransportCount > 0) {
+            items.push({
+              process_type: "run",
+              process_id: String(run._id),
+              reason: "pending_requests_on_dead_transport",
+              entity_type: "run",
+              entity_id: String(run._id),
+              custom_key: `run:${run._id}:${health.current_stage}`,
+              age_ms: inactivityMs,
+              details: `Current stage has ${deadTransportCount} pending requests attached to dead transport (batches=${deadBatchIds.size}, jobs=${deadJobIds.size})`,
+            });
+          }
+        }
+      }
       const nextStageName = getNextStageForProcess("run", health.current_stage);
       const sampleRows = nextStageName == null
         ? []
@@ -1469,6 +1978,36 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
           age_ms: health.stalled_signals.no_progress_for_ms,
           details: `Current stage has ${recoverableStall.retryable_targets} retryable targets and no active transport`,
         });
+      }
+      const inactivityMs = health.stalled_signals.no_progress_for_ms
+        ?? Math.max(0, now - window._creationTime);
+      if (inactivityMs >= args.older_than_ms) {
+        const membership = await buildMembership(ctx, "window", String(window._id));
+        if (membership) {
+          const pendingRequests = await listPendingRequestsForProcessStage(ctx, membership, health.current_stage);
+          const deadBatchIds = new Set<string>();
+          const deadJobIds = new Set<string>();
+          let deadTransportCount = 0;
+          for (const request of pendingRequests) {
+            const deadTransport = await getDeadTransportInfo(ctx, request);
+            if (!deadTransport) continue;
+            deadTransportCount += 1;
+            if (deadTransport.batch_id) deadBatchIds.add(String(deadTransport.batch_id));
+            if (deadTransport.job_id) deadJobIds.add(String(deadTransport.job_id));
+          }
+          if (deadTransportCount > 0) {
+            items.push({
+              process_type: "window",
+              process_id: String(window._id),
+              reason: "pending_requests_on_dead_transport",
+              entity_type: "window",
+              entity_id: String(window._id),
+              custom_key: `window:${window._id}:${health.current_stage}`,
+              age_ms: inactivityMs,
+              details: `Current stage has ${deadTransportCount} pending requests attached to dead transport (batches=${deadBatchIds.size}, jobs=${deadJobIds.size})`,
+            });
+          }
+        }
       }
       if (currentStage.failed === 0 || currentStage.pending > 0) continue;
       items.push({
@@ -1734,7 +2273,9 @@ export const runDebugActions: ReturnType<typeof zMutation> = zMutation({
           action: action.action,
           entity_id: action.action === "start_scheduler_if_idle"
             ? null
-            : String((action as { request_id?: string; batch_id?: string }).request_id ?? (action as { batch_id?: string }).batch_id ?? ""),
+            : action.action === "repair_stage_transport"
+              ? `${action.process_type}:${action.process_id}:${action.stage}`
+              : String((action as { request_id?: string; batch_id?: string }).request_id ?? (action as { batch_id?: string }).batch_id ?? ""),
           status: "failed",
           reason: String(error),
         });
@@ -1804,6 +2345,16 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
             action: "requeue_orphan_request",
             request_id: pending._id,
           });
+        } else if (pending) {
+          const deadTransport = await getDeadTransportInfo(ctx, pending);
+          if (deadTransport) {
+            plannedActions.push({
+              action: "repair_stage_transport",
+              process_type: args.process_type,
+              process_id: args.process_id,
+              stage: targetState.stage,
+            });
+          }
         }
         continue;
       }
@@ -1862,7 +2413,9 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
     for (const action of plannedActions) {
       const key = action.action === "start_scheduler_if_idle"
         ? action.action
-        : `${action.action}:${"request_id" in action ? action.request_id : action.batch_id}`;
+        : action.action === "repair_stage_transport"
+          ? `${action.action}:${action.process_type}:${action.process_id}:${action.stage}`
+          : `${action.action}:${"request_id" in action ? action.request_id : action.batch_id}`;
       deduped.set(key, action);
     }
     const orderedActions = [...deduped.entries()]
@@ -1883,7 +2436,9 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
           action: action.action,
           entity_id: action.action === "start_scheduler_if_idle"
             ? null
-            : String((action as { request_id?: string; batch_id?: string }).request_id ?? (action as { batch_id?: string }).batch_id ?? ""),
+            : action.action === "repair_stage_transport"
+              ? `${action.process_type}:${action.process_id}:${action.stage}`
+              : String((action as { request_id?: string; batch_id?: string }).request_id ?? (action as { batch_id?: string }).batch_id ?? ""),
           status: "failed",
           reason: String(error),
         });
@@ -1905,6 +2460,42 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
         scanned_batches: activeBatches.length,
       },
     };
+  },
+});
+
+export const repairRunStageTransport: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageSchema.optional(),
+    dry_run: z.boolean().default(true),
+    start_scheduler: z.boolean().default(true),
+  }),
+  returns: RepairRunStageTransportResultSchema,
+  handler: async (ctx, args): Promise<RepairRunStageTransportResult> => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      return {
+        run_id: String(args.run_id),
+        stage: args.stage ?? "unknown",
+        dry_run: args.dry_run,
+        outcome: "missing_process" as const,
+        repaired_request_count: 0,
+        pending_request_count: 0,
+        detached_batch_ids: [],
+        detached_job_ids: [],
+        active_transport_present: false,
+        scheduler_started: false,
+      };
+    }
+
+    return repairProcessStageTransport(ctx, {
+      process_type: "run",
+      process_id: String(run._id),
+      stage: args.stage ?? run.current_stage,
+      dry_run: args.dry_run,
+      start_scheduler: args.start_scheduler,
+      require_current_stage_match: true,
+    });
   },
 });
 
@@ -2070,6 +2661,124 @@ export const backfillExperimentTotalCounts: ReturnType<typeof zMutation> = zMuta
         previous_total_count: previousTotalCount,
         computed_total_count: computedTotalCount,
         changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: experiments.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillExperimentBundlePlans: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_experiments: z.number().int().min(1).max(500).default(100),
+    experiment_ids: z.array(zid("experiments")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      experiment_id: zid("experiments"),
+      experiment_tag: z.string(),
+      previous_bundle_plan_id: zid("bundle_plans").nullable(),
+      next_bundle_plan_id: zid("bundle_plans").nullable(),
+      bundle_plan_tag: z.string().nullable(),
+      strategy: z.string(),
+      strategy_version: z.string(),
+      changed: z.boolean(),
+      created_bundle_plan: z.boolean(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let experiments: Array<Doc<"experiments">> = [];
+
+    if (args.experiment_ids?.length) {
+      const loaded = await Promise.all(
+        args.experiment_ids.map((experimentId) => ctx.db.get(experimentId)),
+      );
+      experiments = loaded.filter(
+        (experiment): experiment is Doc<"experiments"> => experiment != null,
+      );
+    } else {
+      const orderedExperiments = await ctx.db
+        .query("experiments")
+        .order("asc")
+        .take(cursor + args.max_experiments + 1);
+      const page = orderedExperiments.slice(cursor, cursor + args.max_experiments + 1);
+      experiments = page.slice(0, args.max_experiments);
+      if (page.length > args.max_experiments) {
+        nextCursor = cursor + args.max_experiments;
+      }
+    }
+
+    const rows: Array<{
+      experiment_id: Id<"experiments">;
+      experiment_tag: string;
+      previous_bundle_plan_id: Id<"bundle_plans"> | null;
+      next_bundle_plan_id: Id<"bundle_plans"> | null;
+      bundle_plan_tag: string | null;
+      strategy: string;
+      strategy_version: string;
+      changed: boolean;
+      created_bundle_plan: boolean;
+    }> = [];
+    let updated = 0;
+
+    for (const experiment of experiments) {
+      const bundlePlanArgs = deriveBundlePlanArgsForExperiment(experiment);
+      const existing = await findMatchingBundlePlan(ctx, bundlePlanArgs);
+      const previousBundlePlanId = experiment.bundle_plan_id ?? null;
+      let nextBundlePlanId = existing?._id ?? null;
+      let bundlePlanTag = existing?.bundle_plan_tag ?? null;
+      let createdBundlePlan = existing == null;
+
+      if (!args.dry_run) {
+        const ensured = await ctx.runMutation(
+          internal.domain.runs.bundle_plan_repo.createBundlePlan,
+          bundlePlanArgs,
+        );
+        nextBundlePlanId = ensured.bundle_plan_id;
+        bundlePlanTag = ensured.bundle_plan_tag;
+        createdBundlePlan = ensured.created;
+        if (previousBundlePlanId !== nextBundlePlanId) {
+          await ctx.db.patch(experiment._id, {
+            bundle_plan_id: nextBundlePlanId,
+          });
+        }
+      } else if (previousBundlePlanId != null && existing == null) {
+        const currentPlan = await ctx.db.get(previousBundlePlanId);
+        nextBundlePlanId = currentPlan?._id ?? previousBundlePlanId;
+        bundlePlanTag = currentPlan?.bundle_plan_tag ?? null;
+      }
+
+      const changed = args.dry_run
+        ? (existing == null || previousBundlePlanId !== existing._id)
+        : previousBundlePlanId !== nextBundlePlanId;
+      if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        experiment_id: experiment._id,
+        experiment_tag: experiment.experiment_tag,
+        previous_bundle_plan_id: previousBundlePlanId,
+        next_bundle_plan_id: nextBundlePlanId,
+        bundle_plan_tag: bundlePlanTag,
+        strategy: bundlePlanArgs.strategy,
+        strategy_version: bundlePlanArgs.strategy_version,
+        changed,
+        created_bundle_plan: createdBundlePlan,
       });
     }
 

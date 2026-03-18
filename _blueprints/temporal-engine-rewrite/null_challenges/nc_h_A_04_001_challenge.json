@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_04_001",
+  "microHypothesisID": "h_A_04_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "The current runtime tables can disappear entirely without requiring replacement correctness or audit structures.",
+      "falsificationQueries": [
+        "Temporal idempotency database dedupe audit ledger activity retries",
+        "Temporal side effect deduplication database unique constraint"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_005_table_ownership_and_cutover.md",
+        "knowledge/k_006_convex_scheduler_tradeoff.md"
+      ],
+      "falsificationAnalysis": "The specific scheduler and lease tables are good deletion candidates, but their underlying responsibilities do not vanish. At-least-once activity semantics and reproducibility needs mean a Convex-side attempt or audit ledger is likely required.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}
+

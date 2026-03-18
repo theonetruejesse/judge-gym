@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_30_001",
+  "areaOfAnalysisID": "A_30",
+  "statement": "Temporal workers should talk to Convex only through a small public worker API of auth-gated, idempotent functions that delegate to internal mutations, while `engine-temporal` owns a `ConvexRepo` client wrapper and shared packages remain runtime-pure.",
+  "confidence": 0.77,
+  "rationale": "This boundary respects Convex's public/internal semantics, keeps package ownership enforceable, and prevents the rewrite from quietly treating Convex internals or unstable admin-only client surfaces as a worker RPC substrate.",
+  "keyAssumptions": [
+    "A small worker API surface can cover all allowed Activity writes without becoming another orchestrator layer",
+    "Worker auth can be solved cleanly enough for the public API path",
+    "Projection fields written through this boundary remain convenience-only"
+  ],
+  "validationCriteria": [
+    "Activities can perform all allowed durable writes through one owned client boundary",
+    "Workers do not depend on Convex internals as a public architectural contract",
+    "Policy snapshots and ops overrides stay intentionally separated"
+  ],
+  "critiquePoints": [
+    "Worker API auth is still a real design choice",
+    "Using public wrappers adds some ceremony compared with direct internal access"
+  ],
+  "questions": [
+    "Should the worker API use JWT-style identity, a shared worker secret, or another narrow auth mechanism in v0?"
+  ]
+}

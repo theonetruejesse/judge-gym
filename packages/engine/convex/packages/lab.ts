@@ -6,6 +6,10 @@ import { modelTypeSchema, type ModelType } from "../platform/providers/provider_
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema, RunStageSchema } from "../models/experiments";
+import {
+  BundleStrategySchema,
+  SemanticLevelSchema,
+} from "../models/_shared";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import { classifyRequestError } from "../domain/llm_calls/llm_request_repo";
@@ -243,19 +247,23 @@ const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
 
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
+    experiment_tag: z.string().optional(),
     experiment_config: ExperimentConfigInputSchema,
     pool_id: zid("pools"),
+    bundle_plan_id: zid("bundle_plans").optional(),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const { experiment_config, pool_id } = args;
+    const { experiment_config, pool_id, bundle_plan_id } = args;
 
     const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
       {
+        experiment_tag: args.experiment_tag,
         ...experiment_config,
         pool_id,
+        bundle_plan_id,
       }
     );
     const poolLinks = await ctx.runQuery(
@@ -292,6 +300,69 @@ export const createPool: ReturnType<typeof zMutation> = zMutation({
       args,
     );
     return { pool_id };
+  },
+});
+
+export const createBundlePlan: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    bundle_plan_tag: z.string().optional(),
+    pool_id: zid("pools"),
+    strategy: BundleStrategySchema,
+    strategy_version: z.string().optional(),
+    source_view: SemanticLevelSchema.nullable().optional(),
+    bundle_size: z.number().int().min(1),
+    seed: z.number().int().nullable().optional(),
+  }),
+  returns: z.object({
+    bundle_plan_id: zid("bundle_plans"),
+    bundle_plan_tag: z.string(),
+    created: z.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      internal.domain.runs.bundle_plan_repo.createBundlePlan,
+      args,
+    );
+  },
+});
+
+export const listBundlePlans: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    pool_id: zid("pools").optional(),
+  }),
+  returns: z.array(z.object({
+    bundle_plan_id: zid("bundle_plans"),
+    bundle_plan_tag: z.string(),
+    pool_id: zid("pools"),
+    strategy: BundleStrategySchema,
+    strategy_version: z.string(),
+    source_view: SemanticLevelSchema.nullable(),
+    bundle_size: z.number().int().min(1),
+    seed: z.number().int().nullable(),
+    evidence_count: z.number().int().nonnegative(),
+    bundle_count: z.number().int().nonnegative(),
+    status: z.string(),
+    materialized_item_count: z.number().int().nonnegative(),
+  })),
+  handler: async (ctx, args) => {
+    const plans = await ctx.runQuery(
+      internal.domain.runs.bundle_plan_repo.listBundlePlans,
+      args,
+    );
+    return plans.map((plan) => ({
+      bundle_plan_id: plan._id,
+      bundle_plan_tag: plan.bundle_plan_tag,
+      pool_id: plan.pool_id,
+      strategy: plan.strategy,
+      strategy_version: plan.strategy_version,
+      source_view: plan.source_view,
+      bundle_size: plan.bundle_size,
+      seed: plan.seed,
+      evidence_count: plan.evidence_count,
+      bundle_count: plan.bundle_count,
+      status: plan.status,
+      materialized_item_count: plan.materialized_item_count,
+    }));
   },
 });
 
@@ -341,6 +412,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
     z.object({
       experiment_id: zid("experiments"),
       experiment_tag: z.string(),
+      bundle_plan_id: zid("bundle_plans").optional(),
       rubric_config: ExperimentsTableSchema.shape.rubric_config,
       scoring_config: ExperimentsTableSchema.shape.scoring_config,
       total_count: z.number(),
@@ -380,6 +452,7 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
   returns: z.object({
     experiment_id: zid("experiments"),
     experiment_tag: z.string(),
+    bundle_plan_id: zid("bundle_plans").optional(),
     rubric_config: ExperimentsTableSchema.shape.rubric_config,
     scoring_config: ExperimentsTableSchema.shape.scoring_config,
     total_count: z.number(),
@@ -514,7 +587,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const run = await ctx.runQuery(internal.domain.runs.run_repo.getRun, {
       run_id,
     });
-    const experiment = await ctx.db.get(run.experiment_id);
+    const experiment = await ctx.db.get(run.experiment_id) as Doc<"experiments"> | null;
     if (!experiment) {
       throw new Error("Experiment not found");
     }

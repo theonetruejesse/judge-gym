@@ -1,0 +1,57 @@
+{
+  "challengeID": "nc_pass5_001",
+  "microHypothesisIDs": [
+    "h_A_19_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Temporal-native controls alone are enough for judge-gym's provider quotas",
+      "falsificationQueries": [
+        "Can `maxTaskQueueActivitiesPerSecond` represent request, input-token, and output-token budgets per model?",
+        "Do Temporal queue controls handle shared token accounting across workers without an external store?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_021_global_rate_limit_strategy.md"
+      ],
+      "falsificationAnalysis": "Temporal-native controls are good at queue dispatch shaping and host protection, but they are not expressive enough for judge-gym's current multi-dimensional provider quotas. They can replace the coarse part of the limiter, not the full quota model.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "A Redis limiter should replace Temporal-native queue controls entirely",
+      "falsificationQueries": [
+        "Could a pure Redis limiter handle backlog shaping, poller saturation, and worker host protection better than Temporal queue controls?",
+        "Would putting all throttling in Redis ignore useful Temporal-native dispatch controls?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_021_global_rate_limit_strategy.md"
+      ],
+      "falsificationAnalysis": "A Redis-only answer would recreate too much scheduler responsibility outside Temporal and would leave worker saturation and queue dispatch behavior under-specified. The layered split is better because it lets Temporal own dispatch while Redis owns only the quota dimensions Temporal cannot express.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Fairness keys should be a hard dependency in v0",
+      "falsificationQueries": [
+        "Does judge-gym's immediate quota problem require fairness keys or just shared provider budgets?",
+        "Are Temporal fairness controls mature enough that the rewrite should depend on them from day one?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_021_global_rate_limit_strategy.md"
+      ],
+      "falsificationAnalysis": "Fairness is promising, especially for future multi-tenant backlog scheduling, but it is not required to solve judge-gym's immediate provider quota problem. Depending on it in v0 would widen the rewrite surface for limited gain.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Redis is always necessary on day one",
+      "falsificationQueries": [
+        "Could a single-worker or single-queue constrained v0 avoid Redis initially?",
+        "Does the need for Redis depend on horizontal scale and quota strictness?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_021_global_rate_limit_strategy.md"
+      ],
+      "falsificationAnalysis": "Redis is the right default once shared provider quotas across workers matter, but it is not a law of physics for a single-worker pilot. The hypothesis survives because it frames Redis as the answer only for the quota dimensions that actually require a shared external store.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

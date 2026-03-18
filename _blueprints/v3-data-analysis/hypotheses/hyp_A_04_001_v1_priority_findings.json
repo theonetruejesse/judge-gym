@@ -1,0 +1,31 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04_CurrentV3SignalScan",
+  "statement": "The first V3 pilot report should prioritize families a6/a7 (bundle-size effects), a1 (abstain gate), and a4 (rubric-vs-scorer swap) because they exhibit the largest and most interpretable within-matrix shifts in adjudicative geometry (abstain, singleton, subset breadth) and in stability/contradiction regimes (DST conflict).",
+  "confidence": 0.74,
+  "rationale": "Across the exported V3 summary tables, a6/a7 are extreme outliers on conflict and specificity/subset breadth; a1 provides a clean on/off intervention with large, model-dependent abstain-rate shifts; and a4 is a near-ideal mechanism decomposition between rubric quality and scorer behavior. These offer a coherent narrative and can be backed by matched-sample deltas rather than only pooled aggregates.",
+  "keyAssumptions": [
+    "The summary-table metrics reflect robust sample-level patterns rather than artifacts of aggregation.",
+    "Family comparisons are meaningfully matched (same sample ordinals and evidence pools) across experiments in the family.",
+    "Rubric quality differences can be accounted for (covariate/stratification) so intervention effects are not misattributed.",
+    "Conflict saturation near 1.0 can be interpreted as an instability regime indicator or replaced by a less brittle aggregation without changing relative family ordering."
+  ],
+  "validationCriteria": [
+    "Compute paired (within-sample) deltas for each family contrast; confirm a6/a7 remain outliers on conflict and singleton/subset breadth after using per-sample medians or trimmed means.",
+    "For a1, confirm abstain_enabled increases abstain_rate for both models with paired bootstrap CIs excluding 0 and that severity geometry shifts (singleton/subset breadth) are directionally consistent.",
+    "For a4, quantify rubric-quality vs scorer contributions via regression or matched comparisons; confirm scorer model identity explains a large share of abstain/singleton shifts even when rubric quality differs.",
+    "Run sensitivity analyses that stratify or regress on rubric observability/discriminability to ensure the prioritized findings persist."
+  ],
+  "critiquePoints": [
+    "DST conflict metrics may saturate and become uninformative; conclusions about 'stability' may depend strongly on the belief aggregation rule.",
+    "Families are not fully factorial; a2/a3/a5 conclusions may require careful phrasing and additional baselines.",
+    "Rubric quality is itself influenced by model choice; treating it as a covariate risks post-treatment bias depending on the estimand.",
+    "The pilot sample size (30 samples) limits strong inferential claims; results should be framed as pilot signals with uncertainty."
+  ],
+  "questions": [
+    "Do we want a fixed primary baseline within each family (e.g., GPT-4.1 abstain_false) to standardize deltas, or treat each model as its own baseline?",
+    "Should the headline 'stability' metric be DST conflict, a flip-rate metric, entropy, or a composite index?",
+    "How should abstentions be treated in downstream severity comparisons: dropped, mapped to ignorance, or treated as a separate outcome?"
+  ]
+}
+

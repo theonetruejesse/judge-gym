@@ -24,6 +24,15 @@ export const SemanticLevelSchema = z.enum([
 
 export type SemanticLevel = z.infer<typeof SemanticLevelSchema>;
 
+export const BundleStrategySchema = z.enum([
+  "window_round_robin",
+  "random_bundle",
+  "semantic_cluster",
+  "semantic_cluster_projected",
+]);
+
+export type BundleStrategy = z.infer<typeof BundleStrategySchema>;
+
 export const RubricStageConfigSchema = z.object({
   model: modelTypeSchema,
   scale_size: z.number(),
@@ -39,4 +48,7 @@ export const ScoringStageConfigSchema = z.object({
     z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
   ),
   evidence_bundle_size: z.number().int().min(1),
+  bundle_strategy: BundleStrategySchema.optional(),
+  bundle_strategy_version: z.string().optional(),
+  clustering_seed: z.number().int().optional(),
 });

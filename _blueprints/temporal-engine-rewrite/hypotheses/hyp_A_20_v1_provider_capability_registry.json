@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_20_001",
+  "areaOfAnalysisID": "A_20",
+  "statement": "The rewrite should introduce a provider capability registry and provider-specific extension points, so that the core engine consumes normalized capabilities and quota dimensions instead of baking OpenAI-shaped assumptions into workflows, ledgers, and rate-limit code.",
+  "confidence": 0.78,
+  "rationale": "Official docs show meaningful divergence among OpenAI, Anthropic, and Gemini in quota dimensions, batch semantics, caching, and tool/structured-output behavior. A provider-agnostic workflow runtime only remains maintainable if those differences are modeled explicitly rather than hidden in ad hoc conditionals.",
+  "keyAssumptions": [
+    "Judge-gym intends to support at least OpenAI, Anthropic, and Gemini in the rewritten engine",
+    "The team prefers one shared execution engine with adapter boundaries over fully separate provider-specific pipelines"
+  ],
+  "validationCriteria": [
+    "Adding a new provider does not require changing core workflow or idempotency code for basic sync support, and optional capabilities like batch remain registry-driven rather than hard-coded",
+    "Rate-limit key generation derives from provider capability metadata rather than OpenAI-specific metric names",
+    "The attempt ledger can store provider-specific metadata without forcing the top-level schema to mirror one provider's wire format"
+  ],
+  "critiquePoints": [
+    "An overly abstract capability registry can become vague and underpowered if it is not grounded in real provider differences",
+    "Some provider features may still justify provider-specific flows rather than forcing everything through a generic operation type"
+  ],
+  "questions": [
+    "Which capability fields belong in shared contracts versus runtime-only adapter code?",
+    "Should batchability be declared at the model level, provider level, or both?"
+  ]
+}

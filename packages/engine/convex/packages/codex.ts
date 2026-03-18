@@ -1,10 +1,12 @@
 export {
   analyzeProcessTelemetry,
   autoHealProcess,
+  backfillExperimentBundlePlans,
   backfillExperimentTotalCounts,
   backfillRunCompletedCounts,
   backfillSampleScoreCounts,
   getProcessHealth,
+  repairRunStageTransport,
   getStuckWork,
   runDebugActions,
   tailTrace,

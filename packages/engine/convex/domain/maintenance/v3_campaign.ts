@@ -23,6 +23,7 @@ const ScientificValiditySchema = z.enum([
 ]);
 
 const RecoverableReasonSchema = z.enum([
+  "pending_requests_on_dead_transport",
   "pending_request_no_owner",
   "retryable_no_transport",
   "scheduler_not_running",
@@ -30,6 +31,7 @@ const RecoverableReasonSchema = z.enum([
 const StuckReasonSchema = z.enum([
   "batch_missing_ref",
   "finalizing_no_progress",
+  "pending_requests_on_dead_transport",
   "pending_request_no_owner",
   "raw_collection_no_progress",
   "retryable_no_transport",
@@ -268,6 +270,7 @@ function classifyCampaignState(args: {
     .filter((run): run is NonNullable<ListedExperiment["latest_run"]> => run != null);
 
   const recoverableReasons = new Set<z.infer<typeof RecoverableReasonSchema>>([
+    "pending_requests_on_dead_transport",
     "pending_request_no_owner",
     "retryable_no_transport",
     "scheduler_not_running",

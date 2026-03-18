@@ -606,6 +606,148 @@ describe("reliability guarantees", () => {
     }
   });
 
+  test("repairRunStageTransport reattaches pending stage work pinned to an error batch", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-03-16T22:15:00.000Z"));
+      const t = initTest();
+      const { run_id } = await setupRunReadyForScoreGen(t);
+
+      const { requestId, batchId } = await t.run(async (ctx) => {
+        const scoreTargets = (await ctx.db.query("sample_score_targets").collect())
+          .filter((row) => row.run_id === run_id);
+        const scoreTarget = scoreTargets[0];
+        if (!scoreTarget) {
+          throw new Error("score_target_not_found");
+        }
+
+        const requestId = await ctx.runMutation(
+          internal.domain.llm_calls.llm_request_repo.createLlmRequest,
+          {
+            model: "gpt-4.1-mini",
+            user_prompt: "score critic request",
+            custom_key: `sample_score_target:${scoreTarget._id}:score_critic`,
+            attempt_index: 1,
+          },
+        );
+        const batchId = await ctx.runMutation(
+          internal.domain.llm_calls.llm_batch_repo.createLlmBatch,
+          {
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            custom_key: `run:${run_id}:score_critic`,
+            attempt_index: 1,
+          },
+        );
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_batch_repo.assignRequestsToBatch,
+          {
+            request_ids: [requestId],
+            batch_id: batchId,
+          },
+        );
+        await ctx.runMutation(
+          internal.domain.llm_calls.llm_batch_repo.patchBatch,
+          {
+            batch_id: batchId,
+            patch: {
+              status: "error",
+              last_error: "batch_failed",
+            },
+          },
+        );
+        await ctx.db.patch(run_id, {
+          status: "running",
+          current_stage: "score_critic",
+          score_gen_count: 1,
+          score_critic_count: 0,
+        });
+
+        return { requestId, batchId };
+      });
+
+      vi.advanceTimersByTime(5);
+
+      const stuck = await t.query(api.packages.codex.getStuckWork, {
+        process_type: "run",
+        older_than_ms: 1,
+        limit: 20,
+      });
+      expect(stuck.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            process_id: String(run_id),
+            reason: "pending_requests_on_dead_transport",
+          }),
+        ]),
+      );
+
+      const healPlan = await t.mutation(api.packages.codex.autoHealProcess, {
+        process_type: "run",
+        process_id: String(run_id),
+        dry_run: true,
+        older_than_ms: 1,
+        max_actions: 20,
+      });
+      expect(healPlan.planned_actions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: "repair_stage_transport",
+            process_type: "run",
+            process_id: String(run_id),
+            stage: "score_critic",
+          }),
+        ]),
+      );
+
+      const dryRepair = await t.mutation(api.packages.codex.repairRunStageTransport, {
+        run_id,
+        dry_run: true,
+        start_scheduler: false,
+      });
+      expect(dryRepair).toMatchObject({
+        outcome: "repaired",
+        repaired_request_count: 1,
+        pending_request_count: 1,
+        detached_batch_ids: [String(batchId)],
+      });
+
+      const liveRepair = await t.mutation(api.packages.codex.repairRunStageTransport, {
+        run_id,
+        dry_run: false,
+        start_scheduler: false,
+      });
+      expect(liveRepair).toMatchObject({
+        outcome: "repaired",
+        repaired_request_count: 1,
+        pending_request_count: 1,
+        detached_batch_ids: [String(batchId)],
+        scheduler_started: false,
+      });
+
+      const repairedRequest = await t.query(
+        internal.domain.llm_calls.llm_request_repo.getLlmRequest,
+        { request_id: requestId },
+      );
+      expect(repairedRequest._id).toEqual(requestId);
+      expect(repairedRequest.batch_id).toBeNull();
+      expect(repairedRequest.job_id).not.toBeNull();
+
+      const queuedJob = await t.run(async (ctx) => {
+        return repairedRequest.job_id ? ctx.db.get(repairedRequest.job_id) : null;
+      });
+      expect(queuedJob?.status).toBe("queued");
+
+      const scoreCriticRequests = await t.run(async (ctx) => {
+        return (await ctx.db.query("llm_requests").collect())
+          .filter((request) => request.custom_key.endsWith(":score_critic"));
+      });
+      expect(scoreCriticRequests).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
 
   test("recovers submitting batches after unknown submit outcome", async () => {
     __resetMockProviders();

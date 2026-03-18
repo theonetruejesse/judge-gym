@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_27_001",
+  "areaOfAnalysisID": "A_27",
+  "statement": "V0 should use provider-aware output reservation rules instead of one generic bounded heuristic: OpenAI PAYG `total_tokens` reserves estimated input plus the full effective output cap, Anthropic `output_tokens` reserves full `max_tokens`, and Gemini v0 makes no output-side shared-bucket reservation because Gemini's documented quota shape does not require one.",
+  "confidence": 0.78,
+  "rationale": "A single generic heuristic would either under-reserve for Anthropic or overfit the design to one provider. Reserving according to provider-documented quota semantics keeps the shared limiter conservative and honest while still allowing reconciliation after completion.",
+  "keyAssumptions": [
+    "The worker can compute an effective requested output cap before provider submission, either from caller input or engine policy defaults",
+    "The team prefers quota correctness over throughput-maximizing but under-documented heuristics",
+    "Gemini output usage can remain tracked-only until a documented enforced output bucket or stronger operational need appears"
+  ],
+  "validationCriteria": [
+    "Anthropic reservations never use a lower preflight output reservation than `max_tokens` for OTPM-governed calls",
+    "OpenAI PAYG `total_tokens` reservations include the full effective output cap rather than a guessed average output expectation",
+    "The policy remains compatible with reconciliation to actual usage and future registry overrides"
+  ],
+  "critiquePoints": [
+    "Full-cap reservations may reduce short-term throughput for workloads with systematically oversized output caps",
+    "Provider-plan-specific variants may eventually justify more nuanced reservation policies"
+  ],
+  "questions": [
+    "Should the engine keep one shared `reserved_output_budget` field in the attempt ledger even when the enforced quota dimension is `total_tokens` rather than `output_tokens`?"
+  ]
+}

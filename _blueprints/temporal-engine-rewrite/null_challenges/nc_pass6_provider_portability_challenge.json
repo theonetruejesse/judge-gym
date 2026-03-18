@@ -1,0 +1,46 @@
+{
+  "challengeID": "nc_pass6_001",
+  "microHypothesisIDs": [
+    "h_A_20_001",
+    "h_A_21_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "A single generic provider interface is enough without explicit capability metadata",
+      "falsificationQueries": [
+        "Do Anthropic, Gemini, and OpenAI expose materially different quota dimensions and cache semantics?",
+        "Can one implicit provider interface safely cover batches, caching, structured output, and tool use without a registry?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_022_provider_capability_divergence.md"
+      ],
+      "falsificationAnalysis": "The provider docs diverge too much for a silent generic interface to stay honest. Without explicit capability metadata, the engine would either reintroduce OpenAI assumptions or accumulate undocumented provider-specific branches in workflow code.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Provider portability means the core engine should normalize all provider behavior into one wire shape",
+      "falsificationQueries": [
+        "Would forcing one universal wire shape erase meaningful provider differences in batch, cache, or tool behavior?",
+        "Is it better to preserve provider-specific extensions than to over-normalize?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_023_provider_portable_code_architecture.md"
+      ],
+      "falsificationAnalysis": "Over-normalizing the wire layer would make the engine brittle and dishonest. The stronger approach is a generic core envelope with explicit provider-specific adapter code and extension fields for the data that does not generalize cleanly.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Provider portability forces every provider feature to become a first-class core workflow concern",
+      "falsificationQueries": [
+        "Do all provider features need to be expressed in the initial workflow surface?",
+        "Can the rewrite stay maintainable by limiting core operation types and leaving some capabilities adapter-specific?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_023_provider_portable_code_architecture.md"
+      ],
+      "falsificationAnalysis": "The core engine does not need to absorb every provider feature. The maintainable path is to keep the core operation taxonomy small and let adapters and capability metadata decide which providers support which operations. This narrows rather than expands the workflow surface.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

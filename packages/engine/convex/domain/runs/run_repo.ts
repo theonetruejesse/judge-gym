@@ -1,14 +1,19 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import type { MutationCtx } from "../../_generated/server";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { RunsTableSchema } from "../../models/experiments";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { generateSeeds, shuffleWithSeed } from "../../utils/randomize";
+import { generateSeeds } from "../../utils/randomize";
 import {
   normalizeExperimentConfig,
   resolveEvidenceStrategy,
   type ExperimentConfig,
 } from "./run_strategies";
+import {
+  buildWindowRoundRobinBundlesForSample,
+  materializeBundlesForPlan,
+} from "./bundle_plan_logic";
 
 const CreateRunArgsSchema = z.object({
   experiment_id: RunsTableSchema.shape.experiment_id,
@@ -31,55 +36,102 @@ function getEvidenceContentForConfig(
   return evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
 }
 
-function buildBundleSequenceForSample(
-  evidences: EvidenceDoc[],
-  seed: number,
-) {
-  const shuffledAll = shuffleWithSeed(evidences, seed);
-  const byWindow = new Map<string, EvidenceDoc[]>();
-  for (const evidence of shuffledAll) {
-    const key = String(evidence.window_id);
-    const current = byWindow.get(key) ?? [];
-    current.push(evidence);
-    byWindow.set(key, current);
-  }
-
-  const orderedWindowIds = shuffleWithSeed(Array.from(byWindow.keys()), seed ^ 0x9e3779b9);
-  const sequence: EvidenceDoc[] = [];
-  let appended = true;
-  while (appended) {
-    appended = false;
-    for (const windowId of orderedWindowIds) {
-      const candidates = byWindow.get(windowId) ?? [];
-      const next = candidates.shift();
-      if (!next) continue;
-      sequence.push(next);
-      appended = true;
-    }
-  }
-
-  return sequence;
-}
-
 function buildBundlesForSample(
   evidences: EvidenceDoc[],
   config: ExperimentConfig,
   seed: number,
 ) {
-  const sequence = buildBundleSequenceForSample(evidences, seed);
-  const bundleSize = Math.max(1, config.scoring_config.evidence_bundle_size);
-  if (bundleSize >= sequence.length) {
-    return sequence.length > 0 ? [sequence] : [];
+  return buildWindowRoundRobinBundlesForSample(
+    evidences,
+    Math.max(1, config.scoring_config.evidence_bundle_size),
+    seed,
+  );
+}
+
+type SampleBundleResolution = {
+  resolveForSample: (seed: number) => EvidenceDoc[][];
+};
+
+async function resolveSampleBundleSource(
+  ctx: MutationCtx,
+  experiment: Doc<"experiments"> & ExperimentConfig,
+  orderedEvidences: EvidenceDoc[],
+): Promise<SampleBundleResolution> {
+  if (!experiment.bundle_plan_id) {
+    const strategy = experiment.scoring_config.bundle_strategy ?? "window_round_robin";
+    if (strategy !== "window_round_robin") {
+      const sharedBundles = materializeBundlesForPlan(orderedEvidences, {
+        strategy,
+        bundle_size: Math.max(1, experiment.scoring_config.evidence_bundle_size),
+        seed: experiment.scoring_config.clustering_seed ?? 0,
+        source_view: strategy === "semantic_cluster_projected"
+          ? "l2_neutralized"
+          : strategy === "semantic_cluster"
+            ? experiment.scoring_config.evidence_view
+            : null,
+      });
+      return {
+        resolveForSample: () => sharedBundles,
+      };
+    }
+    return {
+      resolveForSample: (seed) => buildBundlesForSample(orderedEvidences, experiment, seed),
+    };
   }
 
-  const bundles: EvidenceDoc[][] = [];
-  for (let index = 0; index < sequence.length; index += bundleSize) {
-    const bundle = sequence.slice(index, index + bundleSize);
-    if (bundle.length > 0) {
-      bundles.push(bundle);
-    }
+  const bundlePlan = await ctx.db.get(experiment.bundle_plan_id);
+  if (!bundlePlan) {
+    throw new Error("Bundle plan not found for experiment");
   }
-  return bundles;
+  if (bundlePlan.pool_id !== experiment.pool_id) {
+    throw new Error("Bundle plan pool does not match experiment pool");
+  }
+
+  if (bundlePlan.strategy === "window_round_robin") {
+    return {
+      resolveForSample: (seed) => buildWindowRoundRobinBundlesForSample(
+        orderedEvidences,
+        Math.max(1, bundlePlan.bundle_size),
+        seed,
+      ),
+    };
+  }
+
+  const bundlePlanItems = await ctx.db
+    .query("bundle_plan_items")
+    .withIndex("by_bundle_plan", (q) => q.eq("bundle_plan_id", bundlePlan._id))
+    .collect();
+  const evidenceById = new Map(
+    orderedEvidences.map((evidence) => [String(evidence._id), evidence] as const),
+  );
+  const bundlesByIndex = new Map<number, EvidenceDoc[]>();
+  const orderedItems = bundlePlanItems
+    .slice()
+    .sort((left, right) => {
+      if (left.bundle_index !== right.bundle_index) {
+        return left.bundle_index - right.bundle_index;
+      }
+      if (left.position !== right.position) {
+        return left.position - right.position;
+      }
+      return String(left.evidence_id).localeCompare(String(right.evidence_id));
+    });
+  for (const item of orderedItems) {
+    const evidence = evidenceById.get(String(item.evidence_id));
+    if (!evidence) {
+      throw new Error(`Bundle plan item references evidence outside pool: ${item.evidence_id}`);
+    }
+    const current = bundlesByIndex.get(item.bundle_index) ?? [];
+    current.push(evidence);
+    bundlesByIndex.set(item.bundle_index, current);
+  }
+  const sharedBundles = Array.from(bundlesByIndex.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([, bundle]) => bundle);
+
+  return {
+    resolveForSample: () => sharedBundles,
+  };
 }
 
 function assertBundleFitsBudget(
@@ -105,10 +157,8 @@ export const createRun = zInternalMutation({
     const { experiment_id, target_count } = args;
     const rawExperiment = await ctx.db.get(experiment_id);
     if (!rawExperiment) throw new Error("Experiment not found");
-    const experiment = {
-      ...rawExperiment,
-      ...normalizeExperimentConfig(rawExperiment),
-    };
+    const experiment = rawExperiment;
+    const experimentConfig = normalizeExperimentConfig(rawExperiment);
 
     const run_id = await ctx.db.insert("runs", {
       experiment_id,
@@ -152,13 +202,14 @@ export const createRun = zInternalMutation({
     const orderedEvidences = (
       await Promise.all(orderedLinks.map((link) => ctx.db.get(link.evidence_id)))
     ).filter((value): value is EvidenceDoc => value != null);
+    const bundleSource = await resolveSampleBundleSource(ctx, experiment, orderedEvidences);
 
     for (const sample_id of sampleIds) {
       const sample = await ctx.db.get(sample_id);
       if (!sample) continue;
-      const bundles = buildBundlesForSample(orderedEvidences, experiment, sample.seed);
+      const bundles = bundleSource.resolveForSample(sample.seed);
       for (const bundle of bundles) {
-        assertBundleFitsBudget(bundle, experiment);
+        assertBundleFitsBudget(bundle, experimentConfig);
 
         const scoreTargetId = await ctx.db.insert("sample_score_targets", {
           run_id,
