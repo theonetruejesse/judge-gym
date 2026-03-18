@@ -282,13 +282,15 @@ describe("analysis export package", () => {
       { experiment_tag: setup.experiment_tag },
     );
 
-    expect(manifest.export_schema_version).toBe(1);
+    expect(manifest.export_schema_version).toBe(2);
     expect(manifest.run.run_id).toBe(setup.run_id);
     expect(manifest.counts.responses).toBe(2);
     expect(manifest.counts.rubrics).toBe(2);
     expect(manifest.counts.evidence).toBe(2);
     expect(manifest.counts.samples).toBe(2);
     expect(manifest.experiment.scale_size).toBe(4);
+    expect(manifest.experiment.bundle_plan_id).toBeNull();
+    expect(manifest.experiment.bundle_strategy).toBe("window_round_robin");
     expect(manifest.experiment.randomizations).toEqual(["shuffle_rubric_order"]);
   });
 
@@ -310,6 +312,7 @@ describe("analysis export package", () => {
     expect(responses.page[0]?.evidence_labels).toEqual(["E1", "E2"]);
     expect(responses.page[0]?.decoded_scores).toEqual([2, 4]);
     expect(responses.page[0]?.abstained).toBe(false);
+    expect(responses.page[0]?.bundle_strategy).toBe("window_round_robin");
 
     const secondResponses = await t.query(
       api.packages.analysis.listAnalysisResponses,

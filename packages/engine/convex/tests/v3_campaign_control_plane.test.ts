@@ -69,6 +69,7 @@ async function seedExperiment(
   },
 ) {
   const created = await t.mutation(api.packages.lab.initExperiment, {
+    experiment_tag: args.experiment_tag,
     experiment_config: {
       rubric_config: {
         model: "gpt-4.1-mini",
@@ -89,12 +90,6 @@ async function seedExperiment(
       },
     },
     pool_id: args.pool_id,
-  });
-
-  await t.run(async (ctx) => {
-    await ctx.db.patch(created.experiment_id, {
-      experiment_tag: args.experiment_tag,
-    });
   });
 
   return created.experiment_id;

@@ -58,6 +58,16 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `packages/codex:getV3CampaignStatus` includes per-experiment score-target estimates plus a workload-family summary so large-fanout families can be monitored separately during V3 passes.
 - `packages/codex:getRunSummary`, `packages/codex:getRunDiagnostics`, and `packages/codex:listRunScoreTargets` mirror the lab debug queries onto the main codex control surface for live loop triage.
 - `packages/codex:repairRunStageTransport` repairs a running run stage in place by detaching pending requests from dead/missing transport and reattaching the same request ids to fresh batch/job transport.
+- Bundle construction now has a first-class plan layer:
+  - `bundle_plans` stores reusable pool-scoped bundling strategies
+  - `bundle_plan_items` stores materialized bundle membership for fixed strategies
+  - `experiments.bundle_plan_id` optionally points at the plan the run should use
+- Runtime bundle resolution is dual-read during the migration:
+  - experiments with `bundle_plan_id` use that plan
+  - experiments without `bundle_plan_id` still honor `scoring_config.bundle_strategy` directly
+  - `window_round_robin` plans preserve the legacy per-sample seeded bundling behavior and therefore do not materialize `bundle_plan_items`
+- `packages/lab:createBundlePlan` and `packages/lab:listBundlePlans` expose the reusable plan layer so V3.1 matrices can reuse exact bundle assignments across models and scale settings.
+- `packages/codex:backfillExperimentBundlePlans` links existing experiments onto reusable bundle plans without requiring any run resets.
 - `packages/analysis:*` exposes public read-only export queries for completed runs:
   - `listAnalysisExperiments`
   - `getAnalysisManifest`
@@ -83,9 +93,13 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
   - transient provider classes retry up to configured caps
   - timeout classification recognizes both `timeout` and `timed out` style provider/runtime failures
   - rubric parser contract violations such as `Invalid criteria count` are classified as `parse_error`
+- `packages/lab:initExperiment` accepts an optional explicit `experiment_tag`, so follow-up matrices can be inserted into the `experiments` table with stable human-readable tags instead of patching rows after creation.
+- `packages/lab:initExperiment` also accepts an optional `bundle_plan_id`, so new experiments can bind directly to a reusable bundling plan instead of relying on implicit grouping behavior.
+- `scoring_config` can persist bundle-construction metadata (`bundle_strategy`, `bundle_strategy_version`, `clustering_seed`) and the run path will honor that metadata even before a backfill links the experiment onto an explicit `bundle_plan_id`.
 - Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
 - One-off run metadata repairs go through `packages/codex:backfillRunCompletedCounts` with `dry_run`, `cursor`, and `max_runs`.
 - One-off experiment aggregate repairs go through `packages/codex:backfillExperimentTotalCounts` with `dry_run`, `cursor`, and `max_experiments`.
+- One-off experiment bundle-plan linkage repairs go through `packages/codex:backfillExperimentBundlePlans` with `dry_run`, `cursor`, and `max_experiments`.
 - `bun run telemetry:check` now performs an Axiom ingest smoke test through Convex.
 
 ## Validation

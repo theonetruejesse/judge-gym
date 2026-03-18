@@ -17,6 +17,9 @@ export type ExperimentConfig = {
       "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
     >;
     evidence_bundle_size: number;
+    bundle_strategy?: "window_round_robin" | "random_bundle" | "semantic_cluster" | "semantic_cluster_projected";
+    bundle_strategy_version?: string;
+    clustering_seed?: number;
   };
 };
 
@@ -33,6 +36,9 @@ export function normalizeExperimentConfig<T extends {
       "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
     >;
     evidence_bundle_size: number;
+    bundle_strategy?: "window_round_robin" | "random_bundle" | "semantic_cluster" | "semantic_cluster_projected";
+    bundle_strategy_version?: string;
+    clustering_seed?: number;
   };
 }>(config: T): ExperimentConfig {
   return {
