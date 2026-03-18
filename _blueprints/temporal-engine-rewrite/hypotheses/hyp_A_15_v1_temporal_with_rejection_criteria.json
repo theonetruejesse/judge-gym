@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_15_001",
+  "areaOfAnalysisID": "A_15",
+  "statement": "Temporal remains the best default for judge-gym only when judged against explicit rejection criteria for Restate and Inngest, centered on first-class interactive control, strong server-side execution inspection, and long-lived workflow semantics.",
+  "confidence": 0.58,
+  "rationale": "Temporal is still the most grounded fit, but the alternatives are credible enough that the choice must be defended with explicit requirement-level criteria rather than broad claims.",
+  "keyAssumptions": [
+    "Judge-gym values interactive per-process control and execution introspection more than lighter-weight deployment ergonomics",
+    "The team accepts Node-worker and self-hosted orchestration constraints"
+  ],
+  "validationCriteria": [
+    "The rewrite documents why Restate and Inngest are rejected or deferred against concrete requirements",
+    "Temporal's advantages are stated in terms of judge-gym needs rather than general durable execution marketing"
+  ],
+  "critiquePoints": [
+    "The alternatives matrix remains the least grounded pass-3 area"
+  ],
+  "questions": [
+    "Which exact judge-gym requirements would cause Restate or Inngest to win instead?"
+  ]
+}

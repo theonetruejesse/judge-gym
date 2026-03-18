@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_32_001",
+  "areaOfAnalysisID": "A_32",
+  "statement": "Judge-gym v0 should adopt a safe-deployment SOP where replay tests against recent histories are mandatory for workflow-code changes, `continue-as-new` is a first-class workflow-design input, deterministic workflow changes use TypeScript patching unless a clearly short-lived workflow is pinned, and worker rollouts use verification plus ramping before promotion.",
+  "confidence": 0.78,
+  "rationale": "Temporal's own guidance is strong enough that replay/patching/ramping should stop being optional design aspirations and become explicit operational requirements for the rewrite.",
+  "keyAssumptions": [
+    "The team can run replay testing against representative histories in CI or deploy verification",
+    "Long-lived workflows like run/window will benefit from Auto-Upgrade plus patching more than from Pinned routing",
+    "The extra rollout complexity is acceptable in exchange for safer workflow evolution"
+  ],
+  "validationCriteria": [
+    "Workflow-code changes cannot ship without replay validation",
+    "The workflow implementation includes continue-as-new triggers before histories grow pathological",
+    "Rollout guidance distinguishes verification, ramp, promotion, and rollback"
+  ],
+  "critiquePoints": [
+    "Worker Versioning adds real operational complexity",
+    "Replay testing can be constrained by history access, encryption, or visibility configuration"
+  ],
+  "questions": [
+    "Which workflows, if any, are short enough to justify pinned routing first?"
+  ]
+}

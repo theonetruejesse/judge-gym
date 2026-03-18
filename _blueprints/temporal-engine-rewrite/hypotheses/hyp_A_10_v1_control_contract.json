@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_10_001",
+  "areaOfAnalysisID": "A_10",
+  "statement": "Judge-gym should adopt a literal control contract where Updates are used only for actions that require validation or acknowledgement, Signals remain the cheaper best-effort primitive, Describe outranks Query for execution truth, and cancel uses Temporal cancellation.",
+  "confidence": 0.67,
+  "rationale": "Temporal's primitives are strong enough to support this split, but only if the action taxonomy is written explicitly and tied to worker-availability assumptions.",
+  "keyAssumptions": [
+    "The self-hosted Temporal deployment supports the Update features the contract relies on",
+    "The workflow implementation carries dedupe across continue-as-new where needed"
+  ],
+  "validationCriteria": [
+    "Every operator action can be mapped to exactly one Temporal primitive with clear acknowledgement semantics",
+    "The future agent loop can tell when a control action was accepted versus merely requested"
+  ],
+  "critiquePoints": [
+    "Using Updates too broadly would couple control operations too tightly to worker availability"
+  ],
+  "questions": [
+    "Which actions only need Accepted versus full Completed semantics?"
+  ]
+}

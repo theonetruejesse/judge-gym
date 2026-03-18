@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_07_001",
+  "areaOfAnalysisID": "A_07",
+  "statement": "The rewrite should explicitly model start and projection consistency as an idempotent handoff problem, with Temporal as execution truth and Convex as a projected product state rather than pretending the two systems can share an atomic start transaction.",
+  "confidence": 0.79,
+  "rationale": "Temporal start APIs and request IDs help with idempotency but do not create cross-system atomicity, so the safer design is an explicit handoff model.",
+  "keyAssumptions": [
+    "The product can tolerate eventual consistency between Temporal execution truth and Convex UI state as long as projection semantics are explicit",
+    "Any DB-first start intent or With-Start path is kept minimal enough not to recreate the current scheduler class of complexity"
+  ],
+  "validationCriteria": [
+    "No new run or window can be silently owned by both runtimes or by neither",
+    "Projection retries cannot corrupt domain state or produce contradictory status rows"
+  ],
+  "critiquePoints": [
+    "A poorly designed outbox can regress into a new homemade queue"
+  ],
+  "questions": [
+    "Which flows truly require a Convex row to exist before the workflow starts?"
+  ]
+}

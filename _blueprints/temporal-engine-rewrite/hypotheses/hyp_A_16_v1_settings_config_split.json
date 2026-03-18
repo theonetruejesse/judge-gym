@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_16_001",
+  "areaOfAnalysisID": "A_16",
+  "statement": "Judge-gym should split settings into a shared schema/default layer, a Convex-stored versioned operator policy layer that runs/windows snapshot, and runtime-local env/secret parsing for Convex and Temporal workers, rather than a single shared ENGINE_SETTINGS module imported everywhere.",
+  "confidence": 0.73,
+  "rationale": "ENGINE_SETTINGS is currently tightly coupled into Convex execution code and rate limiter init. A Temporal rewrite needs policy reproducibility without importing secrets across runtimes.",
+  "keyAssumptions": [
+    "Runs/windows should remain reproducible, so they need a policy snapshot identifier",
+    "Workers can fetch policy snapshots via activities without bloating history or creating hidden nondeterminism"
+  ],
+  "validationCriteria": [
+    "A run/window started under policy X does not change behavior when policy Y becomes active later",
+    "No shared package reads process.env or imports Convex/Temporal runtime code",
+    "Operators can adjust policy for new runs without redeploying worker code"
+  ],
+  "critiquePoints": [
+    "If policy is fetched dynamically mid-run rather than snapshotted, reproducibility becomes fuzzy"
+  ],
+  "questions": [
+    "Which policy fields must be snapshotted vs allowed to drift for operational reasons (e.g. throttles)?"
+  ]
+}

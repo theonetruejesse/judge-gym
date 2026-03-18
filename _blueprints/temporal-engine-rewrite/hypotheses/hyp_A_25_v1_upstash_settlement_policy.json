@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_25_001",
+  "areaOfAnalysisID": "A_25",
+  "statement": "V0 should use Upstash token buckets from day one, with keys of the form `jg:quota:v1:{env}:{provider_id}:{model_id}:{scope}:{dimension_id}` and a conservative settlement policy: `requests=preflight`, `input_tokens=preflight_then_reconcile`, `output_tokens=preflight_then_reconcile`, `total_tokens=preflight_then_reconcile`, and optional `batch_enqueued_input_tokens=preflight_then_reconcile`.",
+  "confidence": 0.74,
+  "rationale": "Using Upstash from the start keeps cross-worker semantics stable and avoids a later migration of reservation logic. A small family of token buckets plus dimension-specific reservation modes is maintainable and expressive enough for v0.",
+  "keyAssumptions": [
+    "Upstash latency and cost are acceptable for quota checks in the worker execution path",
+    "Workers can obtain enough request metadata to estimate input and output budgets before provider submission",
+    "Conservative non-refund on ambiguous provider outcomes is acceptable in exchange for quota safety"
+  ],
+  "validationCriteria": [
+    "The same key model works across OpenAI, Anthropic, and Gemini without provider-wire field names, while letting providers select split or total token dimensions",
+    "Retry, cancellation, and ambiguous-network outcomes have deterministic reservation/refund behavior",
+    "Quota settlement records remain auditable per attempt"
+  ],
+  "critiquePoints": [
+    "Output-token pre-reservation may be too conservative for some workloads if requested max output budgets are much larger than actual outputs",
+    "Using Upstash from day one increases operational dependency count compared with a single-worker pilot"
+  ],
+  "questions": [
+    "Should the engine support provider-specific output-budget heuristics in v0, or always reserve the full requested max output budget when `total_tokens` or `output_tokens` is enforced?"
+  ]
+}

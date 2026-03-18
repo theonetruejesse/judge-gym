@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_31_001",
+  "areaOfAnalysisID": "A_31",
+  "statement": "V0 should add a compact Convex `process_observability_v2` projection keyed by `{process_kind, process_id}` that mirrors only linkage, coarse stage/status, pause state, bounded progress, last error summary, and freshness/correlation fields, while the agent loop treats Temporal Visibility as discovery-only and confirms any repair action through stronger Temporal surfaces.",
+  "confidence": 0.72,
+  "rationale": "A small projection improves UI and agent ergonomics without repeating the old scheduler design, as long as the system makes it explicit that repair decisions require Temporal confirmation rather than projection trust.",
+  "keyAssumptions": [
+    "Projection writes stay intentionally small and capped",
+    "The team is willing to enforce a hard rule that Convex projection is not execution truth",
+    "Search Attributes remain minimal and non-sensitive"
+  ],
+  "validationCriteria": [
+    "The UI and agent loop can find and explain candidate stuck processes without scanning raw Temporal histories",
+    "Repair decisions still require Temporal confirmation and acknowledged action receipts",
+    "The projection schema avoids leaking prompt/evidence payloads or reintroducing event-log volume"
+  ],
+  "critiquePoints": [
+    "A projection can drift into being treated as truth if the guardrail is not enforced",
+    "Write amplification is still possible if too many execution events get mirrored"
+  ],
+  "questions": [
+    "Which exact fields should be required in `process_observability_v2`, and which should remain optional ergonomics-only?"
+  ]
+}
