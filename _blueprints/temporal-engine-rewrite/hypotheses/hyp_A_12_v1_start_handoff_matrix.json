@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_12_001",
+  "areaOfAnalysisID": "A_12",
+  "statement": "The rewrite should select start handoff patterns per flow using business-keyed workflow IDs and explicit reconciliation states, instead of forcing one universal create/start rule.",
+  "confidence": 0.79,
+  "rationale": "Temporal's start and with-start APIs solve different problems, and the right choice depends on whether the product contract prioritizes an existing Convex row, fused start-and-command semantics, or eventual start after caller death.",
+  "keyAssumptions": [
+    "The team is willing to model and surface reconciliation states such as row_exists_but_workflow_missing",
+    "Outbox remains a narrow tool rather than a reintroduced scheduler substrate"
+  ],
+  "validationCriteria": [
+    "Every create/start flow can be assigned a handoff pattern with explicit repair states",
+    "No new flow silently relies on fake Convex+Temporal atomicity"
+  ],
+  "critiquePoints": [
+    "Overusing outbox patterns could recreate the class of queue complexity the rewrite is trying to delete"
+  ],
+  "questions": [
+    "Which exact user-facing flows require eventual start even without caller retry?"
+  ]
+}

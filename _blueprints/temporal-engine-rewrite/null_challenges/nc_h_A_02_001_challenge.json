@@ -1,0 +1,20 @@
+{
+  "challengeID": "nc_h_A_02_001",
+  "microHypothesisID": "h_A_02_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Workers can or should run on Bun, or colocating Temporal code under packages/engine is the wrong default.",
+      "falsificationQueries": [
+        "Temporal TypeScript SDK Bun worker support",
+        "Temporal TypeScript SDK Node runtime requirements"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_self_hosted_temporal_engine_layout.md"
+      ],
+      "falsificationAnalysis": "The strongest available evidence points the other direction: Temporal's TypeScript worker runtime is Node-oriented and Bun is not the safe default. The main challenge is operational friction from mixed runtimes, not technical invalidity.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}
+

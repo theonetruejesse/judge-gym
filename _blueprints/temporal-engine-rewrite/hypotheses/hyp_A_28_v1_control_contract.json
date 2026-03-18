@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_28_001",
+  "areaOfAnalysisID": "A_28",
+  "statement": "Judge-gym should implement operator and agent control as an explicit contract: `StartWorkflow` for start, `Update` for acknowledged state changes like `pause_after`, `pause`, `resume`, and bounded repair, workflow cancellation for `cancel`, and Signals only for best-effort nudges, with explicit command ids for every mutating action.",
+  "confidence": 0.78,
+  "rationale": "Temporal's primitive split is clear enough that the rewrite should stop relying on vague control semantics. Using acknowledged Updates where validation matters and reserving Signals for cheap nudges gives the agent loop a safe mutation surface without inventing a second protocol.",
+  "keyAssumptions": [
+    "Worker availability is acceptable for the acknowledged actions that use Updates",
+    "Pause semantics are explicitly cooperative unless in-flight Activity cancellation is wired and heartbeated",
+    "The team prefers explicit command acknowledgements over lower-latency but weaker fire-and-forget semantics for control actions"
+  ],
+  "validationCriteria": [
+    "Each user-facing action has one documented Temporal primitive, acknowledgement mode, and fallback",
+    "The design does not depend on Visibility as the control-action truth source",
+    "The agent loop can issue bounded actions without inventing custom queue coordination"
+  ],
+  "critiquePoints": [
+    "Updates add operational dependency on active workers",
+    "Update-With-Start remains tempting for some flows but creates non-atomic split-brain risk"
+  ],
+  "questions": [
+    "What exact `cmdId` format should be used across Updates and any best-effort Signals?"
+  ]
+}

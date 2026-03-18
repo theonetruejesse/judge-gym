@@ -1,0 +1,1147 @@
+{
+  "meta": {
+    "originalQuestion": "Design a greenfield rewrite plan for judge-gym that keeps Convex as the domain/UI store, moves execution orchestration to self-hosted Temporal, preserves simple operator controls like create/start window and run processes with pause_after and observability, supports agentic continuous monitoring/fix loops similar to v3-finish-pass, and identifies which current tables and abstractions should be kept, removed, or replaced.",
+    "pass2Focus": [
+      "activity idempotency",
+      "llm_requests business logic split",
+      "workflow/activity breakdown",
+      "control semantics",
+      "start/projection consistency",
+      "observability truth",
+      "runtime/versioning constraints"
+    ],
+    "pass3Focus": [
+      "literal control contract",
+      "provider-aware llm attempt ledger",
+      "per-flow start handoff matrix",
+      "observability truth precedence",
+      "versioning and replay workflow",
+      "requirements-based alternatives matrix"
+    ],
+    "pass4Focus": [
+      "monorepo package and runtime boundary",
+      "settings and policy flow",
+      "worker-side execution policy ownership",
+      "runtime-specific tooling boundary"
+    ],
+    "pass5Focus": [
+      "global multi-worker provider quota design",
+      "Temporal-native dispatch controls",
+      "Redis-backed shared-bucket boundary"
+    ],
+    "pass6Focus": [
+      "provider capability divergence",
+      "provider-portable adapter architecture",
+      "registry-first compatibility for future providers"
+    ],
+    "pass7Focus": [
+      "minimal v0 capability-registry schema",
+      "provider-portable llm_attempts envelope",
+      "Upstash key vocabulary from normalized quota dimensions"
+    ],
+    "pass8Focus": [
+      "concrete v0 quota-dimension enum",
+      "tracked-versus-enforced usage split",
+      "Upstash reservation and reconciliation policy"
+    ],
+    "pass9Focus": [
+      "initial provider-to-dimension mapping table",
+      "provider-aware output reservation policy"
+    ],
+    "pass10Focus": [
+      "final control contract",
+      "llm_attempts schema and retention contract",
+      "Convex to Temporal worker API boundary",
+      "observability projection and repair-read model",
+      "safe deployment and versioning SOP"
+    ],
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/temporal-engine-rewrite",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019cfdfa-204b-7d42-a44c-d52640225493",
+        "nickname": "Dewey",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfdfa-2076-72d0-8225-542836549fcb",
+        "nickname": "Averroes",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfdfa-20af-7113-876c-66b77b8234a9",
+        "nickname": "Hume",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfdfa-21e6-7fe2-a30b-5dd94106bdd4",
+        "nickname": "Russell",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfdff-45ea-7653-80fa-cd3014b062d4",
+        "nickname": "Pauli",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe41-a9d4-7120-bbea-935417f74519",
+        "nickname": "McClintock",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe41-aa60-75a2-8318-43ba964e9f72",
+        "nickname": "Confucius",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe41-ab2c-7ce0-9296-43c4d3cd4574",
+        "nickname": "Avicenna",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe41-ac11-7c22-9b36-ee19bdcccb35",
+        "nickname": "Boyle",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe7a-a900-7e52-aaef-93fe2db811c6",
+        "nickname": "Aquinas",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe7a-aa0b-7ba3-85d8-351072134fa4",
+        "nickname": "Fermat",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe7a-ab77-7033-a08c-cda5c65e2102",
+        "nickname": "Pasteur",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe7a-adb0-7e53-a753-b3001bd5dcfb",
+        "nickname": "Arendt",
+        "role": "researcher"
+      },
+      {
+        "id": "019cfe7a-af3d-7450-8996-b3a7e3508be0",
+        "nickname": "Hegel",
+        "role": "researcher"
+      }
+    ],
+    "falsifier": {
+      "id": "019cfe7d-e7dc-73e0-ba5e-ba69669443b9",
+      "nickname": "Leibniz",
+      "role": "falsifier"
+    },
+    "certaintyScorer": {
+      "id": "019cfe7e-0b41-76f1-b10c-d3c88ed8b094",
+      "nickname": "Raman",
+      "role": "certainty_scorer"
+    },
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Architecture split and primitive mapping",
+      "scope": "Map current Convex responsibilities to Temporal workflows, activities, workers, task queues, and retained Convex domain state.",
+      "assignedAgent": "019cfdfa-204b-7d42-a44c-d52640225493",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Self-hosted Temporal deployment and package layout",
+      "scope": "Assess self-hosted Temporal topology, local/dev workflows, TypeScript SDK shape, and how to colocate Temporal code in packages/engine.",
+      "assignedAgent": "019cfdfa-2076-72d0-8225-542836549fcb",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "Observability and agentic monitoring loop",
+      "scope": "Design the live control surface across Temporal, Convex, Axiom, and MCP for continuous monitor/fix loops similar to v3-finish-pass.",
+      "assignedAgent": "019cfdfa-20af-7113-876c-66b77b8234a9",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "title": "Migration strategy and table ownership",
+      "scope": "Identify which current Convex tables, APIs, and abstractions should be kept, deleted, mirrored, or replaced in a greenfield rewrite.",
+      "assignedAgent": "019cfdfa-21e6-7fe2-a30b-5dd94106bdd4",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_05",
+      "title": "Activity idempotency and audit ledger design",
+      "scope": "Determine what guarantees Temporal does and does not provide for Activities, and define the replacement for runtime-shaped llm_requests behavior.",
+      "assignedAgent": "019cfdfa-204b-7d42-a44c-d52640225493",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_06",
+      "title": "Workflow/activity breakdown and control semantics",
+      "scope": "Define the simplest first-cut RunWorkflow and WindowWorkflow surface, control messages, and continue-as-new pressure points.",
+      "assignedAgent": "019cfdfa-2076-72d0-8225-542836549fcb",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_07",
+      "title": "Start consistency and Convex projection boundary",
+      "scope": "Determine how to avoid split-brain between Temporal execution truth and Convex product projections.",
+      "assignedAgent": "019cfdfa-20af-7113-876c-66b77b8234a9",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_08",
+      "title": "Observability truth and control plane",
+      "scope": "Define what Visibility can and cannot do, what should be mirrored into Convex, and how Axiom/metrics should fit.",
+      "assignedAgent": "019cfdfa-21e6-7fe2-a30b-5dd94106bdd4",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_09",
+      "title": "Runtime/versioning constraints and option pressure",
+      "scope": "Investigate Node vs Bun, Worker Versioning, continue-as-new, and whether Restate or Inngest materially improve the rewrite fit.",
+      "assignedAgent": "019cfdff-45ea-7653-80fa-cd3014b062d4",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_10",
+      "title": "Action taxonomy and control contract",
+      "scope": "Turn Temporal message primitives into a literal operator and agent control contract.",
+      "assignedAgent": "019cfe28-151a-7992-8cde-2e209b594d1c",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_11",
+      "title": "Provider-aware LLM attempt ledger",
+      "scope": "Define exact ledger fields, OpenAI chat and batch semantics, usage/cost fields, and payload retention strategy.",
+      "assignedAgent": "019cfe28-1597-73e2-9e62-228d8e1e07e5",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_12",
+      "title": "Per-flow start handoff matrix",
+      "scope": "Compare create-then-start, start-then-project, with-start, and outbox patterns and map them to judge-gym flows.",
+      "assignedAgent": "019cfe28-16a2-7962-a4aa-649d4a7add07",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_13",
+      "title": "Observability truth stack and projection schema",
+      "scope": "Define the precedence order among Visibility, Describe, Update receipts, Query, Convex projection, and Axiom telemetry.",
+      "assignedAgent": "019cfe28-17d4-7fd0-98f2-dee4403b11bc",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_14",
+      "title": "Versioning and replay workflow",
+      "scope": "Define a pragmatic replay-testing, continue-as-new, and rollout/versioning workflow for a small team.",
+      "assignedAgent": "019cfe28-18c3-7891-8808-40486ee13ffc",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_15",
+      "title": "Requirements-based alternatives matrix",
+      "scope": "Compare Temporal, Restate, and Inngest against judge-gym requirements and make rejection criteria explicit.",
+      "assignedAgent": "019cfe28-19a0-7b53-846f-0f77ac3e1b87",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_16",
+      "title": "Settings and config flow",
+      "scope": "Define how shared defaults, Convex-stored operator policy, policy snapshots, and runtime-local secrets should interact after the rewrite.",
+      "assignedAgent": "019cfe41-ab2c-7ce0-9296-43c4d3cd4574",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_17",
+      "title": "Monorepo package and runtime boundary",
+      "scope": "Determine the right package split for Bun, Convex, and Node-only Temporal workers and define what shared code is allowed to contain.",
+      "assignedAgent": "019cfe41-a9d4-7120-bbea-935417f74519",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_18",
+      "title": "Execution policy, rate limiting, and tooling boundary",
+      "scope": "Decide where provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling should live, and identify the remaining cross-worker quota questions.",
+      "assignedAgent": "019cfe41-aa60-75a2-8318-43ba964e9f72",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_19",
+      "title": "Global provider quota strategy",
+      "scope": "Decide how Temporal queue-level shaping, worker concurrency, and Redis-backed shared buckets should combine for multi-worker provider quotas.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_20",
+      "title": "Provider capability divergence",
+      "scope": "Capture the real quota, caching, tool, and optional batch differences across OpenAI, Anthropic, and Gemini that the rewrite must model explicitly.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_21",
+      "title": "Provider-portable code architecture",
+      "scope": "Define a maintainable registry-plus-adapter architecture so the core runtime stays provider-portable without implementing every provider-specific feature in v0.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_22",
+      "title": "Minimal v0 capability registry schema",
+      "scope": "Define the minimal first-class registry fields the core runtime, llm_attempts envelope, and Upstash quota keys should depend on.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_23",
+      "title": "llm_attempts envelope and Upstash key model",
+      "scope": "Define the generic top-level attempt envelope, the `provider_extensions` boundary, and the normalized key vocabulary for Upstash quota enforcement.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_24",
+      "title": "V0 quota-dimension and tracking split",
+      "scope": "Define the normalized quota-dimension vocabulary v0 should support and distinguish which usage fields are tracked but not independently enforced.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_25",
+      "title": "Upstash v0 settlement policy",
+      "scope": "Define the default Upstash key form, algorithm family, and reservation/reconciliation rules for the v0 quota engine.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_26",
+      "title": "Initial provider-to-dimension mapping",
+      "scope": "Freeze the first registry snapshot that maps OpenAI, Anthropic, and Gemini onto the normalized v0 quota dimensions without inventing unsupported buckets.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_27",
+      "title": "Provider-aware output reservation policy",
+      "scope": "Decide how output reservation should differ across providers so the shared limiter follows documented quota semantics rather than one generic heuristic.",
+      "assignedAgent": "main",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_28",
+      "title": "Final control contract",
+      "scope": "Freeze the exact action contract for create/start/pause_after/pause/resume/cancel/repair, including primitive choice, acknowledgement semantics, idempotency, and fallback behavior.",
+      "assignedAgent": "019cfe7a-a900-7e52-aaef-93fe2db811c6",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_29",
+      "title": "llm_attempts schema and retention contract",
+      "scope": "Freeze the metadata-first ledger shape, payload/blob strategy, quota-audit shape, and replay/retention contract for the rewrite.",
+      "assignedAgent": "019cfe7a-aa0b-7ba3-85d8-351072134fa4",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_30",
+      "title": "Convex to Temporal worker API boundary",
+      "scope": "Freeze how Temporal workers talk to Convex, what writes are allowed, and how the package/runtime boundary is enforced.",
+      "assignedAgent": "019cfe7a-ab77-7033-a08c-cda5c65e2102",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_31",
+      "title": "Observability projection and repair-read model",
+      "scope": "Freeze the compact Convex projection, truth precedence, and the rule for what the future agent loop may act on directly.",
+      "assignedAgent": "019cfe7a-adb0-7e53-a753-b3001bd5dcfb",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_32",
+      "title": "Safe deployment and versioning SOP",
+      "scope": "Freeze the minimum viable replay, patching, continue-as-new, and rollout workflow for the Temporal rewrite.",
+      "assignedAgent": "019cfe7a-af3d-7450-8996-b3a7e3508be0",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "id": "k_001",
+        "path": "knowledge/k_001_current_engine_execution_shape.md",
+        "title": "Current Convex Engine Already Reimplements a Workflow Runtime"
+      },
+      {
+        "id": "k_002",
+        "path": "knowledge/k_002_temporal_runtime_model.md",
+        "title": "Temporal Fits the Missing Execution Layer"
+      },
+      {
+        "id": "k_003",
+        "path": "knowledge/k_003_self_hosted_temporal_engine_layout.md",
+        "title": "Self-Hosted Temporal Can Live Beside Convex in packages/engine"
+      },
+      {
+        "id": "k_004",
+        "path": "knowledge/k_004_observability_and_operator_control.md",
+        "title": "Original Observability Split Draft"
+      },
+      {
+        "id": "k_005",
+        "path": "knowledge/k_005_table_ownership_and_cutover.md",
+        "title": "Table Ownership Split for a Greenfield Rewrite"
+      },
+      {
+        "id": "k_006",
+        "path": "knowledge/k_006_convex_scheduler_tradeoff.md",
+        "title": "Convex Scheduling Guarantees Are Strong but Misaligned With This Workload"
+      },
+      {
+        "id": "k_007",
+        "path": "knowledge/k_007_activity_idempotency_and_audit_ledger.md",
+        "title": "Activity Idempotency and an External Audit Ledger Are Core Rewrite Requirements"
+      },
+      {
+        "id": "k_008",
+        "path": "knowledge/k_008_workflow_activity_surface_and_control_semantics.md",
+        "title": "Minimal Workflow Surface Should Stay Small and Use Explicit Control Semantics"
+      },
+      {
+        "id": "k_009",
+        "path": "knowledge/k_009_start_and_projection_consistency.md",
+        "title": "Cross-System Start Consistency Requires an Explicit Handoff Pattern"
+      },
+      {
+        "id": "k_010",
+        "path": "knowledge/k_010_observability_truth_and_control_plane.md",
+        "title": "Observability Needs a Split Between Discovery, Strong Truth, and Telemetry"
+      },
+      {
+        "id": "k_011",
+        "path": "knowledge/k_011_runtime_versioning_and_option_pressure.md",
+        "title": "Temporal Remains the Strongest Default, but Runtime and Versioning Constraints Are Real"
+      },
+      {
+        "id": "k_012",
+        "path": "knowledge/k_012_control_contract_and_action_taxonomy.md",
+        "title": "Control Contract Needs an Explicit Action Taxonomy"
+      },
+      {
+        "id": "k_013",
+        "path": "knowledge/k_013_ledger_schema_and_provider_semantics.md",
+        "title": "The LLM Attempt Ledger Must Capture Provider Semantics, Not Just Temporal Retries"
+      },
+      {
+        "id": "k_014",
+        "path": "knowledge/k_014_start_handoff_patterns_decision_matrix.md",
+        "title": "Start Handoff Must Be Chosen Per Flow, Not by One Global Rule"
+      },
+      {
+        "id": "k_015",
+        "path": "knowledge/k_015_observability_truth_stack_and_projection_schema.md",
+        "title": "Observability Needs a Precedence Order, Not Just a Split"
+      },
+      {
+        "id": "k_016",
+        "path": "knowledge/k_016_versioning_and_replay_workflow.md",
+        "title": "Versioning and Replay Testing Need an Operational Workflow, Not Just Awareness"
+      },
+      {
+        "id": "k_017",
+        "path": "knowledge/k_017_requirements_based_alternatives_matrix.md",
+        "title": "Temporal Still Leads, but the Alternatives Need Explicit Rejection Criteria"
+      },
+      {
+        "id": "k_018",
+        "path": "knowledge/k_018_settings_and_config_flow.md",
+        "title": "Settings and Config Flow Should Be Split Into Defaults, Operator Policy, and Runtime Secrets"
+      },
+      {
+        "id": "k_019",
+        "path": "knowledge/k_019_monorepo_package_runtime_split.md",
+        "title": "Monorepo Boundaries Should Follow Runtime Ownership, Not Just Features"
+      },
+      {
+        "id": "k_020",
+        "path": "knowledge/k_020_execution_policy_and_tooling_boundary.md",
+        "title": "Execution Policy, Rate Limiting, and Operational Tooling Should Follow the Worker Runtime"
+      },
+      {
+        "id": "k_021",
+        "path": "knowledge/k_021_global_rate_limit_strategy.md",
+        "title": "Global Provider Rate Limiting Needs a Layered Design: Temporal for Dispatch, Redis for Shared Quotas"
+      },
+      {
+        "id": "k_022",
+        "path": "knowledge/k_022_provider_capability_divergence.md",
+        "title": "Multi-Provider Support Requires a Capability Matrix, Not an OpenAI-Shaped Core"
+      },
+      {
+        "id": "k_023",
+        "path": "knowledge/k_023_provider_portable_code_architecture.md",
+        "title": "Provider-Portable Maintainability Depends on Layered Adapters, Capability Metadata, and Extension Fields"
+      },
+      {
+        "id": "k_024",
+        "path": "knowledge/k_024_minimal_v0_capability_registry_schema.md",
+        "title": "The Minimal V0 Capability Registry Should Normalize Identity, Operations, Usage Fields, and Quota Dimensions"
+      },
+      {
+        "id": "k_025",
+        "path": "knowledge/k_025_llm_attempt_envelope_and_upstash_key_model.md",
+        "title": "Provider-Portable `llm_attempts` and Upstash Keys Should Share the Same Normalized Vocabulary"
+      },
+      {
+        "id": "k_026",
+        "path": "knowledge/k_026_v0_quota_dimensions_and_tracking_split.md",
+        "title": "V0 Should Enforce a Small Quota Enum and Track Richer Usage Separately"
+      },
+      {
+        "id": "k_027",
+        "path": "knowledge/k_027_upstash_v0_settlement_policy.md",
+        "title": "Upstash V0 Should Use Token Buckets With Explicit Reservation and Reconciliation Rules"
+      },
+      {
+        "id": "k_028",
+        "path": "knowledge/k_028_initial_provider_dimension_mapping.md",
+        "title": "The Initial Registry Snapshot Should Map Provider Quota Dimensions Explicitly"
+      },
+      {
+        "id": "k_029",
+        "path": "knowledge/k_029_provider_aware_output_budget_policy.md",
+        "title": "V0 Output Reservation Should Follow Provider-Documented Quota Semantics"
+      },
+      {
+        "id": "k_030",
+        "path": "knowledge/k_030_control_contract_v0.md",
+        "title": "The Rewrite Needs a Literal Control Contract With Different Primitives Per Action"
+      },
+      {
+        "id": "k_031",
+        "path": "knowledge/k_031_llm_attempts_schema_and_retention.md",
+        "title": "The LLM Attempt Ledger Should Be Metadata-First, Append-Only, and Split Across Envelope, Payload, and Quota Event Shapes"
+      },
+      {
+        "id": "k_032",
+        "path": "knowledge/k_032_convex_temporal_worker_api_boundary.md",
+        "title": "Temporal Workers Should Use a Narrow Public Convex Worker API, Not Convex Internals as an RPC Surface"
+      },
+      {
+        "id": "k_033",
+        "path": "knowledge/k_033_process_observability_projection_v2.md",
+        "title": "The Observability Read Model Should Stay Small, Non-Authoritative, and Optimized for Discovery and Triage"
+      },
+      {
+        "id": "k_034",
+        "path": "knowledge/k_034_safe_deployment_and_versioning_sop.md",
+        "title": "The Rewrite Needs a Safe-Deployment SOP, Not Just General Awareness of Replay and Versioning"
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "target": "k_001",
+        "score": 0.8
+      },
+      {
+        "target": "k_002",
+        "score": 0.68
+      },
+      {
+        "target": "k_003",
+        "score": 0.62
+      },
+      {
+        "target": "k_004",
+        "score": 0.56
+      },
+      {
+        "target": "k_005",
+        "score": 0.78
+      },
+      {
+        "target": "k_006",
+        "score": 0.58
+      },
+      {
+        "target": "k_007",
+        "score": 0.8
+      },
+      {
+        "target": "k_008",
+        "score": 0.74
+      },
+      {
+        "target": "k_009",
+        "score": 0.78
+      },
+      {
+        "target": "k_010",
+        "score": 0.76
+      },
+      {
+        "target": "k_011",
+        "score": 0.69
+      },
+      {
+        "target": "k_012",
+        "score": 0.68
+      },
+      {
+        "target": "k_013",
+        "score": 0.66
+      },
+      {
+        "target": "k_014",
+        "score": 0.8
+      },
+      {
+        "target": "k_015",
+        "score": 0.69
+      },
+      {
+        "target": "k_016",
+        "score": 0.62
+      },
+      {
+        "target": "k_017",
+        "score": 0.56
+      },
+      {
+        "target": "k_018",
+        "score": 0.73
+      },
+      {
+        "target": "k_019",
+        "score": 0.77
+      },
+      {
+        "target": "k_020",
+        "score": 0.71
+      },
+      {
+        "target": "k_021",
+        "score": 0.76
+      },
+      {
+        "target": "k_022",
+        "score": 0.78
+      },
+      {
+        "target": "k_023",
+        "score": 0.74
+      },
+      {
+        "target": "k_024",
+        "score": 0.77
+      },
+      {
+        "target": "k_025",
+        "score": 0.75
+      },
+      {
+        "target": "k_026",
+        "score": 0.77
+      },
+      {
+        "target": "k_027",
+        "score": 0.74
+      },
+      {
+        "target": "k_028",
+        "score": 0.79
+      },
+      {
+        "target": "k_029",
+        "score": 0.78
+      },
+      {
+        "target": "k_030",
+        "score": 0.76
+      },
+      {
+        "target": "k_031",
+        "score": 0.8
+      },
+      {
+        "target": "k_032",
+        "score": 0.77
+      },
+      {
+        "target": "k_033",
+        "score": 0.74
+      },
+      {
+        "target": "k_034",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_01_001",
+        "score": 0.72
+      },
+      {
+        "target": "h_A_02_001",
+        "score": 0.63
+      },
+      {
+        "target": "h_A_03_001",
+        "score": 0.57
+      },
+      {
+        "target": "h_A_04_001",
+        "score": 0.74
+      },
+      {
+        "target": "h_A_05_001",
+        "score": 0.77
+      },
+      {
+        "target": "h_A_06_001",
+        "score": 0.73
+      },
+      {
+        "target": "h_A_07_001",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_08_001",
+        "score": 0.75
+      },
+      {
+        "target": "h_A_09_001",
+        "score": 0.68
+      },
+      {
+        "target": "h_A_10_001",
+        "score": 0.67
+      },
+      {
+        "target": "h_A_11_001",
+        "score": 0.65
+      },
+      {
+        "target": "h_A_12_001",
+        "score": 0.79
+      },
+      {
+        "target": "h_A_13_001",
+        "score": 0.69
+      },
+      {
+        "target": "h_A_14_001",
+        "score": 0.63
+      },
+      {
+        "target": "h_A_15_001",
+        "score": 0.58
+      },
+      {
+        "target": "h_A_16_001",
+        "score": 0.73
+      },
+      {
+        "target": "h_A_17_001",
+        "score": 0.76
+      },
+      {
+        "target": "h_A_18_001",
+        "score": 0.7
+      },
+      {
+        "target": "h_A_19_001",
+        "score": 0.76
+      },
+      {
+        "target": "h_A_20_001",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_21_001",
+        "score": 0.74
+      },
+      {
+        "target": "h_A_22_001",
+        "score": 0.77
+      },
+      {
+        "target": "h_A_23_001",
+        "score": 0.75
+      },
+      {
+        "target": "h_A_24_001",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_25_001",
+        "score": 0.75
+      },
+      {
+        "target": "h_A_26_001",
+        "score": 0.79
+      },
+      {
+        "target": "h_A_27_001",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_28_001",
+        "score": 0.76
+      },
+      {
+        "target": "h_A_29_001",
+        "score": 0.81
+      },
+      {
+        "target": "h_A_30_001",
+        "score": 0.78
+      },
+      {
+        "target": "h_A_31_001",
+        "score": 0.74
+      },
+      {
+        "target": "h_A_32_001",
+        "score": 0.78
+      },
+      {
+        "target": "nc_pass2_001",
+        "score": 0.72
+      },
+      {
+        "target": "nc_pass3_001",
+        "score": 0.74
+      },
+      {
+        "target": "nc_pass4_001",
+        "score": 0.72
+      },
+      {
+        "target": "nc_pass5_001",
+        "score": 0.78
+      },
+      {
+        "target": "nc_pass6_001",
+        "score": 0.77
+      },
+      {
+        "target": "nc_pass7_001",
+        "score": 0.78
+      },
+      {
+        "target": "nc_pass8_001",
+        "score": 0.79
+      },
+      {
+        "target": "nc_pass9_001",
+        "score": 0.8
+      },
+      {
+        "target": "nc_pass10_001",
+        "score": 0.77
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "id": "A_01",
+      "title": "Architecture split and primitive mapping",
+      "question": "What is the cleanest ownership split between Convex and Temporal for judge-gym's run/window engine?"
+    },
+    {
+      "id": "A_02",
+      "title": "Self-hosted Temporal deployment and package layout",
+      "question": "How should a self-hosted Temporal stack and engine-local package layout be organized for a TypeScript/Bun repo?"
+    },
+    {
+      "id": "A_03",
+      "title": "Observability and agentic monitoring loop",
+      "question": "How should observability, operator control, and MCP-driven monitoring/fix loops work after the Temporal rewrite?"
+    },
+    {
+      "id": "A_04",
+      "title": "Migration strategy and table ownership",
+      "question": "Which current Convex tables and abstractions remain as domain truth and which should disappear into Temporal runtime concerns?"
+    },
+    {
+      "id": "A_05",
+      "title": "Activity idempotency and audit ledger design",
+      "question": "How should idempotency keys, LLM attempt auditing, and payload retention work once Activities own side effects?"
+    },
+    {
+      "id": "A_06",
+      "title": "Workflow/activity breakdown and control semantics",
+      "question": "What is the smallest safe RunWorkflow/WindowWorkflow surface and how should pause/resume/cancel/repair map to Temporal primitives?"
+    },
+    {
+      "id": "A_07",
+      "title": "Start consistency and Convex projection boundary",
+      "question": "How should judge-gym handle create/start flows and projection writes when Convex and Temporal cannot share an atomic transaction?"
+    },
+    {
+      "id": "A_08",
+      "title": "Observability truth and control plane",
+      "question": "What should be used for discovery, strong execution truth, projected status, and deep telemetry in the future agent loop?"
+    },
+    {
+      "id": "A_09",
+      "title": "Runtime/versioning constraints and option pressure",
+      "question": "How should Node vs Bun, Worker Versioning, continue-as-new, and alternative runtimes affect the rewrite plan?"
+    },
+    {
+      "id": "A_10",
+      "title": "Action taxonomy and control contract",
+      "question": "What exact Temporal primitive, acknowledgement mode, and idempotency rule should each operator and agent action use?"
+    },
+    {
+      "id": "A_11",
+      "title": "Provider-aware LLM attempt ledger",
+      "question": "What exact fields, provider IDs, retention classes, and replay metadata should replace runtime-shaped llm_requests behavior?"
+    },
+    {
+      "id": "A_12",
+      "title": "Per-flow start handoff matrix",
+      "question": "Which create/start flows should use create-then-start, start-then-project, with-start, or outbox patterns?"
+    },
+    {
+      "id": "A_13",
+      "title": "Observability truth stack and projection schema",
+      "question": "What is the exact precedence order and compact Convex projection shape for the future agent loop?"
+    },
+    {
+      "id": "A_14",
+      "title": "Versioning and replay workflow",
+      "question": "What is the minimum viable deployment, replay-testing, and continue-as-new policy for judge-gym workers?"
+    },
+    {
+      "id": "A_15",
+      "title": "Requirements-based alternatives matrix",
+      "question": "Why does Temporal beat or fail to beat Restate and Inngest against judge-gym's actual requirements?"
+    },
+    {
+      "id": "A_16",
+      "title": "Settings and config flow",
+      "question": "How should shared defaults, Convex-stored operator policy, policy snapshots, and runtime-local secrets interact in the rewrite?"
+    },
+    {
+      "id": "A_17",
+      "title": "Monorepo package and runtime boundary",
+      "question": "What package graph best separates Bun-friendly code, Convex code, and Node-only Temporal workers without recreating shared-runtime ambiguity?"
+    },
+    {
+      "id": "A_18",
+      "title": "Execution policy, rate limiting, and tooling boundary",
+      "question": "Where should provider-facing throttling, adapter execution, and Temporal-facing tooling live, and what remains open about cross-worker global quotas?"
+    },
+    {
+      "id": "A_19",
+      "title": "Global provider quota strategy",
+      "question": "How should Temporal queue shaping, worker saturation controls, and Redis-backed shared buckets combine to enforce provider/model request and token quotas across workers?"
+    },
+    {
+      "id": "A_20",
+      "title": "Provider capability divergence",
+      "question": "What real differences across OpenAI, Anthropic, and Gemini must the rewrite model explicitly so the core runtime does not stay OpenAI-shaped?"
+    },
+    {
+      "id": "A_21",
+      "title": "Provider-portable code architecture",
+      "question": "What registry-plus-adapter architecture keeps the Temporal rewrite maintainable as new providers are introduced without forcing every provider-specific feature into v0?"
+    },
+    {
+      "id": "A_22",
+      "title": "Minimal v0 capability registry schema",
+      "question": "What minimal first-class registry fields should shared contracts expose so the core runtime, llm_attempts envelope, and Upstash keys stay provider-portable?"
+    },
+    {
+      "id": "A_23",
+      "title": "llm_attempts envelope and Upstash key model",
+      "question": "What should be first-class in the generic attempt envelope, what should stay in provider_extensions, and how should Upstash keys derive from the normalized registry vocabulary?"
+    },
+    {
+      "id": "A_24",
+      "title": "V0 quota-dimension and tracking split",
+      "question": "What normalized quota dimensions should v0 support, and which usage fields should stay tracked but not independently enforced?"
+    },
+    {
+      "id": "A_25",
+      "title": "Upstash v0 settlement policy",
+      "question": "What should the default Upstash key form, algorithm choice, and reservation/reconciliation policy be for the first rollout?"
+    },
+    {
+      "id": "A_26",
+      "title": "Initial provider-to-dimension mapping",
+      "question": "How should the first registry snapshot map OpenAI, Anthropic, and Gemini onto the normalized v0 quota dimensions without overfitting core code to one provider's billing model?"
+    },
+    {
+      "id": "A_27",
+      "title": "Provider-aware output reservation policy",
+      "question": "How should output reservation differ across providers so the shared limiter stays conservative and faithful to documented quota semantics?"
+    },
+    {
+      "id": "A_28",
+      "title": "Final control contract",
+      "question": "What exact primitive, acknowledgement mode, idempotency key, and fallback should each create/start/pause_after/pause/resume/cancel/repair action use?"
+    },
+    {
+      "id": "A_29",
+      "title": "llm_attempts schema and retention contract",
+      "question": "What exact metadata, payload-ref, and retention/replay structure should replace the old runtime-shaped request tables?"
+    },
+    {
+      "id": "A_30",
+      "title": "Convex to Temporal worker API boundary",
+      "question": "What is the narrowest stable API and package boundary that lets Temporal workers write durable domain results into Convex without recreating a mixed-runtime engine?"
+    },
+    {
+      "id": "A_31",
+      "title": "Observability projection and repair-read model",
+      "question": "What compact projection should Convex mirror for UI and agent ergonomics, and what stronger Temporal surface must confirm any repair action?"
+    },
+    {
+      "id": "A_32",
+      "title": "Safe deployment and versioning SOP",
+      "question": "What minimum replay, patching, continue-as-new, and rollout workflow should judge-gym require before shipping the Temporal rewrite?"
+    }
+  ],
+  "microHypotheses": [
+    {
+      "id": "h_A_01_001",
+      "path": "hypotheses/hyp_A_01_v1_convex_temporal_split.json"
+    },
+    {
+      "id": "h_A_02_001",
+      "path": "hypotheses/hyp_A_02_v1_node_worker_split.json"
+    },
+    {
+      "id": "h_A_03_001",
+      "path": "hypotheses/hyp_A_03_v1_temporal_visibility_loop.json"
+    },
+    {
+      "id": "h_A_04_001",
+      "path": "hypotheses/hyp_A_04_v1_table_deletion_split.json"
+    },
+    {
+      "id": "h_A_05_001",
+      "path": "hypotheses/hyp_A_05_v1_idempotent_audit_ledger.json"
+    },
+    {
+      "id": "h_A_06_001",
+      "path": "hypotheses/hyp_A_06_v1_minimal_workflow_control_surface.json"
+    },
+    {
+      "id": "h_A_07_001",
+      "path": "hypotheses/hyp_A_07_v1_explicit_start_projection_boundary.json"
+    },
+    {
+      "id": "h_A_08_001",
+      "path": "hypotheses/hyp_A_08_v1_observability_split.json"
+    },
+    {
+      "id": "h_A_09_001",
+      "path": "hypotheses/hyp_A_09_v1_temporal_default_with_node_workers.json"
+    },
+    {
+      "id": "h_A_10_001",
+      "path": "hypotheses/hyp_A_10_v1_control_contract.json"
+    },
+    {
+      "id": "h_A_11_001",
+      "path": "hypotheses/hyp_A_11_v1_llm_attempt_ledger.json"
+    },
+    {
+      "id": "h_A_12_001",
+      "path": "hypotheses/hyp_A_12_v1_start_handoff_matrix.json"
+    },
+    {
+      "id": "h_A_13_001",
+      "path": "hypotheses/hyp_A_13_v1_truth_stack_and_projection.json"
+    },
+    {
+      "id": "h_A_14_001",
+      "path": "hypotheses/hyp_A_14_v1_conditional_versioning_policy.json"
+    },
+    {
+      "id": "h_A_15_001",
+      "path": "hypotheses/hyp_A_15_v1_temporal_with_rejection_criteria.json"
+    },
+    {
+      "id": "h_A_16_001",
+      "path": "hypotheses/hyp_A_16_v1_settings_config_split.json"
+    },
+    {
+      "id": "h_A_17_001",
+      "path": "hypotheses/hyp_A_17_v1_package_runtime_split.json"
+    },
+    {
+      "id": "h_A_18_001",
+      "path": "hypotheses/hyp_A_18_v1_execution_policy_tooling_boundary.json"
+    },
+    {
+      "id": "h_A_19_001",
+      "path": "hypotheses/hyp_A_19_v1_layered_global_rate_limit.json"
+    },
+    {
+      "id": "h_A_20_001",
+      "path": "hypotheses/hyp_A_20_v1_provider_capability_registry.json"
+    },
+    {
+      "id": "h_A_21_001",
+      "path": "hypotheses/hyp_A_21_v1_provider_portable_engine_architecture.json"
+    },
+    {
+      "id": "h_A_22_001",
+      "path": "hypotheses/hyp_A_22_v1_minimal_registry_schema.json"
+    },
+    {
+      "id": "h_A_23_001",
+      "path": "hypotheses/hyp_A_23_v1_attempt_envelope_and_upstash_keys.json"
+    },
+    {
+      "id": "h_A_24_001",
+      "path": "hypotheses/hyp_A_24_v1_v0_quota_enum.json"
+    },
+    {
+      "id": "h_A_25_001",
+      "path": "hypotheses/hyp_A_25_v1_upstash_settlement_policy.json"
+    },
+    {
+      "id": "h_A_26_001",
+      "path": "hypotheses/hyp_A_26_v1_provider_dimension_mapping.json"
+    },
+    {
+      "id": "h_A_27_001",
+      "path": "hypotheses/hyp_A_27_v1_provider_aware_output_budget.json"
+    },
+    {
+      "id": "h_A_28_001",
+      "path": "hypotheses/hyp_A_28_v1_control_contract.json"
+    },
+    {
+      "id": "h_A_29_001",
+      "path": "hypotheses/hyp_A_29_v1_llm_attempts_schema.json"
+    },
+    {
+      "id": "h_A_30_001",
+      "path": "hypotheses/hyp_A_30_v1_worker_api_boundary.json"
+    },
+    {
+      "id": "h_A_31_001",
+      "path": "hypotheses/hyp_A_31_v1_process_observability_v2.json"
+    },
+    {
+      "id": "h_A_32_001",
+      "path": "hypotheses/hyp_A_32_v1_safe_deployment_sop.json"
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}

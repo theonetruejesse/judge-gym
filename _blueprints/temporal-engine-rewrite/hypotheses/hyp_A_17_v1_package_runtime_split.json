@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_17_001",
+  "areaOfAnalysisID": "A_17",
+  "statement": "Judge-gym should split the current engine into runtime-specific packages: a pure `engine-contracts` package, a Convex-only `engine-convex` package, a Node-only `engine-temporal` package, and optionally an `engine-tools` package, rather than keeping a mixed-runtime `packages/engine` surface.",
+  "confidence": 0.76,
+  "rationale": "The current package already mixes Bun-oriented tooling, Convex code, and a Node engine requirement. A Temporal rewrite makes that ambiguity more dangerous, because workers need a distinct runtime, dependency set, and tsconfig discipline.",
+  "keyAssumptions": [
+    "The rewrite is greenfield enough to move code across package boundaries without preserving the existing package API",
+    "The team values explicit runtime ownership over minimizing workspace count"
+  ],
+  "validationCriteria": [
+    "No shared package imports Convex generated code, Temporal worker libraries, provider SDKs, or env readers",
+    "The worker package can typecheck and test under Node without Bun-specific assumptions",
+    "The Convex package can evolve domain code without pulling in worker-side dependencies"
+  ],
+  "critiquePoints": [
+    "A package split adds workspace management overhead if the boundaries are too fine-grained",
+    "A simple two-package split could be enough if `engine-tools` stays optional"
+  ],
+  "questions": [
+    "Should `engine-tools` start as a separate package, or can it live inside `engine-temporal` until the control surface grows?"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_22_001",
+  "areaOfAnalysisID": "A_22",
+  "statement": "The minimal v0 provider capability registry should normalize only identity, operation flags, usage-field mapping, and quota dimensions, leaving provider wire formats and transport details inside adapters.",
+  "confidence": 0.77,
+  "rationale": "The registry must be strong enough to keep provider assumptions out of core workflow logic, but small enough that it does not become a second adapter layer. The core engine mainly needs to know what operations are allowed, which usage fields exist, and which normalized quota dimensions must be enforced.",
+  "keyAssumptions": [
+    "The first rewrite can keep the core operation taxonomy small",
+    "Provider adapters can carry richer wire-format and polling details without leaking them back into the registry"
+  ],
+  "validationCriteria": [
+    "Adding a provider for basic sync support requires a registry entry plus adapter code, not workflow changes",
+    "Upstash key generation depends only on registry dimensions, not provider wire names",
+    "The registry does not need to describe raw HTTP payloads or endpoint URLs"
+  ],
+  "critiquePoints": [
+    "If the usage-field mapping is too thin, provider-specific cost and quota semantics may leak back into core code",
+    "Some future provider features may still require the registry to grow beyond the minimal v0 shape"
+  ],
+  "questions": [
+    "Should `service_tier` and `thinking_tokens` be first-class in the minimal registry, or remain optional usage-field mappings only?"
+  ]
+}

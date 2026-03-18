@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The cleanest greenfield architecture is Convex as domain/UI store and Temporal as the sole execution runtime for run/window workflows.",
+  "confidence": 0.82,
+  "rationale": "The current engine already has a custom execution substrate inside Convex, while Temporal's workflow/activity/task queue model directly fits that missing layer.",
+  "keyAssumptions": [
+    "Domain tables can remain authoritative without owning transport state",
+    "Temporal workflow determinism can be respected by moving all I/O into activities"
+  ],
+  "validationCriteria": [
+    "A run and a window can be started and driven end-to-end without Convex scheduler tables",
+    "Operator controls and status checks are expressible as Temporal starts, queries, signals, or updates"
+  ],
+  "critiquePoints": [
+    "Adds another infrastructure system",
+    "Requires careful idempotent Convex writes from activities"
+  ],
+  "questions": [
+    "Should Convex or Temporal be the source of truth for live progress projections?"
+  ]
+}
+

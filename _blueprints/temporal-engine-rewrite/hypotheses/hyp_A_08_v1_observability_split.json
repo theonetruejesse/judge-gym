@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_08_001",
+  "areaOfAnalysisID": "A_08",
+  "statement": "A durable automation loop for judge-gym should use Temporal Visibility and Search Attributes for discovery, stronger per-execution inspection plus a small Convex read model for automation-grade decisions, and Axiom plus Temporal metrics for deep telemetry and platform health.",
+  "confidence": 0.77,
+  "rationale": "Visibility is useful but laggy and approximate for some queries, so it should not be the sole state source for autonomous repair.",
+  "keyAssumptions": [
+    "The projected Convex read model stays small and does not become a second execution engine",
+    "Temporal and worker metrics can be routed into Axiom cleanly enough for platform monitoring"
+  ],
+  "validationCriteria": [
+    "The future agent loop can answer what exists, what is truly stalled, and what action is safe next without reconstructing queue ownership from tables",
+    "The monitoring surface distinguishes platform health from domain/scientific usability"
+  ],
+  "critiquePoints": [
+    "A weak projection model could still force the agent to hit Temporal too often for basic diagnostics"
+  ],
+  "questions": [
+    "What exact fields should the Convex observability projection mirror?"
+  ]
+}

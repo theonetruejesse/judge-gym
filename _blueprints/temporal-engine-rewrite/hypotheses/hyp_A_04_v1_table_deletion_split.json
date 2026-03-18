@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "A greenfield rewrite can delete scheduler_locks, llm_jobs, llm_batches, and process_request_targets, while keeping domain tables and optionally retaining a slim append-only LLM audit ledger.",
+  "confidence": 0.84,
+  "rationale": "Those tables currently exist to emulate a workflow runtime rather than represent business truth, while domain artifacts are independently meaningful.",
+  "keyAssumptions": [
+    "Temporal becomes the only runtime owner for new executions",
+    "Auditability can be satisfied by a simpler attempt ledger or by Temporal history plus Axiom"
+  ],
+  "validationCriteria": [
+    "The rewritten engine can run without DB-backed lease tables or transport queues",
+    "Scientific outputs remain reproducible and inspectable after the table reduction"
+  ],
+  "critiquePoints": [
+    "Removing llm_requests entirely may hurt auditability and artifact traceability"
+  ],
+  "questions": [
+    "Should prompt bodies and raw outputs live in Convex, object storage, or only Axiom/Temporal history?"
+  ]
+}

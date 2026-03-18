@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_11_001",
+  "areaOfAnalysisID": "A_11",
+  "statement": "Judge-gym should keep llm_prompt_templates and replace runtime-shaped llm_requests behavior with an append-only llm_attempts ledger that stores provider correlation IDs, usage, outcome metadata, and hashes/blob refs for large payloads.",
+  "confidence": 0.65,
+  "rationale": "The ledger split is well motivated by Temporal retry semantics and OpenAI provider metadata, but retention and replay details still need to be nailed down precisely.",
+  "keyAssumptions": [
+    "Convex stores metadata and smaller fields while large bodies live behind durable blob references",
+    "Artifact-level dedupe is enforced separately from attempt-level dedupe"
+  ],
+  "validationCriteria": [
+    "Duplicate activity retries do not create duplicate attempt rows or duplicate scientific artifacts",
+    "A historical attempt can still be audited even if its large payload was externalized"
+  ],
+  "critiquePoints": [
+    "Blob-first storage is unsafe unless retention, integrity, and redaction rules are explicit"
+  ],
+  "questions": [
+    "What exact replay contract should hold if a blob expires or is redacted?"
+  ]
+}

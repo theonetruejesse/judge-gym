@@ -1,0 +1,60 @@
+{
+  "challengeID": "nc_pass4_001",
+  "microHypothesisIDs": [
+    "h_A_16_001",
+    "h_A_17_001",
+    "h_A_18_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "A package split is necessary; a folder split inside one `packages/engine` package would be too risky",
+      "falsificationQueries": [
+        "Could a single package with Node-only worker scripts preserve enough separation?",
+        "Does the rewrite truly require separate package-level typecheck and dependency graphs?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_019_monorepo_package_runtime_split.md"
+      ],
+      "falsificationAnalysis": "A disciplined folder split could work for a small codebase, so package splitting is not a law of nature. The reason to prefer package boundaries here is operational: distinct runtime deps, test runners, tsconfig assumptions, and import bans become enforceable instead of social. The package split remains the safer default, but not the only theoretically valid one.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "A shared settings/config package is always good",
+      "falsificationQueries": [
+        "Will a shared package accidentally absorb env parsing or runtime clients?",
+        "Can policy reproducibility be preserved without a shared runtime settings module?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_018_settings_and_config_flow.md"
+      ],
+      "falsificationAnalysis": "The settings split is sound only if the shared layer stays pure: schemas, defaults, and merge logic. The moment it grows env readers or runtime wiring, it becomes a new coupling trap. The null result strengthens the narrower claim rather than overturning it.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Worker-side rate limiting is a solved placement question",
+      "falsificationQueries": [
+        "Is a worker-local limiter enough when multiple workers share one provider quota?",
+        "Can Temporal queue partitioning fully replace a global quota store?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_020_execution_policy_and_tooling_boundary.md"
+      ],
+      "falsificationAnalysis": "The ownership split is right, but the implementation is still open. Provider-facing enforcement belongs with workers, yet the rewrite still needs an explicit answer on global quotas and fairness across workers. This is not a reason to keep the limiter in Convex, but it is a real unresolved execution detail.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "A separate `engine-tools` package is mandatory on day one",
+      "falsificationQueries": [
+        "Could Temporal-facing CLIs start inside `engine-temporal` and split later?",
+        "Is a dedicated tools package necessary before the control surface stabilizes?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_019_monorepo_package_runtime_split.md",
+        "knowledge/k_020_execution_policy_and_tooling_boundary.md"
+      ],
+      "falsificationAnalysis": "A dedicated tools package is a clean long-term shape, but it is optional in the first cut. The core boundary is worker runtime versus Convex runtime. Tooling can start co-located with the worker package and split later if it becomes too broad.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}

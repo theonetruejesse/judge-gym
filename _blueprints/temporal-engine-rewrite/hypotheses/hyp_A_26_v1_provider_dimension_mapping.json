@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_26_001",
+  "areaOfAnalysisID": "A_26",
+  "statement": "The initial v0 registry snapshot should map OpenAI PAYG interactive models to `requests` plus `total_tokens`, Anthropic interactive models to `requests` plus split `input_tokens` and `output_tokens`, and Gemini interactive models to `requests` plus `input_tokens`, while leaving room for provider-plan overrides such as OpenAI Scale Tier.",
+  "confidence": 0.79,
+  "rationale": "This is the smallest provider-portable mapping that matches the documented quota shapes without forcing an OpenAI-shaped or Anthropic-shaped limiter onto the others. It keeps the normalized vocabulary stable while letting registry entries declare the subset they actually enforce.",
+  "keyAssumptions": [
+    "The first rollout targets standard interactive inference rather than every plan-specific or enterprise quota mode",
+    "The capability registry can carry provider-plan or provider-mode overrides without changing core workflow code",
+    "The shared limiter should reflect documented provider quota dimensions rather than infer them from usage payload structure alone"
+  ],
+  "validationCriteria": [
+    "The initial registry snapshot can represent OpenAI, Anthropic, and Gemini honestly without inventing unsupported dimensions",
+    "A future OpenAI Scale Tier or other plan-specific override can be added as a registry variant instead of forcing a new core quota vocabulary",
+    "The mapping stays compatible with the existing normalized enum: `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`"
+  ],
+  "critiquePoints": [
+    "OpenAI plan-specific quota modes may require earlier-than-expected overrides",
+    "Gemini output-accounting semantics may become operationally important later even if they are not enforced in the v0 shared limiter"
+  ],
+  "questions": [
+    "What exact registry fields should distinguish provider plan or billing mode overrides from plain model-family defaults?"
+  ]
+}

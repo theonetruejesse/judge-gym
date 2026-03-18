@@ -1,0 +1,60 @@
+{
+  "challengeID": "nc_pass9_001",
+  "microHypothesisIDs": [
+    "h_A_26_001",
+    "h_A_27_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "OpenAI should default to split `input_tokens` and `output_tokens` in the initial v0 registry snapshot",
+      "falsificationQueries": [
+        "Do OpenAI's standard rate-limit docs present separate input and output token buckets for the common PAYG case?",
+        "Would forcing split token dimensions into the initial registry overfit the design to a special billing mode like Scale Tier?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_028_initial_provider_dimension_mapping.md"
+      ],
+      "falsificationAnalysis": "The common OpenAI rate-limit model is cleaner to represent as `requests` plus `total_tokens`. A future Scale Tier or plan-specific override may need split token dimensions, but that does not justify making split buckets the default PAYG mapping.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Anthropic output reservation can safely use a bounded heuristic below `max_tokens` in v0",
+      "falsificationQueries": [
+        "Does Anthropic document that OTPM is estimated from `max_tokens` at request start?",
+        "Would reserving less than `max_tokens` make the shared limiter less conservative than the provider itself?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_029_provider_aware_output_budget_policy.md"
+      ],
+      "falsificationAnalysis": "Anthropic's docs explicitly tie OTPM estimation to `max_tokens` at request start. A bounded heuristic below `max_tokens` would under-reserve relative to provider semantics, so it should not be the v0 default.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Gemini should have an output-token shared bucket in the initial registry for symmetry with the other providers",
+      "falsificationQueries": [
+        "Do Gemini's documented quota dimensions include an output-token-per-minute bucket?",
+        "Would adding an unsupported output bucket improve correctness or simply invent pressure the provider does not describe?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_028_initial_provider_dimension_mapping.md",
+        "knowledge/k_029_provider_aware_output_budget_policy.md"
+      ],
+      "falsificationAnalysis": "Gemini's published quota model centers on requests and input TPM. Adding an output bucket in the shared limiter would be architectural symmetry at the expense of truthfulness.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "One generic full-output reservation policy is good enough and a provider-aware mapping adds no real value",
+      "falsificationQueries": [
+        "Would a generic output reservation policy force Gemini into a fake output bucket or distort OpenAI and Anthropic semantics?",
+        "Does the provider-aware mapping materially improve honesty without widening the normalized enum?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_028_initial_provider_dimension_mapping.md",
+        "knowledge/k_029_provider_aware_output_budget_policy.md"
+      ],
+      "falsificationAnalysis": "A generic policy would either invent Gemini output pressure or blur the distinction between OpenAI's total-token semantics and Anthropic's split input/output semantics. Provider-aware mapping is a necessary refinement, not needless complexity.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}
