@@ -1,0 +1,11 @@
+{
+  "name": "@judge-gym/temporal-server",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "bash ./scripts/start-dev.sh",
+    "typecheck": "node -e \"process.exit(0)\""
+  }
+}

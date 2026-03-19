@@ -38,3 +38,7 @@ dist/
 
 # Bun
 bun.lockb
+
+# Temporal workspace local artifacts
+packages/temporal-engine/package-lock.json
+packages/temporal-server/.temporal/

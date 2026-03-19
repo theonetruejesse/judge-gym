@@ -118,8 +118,15 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- |
 | `packages/engine` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
+| `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
+| `packages/temporal-engine` | Temporal worker package for background workflow execution experiments |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
+
+**Local development**
+
+- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal dev server in `packages/temporal-server` and the Temporal worker in `packages/temporal-engine`.
+- The Temporal server persists local state to `packages/temporal-server/.temporal/dev.sqlite3` by default and serves the Web UI on `http://127.0.0.1:8233`.
 
 **Engine internals (`packages/engine/convex/`)**
 | Path | Role |
