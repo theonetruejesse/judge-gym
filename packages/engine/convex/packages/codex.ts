@@ -4,6 +4,7 @@ export {
   backfillExperimentBundlePlans,
   backfillExperimentTotalCounts,
   backfillRunCompletedCounts,
+  backfillRunTerminalStates,
   backfillSampleScoreCounts,
   getProcessHealth,
   repairRunStageTransport,

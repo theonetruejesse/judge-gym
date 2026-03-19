@@ -24,6 +24,30 @@ describe("run parsers", () => {
     expect(parsed.stages[3]?.criteria).toHaveLength(6);
   });
 
+  test("does not over-split rubric criteria when semicolons appear inside parentheses", () => {
+    const parsed = parseRubricResponse(
+      [
+        "I identified the concept to be evaluated as fascism.",
+        "RUBRIC:",
+        "1) Minimal or Indirect Signal :: Only vague labels or analogies (\"fascist\") without describing actions; General political conflict described with no distinctive ideological markers; No evidence of coordinated organization or state/institutional involvement",
+        "2) Weak or Isolated Features :: A single quote or slogan hinting at ultranationalism or scapegoating; One-off intimidation incident reported without pattern or follow-through; Policies mentioned are generic law-and-order measures without targeting institutions or groups",
+        "3) Suggestive Rhetoric with Limited Action :: Repeated nationalist or internal-enemy framing in speeches or communications; Small-scale organized rallies or groups referenced but limited reach; Early calls for stronger executive power without concrete structural changes",
+        "4) Emerging Pattern and Organization :: Multiple instances of coordinated street mobilization or disciplined groups in the excerpt; Messaging emphasizes leader-centric unity and contempt for pluralism in more than one place; Initial institutional pressure appears (e.g., threats to media, NGOs, unions) but enforcement remains partial",
+        "5) Ambiguous / Mixed Evidence :: Excerpt contains both pluralist and anti-pluralist signals from the same actors; Reported actions could plausibly fit several political styles (e.g., emergency measures with time limits and oversight); Evidence is fragmentary or disputed within the excerpt (competing accounts; unclear attribution; limited corroboration)",
+        "6) Clear Anti-Pluralist Governance Moves :: Concrete steps to weaken checks and balances are described (court changes; electoral rule manipulation; legislating constraints on opposition); State resources are used to favor a ruling movement (patronage; selective enforcement; administrative obstacles); Targeted pressure on media, academia, civil society, or minorities is documented as policy or repeated practice",
+        "7) Systematic Mobilization and Coercion :: Paramilitary-aligned or state-tolerated violence/intimidation is described as recurring and politically directional; Leader or party promotes a singular national identity and delegitimizes opponents as traitors or enemies with institutional consequences; Coordinated propaganda apparatus or centralized messaging is evident",
+        "8) Institutionalized Suppression and One-Party Drift :: Opposition participation is materially constrained (bans; arrests; disqualification; severe harassment) in ways that shape outcomes; Legal or administrative systems are portrayed as subordinated to the ruling movement (politicized courts; purges; loyalty requirements); Mass organizations are integrated into state or party control (compulsory associations; corporatist structures; co-optation of labor or business representation)",
+        "9) Overt, Comprehensive Fascist-Style Consolidation Signal :: Excerpt describes explicit embrace of fascist doctrine or symbols alongside governance actions; Coercion and surveillance are pervasive and coordinated across institutions with limited effective recourse; Political pluralism is functionally eliminated or near-eliminated in the described context",
+      ].join("\n"),
+      9,
+    );
+
+    expect(parsed.stages).toHaveLength(9);
+    expect(parsed.stages[4]?.criteria).toHaveLength(3);
+    expect(parsed.stages[5]?.criteria).toHaveLength(3);
+    expect(parsed.stages[7]?.criteria).toHaveLength(3);
+  });
+
   test("normalizes repeated VERDICT prefixes for single verdicts", () => {
     const parsed = parseSingleVerdict(
       [

@@ -14,7 +14,7 @@ import {
 } from "../runs/bundle_plan_repo";
 import { getExperimentTotalCount } from "../runs/experiment_progress";
 import { getSampleScoreCounts } from "../runs/sample_progress";
-import { getRunCompletedCount } from "../runs/run_progress";
+import { getRunCompletedCount, getRunStageProgress } from "../runs/run_progress";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const DebugActionTypeSchema = z.enum([
@@ -2573,6 +2573,140 @@ export const backfillRunCompletedCounts: ReturnType<typeof zMutation> = zMutatio
         previous_completed_count: previousCompletedCount,
         computed_completed_count: computedCompletedCount,
         changed,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      processed: runs.length,
+      updated,
+      next_cursor: nextCursor,
+      rows,
+    };
+  },
+});
+
+export const backfillRunTerminalStates: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cursor: z.number().int().min(0).optional(),
+    max_runs: z.number().int().min(1).max(500).default(100),
+    run_ids: z.array(zid("runs")).optional(),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    processed: z.number(),
+    updated: z.number(),
+    next_cursor: z.number().nullable(),
+    rows: z.array(z.object({
+      run_id: zid("runs"),
+      previous_status: z.string(),
+      previous_stage: z.string(),
+      predicted_outcome: z.enum([
+        "missing_progress",
+        "deferred_pending",
+        "advanced",
+        "completed",
+        "terminal_error",
+        "unchanged",
+      ]),
+      completed: z.number(),
+      failed: z.number(),
+      changed: z.boolean(),
+      status_after: z.string(),
+      stage_after: z.string(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const cursor = args.cursor ?? 0;
+    let nextCursor: number | null = null;
+    let runs: Array<Doc<"runs">> = [];
+
+    if (args.run_ids?.length) {
+      const loadedRuns = await Promise.all(args.run_ids.map((runId) => ctx.db.get(runId)));
+      runs = loadedRuns.filter((run): run is Doc<"runs"> => run != null);
+    } else {
+      const orderedRuns = await ctx.db
+        .query("runs")
+        .order("asc")
+        .take(cursor + args.max_runs + 1);
+      const page = orderedRuns.slice(cursor, cursor + args.max_runs + 1);
+      runs = page.slice(0, args.max_runs);
+      if (page.length > args.max_runs) {
+        nextCursor = cursor + args.max_runs;
+      }
+    }
+
+    const rows: Array<{
+      run_id: Id<"runs">;
+      previous_status: string;
+      previous_stage: string;
+      predicted_outcome: "missing_progress" | "deferred_pending" | "advanced" | "completed" | "terminal_error" | "unchanged";
+      completed: number;
+      failed: number;
+      changed: boolean;
+      status_after: string;
+      stage_after: string;
+    }> = [];
+    let updated = 0;
+
+    for (const run of runs) {
+      const progress = await getRunStageProgress(ctx, run._id, run.current_stage);
+      let predictedOutcome: "missing_progress" | "deferred_pending" | "advanced" | "completed" | "terminal_error" | "unchanged" = "unchanged";
+      let completed = 0;
+      let failed = 0;
+
+      if (!progress) {
+        predictedOutcome = "missing_progress";
+      } else {
+        completed = progress.completed;
+        failed = progress.failed;
+        if (progress.hasPending) {
+          predictedOutcome = "deferred_pending";
+        } else if (progress.failed > 0) {
+          predictedOutcome = "terminal_error";
+        } else if (run.current_stage === "score_critic") {
+          predictedOutcome = "completed";
+        } else {
+          predictedOutcome = "advanced";
+        }
+      }
+
+      const changed = predictedOutcome === "completed"
+        || predictedOutcome === "advanced"
+        || predictedOutcome === "terminal_error";
+
+      let statusAfter = run.status;
+      let stageAfter = run.current_stage;
+
+      if (changed && !args.dry_run) {
+        const result = await ctx.runMutation(
+          internal.domain.runs.run_service.reconcileRunStage,
+          {
+            run_id: run._id,
+            stage: run.current_stage,
+          },
+        );
+        const refreshed = await ctx.db.get(run._id);
+        statusAfter = refreshed?.status ?? run.status;
+        stageAfter = refreshed?.current_stage ?? run.current_stage;
+        if (result.outcome !== "terminal_noop" && result.outcome !== "missing_run") {
+          updated += 1;
+        }
+      } else if (changed) {
+        updated += 1;
+      }
+
+      rows.push({
+        run_id: run._id,
+        previous_status: run.status,
+        previous_stage: run.current_stage,
+        predicted_outcome: predictedOutcome,
+        completed,
+        failed,
+        changed,
+        status_after: statusAfter,
+        stage_after: stageAfter,
       });
     }
 

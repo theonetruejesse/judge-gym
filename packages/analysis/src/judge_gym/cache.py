@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 APPLICATION_ID = 0x4A47414D  # "JGAM"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def default_cache_path() -> Path:
@@ -22,7 +22,6 @@ def connect_cache(path: str | Path | None = None) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL;")
     connection.execute(f"PRAGMA application_id={APPLICATION_ID};")
-    connection.execute(f"PRAGMA user_version={SCHEMA_VERSION};")
     ensure_schema(connection)
     return connection
 
@@ -66,6 +65,12 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
           abstain_enabled INTEGER NOT NULL,
           evidence_view TEXT NOT NULL,
           evidence_bundle_size INTEGER NOT NULL,
+          bundle_plan_tag TEXT,
+          bundle_strategy TEXT,
+          bundle_strategy_version TEXT,
+          clustering_seed INTEGER,
+          bundle_signature TEXT,
+          cluster_id TEXT,
           randomizations_json TEXT NOT NULL,
           decoded_scores_json TEXT NOT NULL,
           abstained INTEGER NOT NULL,
@@ -83,6 +88,33 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_analysis_responses_snapshot
           ON analysis_responses (snapshot_id, experiment_tag);
+
+        CREATE TABLE IF NOT EXISTS analysis_response_items (
+          snapshot_id TEXT NOT NULL,
+          response_id TEXT NOT NULL,
+          experiment_tag TEXT NOT NULL,
+          run_id TEXT NOT NULL,
+          sample_id TEXT NOT NULL,
+          sample_ordinal INTEGER NOT NULL,
+          score_target_id TEXT NOT NULL,
+          bundle_plan_tag TEXT,
+          bundle_strategy TEXT,
+          bundle_signature TEXT NOT NULL,
+          cluster_id TEXT,
+          bundle_size INTEGER NOT NULL,
+          abstained INTEGER NOT NULL,
+          subset_size INTEGER NOT NULL,
+          evidence_id TEXT NOT NULL,
+          evidence_label TEXT NOT NULL,
+          evidence_title TEXT NOT NULL,
+          evidence_url TEXT NOT NULL,
+          window_id TEXT NOT NULL,
+          position INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_analysis_response_items_snapshot
+          ON analysis_response_items (snapshot_id, experiment_tag);
+        CREATE INDEX IF NOT EXISTS idx_analysis_response_items_response
+          ON analysis_response_items (snapshot_id, response_id);
 
         CREATE TABLE IF NOT EXISTS analysis_rubrics (
           snapshot_id TEXT NOT NULL,
@@ -149,7 +181,29 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
           ON analysis_artifacts (snapshot_id, report_name);
         """
     )
+    _ensure_column(connection, "analysis_responses", "bundle_plan_tag", "TEXT")
+    _ensure_column(connection, "analysis_responses", "bundle_strategy", "TEXT")
+    _ensure_column(connection, "analysis_responses", "bundle_strategy_version", "TEXT")
+    _ensure_column(connection, "analysis_responses", "clustering_seed", "INTEGER")
+    _ensure_column(connection, "analysis_responses", "bundle_signature", "TEXT")
+    _ensure_column(connection, "analysis_responses", "cluster_id", "TEXT")
+    connection.execute(f"PRAGMA user_version={SCHEMA_VERSION};")
     connection.commit()
+
+
+def _ensure_column(
+    connection: sqlite3.Connection,
+    table: str,
+    column: str,
+    definition: str,
+) -> None:
+    columns = {
+        str(row["name"])
+        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column in columns:
+        return
+    connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def existing_snapshot_id(
@@ -342,6 +396,12 @@ def _serialize_row(
             "abstain_enabled": int(bool(row["abstain_enabled"])),
             "evidence_view": row["evidence_view"],
             "evidence_bundle_size": row["evidence_bundle_size"],
+            "bundle_plan_tag": row.get("bundle_plan_tag"),
+            "bundle_strategy": row.get("bundle_strategy"),
+            "bundle_strategy_version": row.get("bundle_strategy_version"),
+            "clustering_seed": row.get("clustering_seed"),
+            "bundle_signature": row.get("bundle_signature"),
+            "cluster_id": row.get("cluster_id"),
             "randomizations_json": json.dumps(row["randomizations"]),
             "decoded_scores_json": json.dumps(row["decoded_scores"]),
             "abstained": int(bool(row["abstained"])),
@@ -356,6 +416,28 @@ def _serialize_row(
             "evidence_urls_json": json.dumps(row["evidence_urls"]),
             "window_ids_json": json.dumps(row["window_ids"]),
             "evidence_positions_json": json.dumps(row["evidence_positions"]),
+        }
+    if table == "analysis_response_items":
+        return base | {
+            "response_id": row["response_id"],
+            "experiment_tag": row["experiment_tag"],
+            "run_id": row["run_id"],
+            "sample_id": row["sample_id"],
+            "sample_ordinal": row["sample_ordinal"],
+            "score_target_id": row["score_target_id"],
+            "bundle_plan_tag": row.get("bundle_plan_tag"),
+            "bundle_strategy": row.get("bundle_strategy"),
+            "bundle_signature": row["bundle_signature"],
+            "cluster_id": row.get("cluster_id"),
+            "bundle_size": row["bundle_size"],
+            "abstained": int(bool(row["abstained"])),
+            "subset_size": row["subset_size"],
+            "evidence_id": row["evidence_id"],
+            "evidence_label": row["evidence_label"],
+            "evidence_title": row["evidence_title"],
+            "evidence_url": row["evidence_url"],
+            "window_id": row["window_id"],
+            "position": row["position"],
         }
     if table == "analysis_rubrics":
         return base | {

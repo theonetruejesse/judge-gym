@@ -18,6 +18,7 @@ class SnapshotBundle:
     rubrics: pd.DataFrame
     evidence: pd.DataFrame
     samples: pd.DataFrame
+    response_items: pd.DataFrame
 
     @property
     def experiment_tags(self) -> list[str]:
@@ -58,17 +59,23 @@ def load_snapshot_bundle(
             snapshot_id: snapshot_manifest(connection, snapshot_id)
             for snapshot_id in resolved_snapshot_ids
         }
-        responses = _load_table(connection, "analysis_responses", resolved_snapshot_ids)
+        responses = _decode_response_frame(
+            _load_table(connection, "analysis_responses", resolved_snapshot_ids),
+        )
         rubrics = _load_table(connection, "analysis_rubrics", resolved_snapshot_ids)
         evidence = _load_table(connection, "analysis_evidence", resolved_snapshot_ids)
         samples = _load_table(connection, "analysis_samples", resolved_snapshot_ids)
+        response_items = _load_table(connection, "analysis_response_items", resolved_snapshot_ids)
+        if response_items.empty and not responses.empty:
+            response_items = _explode_response_items_frame(responses)
         return SnapshotBundle(
             snapshot_ids=resolved_snapshot_ids,
             manifests=manifests,
-            responses=_decode_response_frame(responses),
+            responses=responses,
             rubrics=_decode_rubric_frame(rubrics),
             evidence=evidence,
             samples=samples,
+            response_items=_decode_response_items_frame(response_items),
         )
     finally:
         connection.close()
@@ -111,6 +118,12 @@ def _decode_response_frame(frame: pd.DataFrame) -> pd.DataFrame:
     frame["abstained"] = frame["abstained"].astype(bool)
     frame["bundle_label"] = frame["evidence_labels"].apply(lambda vals: " | ".join(vals))
     frame["bundle_size"] = frame["evidence_ids"].apply(len)
+    if "bundle_signature" not in frame.columns:
+        frame["bundle_signature"] = frame["evidence_ids"].apply(
+            lambda vals: "|".join(sorted(str(value) for value in vals)),
+        )
+    if "cluster_id" not in frame.columns:
+        frame["cluster_id"] = None
     return frame
 
 
@@ -120,3 +133,43 @@ def _decode_rubric_frame(frame: pd.DataFrame) -> pd.DataFrame:
     frame["stages"] = frame.pop("stages_json").apply(json.loads)
     frame["label_mapping"] = frame.pop("label_mapping_json").apply(json.loads)
     return frame
+
+
+def _decode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    frame["abstained"] = frame["abstained"].astype(bool)
+    return frame
+
+
+def _explode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for row in frame.itertuples():
+        bundle_size = len(row.evidence_ids)
+        for index, evidence_id in enumerate(row.evidence_ids):
+            rows.append(
+                {
+                    "snapshot_id": row.snapshot_id,
+                    "response_id": row.response_id,
+                    "experiment_tag": row.experiment_tag,
+                    "run_id": row.run_id,
+                    "sample_id": row.sample_id,
+                    "sample_ordinal": row.sample_ordinal,
+                    "score_target_id": row.score_target_id,
+                    "bundle_plan_tag": getattr(row, "bundle_plan_tag", None),
+                    "bundle_strategy": getattr(row, "bundle_strategy", None),
+                    "bundle_signature": getattr(row, "bundle_signature", None)
+                    or "|".join(sorted(str(value) for value in row.evidence_ids)),
+                    "cluster_id": getattr(row, "cluster_id", None),
+                    "bundle_size": bundle_size,
+                    "abstained": bool(row.abstained),
+                    "subset_size": row.subset_size,
+                    "evidence_id": evidence_id,
+                    "evidence_label": row.evidence_labels[index] if index < len(row.evidence_labels) else "",
+                    "evidence_title": row.evidence_titles[index] if index < len(row.evidence_titles) else "",
+                    "evidence_url": row.evidence_urls[index] if index < len(row.evidence_urls) else "",
+                    "window_id": row.window_ids[index] if index < len(row.window_ids) else "",
+                    "position": row.evidence_positions[index] if index < len(row.evidence_positions) else index,
+                }
+            )
+    return pd.DataFrame(rows)

@@ -32,6 +32,8 @@ uv run judge-gym-analysis v3-investigate --all-completed
 
 By default the cache lives at `packages/analysis/_cache/analysis.sqlite`, and generated artifacts are written under `packages/analysis/_outputs/v3/`.
 
+The cache persists both bundled response rows and an exploded `analysis_response_items` table. That makes clustering-aware follow-up analysis possible without re-querying Convex or rebuilding per-evidence rows from raw arrays each time.
+
 ## Pilot Runner
 
 For the full export-and-report flow in one step:

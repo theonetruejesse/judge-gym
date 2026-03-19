@@ -75,13 +75,13 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
   - `listAnalysisRubrics`
   - `listAnalysisEvidence`
   - `listAnalysisSamples`
-- Analysis exports are run-scoped and paginated. `responses` is one row per `score_target` with bundled evidence arrays attached, which keeps the public export compact while still letting downstream analysis explode bundles when needed.
+- Analysis exports are run-scoped and paginated. `responses` is one row per `score_target` with bundled evidence arrays attached, plus stable bundle provenance (`bundle_plan_tag`, `bundle_strategy`, `bundle_signature`, `cluster_id`) so downstream analysis can compare clustering regimes without reconstructing bundle identity heuristically.
 - Analysis exports require completed runs; `getAnalysisManifest` is the canonical run-selection surface when the caller starts from `experiment_tag`.
 - Run stage progress is stage-local: `rubric_gen` and `rubric_critic` reconciliation do not scan `sample_score_targets`, which keeps early-stage accounting independent of later score-target fanout.
 - Request apply/error mutations no longer run full stage reconciliation inline, and they no longer patch shared run/experiment aggregate counters in the per-result hot path; authoritative stage counts and terminal/completed state are synchronized during reconcile.
 - Run stage handoff is chunked and asynchronous: `reconcileRunStage` now commits the stage advance first, then `enqueueRunStage` fans out downstream requests in bounded chunks so heavy `score_gen` launches cannot roll back the run-row stage transition.
 - `process_request_targets` now treats existing stage artifacts as authoritative success for run/window targets, so stale exhausted request rows cannot mask a successfully applied rubric, rubric critic, score, or score critic artifact.
-- Rubric parsing now tolerates the common model failure mode where one stage line uses only one or two semicolons but still contains comma-delimited top-level criteria; recovered rubric stages may accept up to six criteria when the model compresses a long enumerated clause into one line, and the rubric-gen prompt now explicitly requires semicolon-only criterion separation.
+- Rubric parsing now tolerates the common model failure modes where one stage line uses only one or two semicolons but still contains comma-delimited top-level criteria, and where parenthetical examples contain internal semicolons; delimiter splitting is top-level only, recovered rubric stages may accept up to six criteria when the model compresses a long enumerated clause into one line, and the rubric-gen prompt now explicitly requires semicolon-only criterion separation.
 - Score verdict parsing now accepts the common provider-formatting variant where the model emits `- VERDICT: ...` as the final line, and the scoring prompts now explicitly require the final verdict line to begin exactly with `VERDICT:` and not with a bullet prefix.
 - Score-stage artifact truth now comes from the `scores` / `score_critics` tables rather than hot `sample_score_targets.score_id` link fields, so score apply and stage-progress readers can tolerate unset legacy target links without stalling score progression.
 - Lab/codex run summaries now compute live stage counts from run progress snapshots instead of trusting potentially stale persisted per-stage counters on the `runs` row.
@@ -98,6 +98,7 @@ Convex backend for judge-gym orchestration, lightweight local observability, and
 - `scoring_config` can persist bundle-construction metadata (`bundle_strategy`, `bundle_strategy_version`, `clustering_seed`) and the run path will honor that metadata even before a backfill links the experiment onto an explicit `bundle_plan_id`.
 - Local debug loops use `process_request_targets` plus `process_observability`; deep trace history lives in Axiom.
 - One-off run metadata repairs go through `packages/codex:backfillRunCompletedCounts` with `dry_run`, `cursor`, and `max_runs`.
+- One-off stale run terminal-state repairs go through `packages/codex:backfillRunTerminalStates` with `dry_run`, `cursor`, and `max_runs`; it replays `reconcileRunStage` for artifact-complete or terminal-error runs whose row status/stage got stranded.
 - One-off experiment aggregate repairs go through `packages/codex:backfillExperimentTotalCounts` with `dry_run`, `cursor`, and `max_experiments`.
 - One-off experiment bundle-plan linkage repairs go through `packages/codex:backfillExperimentBundlePlans` with `dry_run`, `cursor`, and `max_experiments`.
 - `bun run telemetry:check` now performs an Axiom ingest smoke test through Convex.
