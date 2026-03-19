@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "A frozen analysis contract plus isolated subagent responsibilities will reduce drift and make iterative V3 analysis substantially more reliable than the current partially shared workflow.",
+  "confidence": 0.83,
+  "rationale": "The repo already has a stable cache and investigation entrypoint; the remaining failures are mostly coordination and promotion problems rather than missing infrastructure.",
+  "keyAssumptions": [
+    "All analysis passes can share one stable snapshot set and one canonical derived-table layer."
+  ],
+  "validationCriteria": [
+    "Subagents can work in parallel without conflicting edits by staying on separate layers: stats, figures, narrative.",
+    "Every figure and table can be traced back to a manifest entry and a frozen input contract."
+  ],
+  "critiquePoints": [
+    "A formal contract adds process overhead and may slow quick exploratory iterations."
+  ],
+  "questions": [
+    "What exact fields should the contract pin to make cache drift impossible to miss?"
+  ]
+}

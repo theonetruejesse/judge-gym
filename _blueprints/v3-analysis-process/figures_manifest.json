@@ -1,0 +1,201 @@
+{
+  "manifestVersion": 1,
+  "createdAt": "2026-03-19",
+  "contractRef": {
+    "contractPath": "_blueprints/v3-analysis-process/analysis_contract.json",
+    "contractHash": "3f90e014db177fe845e591219397e2a9a8829acd745c1bd57c51f9ca57d1c439"
+  },
+  "figures": [
+    {
+      "figureId": "hero_contrast_heatmap",
+      "tier": "hero",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png",
+      "purpose": "One-screen summary of primary endpoints across inferential contrasts.",
+      "inputs": [
+        "tables/family_effects.csv",
+        "tables/family_effects_qvalues.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "hero_bundle_strategy_heatmap",
+      "tier": "hero",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/curated/hero_bundle_strategy_heatmap.png",
+      "purpose": "Summarize how random vs clustered bundling changes geometry and conflict.",
+      "inputs": [
+        "tables/family_effects.csv",
+        "tables/bundle_policy_deltas.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "hero_scale_probe_profile",
+      "tier": "hero",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/curated/hero_scale_probe_profile.png",
+      "purpose": "Show how clustered higher scales change expression, certainty, and conflict.",
+      "inputs": [
+        "tables/family_effects.csv",
+        "tables/scale_matching_validation.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "a1_abstain_toggle_verdict_distribution",
+      "tier": "report",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/a1_abstain_toggle_verdict_distribution.png",
+      "purpose": "Evidence-group verdict geometry for the clean abstention intervention.",
+      "inputs": [
+        "tables/bundle_verdict_profiles.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "c2_clustered_tbm_belief",
+      "tier": "report",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_belief_heatmaps/c2_bundle_5_cluster_l2_v2_tbm_belief.png",
+      "purpose": "Bundle-level local TBM belief profile for the corrected clustered bundle family.",
+      "inputs": [
+        "tables/bundle_belief_tbm.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "scale_certainty_effects",
+      "tier": "report",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/scale_certainty_effects.png",
+      "purpose": "Compact expression-vs-certainty panel for scale probes.",
+      "inputs": [
+        "tables/family_effects.csv",
+        "tables/verdict_geometry_certainty.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "experiment_adjudicative_heatmap",
+      "tier": "appendix",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/experiment_adjudicative_heatmap.png",
+      "purpose": "Global experiment-level occupancy overview for context.",
+      "inputs": [
+        "tables/experiment_geometry.csv"
+      ],
+      "readability": {
+        "status": "borderline",
+        "knownIssues": [
+          "multi-facet label density",
+          "small text at reduced size"
+        ],
+        "repairTransforms": [
+          "promote_single_panel_only",
+          "move_to_appendix"
+        ]
+      }
+    },
+    {
+      "figureId": "rubric_similarity_dendrogram",
+      "tier": "appendix",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/rubric_similarity_dendrogram.png",
+      "purpose": "Appendix support for rubric semantic similarity claims.",
+      "inputs": [
+        "tables/rubric_contrast_similarity.csv"
+      ],
+      "readability": {
+        "status": "appendix_grade",
+        "knownIssues": [
+          "best used with a narrow claim rather than as a general summary"
+        ],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "a5_concept_swap_heatmap",
+      "tier": "report",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/a5_concept_swap_heatmap.png",
+      "purpose": "Family-local effect grid for the strongest concept-framing intervention.",
+      "inputs": [
+        "tables/family_effects.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "c1_bundle_strategy_family_heatmap",
+      "tier": "report",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/c1_bundle_strategy_heatmap.png",
+      "purpose": "Family-local effect grid for the corrected bundle-strategy comparison.",
+      "inputs": [
+        "tables/family_effects.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "sample_expected_stage_heatmap",
+      "tier": "appendix",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/sample_expected_stage_heatmap.png",
+      "purpose": "Top-unstable-sample expected-stage surface, paginated by model family for appendix use.",
+      "inputs": [
+        "tables/sample_instability.csv"
+      ],
+      "readability": {
+        "status": "appendix_grade",
+        "knownIssues": [
+          "still requires multiple pages for the full experiment set"
+        ],
+        "repairTransforms": [
+          "restrict_to_top_unstable_samples",
+          "facet_by_model_family"
+        ]
+      }
+    },
+    {
+      "figureId": "c7_scale_9_verdict_distribution",
+      "tier": "appendix",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png",
+      "purpose": "High-scale clustered verdict distribution after geometry bucketing, used to diagnose scale-9 regime behavior.",
+      "inputs": [
+        "tables/bundle_verdict_profiles.csv"
+      ],
+      "readability": {
+        "status": "appendix_grade",
+        "knownIssues": [
+          "raw unbucketed variant remains exploratory"
+        ],
+        "repairTransforms": [
+          "bucket_verdicts_by_geometry",
+          "drop_cell_annotations_above_threshold",
+          "paginate_facets"
+        ]
+      }
+    }
+  ]
+}

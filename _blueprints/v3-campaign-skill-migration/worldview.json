@@ -1,0 +1,202 @@
+{
+  "meta": {
+    "originalQuestion": "What still needs to be analyzed across the judge-gym codebase and docs before migrating V3 finish-pass operations into a bespoke autonomous campaign skill, and what exact documentation/control-plane/state design should that migration use?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-campaign-skill-migration",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019cf398-2df8-7550-b585-b883b93c295d",
+        "role": "researcher",
+        "area": "A_01"
+      },
+      {
+        "id": "019cf398-35ef-7991-9760-923a7d6243ec",
+        "role": "researcher",
+        "area": "A_02"
+      },
+      {
+        "id": "019cf398-46ea-7e80-be4c-8c857f1b5cfe",
+        "role": "researcher",
+        "area": "A_03"
+      },
+      {
+        "id": "019cf398-5d43-7c30-a507-bdbebce99877",
+        "role": "researcher",
+        "area": "A_04"
+      },
+      {
+        "id": "019cf398-7a0b-7242-ab24-03eab7e55c02",
+        "role": "researcher",
+        "area": "A_05"
+      }
+    ],
+    "falsifier": "019cf39e-6c4c-7a10-9728-5ade2f6bbe60",
+    "certaintyScorer": "019cf39f-049b-7b23-9011-e12fd10175a4",
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "scope": "Control-plane primitives and gaps",
+      "assignedSubagent": "019cf398-2df8-7550-b585-b883b93c295d",
+      "evidenceIDs": [
+        "k_001"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "scope": "Documentation/source-of-truth drift",
+      "assignedSubagent": "019cf398-35ef-7991-9760-923a7d6243ec",
+      "evidenceIDs": [
+        "k_002"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "scope": "Autonomous loop state-machine requirements",
+      "assignedSubagent": "019cf398-46ea-7e80-be4c-8c857f1b5cfe",
+      "evidenceIDs": [
+        "k_003"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "scope": "Forensic snapshot and observability minimums",
+      "assignedSubagent": "019cf398-5d43-7c30-a507-bdbebce99877",
+      "evidenceIDs": [
+        "k_004"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_05",
+      "scope": "Fresh-agent bootstrap and manifest/campaign artifact design",
+      "assignedSubagent": "019cf398-7a0b-7242-ab24-03eab7e55c02",
+      "evidenceIDs": [
+        "k_005"
+      ]
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "id": "k_001",
+        "path": "knowledge/k_001_control_plane_primitives.md"
+      },
+      {
+        "id": "k_002",
+        "path": "knowledge/k_002_docs_source_of_truth_drift.md"
+      },
+      {
+        "id": "k_003",
+        "path": "knowledge/k_003_campaign_state_machine.md"
+      },
+      {
+        "id": "k_004",
+        "path": "knowledge/k_004_forensic_snapshot_requirements.md"
+      },
+      {
+        "id": "k_005",
+        "path": "knowledge/k_005_fresh_agent_bootstrap_and_manifest.md"
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "k_001",
+        "score": 0.88
+      },
+      {
+        "id": "k_002",
+        "score": 0.91
+      },
+      {
+        "id": "k_003",
+        "score": 0.86
+      },
+      {
+        "id": "k_004",
+        "score": 0.84
+      },
+      {
+        "id": "k_005",
+        "score": 0.87
+      },
+      {
+        "id": "h_A_01_001",
+        "score": 0.84
+      },
+      {
+        "id": "h_A_02_001",
+        "score": 0.89
+      },
+      {
+        "id": "h_A_04_001",
+        "score": 0.85
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "scope": "Control-plane primitives and gaps",
+      "assignedSubagent": "019cf398-2df8-7550-b585-b883b93c295d",
+      "evidenceIDs": [
+        "k_001"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "scope": "Documentation/source-of-truth drift",
+      "assignedSubagent": "019cf398-35ef-7991-9760-923a7d6243ec",
+      "evidenceIDs": [
+        "k_002"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "scope": "Autonomous loop state-machine requirements",
+      "assignedSubagent": "019cf398-46ea-7e80-be4c-8c857f1b5cfe",
+      "evidenceIDs": [
+        "k_003"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "scope": "Forensic snapshot and observability minimums",
+      "assignedSubagent": "019cf398-5d43-7c30-a507-bdbebce99877",
+      "evidenceIDs": [
+        "k_004"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_05",
+      "scope": "Fresh-agent bootstrap and manifest/campaign artifact design",
+      "assignedSubagent": "019cf398-7a0b-7242-ab24-03eab7e55c02",
+      "evidenceIDs": [
+        "k_005"
+      ]
+    }
+  ],
+  "microHypotheses": [
+    {
+      "id": "h_A_01_001",
+      "path": "hypotheses/hyp_a01_v1_control_plane.json"
+    },
+    {
+      "id": "h_A_02_001",
+      "path": "hypotheses/hyp_a02_v1_manifest_docs_split.json"
+    },
+    {
+      "id": "h_A_04_001",
+      "path": "hypotheses/hyp_a04_v1_snapshot_artifact.json"
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}

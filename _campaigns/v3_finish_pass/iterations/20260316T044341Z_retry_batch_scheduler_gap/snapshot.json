@@ -1,0 +1,90 @@
+{
+  "iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "expected": {
+    "experiment_count": 22,
+    "target_count": 30,
+    "pause_after": null
+  },
+  "observed": {
+    "campaign_state": "stalled_recoverable",
+    "scientific_validity": "scientifically_unknown",
+    "counts": {
+      "total": 22,
+      "with_latest_run": 22,
+      "running": 16,
+      "completed": 6,
+      "paused": 0,
+      "error": 0,
+      "latest_runs_with_failures": 0
+    },
+    "stage_distribution": [
+      { "stage": "rubric_gen", "count": 0 },
+      { "stage": "rubric_critic", "count": 12 },
+      { "stage": "score_gen", "count": 4 },
+      { "stage": "score_critic", "count": 6 }
+    ],
+    "stuck_summary": [
+      { "reason": "scheduler_not_running", "count": 1 }
+    ],
+    "transport_counts": {
+      "queued_batches": 1,
+      "submitting_batches": 0,
+      "running_batches": 0,
+      "finalizing_batches": 0,
+      "queued_jobs": 0,
+      "running_jobs": 0,
+      "active_scheduler_locks": 0
+    }
+  },
+  "launched_runs": [
+    { "experiment_tag": "v3_a1_gpt_4_1_abstain_false", "run_id": "kh7bwd0ppzt1ck7sq9c36r2m3s8313vg", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a1_gpt_4_1_abstain_true", "run_id": "kh7ad34dgq25ag6qvsawem18s183062w", "status": "running", "current_stage": "score_gen" },
+    { "experiment_tag": "v3_a1_gpt_5_2_abstain_false", "run_id": "kh7dcbdkjsyp8we7pfww4ycwk9831v40", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a1_gpt_5_2_abstain_true", "run_id": "kh79gry7wr8bkwfbsnjsfyvfpx8318dg", "status": "running", "current_stage": "score_gen" },
+    { "experiment_tag": "v3_a2_gpt_4_1_l3", "run_id": "kh794g2ph2r9wmg0zba64mbnqh830v1n", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a2_gpt_5_2_l3", "run_id": "kh78p1zw2c9srfzg5xbjpcfvwx831bdx", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a3_gpt_4_1_scale_5", "run_id": "kh78gerkpvgwqbq3h6phwxv8vn830gw0", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a3_gpt_5_2_scale_5", "run_id": "kh775fnx04nz6zw5b4n1he7atn83137g", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2", "run_id": "kh70abj2bw882v9ddk8edb9wgd831xyq", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1", "run_id": "kh7328s47t9j7pcg7mxx3jeabs830ydt", "status": "running", "current_stage": "score_gen" },
+    { "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy", "run_id": "kh79tk7p8080btrs9d64s5nvgx830qcq", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy", "run_id": "kh770f7c0dzctkpvvtykbkn08d831yn7", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_a6_gpt_4_1_bundle_5_l2", "run_id": "kh7f99yd1xzmnde6jh085nwrzd831s8j", "status": "completed", "current_stage": "score_critic" },
+    { "experiment_tag": "v3_a6_gpt_5_2_bundle_5_l2", "run_id": "kh7dzcz3skyfc3fch3vp68m1vh831xze", "status": "completed", "current_stage": "score_critic" },
+    { "experiment_tag": "v3_a7_gpt_4_1_bundle_5_l3", "run_id": "kh79b59z0wgepmzzwasqf96t8s8301y9", "status": "completed", "current_stage": "score_critic" },
+    { "experiment_tag": "v3_a7_gpt_5_2_bundle_5_l3", "run_id": "kh73fr1hp1dvcevjggv3md9yz98310bf", "status": "completed", "current_stage": "score_critic" },
+    { "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_false", "run_id": "kh727jbja6y177ez9sbtww2wfn83006w", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_b1_gpt_4_1_mini_abstain_true", "run_id": "kh7862xnx6ybxak1j6stm27b7x830ew7", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_false", "run_id": "kh7bsfzn3tp1kbdk82mpgqf05d831nq4", "status": "running", "current_stage": "rubric_critic" },
+    { "experiment_tag": "v3_b1_gpt_5_2_chat_abstain_true", "run_id": "kh78cfgt9pnz5r6ztf6s999g0x830087", "status": "running", "current_stage": "score_gen" },
+    { "experiment_tag": "v3_d1_control_gpt_4_1", "run_id": "kh75r1skn82yapfkb0zvw09z458315qm", "status": "completed", "current_stage": "score_critic" },
+    { "experiment_tag": "v3_d1_control_gpt_5_2", "run_id": "kh7ag8c7xeb5cs16pkx8y5xe6h830ma5", "status": "completed", "current_stage": "score_critic" }
+  ],
+  "representative_stall": {
+    "process_type": "run",
+    "process_id": "kh7ad34dgq25ag6qvsawem18s183062w",
+    "reason": "scheduler_not_running",
+    "custom_key": "scheduler:global",
+    "queued_batch": {
+      "batch_id": "jd75nw3qaqv5515qt8sdy50sdd830xdd",
+      "custom_key": "run:kh7ad34dgq25ag6qvsawem18s183062w:score_gen",
+      "attempt_index": 2,
+      "status": "queued",
+      "submission_id": null,
+      "batch_ref": null
+    }
+  },
+  "dominant_failure_domain": "transport_requeue",
+  "safe_heal_attempted": false,
+  "chosen_patch_hypothesis": "Retry-created transport must kick the scheduler again, and queued-only transport backlog with no scheduler heartbeat must be classified as stuck work.",
+  "validation_outcome": {
+    "status": "validated",
+    "commit": "8b45d613c766bd0351ac45807c9920d73d6bc982",
+    "checks": [
+      "cd packages/engine && bun run test -- convex/tests/reliability_guarantees.test.ts",
+      "bun run validate:convex"
+    ]
+  }
+}

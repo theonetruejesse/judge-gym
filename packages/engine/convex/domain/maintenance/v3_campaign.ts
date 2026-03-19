@@ -1,0 +1,676 @@
+import z from "zod";
+import { zid } from "convex-helpers/server/zod4";
+import type { Id } from "../../_generated/dataModel";
+import { api, internal } from "../../_generated/api";
+import { zMutation, zQuery } from "../../utils/custom_fns";
+import { RunStageSchema } from "../../models/experiments";
+import { StateStatusSchema } from "../../models/_shared";
+import { emitTraceEvent } from "../telemetry/emit";
+
+const StartPolicySchema = z.enum(["all", "incomplete_only"]);
+const CampaignStateSchema = z.enum([
+  "preflight_clean",
+  "healthy_progressing",
+  "stalled_recoverable",
+  "stalled_unknown",
+  "scientifically_invalid",
+  "complete",
+]);
+const ScientificValiditySchema = z.enum([
+  "scientifically_valid",
+  "scientifically_invalid",
+  "scientifically_unknown",
+]);
+
+const RecoverableReasonSchema = z.enum([
+  "pending_requests_on_dead_transport",
+  "pending_request_no_owner",
+  "retryable_no_transport",
+  "scheduler_not_running",
+]);
+const StuckReasonSchema = z.enum([
+  "batch_missing_ref",
+  "finalizing_no_progress",
+  "pending_requests_on_dead_transport",
+  "pending_request_no_owner",
+  "raw_collection_no_progress",
+  "retryable_no_transport",
+  "stage_transition_no_transport",
+  "stage_waiting_on_exhausted_requests",
+  "scheduler_not_running",
+]);
+
+const StageCountsSchema = z.object({
+  rubric_gen: z.number(),
+  rubric_critic: z.number(),
+  score_gen: z.number(),
+  score_critic: z.number(),
+});
+
+const ScoreTargetEstimateSchema = z.object({
+  per_sample: z.number(),
+  total_for_latest_run: z.number().nullable(),
+});
+
+const V3ExperimentStatusRowSchema = z.object({
+  experiment_id: zid("experiments"),
+  experiment_tag: z.string(),
+  total_count: z.number(),
+  evidence_selected_count: z.number(),
+  window_count: z.number(),
+  score_target_estimate: ScoreTargetEstimateSchema,
+  status: StateStatusSchema,
+  latest_run: z.object({
+    run_id: zid("runs"),
+    status: StateStatusSchema,
+    current_stage: RunStageSchema,
+    target_count: z.number(),
+    completed_count: z.number(),
+    pause_after: RunStageSchema.nullable(),
+    stage_counts: StageCountsSchema,
+    created_at: z.number(),
+    has_failures: z.boolean(),
+  }).optional(),
+});
+
+const WorkloadFamilySummaryRowSchema = z.object({
+  estimated_total_score_targets: z.number(),
+  experiment_count: z.number(),
+  start: z.number(),
+  queued: z.number(),
+  completed: z.number(),
+  running: z.number(),
+  paused: z.number(),
+  error: z.number(),
+  canceled: z.number(),
+  with_failures: z.number(),
+});
+
+const CampaignStuckSummaryRowSchema = z.object({
+  reason: StuckReasonSchema,
+  count: z.number(),
+});
+
+const CampaignStuckItemSchema = z.object({
+  process_type: z.enum(["run", "window"]),
+  process_id: z.string(),
+  reason: StuckReasonSchema,
+  entity_type: z.string(),
+  entity_id: z.string(),
+  custom_key: z.string().nullable().optional(),
+  age_ms: z.number().nullable().optional(),
+  details: z.string(),
+});
+
+const ResetExperimentRowSchema = z.object({
+  experiment_id: zid("experiments"),
+  experiment_tag: z.string(),
+  runs_found: z.number(),
+  deleted: z.object({
+    runs: z.number(),
+    samples: z.number(),
+    sample_score_targets: z.number(),
+    sample_score_target_items: z.number(),
+    rubrics: z.number(),
+    rubric_critics: z.number(),
+    scores: z.number(),
+    score_critics: z.number(),
+    llm_batches: z.number(),
+    llm_jobs: z.number(),
+    llm_requests: z.number(),
+    process_request_targets: z.number(),
+    process_observability: z.number(),
+  }),
+});
+
+const LaunchRowSchema = z.object({
+  experiment_id: zid("experiments"),
+  experiment_tag: z.string(),
+  action: z.enum(["started", "skipped"]),
+  reason: z.string(),
+  run_id: zid("runs").nullable(),
+});
+
+const ResumeRowSchema = z.object({
+  experiment_id: zid("experiments"),
+  experiment_tag: z.string(),
+  action: z.enum(["resumed", "skipped"]),
+  reason: z.string(),
+  run_id: zid("runs").nullable(),
+});
+
+const GetV3CampaignStatusReturnSchema = z.object({
+  selected_experiment_count: z.number(),
+  missing_experiment_tags: z.array(z.string()),
+  campaign_state: CampaignStateSchema,
+  scientific_validity: ScientificValiditySchema,
+  launch_ready: z.boolean(),
+  counts: z.object({
+    total: z.number(),
+    with_latest_run: z.number(),
+    start: z.number(),
+    queued: z.number(),
+    running: z.number(),
+    paused: z.number(),
+    completed: z.number(),
+    error: z.number(),
+    canceled: z.number(),
+    latest_runs_with_failures: z.number(),
+  }),
+  stage_distribution: z.array(z.object({
+    stage: RunStageSchema,
+    count: z.number(),
+  })),
+  workload_family_summary: z.array(WorkloadFamilySummaryRowSchema),
+  stuck_summary: z.array(CampaignStuckSummaryRowSchema),
+  stuck_items: z.array(CampaignStuckItemSchema),
+  experiments: z.array(V3ExperimentStatusRowSchema),
+});
+
+type ListedExperiment = z.infer<typeof V3ExperimentStatusRowSchema>;
+type RawListedExperiment = Omit<ListedExperiment, "score_target_estimate"> & {
+  scoring_config: {
+    evidence_bundle_size: number;
+  };
+};
+
+async function listAllExperiments(ctx: any): Promise<RawListedExperiment[]> {
+  return ctx.runQuery(
+    internal.domain.runs.experiments_data.listExperiments,
+    {},
+  ) as Promise<RawListedExperiment[]>;
+}
+
+function filterV3Experiments(
+  experiments: RawListedExperiment[],
+  experimentTags?: string[],
+): { selected: RawListedExperiment[]; missingTags: string[] } {
+  if (experimentTags && experimentTags.length > 0) {
+    const wanted = new Set(experimentTags);
+    const selected = experiments.filter((experiment) => wanted.has(experiment.experiment_tag));
+    const found = new Set(selected.map((experiment) => experiment.experiment_tag));
+    const missingTags = experimentTags.filter((tag) => !found.has(tag));
+    return { selected, missingTags };
+  }
+
+  return {
+    selected: experiments.filter((experiment) => experiment.experiment_tag.startsWith("v3_")),
+    missingTags: [],
+  };
+}
+
+function estimateScoreTargetsPerSample(experiment: RawListedExperiment): number {
+  if (experiment.evidence_selected_count <= 0) return 0;
+  const bundleSize = Math.max(1, experiment.scoring_config.evidence_bundle_size);
+  return Math.ceil(experiment.evidence_selected_count / bundleSize);
+}
+
+function summarizeWorkloadFamilies(experiments: RawListedExperiment[]) {
+  const summaries = new Map<number, z.infer<typeof WorkloadFamilySummaryRowSchema>>();
+
+  for (const experiment of experiments) {
+    const perSample = estimateScoreTargetsPerSample(experiment);
+    const estimatedTotal = experiment.latest_run
+      ? perSample * experiment.latest_run.target_count
+      : 0;
+    const current = summaries.get(estimatedTotal) ?? {
+      estimated_total_score_targets: estimatedTotal,
+      experiment_count: 0,
+      start: 0,
+      queued: 0,
+      completed: 0,
+      running: 0,
+      paused: 0,
+      error: 0,
+      canceled: 0,
+      with_failures: 0,
+    };
+    current.experiment_count += 1;
+    current[experiment.status] += 1;
+    if (experiment.latest_run?.has_failures) {
+      current.with_failures += 1;
+    }
+    summaries.set(estimatedTotal, current);
+  }
+
+  return [...summaries.values()].sort(
+    (left, right) =>
+      left.estimated_total_score_targets - right.estimated_total_score_targets,
+  );
+}
+
+function toCampaignExperimentRow(experiment: RawListedExperiment): ListedExperiment {
+  const perSample = estimateScoreTargetsPerSample(experiment);
+  return {
+    experiment_id: experiment.experiment_id,
+    experiment_tag: experiment.experiment_tag,
+    total_count: experiment.total_count,
+    evidence_selected_count: experiment.evidence_selected_count,
+    window_count: experiment.window_count,
+    score_target_estimate: {
+      per_sample: perSample,
+      total_for_latest_run: experiment.latest_run
+        ? perSample * experiment.latest_run.target_count
+        : null,
+    },
+    status: experiment.status,
+    latest_run: experiment.latest_run,
+  };
+}
+
+function classifyCampaignState(args: {
+  experiments: RawListedExperiment[];
+  missingTags: string[];
+  expectedPauseAfter: z.infer<typeof RunStageSchema> | null;
+  stuckItems: z.infer<typeof CampaignStuckItemSchema>[];
+}) {
+  const { experiments, missingTags, expectedPauseAfter, stuckItems } = args;
+  const latestRuns = experiments
+    .map((experiment) => experiment.latest_run)
+    .filter((run): run is NonNullable<ListedExperiment["latest_run"]> => run != null);
+
+  const recoverableReasons = new Set<z.infer<typeof RecoverableReasonSchema>>([
+    "pending_requests_on_dead_transport",
+    "pending_request_no_owner",
+    "retryable_no_transport",
+    "scheduler_not_running",
+  ]);
+
+  const hasInvalidSignals = missingTags.length > 0
+    || latestRuns.some((run) => run.has_failures || run.status === "error" || run.status === "canceled")
+    || stuckItems.some((item) =>
+      item.reason === "stage_waiting_on_exhausted_requests"
+      || item.reason === "batch_missing_ref"
+      || item.reason === "finalizing_no_progress"
+    );
+
+  if (hasInvalidSignals) {
+    return {
+      campaign_state: "scientifically_invalid" as const,
+      scientific_validity: "scientifically_invalid" as const,
+    };
+  }
+
+  if (latestRuns.length === 0) {
+    return {
+      campaign_state: "preflight_clean" as const,
+      scientific_validity: "scientifically_unknown" as const,
+    };
+  }
+
+  const allComplete = experiments.length > 0
+    && latestRuns.length === experiments.length
+    && latestRuns.every((run) => run.status === "completed");
+
+  const allPausedAtGate = expectedPauseAfter != null
+    && experiments.length > 0
+    && latestRuns.length === experiments.length
+    && latestRuns.every((run) =>
+      run.status === "paused"
+      && run.current_stage === expectedPauseAfter
+      && run.stage_counts[expectedPauseAfter] === run.target_count,
+    );
+
+  if (allComplete || allPausedAtGate) {
+    return {
+      campaign_state: "complete" as const,
+      scientific_validity: "scientifically_valid" as const,
+    };
+  }
+
+  if (stuckItems.length > 0) {
+    const onlyRecoverable = stuckItems.every((item) => recoverableReasons.has(item.reason as z.infer<typeof RecoverableReasonSchema>));
+    return {
+      campaign_state: onlyRecoverable
+        ? "stalled_recoverable" as const
+        : "stalled_unknown" as const,
+      scientific_validity: "scientifically_unknown" as const,
+    };
+  }
+
+  return {
+    campaign_state: "healthy_progressing" as const,
+    scientific_validity: "scientifically_unknown" as const,
+  };
+}
+
+export const resetRuns = zMutation({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    experiment_tags: z.array(z.string()).optional(),
+    allow_active: z.boolean().default(false),
+    cursor: z.number().int().min(0).optional(),
+    max_experiments: z.number().int().min(1).max(22).default(2),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    selected_experiment_count: z.number(),
+    processed_experiment_count: z.number(),
+    missing_experiment_tags: z.array(z.string()),
+    next_cursor: z.number().nullable(),
+    rows: z.array(ResetExperimentRowSchema),
+    totals: ResetExperimentRowSchema.shape.deleted,
+  }),
+  handler: async (ctx, args) => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const cursor = args.cursor ?? 0;
+    const page = filtered.selected.slice(cursor, cursor + args.max_experiments);
+    const nextCursor = cursor + page.length < filtered.selected.length
+      ? cursor + page.length
+      : null;
+    const totals = {
+      runs: 0,
+      samples: 0,
+      sample_score_targets: 0,
+      sample_score_target_items: 0,
+      rubrics: 0,
+      rubric_critics: 0,
+      scores: 0,
+      score_critics: 0,
+      llm_batches: 0,
+      llm_jobs: 0,
+      llm_requests: 0,
+      process_request_targets: 0,
+      process_observability: 0,
+    };
+
+    const rows = [] as z.infer<typeof ResetExperimentRowSchema>[];
+    for (const experiment of page) {
+      const result = await ctx.runMutation(
+        internal.domain.maintenance.danger.deleteExperimentRunData,
+        {
+          experiment_id: experiment.experiment_id,
+          isDryRun: args.dry_run,
+          allow_active: args.allow_active,
+        },
+      );
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        runs_found: result.runs_found,
+        deleted: result.deleted,
+      });
+      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+        totals[key] += result.deleted[key];
+      }
+    }
+
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      processed_experiment_count: page.length,
+      missing_experiment_tags: filtered.missingTags,
+      next_cursor: nextCursor,
+      rows,
+      totals,
+    };
+  },
+});
+
+export const startV3Experiments = zMutation({
+  args: z.object({
+    target_count: z.number().int().min(1),
+    pause_after: RunStageSchema.nullable().optional(),
+    experiment_tags: z.array(z.string()).optional(),
+    start_policy: StartPolicySchema.default("all"),
+    start_scheduler: z.boolean().default(true),
+    dry_run: z.boolean().default(false),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    selected_experiment_count: z.number(),
+    missing_experiment_tags: z.array(z.string()),
+    rows: z.array(LaunchRowSchema),
+  }),
+  handler: async (ctx, args) => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const rows = [] as z.infer<typeof LaunchRowSchema>[];
+
+    for (const experiment of filtered.selected) {
+      const latestRun = experiment.latest_run;
+      if (
+        latestRun
+        && (latestRun.status === "running"
+          || latestRun.status === "queued"
+          || latestRun.status === "paused"
+          || latestRun.status === "start")
+      ) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "active_run_exists",
+          run_id: null,
+        });
+        continue;
+      }
+
+      if (
+        args.start_policy === "incomplete_only"
+        && experiment.total_count >= args.target_count
+      ) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "already_meets_target_count",
+          run_id: null,
+        });
+        continue;
+      }
+
+      if (args.dry_run) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "started",
+          reason: "dry_run",
+          run_id: null,
+        });
+        continue;
+      }
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.startRunFlowForCampaign,
+        {
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          target_count: args.target_count,
+          pause_after: args.pause_after ?? null,
+          start_scheduler: args.start_scheduler,
+        },
+      );
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        action: "started",
+        reason: "scheduled_start",
+        run_id: null,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
+      rows,
+    };
+  },
+});
+
+export const resumeV3Experiments = zMutation({
+  args: z.object({
+    pause_after: RunStageSchema.nullable().optional(),
+    experiment_tags: z.array(z.string()).optional(),
+    start_scheduler: z.boolean().default(true),
+    dry_run: z.boolean().default(false),
+  }),
+  returns: z.object({
+    dry_run: z.boolean(),
+    selected_experiment_count: z.number(),
+    missing_experiment_tags: z.array(z.string()),
+    rows: z.array(ResumeRowSchema),
+  }),
+  handler: async (ctx, args) => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const rows = [] as z.infer<typeof ResumeRowSchema>[];
+
+    for (const experiment of filtered.selected) {
+      const latestRun = experiment.latest_run;
+      if (!latestRun) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "no_latest_run",
+          run_id: null,
+        });
+        continue;
+      }
+
+      if (latestRun.status !== "paused") {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "skipped",
+          reason: "latest_run_not_paused",
+          run_id: latestRun.run_id,
+        });
+        continue;
+      }
+
+      if (args.dry_run) {
+        rows.push({
+          experiment_id: experiment.experiment_id,
+          experiment_tag: experiment.experiment_tag,
+          action: "resumed",
+          reason: "dry_run",
+          run_id: latestRun.run_id,
+        });
+        continue;
+      }
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.resumePausedRunFlowForCampaign,
+        {
+          run_id: latestRun.run_id,
+          pause_after: args.pause_after ?? null,
+          start_scheduler: args.start_scheduler,
+        },
+      );
+
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        action: "resumed",
+        reason: "scheduled_resume",
+        run_id: latestRun.run_id,
+      });
+    }
+
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
+      rows,
+    };
+  },
+});
+
+export const getV3CampaignStatus = zQuery({
+  args: z.object({
+    experiment_tags: z.array(z.string()).optional(),
+    expected_pause_after: RunStageSchema.nullable().optional(),
+    older_than_ms: z.number().int().min(1).default(120_000),
+  }),
+  returns: GetV3CampaignStatusReturnSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof GetV3CampaignStatusReturnSchema>> => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+    const selectedRows = filtered.selected.map(toCampaignExperimentRow);
+    const latestRunIds = new Set(
+      selectedRows
+        .map((experiment) => experiment.latest_run?.run_id)
+        .filter((runId): runId is Id<"runs"> => runId != null)
+        .map((runId) => String(runId)),
+    );
+
+    const stuck: { items: z.infer<typeof CampaignStuckItemSchema>[] } = await ctx.runQuery(
+      api.packages.codex.getStuckWork,
+      {
+      older_than_ms: args.older_than_ms,
+      },
+    );
+    const stuckItems: z.infer<typeof CampaignStuckItemSchema>[] = stuck.items.filter((item: z.infer<typeof CampaignStuckItemSchema>) =>
+      item.process_type === "run" && latestRunIds.has(item.process_id)
+    );
+
+    const stageCounts = new Map<z.infer<typeof RunStageSchema>, number>([
+      ["rubric_gen", 0],
+      ["rubric_critic", 0],
+      ["score_gen", 0],
+      ["score_critic", 0],
+    ]);
+    const counts = {
+      total: selectedRows.length,
+      with_latest_run: 0,
+      start: 0,
+      queued: 0,
+      running: 0,
+      paused: 0,
+      completed: 0,
+      error: 0,
+      canceled: 0,
+      latest_runs_with_failures: 0,
+    };
+
+    for (const experiment of selectedRows) {
+      counts[experiment.status] += 1;
+      if (experiment.latest_run) {
+        counts.with_latest_run += 1;
+        stageCounts.set(
+          experiment.latest_run.current_stage,
+          (stageCounts.get(experiment.latest_run.current_stage) ?? 0) + 1,
+        );
+        if (experiment.latest_run.has_failures) {
+          counts.latest_runs_with_failures += 1;
+        }
+      }
+    }
+
+    const classification = classifyCampaignState({
+      experiments: filtered.selected,
+      missingTags: filtered.missingTags,
+      expectedPauseAfter: args.expected_pause_after ?? null,
+      stuckItems,
+    });
+
+    const stuckSummary = [...stuckItems.reduce((acc: Map<z.infer<typeof StuckReasonSchema>, number>, item: z.infer<typeof CampaignStuckItemSchema>) => {
+      acc.set(item.reason, (acc.get(item.reason) ?? 0) + 1);
+      return acc;
+    }, new Map<z.infer<typeof StuckReasonSchema>, number>()).entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((left, right) => left.reason.localeCompare(right.reason));
+
+    return {
+      selected_experiment_count: selectedRows.length,
+      missing_experiment_tags: filtered.missingTags,
+      campaign_state: classification.campaign_state,
+      scientific_validity: classification.scientific_validity,
+      launch_ready:
+        classification.campaign_state === "preflight_clean"
+        && filtered.missingTags.length === 0,
+      counts,
+      stage_distribution: [...stageCounts.entries()].map(([stage, count]) => ({ stage, count })),
+      workload_family_summary: summarizeWorkloadFamilies(filtered.selected),
+      stuck_summary: stuckSummary,
+      stuck_items: stuckItems,
+      experiments: selectedRows,
+    };
+  },
+});

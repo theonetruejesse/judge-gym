@@ -1,0 +1,28 @@
+{
+  "campaign_id": "v3_finish_pass",
+  "phase": "validated",
+  "latest_iteration_id": "20260316T055858Z_rubric_gen_parser_contract",
+  "last_successful_gate": "full",
+  "current_blockers": [
+    "Scientifically invalid full n=30 dev cohort is waiting on a reset after validating the rubric_gen parser-contract fix."
+  ],
+  "reset_allowed": true,
+  "notes": [
+    "Forensics captured for rubric_gate n=1 canary launch failure on 2026-03-15.",
+    "Validated dev canary: 22/22 runs paused at rubric_critic on 2026-03-15 after scheduler kickoff patch.",
+    "Forensics captured for bulk resume read-limit failure on 2026-03-15 before any paused run changed state.",
+    "Completed dev full n=1 canary: 22/22 latest V3 runs resumed from rubric_critic and finished on 2026-03-15.",
+    "Resolved the launch/resume control-plane read-budget hotspot on 2026-03-15 by fanning out V3 start/resume work into one scheduled internal mutation per experiment.",
+    "Validated fresh dev rubric_gate launch on 2026-03-15: 22/22 latest runs reached pause_after=rubric_critic with target_count=30 and no cohort failures.",
+    "Captured forensics for full n=30 dev pass on 2026-03-16 after 16 runs became scientifically invalid at rubric_critic with exhausted final request targets and repeated timeout errors in apply/error/reconcile mutations.",
+    "Captured a second full-pass forensic iteration on 2026-03-16 showing a strict 600-score-target workload split: all 16 heavy families failed at rubric_critic=29/30 while 6 lighter families progressed but began surfacing applyRequestResult OCC conflicts on sample_score_targets.",
+    "Validated a rubric-stage hot-path fix on 2026-03-16: per-request apply/error handlers no longer advance run stages inline, and rubric-stage progress no longer scans sample_score_targets before score stages.",
+    "Captured forensics on 2026-03-16 for a stricter divergence failure: heavy-family runs stored real rubric_critic artifacts while process_request_targets remained exhausted and runs-row stage counts continued to cause OCC conflicts.",
+    "Validated a run-target-state accounting fix on 2026-03-16: per-request apply no longer mutates shared run/experiment counters, run summaries derive live stage counts from progress snapshots, and process_request_targets now treat applied artifacts as authoritative success.",
+    "Captured forensics on 2026-03-16 for a recoverable full-pass stall where one queued retry batch remained after the scheduler drained; validated a scheduler handoff fix that explicitly wakes the scheduler after retry batch creation.",
+    "Hardened active V3 resets on 2026-03-16 so heavy running cohorts can be wiped under Convex read limits, then relaunched a fresh full n=30 pass on dev.",
+    "Validated on 2026-03-16 that the heavy-family full-pass stall was a score_gen handoff rollback: rubric_critic artifacts completed, score target rows existed, and no transport was ever enqueued.",
+    "Validated on 2026-03-16 that run stage handoff is now chunked and asynchronous, and that getStuckWork/getV3CampaignStatus surface stage_transition_no_transport for this failure class.",
+    "Validated on 2026-03-16 that rubric_gen parser failures were caused by under-splitting comma-delimited criteria inside rubric stage lines; the parser now recovers this pattern, the prompt requires semicolon-only top-level criteria delimiters, and rubric parser failures classify as parse_error."
+  ]
+}

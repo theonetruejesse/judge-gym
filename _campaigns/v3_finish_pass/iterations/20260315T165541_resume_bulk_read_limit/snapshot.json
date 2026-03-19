@@ -1,0 +1,110 @@
+{
+  "iteration_id": "20260315T165541_resume_bulk_read_limit",
+  "captured_at": "2026-03-15T16:55:41-07:00",
+  "manifest_version": 1,
+  "launch_mode": "full",
+  "resume_request": {
+    "pause_after": null,
+    "start_scheduler": true,
+    "dry_run": false
+  },
+  "experiment_tags": [
+    "v3_a1_gpt_4_1_abstain_true",
+    "v3_a1_gpt_4_1_abstain_false",
+    "v3_a1_gpt_5_2_abstain_true",
+    "v3_a1_gpt_5_2_abstain_false",
+    "v3_a2_gpt_4_1_l3",
+    "v3_a2_gpt_5_2_l3",
+    "v3_a3_gpt_4_1_scale_5",
+    "v3_a3_gpt_5_2_scale_5",
+    "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+    "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+    "v3_a5_gpt_4_1_illiberal_democracy",
+    "v3_a5_gpt_5_2_illiberal_democracy",
+    "v3_a6_gpt_4_1_bundle_5_l2",
+    "v3_a6_gpt_5_2_bundle_5_l2",
+    "v3_a7_gpt_4_1_bundle_5_l3",
+    "v3_a7_gpt_5_2_bundle_5_l3",
+    "v3_b1_gpt_4_1_mini_abstain_true",
+    "v3_b1_gpt_4_1_mini_abstain_false",
+    "v3_b1_gpt_5_2_chat_abstain_true",
+    "v3_b1_gpt_5_2_chat_abstain_false",
+    "v3_d1_control_gpt_4_1",
+    "v3_d1_control_gpt_5_2"
+  ],
+  "run_ids_launched": [
+    "kh74v56ftb7j1pcz6v04158q8582yx8a",
+    "kh70a9ngk6fe7gd60qg7dsx1xx82z5td",
+    "kh77n2t601c2fzzxabc7x00y1x82z167",
+    "kh7f6j4xzjssqt9fspntee136n82ympf",
+    "kh7aveyhgqawzf1s31eyzqe27d82zzgj",
+    "kh7ape5c48dzxnm3c4710wtgf182yhq5",
+    "kh75jek00p52a8vr263ydwgs8182yx4c",
+    "kh72bj7229d84t27x44gc19q7982ygze",
+    "kh71fnkx10ba6hxjgr2zd02acs82yfhf",
+    "kh71a0akm5ttjn7c2tjgjmwsa582zmnx",
+    "kh76ve4n6v30dnpywf8gbetb0x82z7zt",
+    "kh7876dv432bq6r1zpvqac95j182z2h6",
+    "kh79085p9szy5xdv372qt12tyn82zq02",
+    "kh7exadg71rpfkn1v91y95530d82ytgr",
+    "kh7dk7931x1n0awvcn6br58zg182z2s3",
+    "kh711ywj61b7chh8ce8hb5a2a582z8e5",
+    "kh798q4vac0cc2ywxtrmw2by6n82z7en",
+    "kh7c7031pecbeaz8evzf8vcqf982y212",
+    "kh7aqb3b2fwcap5qdk7aye7sr982zspy",
+    "kh7d4j2psxe6dcmv1668tf9r8582z3yv",
+    "kh729zya1txtx5jgkky6v5ascn82y2x0",
+    "kh7a4yrm62k2z55xcam205s18h82z5hq"
+  ],
+  "expected_vs_observed": {
+    "expected_resumed_runs": 22,
+    "observed_resumed_runs": 0,
+    "expected_pause_after": null,
+    "observed_stage_distribution": {
+      "rubric_gen": 0,
+      "rubric_critic": 22,
+      "score_gen": 0,
+      "score_critic": 0
+    }
+  },
+  "cohort_status": {
+    "campaign_state": "complete",
+    "launch_ready": false,
+    "scientific_validity": "scientifically_valid",
+    "selected_experiment_count": 22,
+    "counts": {
+      "canceled": 0,
+      "completed": 0,
+      "error": 0,
+      "latest_runs_with_failures": 0,
+      "paused": 22,
+      "queued": 0,
+      "running": 0,
+      "start": 0,
+      "total": 22,
+      "with_latest_run": 22
+    },
+    "stuck_summary": [],
+    "stuck_items": []
+  },
+  "resume_failure": {
+    "surface": "packages/codex:resumeV3Experiments",
+    "error_class": "too_many_bytes_read",
+    "message": "Uncaught Error: Too many bytes read in a single function execution (limit: 16777216 bytes).",
+    "stack_excerpt": [
+      "at async hydrateScoreTargets (../../convex/domain/runs/run_orchestrator.ts:452:96)",
+      "at async listPendingSampleScoreTargets (../../convex/domain/runs/run_orchestrator.ts:313:27)",
+      "at async enqueueStage (../../convex/domain/orchestrator/base.ts:141:16)",
+      "at async maybeAdvanceRunStage (../../../convex/domain/runs/run_service.ts:878:4)"
+    ]
+  },
+  "dominant_failure_domain": "stage_reconciliation",
+  "scientific_validity_judgment": "scientifically_valid",
+  "safe_heal": {
+    "attempted": false,
+    "result": "not_applicable"
+  },
+  "chosen_patch_hypothesis": "Bulk resumption advances too many paused runs into score-target hydration in one mutation; resuming the same runs in smaller batches should avoid the read limit.",
+  "validation_outcome": "pending_batched_resume",
+  "commit_hash": null
+}

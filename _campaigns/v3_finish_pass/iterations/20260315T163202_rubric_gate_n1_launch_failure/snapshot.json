@@ -1,0 +1,121 @@
+{
+  "iteration_id": "20260315T163202_rubric_gate_n1_launch_failure",
+  "captured_at": "2026-03-15T16:32:02-07:00",
+  "manifest_version": 1,
+  "launch_mode": "rubric_gate",
+  "launch_request": {
+    "target_count": 1,
+    "pause_after": "rubric_critic",
+    "start_policy": "all",
+    "start_scheduler": true,
+    "dry_run": false
+  },
+  "experiment_tags": [
+    "v3_a1_gpt_4_1_abstain_true",
+    "v3_a1_gpt_4_1_abstain_false",
+    "v3_a1_gpt_5_2_abstain_true",
+    "v3_a1_gpt_5_2_abstain_false",
+    "v3_a2_gpt_4_1_l3",
+    "v3_a2_gpt_5_2_l3",
+    "v3_a3_gpt_4_1_scale_5",
+    "v3_a3_gpt_5_2_scale_5",
+    "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+    "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+    "v3_a5_gpt_4_1_illiberal_democracy",
+    "v3_a5_gpt_5_2_illiberal_democracy",
+    "v3_a6_gpt_4_1_bundle_5_l2",
+    "v3_a6_gpt_5_2_bundle_5_l2",
+    "v3_a7_gpt_4_1_bundle_5_l3",
+    "v3_a7_gpt_5_2_bundle_5_l3",
+    "v3_b1_gpt_4_1_mini_abstain_true",
+    "v3_b1_gpt_4_1_mini_abstain_false",
+    "v3_b1_gpt_5_2_chat_abstain_true",
+    "v3_b1_gpt_5_2_chat_abstain_false",
+    "v3_d1_control_gpt_4_1",
+    "v3_d1_control_gpt_5_2"
+  ],
+  "run_ids_launched": [],
+  "expected_vs_observed": {
+    "expected_experiments": 22,
+    "observed_selected_experiments": 22,
+    "expected_runs_started": 22,
+    "observed_runs_started": 0,
+    "expected_pause_after": "rubric_critic",
+    "observed_stage_distribution": {
+      "rubric_gen": 0,
+      "rubric_critic": 0,
+      "score_gen": 0,
+      "score_critic": 0
+    }
+  },
+  "cohort_status": {
+    "campaign_state": "preflight_clean",
+    "launch_ready": true,
+    "scientific_validity": "scientifically_unknown",
+    "selected_experiment_count": 22,
+    "counts": {
+      "canceled": 0,
+      "completed": 0,
+      "error": 0,
+      "latest_runs_with_failures": 0,
+      "paused": 0,
+      "queued": 0,
+      "running": 0,
+      "start": 22,
+      "total": 22,
+      "with_latest_run": 0
+    },
+    "stuck_summary": [],
+    "stuck_items": []
+  },
+  "launch_failure": {
+    "surface": "packages/codex:startV3Experiments",
+    "error_class": "too_many_bytes_read",
+    "message": "Uncaught Error: Too many bytes read in a single function execution (limit: 16777216 bytes).",
+    "stack_excerpt": [
+      "at async isSchedulerScheduled (../../../convex/domain/orchestrator/scheduler.ts:73:13)",
+      "at async handler (../../../convex/domain/orchestrator/scheduler.ts:296:16)",
+      "at async handler (../../convex/domain/maintenance/v3_campaign.ts:398:47)"
+    ],
+    "log_observation": {
+      "warning_count_before_failure": 48,
+      "largest_warned_bytes_read": 15964543
+    }
+  },
+  "dominant_failure_domain": "scheduler_kickoff",
+  "scientific_validity_judgment": "scientifically_unknown",
+  "safe_heal": {
+    "attempted": false,
+    "result": "not_applicable"
+  },
+  "chosen_patch_hypothesis": "startV3Experiments should not invoke a scheduler scheduling-state check that scans enough scheduler state to exceed Convex read limits during a 22-experiment cohort launch.",
+  "patch_applied": {
+    "files": [
+      "packages/engine/convex/domain/orchestrator/scheduler.ts"
+    ],
+    "summary": "Removed the scheduler kickoff scan of `_scheduled_functions` and relied on the existing lock/debounce gate before scheduling `runScheduler`."
+  },
+  "post_patch_validation": {
+    "validate_convex": "passed",
+    "canary_rerun": {
+      "campaign_state": "complete",
+      "scientific_validity": "scientifically_valid",
+      "selected_experiment_count": 22,
+      "counts": {
+        "paused": 22,
+        "running": 0,
+        "error": 0,
+        "latest_runs_with_failures": 0
+      },
+      "stage_distribution": {
+        "rubric_gen": 0,
+        "rubric_critic": 22,
+        "score_gen": 0,
+        "score_critic": 0
+      }
+    },
+    "remaining_limitation": "startV3Experiments still emits high read-volume warnings near the Convex limit during cohort launch."
+  },
+  "validation_outcome": "validated_canary_reached_rubric_critic_gate",
+  "commit_hash": null
+}

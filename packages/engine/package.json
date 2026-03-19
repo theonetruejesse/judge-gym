@@ -3,31 +3,52 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "scripts": {
     "dev": "convex dev",
     "predev": "convex dev --until-success",
-    "start": "bun src/index.ts",
+    "codegen": "convex codegen",
+    "telemetry:check": "bun run scripts/check_telemetry.ts",
+    "debug:watch": "bun run scripts/live_debug.ts watch",
+    "debug:stuck": "bun run scripts/live_debug.ts stuck",
+    "debug:heal": "bun run scripts/live_debug.ts heal",
+    "debug:tail": "bun run scripts/live_debug.ts tail",
+    "debug:analyze": "bun run scripts/live_debug.ts analyze",
+    "debug:matrix": "bun run scripts/synthetic_matrix.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test"
+    "test": "vitest run",
+    "test:once": "vitest run",
+    "test:debug": "vitest --inspect-brk --no-file-parallelism",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text",
+    "test:live": "bash -c 'set -a; source .env.local; set +a; VITEST_LIVE_TESTS=1 vitest run'",
+    "test:live:coverage": "bash -c 'set -a; source .env.local; set +a; VITEST_LIVE_TESTS=1 vitest run --coverage --coverage.reporter=text'"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.35",
     "@ai-sdk/google": "^3.0.20",
     "@ai-sdk/openai": "^3.0.24",
     "@ai-sdk/xai": "^3.0.46",
-    "@convex-dev/agent": "^0.3.2",
-    "@convex-dev/rate-limiter": "^0.2.0",
-    "@convex-dev/workflow": "^0.3.4",
+    "@convex-dev/rate-limiter": "^0.2.14",
     "@mendable/firecrawl-js": "^4.12.0",
     "@openrouter/ai-sdk-provider": "^2.1.1",
-    "@t3-oss/env-core": "^0.13.10",
     "ai": "^6.0.66",
-    "convex": "^1.31.7",
-    "convex-helpers": "^0.1.111",
+    "convex": "^1.32.0",
+    "convex-helpers": "^0.1.113",
     "nanoid": "^5.1.6",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@edge-runtime/vm": "^5.0.0",
+    "@vitest/coverage-v8": "4.0.18",
+    "convex-test": "^0.0.41",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

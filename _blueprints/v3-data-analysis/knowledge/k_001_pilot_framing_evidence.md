@@ -1,0 +1,30 @@
+# V3 Report Framing: From Adjudicative Geometries (V2) to Matched Family Effects (V3)
+
+**Confidence:** 0.78
+
+**Sources:**
+- /Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v2_engine_prototype_testing.md
+- /Users/jesselee/dev/research/jg/judge-gym/docs/pilots/paper.md
+- /Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/overview/tables/experiment_metrics.csv
+- /Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/overview/tables/family_metrics.csv
+- https://www.tandfonline.com/doi/full/10.1080/00031305.2016.1154108 (ASA statement on p-values)
+- https://arxiv.org/abs/1810.03993 (Model Cards for Model Reporting)
+- https://www.psychologicalscience.org/observer/preregistration-becoming-the-norm-in-psychological-science (confirmatory vs exploratory framing; preregistration as clarity tool)
+
+**Summary:**
+V2 established the project’s narrative frame as “LLM-as-judge exhibits distinct adjudicative geometries” (scale utilization, abstention behavior, dynamic range, and divergence), and explicitly framed findings as descriptive with multiple plausible mechanisms and strong limitations. That framing is directly reusable for V3, but V3 is structurally a matrix of interventions, so the report should be hypothesis-first and matched-comparison-first rather than plot-first. The V3 overview tables already support family-level comparisons (e.g. intervention families a1–a7/b1/d1) and suggest a report that is organized as: global overview of geometry axes and outcome metrics; family-by-family effect sections (paired deltas on matched samples); and experiment drilldowns/case studies for the most unstable samples and most intervention-sensitive evidence bundles. Because V3 is exploratory (many metrics and families), the report should avoid “bright-line” claims on p-values and instead emphasize effect sizes, uncertainty intervals, and explicit separation of exploratory discovery vs confirmatory inference, consistent with the ASA’s guidance on avoiding mechanical thresholding. For transparency and reproducibility, V3 reporting should adopt a “model-card-like” structure for each experiment/family: intended use, config factors, known limitations, and disaggregated behavior, plus an evidence ledger linking generated artifacts to the cached SQLite snapshot.
+
+Evidence-backed claims (with grounding):
+1. The project’s strongest prior framing is “adjudicative geometry,” defined operationally by abstention, mid-range occupancy, and dynamic range differences, and accompanied by an explicit “descriptive, not causal” caveat. This is a stable narrative scaffold to reuse in V3. (/docs/pilots/v2_engine_prototype_testing.md)
+2. The working paper frames the program as a design-space engine where each axis (rubric model, scoring model, scale size, abstain gate, evidence view, concept) is an ablation dimension; therefore V3 reporting should be structured as ablations per axis, not a single pooled analysis. (/docs/pilots/paper.md)
+3. V3 already has a natural top-level reporting schema via `family_slug` (a1…d1) and normalized config factors in `experiment_metrics.csv`, so a comprehensive report can be automatically assembled into overview + family sections + per-experiment drilldowns without manual curation. (/packages/analysis/_outputs/v3/overview/tables/experiment_metrics.csv; /packages/analysis/_outputs/v3/overview/tables/family_metrics.csv)
+4. The most report-worthy content in V3 should be matched comparisons within each family (same 30 samples), because that isolates interventions better than cross-family averages and supports effect narratives like “abstain toggle changes compression and uncertainty differently for gpt-4.1 vs gpt-5.2.” (/packages/analysis/_outputs/v3/overview/tables/experiment_metrics.csv; /docs/pilots/paper.md)
+5. V3 reporting should explicitly separate exploratory mining from confirmatory claims, because the matrix creates many researcher degrees of freedom. Preregistration is not required for the pilot writeup, but the report should label exploratory findings as such and present them with uncertainty. (APS preregistration article; /docs/pilots/v2_engine_prototype_testing.md)
+6. Statistical significance thresholds are a poor basis for conclusions in an exploratory matrix; the report should emphasize effect sizes and uncertainty and avoid “p < 0.05” as a bright-line. (ASA statement on p-values)
+7. Per-experiment and per-family sections should include a standardized “report card” style for transparency: configuration, intended use, observed failure modes, disaggregated performance, and limitations. This aligns with the “model cards” push toward structured reporting for model behavior. (Model Cards paper; /docs/pilots/paper.md)
+8. V3 overview shows clear between-family behavioral differences in coarse metrics (e.g., `a6/a7` have much lower `mean_tbm_conflict` and `mean_closed_world_conflict` than other families; `d1_control` is extreme on `mean_abstain_rate` and has `mean_closed_world_conflict = 0`). These are candidate “headline” contrasts, but must be interpreted as hypotheses about measurement behavior, not ground-truth politics. (/packages/analysis/_outputs/v3/overview/tables/family_metrics.csv)
+
+Counterevidence / uncertainty to include in the report:
+- The V2 pilot explicitly flags that DST/TBM aggregation and confidence weighting need validation; V3 extends those methods and can surface extreme conflict values, so the report must treat belief/conflict metrics as instrument readings that may be sensitive to aggregation rules. (/docs/pilots/v2_engine_prototype_testing.md; /docs/pilots/paper.md)
+- V3’s small sample size (30 samples per experiment) means family-level results are fragile; results should be presented with intervals and “pilot-grade” caution rather than generalized claims.
+- Many V3 metrics are correlated (abstain rate, singleton rate, subset size, conflict), so narrative should avoid overcounting “independent” findings and should collapse into a few axes (“compression,” “uncertainty,” “framework sensitivity,” “evidence abstraction effects”).

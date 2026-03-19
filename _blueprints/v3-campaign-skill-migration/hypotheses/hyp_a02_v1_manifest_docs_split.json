@@ -1,0 +1,17 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "The migration should slim AGENTS.md to stable repo rules, move mission loop semantics into a V3-specific skill, and use a dedicated JSON manifest as the automation source of truth.",
+  "confidence": 0.88,
+  "rationale": "Current doc overlap and terminology drift are the primary fresh-agent risk.",
+  "keyAssumptions": [
+    "The team wants the skill, not AGENTS.md, to own campaign doctrine."
+  ],
+  "validationCriteria": [
+    "After refactor, a fresh agent can identify the correct doc/manifest sources without ambiguity."
+  ],
+  "critiquePoints": [
+    "AGENTS.md must still retain minimal bootstrap instructions to avoid making first contact worse."
+  ],
+  "questions": []
+}

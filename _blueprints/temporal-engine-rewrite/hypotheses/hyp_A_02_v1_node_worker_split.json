@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Temporal code should live under packages/engine but workers should run under Node, not Bun, with a local dev Temporal server and a production self-hosted service.",
+  "confidence": 0.79,
+  "rationale": "Temporal's TypeScript worker runtime is Node-specific, while colocating the code in packages/engine preserves repo ergonomics and ownership.",
+  "keyAssumptions": [
+    "Bun can remain the general repo tool while Node is used for Temporal workers",
+    "The team accepts a split runtime model"
+  ],
+  "validationCriteria": [
+    "A worker can boot locally from packages/engine and connect to a local Temporal service",
+    "The repo build/test flow can include a Node-only Temporal worker entrypoint cleanly"
+  ],
+  "critiquePoints": [
+    "Mixed runtime setup increases developer environment complexity"
+  ],
+  "questions": [
+    "Should prod use a single worker process with multiple task queues or multiple worker services?"
+  ]
+}
+

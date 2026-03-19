@@ -1,0 +1,60 @@
+{
+  "campaign_id": "v3_finish_pass",
+  "version": 1,
+  "source_of_truth": {
+    "experiments_table": true,
+    "selection_mode": "explicit_tags"
+  },
+  "required_experiment_tags": [
+    "v3_a1_gpt_4_1_abstain_true",
+    "v3_a1_gpt_4_1_abstain_false",
+    "v3_a1_gpt_5_2_abstain_true",
+    "v3_a1_gpt_5_2_abstain_false",
+    "v3_a2_gpt_4_1_l3",
+    "v3_a2_gpt_5_2_l3",
+    "v3_a3_gpt_4_1_scale_5",
+    "v3_a3_gpt_5_2_scale_5",
+    "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+    "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+    "v3_a5_gpt_4_1_illiberal_democracy",
+    "v3_a5_gpt_5_2_illiberal_democracy",
+    "v3_a6_gpt_4_1_bundle_5_l2",
+    "v3_a6_gpt_5_2_bundle_5_l2",
+    "v3_a7_gpt_4_1_bundle_5_l3",
+    "v3_a7_gpt_5_2_bundle_5_l3",
+    "v3_b1_gpt_4_1_mini_abstain_true",
+    "v3_b1_gpt_4_1_mini_abstain_false",
+    "v3_b1_gpt_5_2_chat_abstain_true",
+    "v3_b1_gpt_5_2_chat_abstain_false",
+    "v3_d1_control_gpt_4_1",
+    "v3_d1_control_gpt_5_2"
+  ],
+  "expected_counts": {
+    "experiments": 22
+  },
+  "pool_tags": {
+    "p1": "p1_us_contested_trial_2026_01_01",
+    "p3": "p2_no_election_reporting_control_2025_09_08"
+  },
+  "launch_modes": {
+    "rubric_gate": {
+      "target_count": 30,
+      "pause_after": "rubric_critic",
+      "start_policy": "all"
+    },
+    "full": {
+      "target_count": 30,
+      "pause_after": null,
+      "start_policy": "all"
+    }
+  },
+  "monitoring": {
+    "stuck_older_than_ms": 120000,
+    "safe_heal_attempt_limit": 1
+  },
+  "control_plane": {
+    "status_fn": "packages/codex:getV3CampaignStatus",
+    "reset_fn": "packages/codex:resetRuns",
+    "start_fn": "packages/codex:startV3Experiments"
+  }
+}

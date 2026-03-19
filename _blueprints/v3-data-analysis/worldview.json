@@ -1,0 +1,244 @@
+{
+  "meta": {
+    "originalQuestion": "How should judge-gym analyze the completed V3 pilot matrix so the team can mine robust findings, compare experiment families, and generate a comprehensive markdown report with reproducible tables/plots from the SQLite-backed analysis cache?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-data-analysis",
+    "finalPlanPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-data-analysis/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "areaID": "A_01",
+        "agentID": "019cfe45-c6e7-72e1-9d5f-7056471b2624",
+        "nickname": "Ohm"
+      },
+      {
+        "areaID": "A_02",
+        "agentID": "019cfe45-cb3b-7c31-94a0-85ad1c8dc779",
+        "nickname": "Plato"
+      },
+      {
+        "areaID": "A_03",
+        "agentID": "019cfe45-d36f-7a21-8fcb-604d94704241",
+        "nickname": "Erdos"
+      },
+      {
+        "areaID": "A_04",
+        "agentID": "019cfe45-dc41-7802-ad0e-95e20ef7600f",
+        "nickname": "Noether"
+      }
+    ],
+    "falsifier": {
+      "agentID": "019cfe4d-d399-7b90-9544-c47dc7f7eeb7",
+      "nickname": "Linnaeus"
+    },
+    "certaintyScorer": {
+      "agentID": "019cfe4d-d676-7542-a3f1-240a282c531a",
+      "nickname": "Locke"
+    },
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaID": "A_01",
+      "assignedAgentID": "019cfe45-c6e7-72e1-9d5f-7056471b2624",
+      "nickname": "Ohm",
+      "outputFiles": [
+        "knowledge/k_001_pilot_framing_evidence.md",
+        "hypotheses/hyp_A_01_001_v1_report_architecture.json"
+      ]
+    },
+    {
+      "areaID": "A_02",
+      "assignedAgentID": "019cfe45-cb3b-7c31-94a0-85ad1c8dc779",
+      "nickname": "Plato",
+      "outputFiles": [
+        "knowledge/k_002_statistical_methods_evidence.md",
+        "hypotheses/hyp_A_02_001_v1_matched_inference.json"
+      ]
+    },
+    {
+      "areaID": "A_03",
+      "assignedAgentID": "019cfe45-d36f-7a21-8fcb-604d94704241",
+      "nickname": "Erdos",
+      "outputFiles": [
+        "knowledge/k_003_mining_visualization_evidence.md",
+        "hypotheses/hyp_A_03_001_v1_insight_mining.json"
+      ]
+    },
+    {
+      "areaID": "A_04",
+      "assignedAgentID": "019cfe45-dc41-7802-ad0e-95e20ef7600f",
+      "nickname": "Noether",
+      "outputFiles": [
+        "knowledge/k_004_current_v3_signal_scan.md",
+        "hypotheses/hyp_A_04_001_v1_priority_findings.json"
+      ]
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "evidenceID": "k_001",
+        "path": "knowledge/k_001_pilot_framing_evidence.md",
+        "areaID": "A_01"
+      },
+      {
+        "evidenceID": "k_002",
+        "path": "knowledge/k_002_statistical_methods_evidence.md",
+        "areaID": "A_02"
+      },
+      {
+        "evidenceID": "k_003",
+        "path": "knowledge/k_003_mining_visualization_evidence.md",
+        "areaID": "A_03"
+      },
+      {
+        "evidenceID": "k_004",
+        "path": "knowledge/k_004_current_v3_signal_scan.md",
+        "areaID": "A_04"
+      }
+    ]
+  },
+  "evidenceReviews": [
+    {
+      "evidenceID": "k_001",
+      "summary": "Reuse V2 adjudicative-geometry framing, but structure V3 around matched family effects and drilldowns."
+    },
+    {
+      "evidenceID": "k_002",
+      "summary": "Use paired bootstrap/permutation at the sample level only after validating matching assumptions."
+    },
+    {
+      "evidenceID": "k_003",
+      "summary": "Discovery should be table-driven: ranked instability/sensitivity tables first, hero visuals second."
+    },
+    {
+      "evidenceID": "k_004",
+      "summary": "Prioritize a6/a7, a1, a4, and d1, but treat conflict as a risky metric outside bundle families."
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "itemID": "k_001",
+        "score": 0.8
+      },
+      {
+        "itemID": "k_002",
+        "score": 0.76
+      },
+      {
+        "itemID": "k_003",
+        "score": 0.72
+      },
+      {
+        "itemID": "k_004",
+        "score": 0.66
+      },
+      {
+        "itemID": "h_A_01_001",
+        "score": 0.82
+      },
+      {
+        "itemID": "h_A_02_001",
+        "score": 0.74
+      },
+      {
+        "itemID": "h_A_03_001",
+        "score": 0.7
+      },
+      {
+        "itemID": "h_A_04_001",
+        "score": 0.62
+      },
+      {
+        "itemID": "S1",
+        "score": 0.9
+      },
+      {
+        "itemID": "S2",
+        "score": 0.85
+      },
+      {
+        "itemID": "S3",
+        "score": 0.78
+      },
+      {
+        "itemID": "S4",
+        "score": 0.8
+      },
+      {
+        "itemID": "S5",
+        "score": 0.74
+      },
+      {
+        "itemID": "S6",
+        "score": 0.75
+      },
+      {
+        "itemID": "S7",
+        "score": 0.6
+      },
+      {
+        "itemID": "S8",
+        "score": 0.86
+      },
+      {
+        "itemID": "S9",
+        "score": 0.66
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaID": "A_01",
+      "title": "Pilot framing and report architecture",
+      "scope": "Use prior pilot docs and current V3 outputs to define how the report should be structured and what claims are narratively central."
+    },
+    {
+      "areaID": "A_02",
+      "title": "Matched-sample statistical inference",
+      "scope": "Identify appropriate inferential methods for within-family comparisons across matched samples and multiple experiment conditions."
+    },
+    {
+      "areaID": "A_03",
+      "title": "Insight mining and visualization strategy",
+      "scope": "Identify exploratory mining methods and visualizations that surface non-obvious patterns without confusing exploration and confirmation."
+    },
+    {
+      "areaID": "A_04",
+      "title": "Current V3 signal scan",
+      "scope": "Inspect current V3 overview outputs to identify the strongest candidate findings and highest-value analysis priorities."
+    }
+  ],
+  "microHypotheses": [
+    {
+      "hypothesisID": "h_A_01_001",
+      "path": "hypotheses/hyp_A_01_001_v1_report_architecture.json"
+    },
+    {
+      "hypothesisID": "h_A_02_001",
+      "path": "hypotheses/hyp_A_02_001_v1_matched_inference.json"
+    },
+    {
+      "hypothesisID": "h_A_03_001",
+      "path": "hypotheses/hyp_A_03_001_v1_insight_mining.json"
+    },
+    {
+      "hypothesisID": "h_A_04_001",
+      "path": "hypotheses/hyp_A_04_001_v1_priority_findings.json"
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "path": "null_challenges/nc_v3_analysis_hypotheses.json",
+      "overallOutcome": "PassedWithCaveats"
+    }
+  ],
+  "synthesisOutput": {
+    "path": "blueprint.md",
+    "status": "completed"
+  }
+}

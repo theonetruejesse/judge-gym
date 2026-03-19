@@ -1,0 +1,21 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "A clean split exists where Convex remains authoritative for domain state while Temporal solely owns execution without significant consistency complexity.",
+      "falsificationQueries": [
+        "Temporal start workflow database transaction consistency outbox pattern",
+        "Temporal idempotency side effects database write workflow start consistency"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_current_engine_execution_shape.md",
+        "knowledge/k_002_temporal_runtime_model.md"
+      ],
+      "falsificationAnalysis": "Temporal does not give cross-system atomicity between domain DB writes and workflow starts. This means the split is viable but not inherently clean unless Convex is deliberately demoted from live execution truth and idempotent projection or outbox patterns are adopted.",
+      "outcome": "Mixed"
+    }
+  ],
+  "overallOutcome": "Mixed"
+}
+

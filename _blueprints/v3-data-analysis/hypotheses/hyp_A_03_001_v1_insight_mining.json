@@ -1,0 +1,29 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "If V3 analysis is organized around matched sample-level deltas within each family (plus ranked instability/sensitivity tables), then a small set of robust, reportable findings will emerge quickly and will be more stable than findings obtained by browsing aggregate charts. Distance-map visualizations (clustered heatmaps, MDS) will be useful for discovery but will require validation via matched deltas and driver decomposition.",
+  "confidence": 0.7,
+  "rationale": "The V3 matrix has shared sample ordinals across experiments and strong family structure, which enables paired comparisons. Prior pilots emphasize geometry shifts and confounds; ranked instability and matched deltas are designed to surface these shifts systematically while mitigating forking-path bias. Clustering/MDS are standard exploratory tools for distance matrices but are sensitive to metric scaling and thus need explicit validation.",
+  "keyAssumptions": [
+    "Sample ordinals are truly comparable across experiments (same underlying evidence sets / bundle construction per sample).",
+    "Derived per-sample metrics (abstain rate, singleton rate, expected stage, subset size, conflict) capture the main behavioral changes of interest.",
+    "Within-family contrasts are defined cleanly enough to support paired deltas (baseline and variant are comparable aside from the intended intervention).",
+    "Distance metrics (e.g., JS divergence on per-sample expected-stage distributions) are not dominated by a single metric artifact."
+  ],
+  "validationCriteria": [
+    "A mining script can rank the top 5-10 family effects by paired effect size with bootstrap/permutation uncertainty, and these effects remain qualitatively similar under reasonable alternative aggregations (median vs mean, trimming, excluding top-driver evidence).",
+    "Sample-instability rankings are reproducible across different metric choices (e.g., expected-stage variance vs abstain variance) and lead to consistent case-study candidates.",
+    "Experiment distance clustering/MDS yields stable coarse groupings under small perturbations (metric standardization choices, alternative distance definitions), or else is explicitly flagged as unstable and not used for claims."
+  ],
+  "critiquePoints": [
+    "If bundle-size families change the effective unit (120 vs 600 responses), naive deltas could be incomparable without per-sample normalization.",
+    "High TBM/closed-world conflict values may saturate and reduce interpretability; mining should not over-index on conflict alone.",
+    "Matched deltas can still be misleading if the intervention changes sample composition (e.g., different bundling), so driver decomposition is needed."
+  ],
+  "questions": [
+    "What is the canonical baseline per family (e.g., d1 control, a1 abstain_false, a2 l2 vs l3)?",
+    "Should the primary severity metric be expected stage, modal stage, or a calibrated continuous score derived from BetP?",
+    "How should abstentions be treated in severity comparisons: excluded, mapped to contradiction, or modeled separately?"
+  ]
+}
+

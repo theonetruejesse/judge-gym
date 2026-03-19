@@ -13,7 +13,6 @@ const ALPHABET =
 const ID_LENGTH = 6;
 const nanoid = customAlphabet(ALPHABET, ID_LENGTH);
 
-/** Generate a random 6-char alphanumeric ID (non-deterministic). */
 export const generateId = () => nanoid();
 
 // ---------------------------------------------------------------------------
@@ -28,6 +27,29 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * Generate `count` deterministic pseudo-random seeds from a base seed.
+ * Uses mulberry32; each seed is a 32-bit integer suitable for downstream PRNG use.
+ */
+export function generateSeeds(baseSeed: number, count: number): number[] {
+  const rng = mulberry32(baseSeed | 0);
+  const seeds: number[] = [];
+  for (let i = 0; i < count; i++) {
+    seeds.push((rng() * 0xffffffff) | 0);
+  }
+  return seeds;
+}
+
+export function shuffleWithSeed<T>(items: T[], seed?: number): T[] {
+  const rng = seed === undefined ? Math.random : mulberry32(seed);
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 /** Generate a deterministic ID from a seed and index. */

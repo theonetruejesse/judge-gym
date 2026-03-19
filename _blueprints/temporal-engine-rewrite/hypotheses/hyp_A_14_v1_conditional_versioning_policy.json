@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_14_001",
+  "areaOfAnalysisID": "A_14",
+  "statement": "Judge-gym should require replay testing and continue-as-new discipline by default, while treating pinned worker rollouts as conditional rather than universally preferred.",
+  "confidence": 0.63,
+  "rationale": "Replay safety and history control are clearly required, but pinned rollout has enough preview and draining caveats that it should be a deliberate choice per workflow type.",
+  "keyAssumptions": [
+    "The team can maintain representative workflow histories for replay testing",
+    "Workflow duration and deploy cadence can be measured well enough to pick pinned versus auto-upgrade"
+  ],
+  "validationCriteria": [
+    "Workflow-code changes fail CI when replay is unsafe",
+    "Each workflow type has an explicit rollout policy and continue-as-new trigger"
+  ],
+  "critiquePoints": [
+    "Pinned worker versioning carries real version-retention and draining overhead"
+  ],
+  "questions": [
+    "Which workflow types, if any, are short enough to justify pinned rollout first?"
+  ]
+}

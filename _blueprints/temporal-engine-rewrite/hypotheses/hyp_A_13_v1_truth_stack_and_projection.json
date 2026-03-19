@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_13_001",
+  "areaOfAnalysisID": "A_13",
+  "statement": "The future agent loop should use a precedence order of Visibility for discovery, Describe for automation-safe execution truth, Update receipts for action acknowledgements, Query for richer workflow-local state, and a small Convex projection only for ergonomics.",
+  "confidence": 0.69,
+  "rationale": "Temporal's APIs support this stack, and it avoids treating visibility or the Convex mirror as execution truth, but the exact projection schema and confirmation rules still need to be finalized.",
+  "keyAssumptions": [
+    "DescribeWorkflowExecution provides enough server-side state for safe repair gating in most cases",
+    "The Convex projection remains deliberately small and milestone-based"
+  ],
+  "validationCriteria": [
+    "The agent loop can determine when a process is truly stalled without trusting Visibility alone",
+    "The Convex projection does not become a second execution engine"
+  ],
+  "critiquePoints": [
+    "Query cannot be relied on when workers are unhealthy or absent"
+  ],
+  "questions": [
+    "What exact fields belong in process_observability_v2?"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "created_at": "2026-03-19",
+    "scope": "V3 analysis process blueprint hypotheses",
+    "format": "deep-search null challenge (multi-hypothesis)"
+  },
+  "nullChallenges": [
+    {
+      "challengeID": "nc_h_A_01_001",
+      "microHypothesisID": "h_A_01_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Two-tier figure policy might demote salvageable figures and reduce communicated structure.",
+          "falsificationQueries": [
+            "Can unreadable figures be repaired (resize, drop annotations, facet/paginate) into report-grade without exploding count?"
+          ],
+          "falsificationEvidenceFound": [
+            "knowledge/k_001_report_architecture_evidence.md"
+          ],
+          "falsificationAnalysis": "Likely true: some figures are salvageable. The plan should explicitly include a small, standardized set of repair transforms and require attempting repairs before demotion.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed",
+      "whatWouldChangeMyMind": "Demonstrate that even after applying standardized repair transforms, the salvaged set still exceeds the report-grade budget or remains unreadable."
+    },
+    {
+      "challengeID": "nc_h_A_02_001",
+      "microHypothesisID": "h_A_02_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Table-first mining may miss nonlinear/subgroup structure that plots reveal.",
+          "falsificationQueries": [
+            "What diagnostic plots are required to avoid missing heterogeneity while still remaining table-driven?"
+          ],
+          "falsificationEvidenceFound": [
+            "knowledge/k_002_statistical_exploration_evidence.md"
+          ],
+          "falsificationAnalysis": "Valid concern. Mitigation: require a fixed diagnostic plot set rendered from ranked tables (e.g., delta distributions, heterogeneity by model/scale) before declaring a finding robust.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed",
+      "whatWouldChangeMyMind": "Show that a small mandatory diagnostic set still systematically misses patterns that materially change conclusions."
+    },
+    {
+      "challengeID": "nc_h_A_03_001",
+      "microHypothesisID": "h_A_03_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "Demoting DST/TBM might discard useful ambiguity/ignorance semantics and hide structure.",
+          "falsificationQueries": [
+            "Do sensitivity panels (linear pool vs log pool vs local DST/TBM) preserve key conclusions while retaining diagnostics?"
+          ],
+          "falsificationEvidenceFound": [
+            "knowledge/k_003_aggregation_alternatives_evidence.md"
+          ],
+          "falsificationAnalysis": "Plan should keep DST/TBM as diagnostic and add a required sensitivity panel. If conclusions differ materially, DST/TBM may need to be promoted to secondary headline status for those sections.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed",
+      "whatWouldChangeMyMind": "If pooling baselines wash out consistent uncertainty structure that correlates with real behavioral changes, DST/TBM should be promoted beyond diagnostic use."
+    },
+    {
+      "challengeID": "nc_h_A_04_001",
+      "microHypothesisID": "h_A_04_001",
+      "falsificationAttempts": [
+        {
+          "targetDescription": "A frozen analysis contract may slow iteration during early EDA.",
+          "falsificationQueries": [
+            "Can a contract support both a frozen report pipeline and a drifting exploratory sandbox?"
+          ],
+          "falsificationEvidenceFound": [
+            "knowledge/k_004_process_guardrails_evidence.md"
+          ],
+          "falsificationAnalysis": "Mitigation is straightforward: split contract into report pipeline (frozen) vs sandbox (allowed to drift). The blueprint should explicitly encode this split.",
+          "outcome": "Passed"
+        }
+      ],
+      "overallOutcome": "Passed",
+      "whatWouldChangeMyMind": "If the sandbox split still produces too much friction, move to versioned contracts with fast iteration (small diffs) rather than a single rigid contract."
+    }
+  ]
+}

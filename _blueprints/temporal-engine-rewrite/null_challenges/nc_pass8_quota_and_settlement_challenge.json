@@ -1,0 +1,83 @@
+{
+  "challengeID": "nc_pass8_001",
+  "microHypothesisIDs": [
+    "h_A_24_001",
+    "h_A_25_001"
+  ],
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Cached input and thinking tokens should be enforced as independent v0 quota dimensions",
+      "falsificationQueries": [
+        "Do provider docs require shared-bucket enforcement of cached or thinking tokens as separate budgets for v0 correctness?",
+        "Are these dimensions better treated as tracked usage fields first?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_026_v0_quota_dimensions_and_tracking_split.md"
+      ],
+      "falsificationAnalysis": "The provider docs show these fields are real and worth tracking, but not strong enough to justify independent shared-bucket enforcement in the first rewrite. They fit better as tracked usage fields with an upgrade path if real operations demand stricter controls later.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "A split `input_tokens`/`output_tokens` enum is enough and a `total_tokens` dimension is unnecessary",
+      "falsificationQueries": [
+        "Do provider docs expose shared token TPM behavior that is cleaner to model as `total_tokens`?",
+        "Would forcing OpenAI-style shared TPM into split input/output buckets distort enforcement semantics?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_026_v0_quota_dimensions_and_tracking_split.md"
+      ],
+      "falsificationAnalysis": "A split-only enum would make OpenAI-style shared token buckets awkward and misleading. Adding `total_tokens` keeps the core vocabulary honest while still allowing providers like Anthropic to use split dimensions.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Upstash should stay optional in v0 and be added only after multi-worker scale appears",
+      "falsificationQueries": [
+        "Would deferring Upstash force a later rewrite of reservation/refund semantics?",
+        "Is stable cross-worker quota semantics a stronger design goal than minimizing dependencies in the first cut?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_027_upstash_v0_settlement_policy.md"
+      ],
+      "falsificationAnalysis": "A single-worker pilot could survive without Upstash, but the cost would be semantic drift and a second redesign once multiple workers exist. Since the stack decision is already made, using Upstash from the beginning keeps the rewrite cleaner.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "Output tokens should be post-usage only because pre-reservation is too conservative",
+      "falsificationQueries": [
+        "Can post-usage-only output accounting preserve cross-worker quota correctness under concurrent generation?",
+        "Is preflight-then-reconcile the safer default even if it over-reserves?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_027_upstash_v0_settlement_policy.md"
+      ],
+      "falsificationAnalysis": "Post-usage-only output accounting is simpler but gives up the cross-worker quota safety the rewrite is trying to guarantee. Preflight-then-reconcile is the better default, though future heuristics may reduce over-reservation.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Ambiguous provider outcomes should be refunded immediately to maximize throughput",
+      "falsificationQueries": [
+        "Would eager refund on ambiguous timeouts risk double-spending shared provider budgets?",
+        "Is conservative pending reconciliation the safer correctness rule?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_027_upstash_v0_settlement_policy.md"
+      ],
+      "falsificationAnalysis": "Immediate refund on ambiguous outcomes would undermine quota correctness under retries. The safer rule is to keep the reservation until provider outcome is resolved or timed out under a documented policy.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Batch-specific dimensions must be part of the required v0 implemented subset",
+      "falsificationQueries": [
+        "Does the architecture need batch quota implementation now, or only compatibility hooks?",
+        "Can `batch_enqueued_input_tokens` remain an optional provider-selected dimension until batch paths are actually implemented?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_026_v0_quota_dimensions_and_tracking_split.md",
+        "knowledge/k_027_upstash_v0_settlement_policy.md"
+      ],
+      "falsificationAnalysis": "The architecture should support an optional batch-enqueued-input-tokens dimension, but the first rollout does not need to implement batch quota handling unless batch execution itself ships. This keeps the design compatible without widening v0 scope.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

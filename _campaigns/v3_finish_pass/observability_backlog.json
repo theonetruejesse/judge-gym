@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "id": "v3_campaign_status_hot_score_read_limit",
+      "created_at": "2026-03-16T06:12:14Z",
+      "status": "open",
+      "summary": "`packages/codex:getV3CampaignStatus` exceeds Convex document-read limits on hot score-stage V3 cohorts because `collectProcessHealth` scans too many process_request_targets rows.",
+      "needed_to_answer": "What is the cohort state quickly during a live full n=30 score-stage pass?",
+      "recommended_fix": "Add a lighter-weight cohort status path for V3 that avoids full process health scans once score stages become hot, or paginate/aggregate process_request_targets by cohort member."
+    }
+  ]
+}

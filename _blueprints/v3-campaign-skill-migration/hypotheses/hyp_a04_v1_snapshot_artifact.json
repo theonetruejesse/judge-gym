@@ -1,0 +1,17 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "The highest-value migration addition is a first-class iteration snapshot artifact that captures cohort status, run summaries, diagnostics, stuck signals, and trace refs before every wipe.",
+  "confidence": 0.84,
+  "rationale": "Current observability is adequate but fragmented; repeated rediscovery risk comes from wiping before preserving a composed forensic bundle.",
+  "keyAssumptions": [
+    "The campaign loop will keep resetting run-scoped state repeatedly."
+  ],
+  "validationCriteria": [
+    "A later agent can explain a failed pass from the iteration artifact alone without live DB state."
+  ],
+  "critiquePoints": [
+    "A strong cohort-level codex API could reduce the amount of artifact assembly needed."
+  ],
+  "questions": []
+}
