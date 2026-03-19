@@ -1,0 +1,165 @@
+{
+  "contractVersion": 1,
+  "createdAt": "2026-03-19",
+  "purpose": "Freeze V3 analysis inputs and rules so multiple agents can iterate without drift.",
+  "dataSource": {
+    "sqlitePath": "packages/analysis/_cache/analysis.sqlite",
+    "exportSchemaVersion": 3,
+    "snapshotIds": [
+      "62a5ed3fcf4b45e2a90658e6f6914d07",
+      "a80dd642bd474bd4910848efd6875c21",
+      "08d2c9dcc13f4a59a82d09a7caedc9a8",
+      "cf5bca96172d448799d02ad25fdfa9bf",
+      "45e87740806a4b28a85e3712a0d7bf87",
+      "ddcbe62b02ab4b38974244892818329d",
+      "0c50028dabe74d4eb3ec5884f3bfb501",
+      "3e8250b0b29f491498b111e69c00bd0c",
+      "98de67c4ea56468da013727c0588c6f7",
+      "e8f033f302354f158664d5bea8f65ef7",
+      "1bed85e3be0f48ddb6771bcdf14c0455",
+      "cfab4a402987452b8cfb818ef27a3ebe",
+      "8c420f007be3462d805abb5e61c3057c",
+      "ac6871921fba48f3bd2d16b046540250",
+      "80fa0c90e374441eb63e5148944e77f4",
+      "b4f1229e39d84c0ebd72d8073a9428ca",
+      "3b4f4dafeac04df4b591dbc9ffa75ea4",
+      "223ef72ef6bb4541b1ebb637fb3c83b8",
+      "7e061b0686074111ac6d56648094bb79",
+      "0f4830f2956948208a7f5f717d13d3cb",
+      "0edc960188e04771a3273eaef750ceb8",
+      "41a232de234b4cde82d15477d99d74ee",
+      "1fd1e83415134ca8b7ab7e1d2672cca9",
+      "a659924c7e974ef6ad7234030964855f",
+      "3a96d3ce291540f390914a21fd4ad4e4",
+      "cad42135183a4356be6340ef69a56c83",
+      "bb412e7c1f7843159b9fa6cca5085a5d",
+      "1304caff442f4aad81056a13d9d2b7fb",
+      "ae4c533df50c46719a8e6ad4ff23e5a2",
+      "28fd4235305d49b4b8b989356e9d67c1",
+      "0d8a39d4098e48f288de2bfb2e7194bc",
+      "609aa6d8aadd48c3bbb3bb2f2fa4387d"
+    ],
+    "selectionPolicy": {
+      "includeTagPrefixes": [
+        "v3_",
+        "v3_1_"
+      ],
+      "runSelector": "latest_completed"
+    }
+  },
+  "inclusion": {
+    "includeTags": [
+      "v3_a1_gpt_4_1_abstain_false",
+      "v3_a1_gpt_4_1_abstain_true",
+      "v3_a1_gpt_5_2_abstain_false",
+      "v3_a1_gpt_5_2_abstain_true",
+      "v3_a2_gpt_4_1_l3",
+      "v3_a2_gpt_5_2_l3",
+      "v3_a3_gpt_4_1_scale_5",
+      "v3_a3_gpt_5_2_scale_5",
+      "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "v3_a5_gpt_4_1_illiberal_democracy",
+      "v3_a5_gpt_5_2_illiberal_democracy",
+      "v3_b1_gpt_4_1_mini_abstain_false",
+      "v3_b1_gpt_4_1_mini_abstain_true",
+      "v3_b1_gpt_5_2_chat_abstain_false",
+      "v3_b1_gpt_5_2_chat_abstain_true",
+      "v3_d1_control_gpt_4_1",
+      "v3_d1_control_gpt_5_2",
+      "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "v3_1_c1_gpt_5_2_bundle_5_random_l2",
+      "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2",
+      "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2",
+      "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2",
+      "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
+      "v3_1_c4_gpt_4_1_mini_scale_5",
+      "v3_1_c4_gpt_5_2_chat_scale_5",
+      "v3_1_c5_gpt_4_1_mini_bundle_5_cluster_l2",
+      "v3_1_c5_gpt_5_2_chat_bundle_5_cluster_l2",
+      "v3_1_c6_gpt_4_1_bundle_5_cluster_l2_scale_7",
+      "v3_1_c6_gpt_5_2_bundle_5_cluster_l2_scale_7",
+      "v3_1_c7_gpt_4_1_bundle_5_cluster_l2_scale_9",
+      "v3_1_c7_gpt_5_2_bundle_5_cluster_l2_scale_9"
+    ],
+    "excludeTags": [
+      "v3_a6_gpt_4_1_bundle_5_l2",
+      "v3_a6_gpt_5_2_bundle_5_l2",
+      "v3_a7_gpt_4_1_bundle_5_l3",
+      "v3_a7_gpt_5_2_bundle_5_l3"
+    ],
+    "excludeRationale": "These families had uncontrolled/mismatched bundling in the original V3 run and are excluded from scientific interpretation."
+  },
+  "analysisUnit": {
+    "primaryKey": [
+      "experiment_tag",
+      "sample_ordinal"
+    ],
+    "secondaryKey": [
+      "bundle_signature"
+    ],
+    "notes": "Use bundle_signature as a matching key when bundling is part of the contrast."
+  },
+  "contrastRegistry": {
+    "path": "packages/analysis/contracts/v3_contrasts.json",
+    "version": "v1",
+    "contrastCount": 28,
+    "notes": "Each contrast declares inferential vs descriptive-only, matching keys, and primary endpoints."
+  },
+  "endpoints": {
+    "primary": [
+      "abstain_rate",
+      "singleton_rate",
+      "mean_subset_size",
+      "mean_expected_stage",
+      "mid_scale_mass",
+      "stage_entropy"
+    ],
+    "secondary": [
+      "tbm_conflict",
+      "closed_world_conflict",
+      "mean_expert_agreement_prob",
+      "closed_world_expected_stage",
+      "tbm_expected_stage"
+    ]
+  },
+  "multiplicity": {
+    "method": "BH-FDR",
+    "scope": "primary_endpoints_per_contrast_family"
+  },
+  "aggregationPolicy": {
+    "primary": [
+      "geometry_metrics",
+      "weighted_linear_opinion_pool"
+    ],
+    "secondary": [
+      "log_opinion_pool"
+    ],
+    "diagnostic": [
+      "local_tbm",
+      "local_closed_world"
+    ]
+  },
+  "spotChecks": {
+    "seed": 1337,
+    "topKUnstableSamples": 10,
+    "topKEffectContributors": 10,
+    "notes": "Spot checks must be deterministic and referenced by table rows."
+  },
+  "figurePromotion": {
+    "tiers": [
+      "hero",
+      "report",
+      "appendix",
+      "exploratory",
+      "discard"
+    ],
+    "heroMaxCount": 10,
+    "readabilityRule": "Hero/report figures must be readable without zooming and must not mix incomparable scale/bundle regimes."
+  },
+  "outputs": {
+    "investigationRoot": "packages/analysis/_outputs/v3/investigation",
+    "pilotDoc": "docs/pilots/v3_gpt_ablations.md",
+    "paper": "docs/pilots/paper.md"
+  }
+}

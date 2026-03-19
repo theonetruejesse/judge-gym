@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "The next improvement in V3 analysis quality will come more from adding table-first mining outputs (q-values, effect contributions, verdict-geometry certainty, bundle-policy deltas) than from adding more raw plots.",
+  "confidence": 0.81,
+  "rationale": "The current pipeline already has matched-delta inference and candidate findings, but exploration is still bottlenecked by manually browsing a large figure inventory.",
+  "keyAssumptions": [
+    "A reproducible ranking of top samples, bundles, and contrasts is more useful than a broad unranked chart inventory."
+  ],
+  "validationCriteria": [
+    "A new analysis pass can identify the top findings and top spot-check cases from tables before looking at any figures.",
+    "Most new report figures are rendered from ranked tables rather than discovered manually."
+  ],
+  "critiquePoints": [
+    "Some visual structure may still be easier to detect in plots than in tables."
+  ],
+  "questions": [
+    "What is the minimum canonical table set needed before any new plotting pass?"
+  ]
+}

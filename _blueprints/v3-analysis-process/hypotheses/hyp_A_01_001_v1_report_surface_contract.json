@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "Judge Gym V3 should adopt a strict two-tier figure architecture: a small report-grade hero set and a larger exploratory drilldown set, because the current all-in-one investigation output is too dense to function as a reader-facing report.",
+  "confidence": 0.78,
+  "rationale": "The current curated figures are consistently legible while several giant matrix figures remain exploratory-only due to annotation and label density.",
+  "keyAssumptions": [
+    "Readers should not need zooming or local context to interpret the main report figures."
+  ],
+  "validationCriteria": [
+    "A small fixed set of hero figures can summarize the core V3 findings without requiring any matrix larger than a few dozen labeled cells.",
+    "Large matrix figures are retained only in appendix/exploratory folders."
+  ],
+  "critiquePoints": [
+    "Some unreadable figures may be salvageable by resizing or removing annotations rather than being demoted."
+  ],
+  "questions": [
+    "Which figure classes belong in the hero set by default?"
+  ]
+}

@@ -7,7 +7,15 @@ from typing import Any
 
 import pandas as pd
 
+from .analysis_contract import (
+    AnalysisContract,
+    ContractArtifacts,
+    ContractValidationError,
+    load_contract_artifacts,
+    validate_contract_against_cache,
+)
 from .cache import connect_cache, list_latest_snapshot_ids, snapshot_manifest
+from .contracts import resolve_repo_path
 
 
 @dataclass
@@ -39,6 +47,13 @@ class SnapshotBundle:
         if self.responses.empty:
             return 0
         return int(self.responses["scale_size"].dropna().iloc[0])
+
+
+@dataclass
+class ContractSnapshotBundle:
+    contract: AnalysisContract
+    artifacts: ContractArtifacts
+    bundle: SnapshotBundle
 
 
 def load_snapshot_bundle(
@@ -79,6 +94,40 @@ def load_snapshot_bundle(
         )
     finally:
         connection.close()
+
+
+def load_snapshot_bundle_for_contract(
+    *,
+    contract_path: str | None = None,
+    contrast_registry_path: str | None = None,
+    figures_manifest_path: str | None = None,
+    cache_db_path: str | None = None,
+    validate_cache: bool = True,
+) -> ContractSnapshotBundle:
+    artifacts = load_contract_artifacts(
+        contract_path=contract_path,
+        contrast_registry_path=contrast_registry_path,
+        figures_manifest_path=figures_manifest_path,
+    )
+    contract = artifacts.contract
+    resolved_cache = _resolve_cache_path(cache_db_path, contract)
+    connection = connect_cache(resolved_cache)
+    try:
+        if validate_cache:
+            validate_contract_against_cache(connection, contract, artifacts.contrast_registry)
+    finally:
+        connection.close()
+
+    bundle = load_snapshot_bundle(
+        snapshot_ids=contract.snapshot_ids,
+        cache_db_path=resolved_cache,
+    )
+    _validate_bundle_against_contract(bundle, contract)
+    return ContractSnapshotBundle(
+        contract=contract,
+        artifacts=artifacts,
+        bundle=bundle,
+    )
 
 
 def _load_table(
@@ -173,3 +222,37 @@ def _explode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
                 }
             )
     return pd.DataFrame(rows)
+
+
+def _resolve_cache_path(
+    cache_db_path: str | None,
+    contract: AnalysisContract,
+) -> str:
+    if cache_db_path is not None:
+        return cache_db_path
+    return str(resolve_repo_path(contract.sqlite_path))
+
+
+def _validate_bundle_against_contract(
+    bundle: SnapshotBundle,
+    contract: AnalysisContract,
+) -> None:
+    expected_snapshots = set(contract.snapshot_ids)
+    found_snapshots = set(bundle.snapshot_ids)
+    if found_snapshots != expected_snapshots:
+        raise ContractValidationError(
+            "loaded snapshot ids drift from contract: "
+            f"expected={sorted(expected_snapshots)} found={sorted(found_snapshots)}",
+        )
+
+    expected_tags = set(contract.resolved_include_tags)
+    found_tags = set(bundle.experiment_tags)
+    if found_tags != expected_tags:
+        raise ContractValidationError(
+            "loaded experiment tags drift from contract include set: "
+            f"expected={sorted(expected_tags)} found={sorted(found_tags)}",
+        )
+
+    excluded = found_tags & set(contract.exclude_tags)
+    if excluded:
+        raise ContractValidationError(f"excluded tags found in loaded bundle: {sorted(excluded)}")

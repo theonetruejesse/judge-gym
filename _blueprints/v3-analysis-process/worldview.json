@@ -1,0 +1,145 @@
+{
+  "meta": {
+    "originalQuestion": "How should we restructure Judge Gym V3 analysis so we can explore a large experiment matrix systematically, triage unusable figures, choose appropriate aggregation methods beyond or alongside DST/TBM, and support subagent-assisted iterative analysis from one stable cached data source before writing the final V3 report?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-analysis-process",
+    "finalPlanPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-analysis-process/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      "019d07bd-b0cf-7b92-ad7f-c3fa7215e108",
+      "019d07bd-b547-7831-aca3-58843bd8878f",
+      "019d07bd-bf73-7bd3-8d87-b6f7a31f99c2",
+      "019d07bd-cfb2-7470-bbfd-4bd8b2024c76"
+    ],
+    "falsifier": "019d07cb-82c1-7062-b553-cbf4ad88ea55",
+    "certaintyScorer": "019d07cb-edfa-7e32-9717-52ec9baa08e9",
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Report Architecture and Figure Triage",
+      "status": "completed",
+      "assignedAgent": "019d07bd-b0cf-7b92-ad7f-c3fa7215e108"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Statistical Exploration and Derived Tables",
+      "status": "completed",
+      "assignedAgent": "019d07bd-b547-7831-aca3-58843bd8878f"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "Aggregation Alternatives Beyond DST/TBM",
+      "status": "completed",
+      "assignedAgent": "019d07bd-bf73-7bd3-8d87-b6f7a31f99c2"
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "title": "Subagent-Guided Analysis Process and Guardrails",
+      "status": "completed",
+      "assignedAgent": "019d07bd-cfb2-7470-bbfd-4bd8b2024c76"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "evidenceID": "k_001",
+        "path": "knowledge/k_001_report_architecture_evidence.md"
+      },
+      {
+        "evidenceID": "k_002",
+        "path": "knowledge/k_002_statistical_exploration_evidence.md"
+      },
+      {
+        "evidenceID": "k_003",
+        "path": "knowledge/k_003_aggregation_alternatives_evidence.md"
+      },
+      {
+        "evidenceID": "k_004",
+        "path": "knowledge/k_004_process_guardrails_evidence.md"
+      }
+    ]
+  },
+  "evidenceReviews": [],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "component": "Two-tier figure architecture",
+        "confidence": 0.85
+      },
+      {
+        "component": "Table-first mining loop",
+        "confidence": 0.8
+      },
+      {
+        "component": "Frozen analysis contract + isolated subagent roles",
+        "confidence": 0.83
+      },
+      {
+        "component": "Aggregation stack: geometry + weighted pooling primary; DST/TBM diagnostic",
+        "confidence": 0.7
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Report Architecture and Figure Triage",
+      "questions": [
+        "How should the current V3 analysis output be partitioned into exploratory artifacts versus report-grade figures?",
+        "Which existing figure types are likely to be unreadable or misleading because of scale mixing, overplotting, or oversized matrices?",
+        "What minimal chart set should anchor the final V3 report?"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Statistical Exploration and Derived Tables",
+      "questions": [
+        "Which additional derived tables and statistical summaries would let us mine the V3 matrix more systematically than browsing PNGs?",
+        "How should we prioritize matched contrasts, sample instability, uncertainty, and evidence-group analyses?",
+        "What exploration outputs should be generated automatically before report writing?"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "Aggregation Alternatives Beyond DST/TBM",
+      "questions": [
+        "When is DST/TBM still informative in this analysis and when should it be demoted to a diagnostic lens?",
+        "Which alternative aggregation methods are most appropriate for set-valued, confidence-weighted judgments over many dependent sources?",
+        "Should aggregation be local per evidence group or global per sample, and how should that affect the report?"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "title": "Subagent-Guided Analysis Process and Guardrails",
+      "questions": [
+        "How should we structure subagent work so multiple analysis passes can operate on the same cached data source without drifting?",
+        "What guardrails should govern figure generation, spot-checking, and hypothesis mining?",
+        "What execution sequence should we follow before freezing the final V3 report?"
+      ]
+    }
+  ],
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A_01_001",
+      "path": "hypotheses/hyp_A_01_001_v1_report_surface_contract.json"
+    },
+    {
+      "microHypothesisID": "h_A_02_001",
+      "path": "hypotheses/hyp_A_02_001_v1_table_first_analysis.json"
+    },
+    {
+      "microHypothesisID": "h_A_03_001",
+      "path": "hypotheses/hyp_A_03_001_v1_aggregation_stack.json"
+    },
+    {
+      "microHypothesisID": "h_A_04_001",
+      "path": "hypotheses/hyp_A_04_001_v1_analysis_contract.json"
+    }
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}

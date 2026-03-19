@@ -604,6 +604,42 @@ describe("run reporting", () => {
     expect(experimentSummary.latest_run?.completed_count).toBe(2);
   });
 
+  test("experiment status follows the latest run instead of historical failures", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const failed = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(failed.run_id, {
+        status: "error",
+        current_stage: "rubric_gen",
+      });
+    });
+
+    const completed = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, completed.run_id, 0);
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: { experiment_id: Id<"experiments"> }) => row.experiment_id === experiment_id);
+    expect(experiment?.status).toBe("completed");
+    expect(experiment?.latest_run?.run_id).toBe(completed.run_id);
+    expect(experiment?.latest_run?.status).toBe("completed");
+
+    const summary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id,
+    });
+    expect(summary.status).toBe("completed");
+    expect(summary.latest_run?.run_id).toBe(completed.run_id);
+    expect(summary.latest_run?.status).toBe("completed");
+  });
+
   test("backfillRunCompletedCounts repairs stale run completed_count values", async () => {
     const t = initTest();
     const { experiment_id } = await setupExperiment(t);

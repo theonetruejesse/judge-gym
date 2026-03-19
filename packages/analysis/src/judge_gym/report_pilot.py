@@ -29,6 +29,13 @@ FAMILY_LABELS = {
     "a6": "bundle_5_l2",
     "a7": "bundle_5_l3",
     "b1": "small_model_family",
+    "c1": "bundle_5_random_l2",
+    "c2": "bundle_5_cluster_l2_v2",
+    "c3": "bundle_5_cluster_l3_v2",
+    "c4": "small_model_scale_5",
+    "c5": "small_model_bundle_5_cluster_l2",
+    "c6": "bundle_5_cluster_l2_scale_7",
+    "c7": "bundle_5_cluster_l2_scale_9",
     "d1": "control",
 }
 
@@ -230,6 +237,8 @@ def _report_slug(bundle: SnapshotBundle) -> str:
 
 def family_code_from_tag(tag: str) -> str:
     parts = tag.split("_")
+    if len(parts) > 2 and parts[0] == "v3" and parts[1] == "1":
+        return parts[2]
     return parts[1] if len(parts) > 1 else "misc"
 
 
@@ -240,8 +249,12 @@ def family_slug_from_tag(tag: str) -> str:
 
 
 def variant_slug_from_tag(tag: str) -> str:
-    parts = tag.split("_", 2)
-    return parts[2] if len(parts) > 2 else tag
+    parts = tag.split("_")
+    if len(parts) > 3 and parts[0] == "v3" and parts[1] == "1":
+        return "_".join(parts[3:])
+    if len(parts) > 2:
+        return "_".join(parts[2:])
+    return tag
 
 
 def family_groups_for_tags(tags: list[str]) -> dict[str, list[str]]:

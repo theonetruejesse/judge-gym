@@ -17,6 +17,18 @@ function deriveExperimentStatus(
 ): z.infer<typeof StateStatusSchema> {
   if (runs.length === 0) return "start";
 
+  const latest = latestRun(runs);
+  if (latest) {
+    if (latest.status === "running") return "running";
+    if (latest.status === "paused") return "paused";
+    if (latest.status === "completed") return "completed";
+    if (latest.status === "error") return "error";
+    if (latest.status === "canceled") return "canceled";
+    if (latest.status === "queued" || latest.status === "start") {
+      return "queued";
+    }
+  }
+
   const statuses = runs.map((run) => run.status);
   if (statuses.includes("running")) return "running";
   if (statuses.includes("paused")) return "paused";
