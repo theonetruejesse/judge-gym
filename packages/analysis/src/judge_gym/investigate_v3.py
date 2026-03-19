@@ -323,7 +323,7 @@ def _build_sample_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
         experiment = bundle.experiments[tag]
         non_abstain = group[~group["abstained"]]
         sample_id = str(group["sample_id"].iloc[0])
-        bundle_signature = _signature(group["bundle_label"].tolist())
+        bundle_signature = _signature(group["bundle_signature"].astype(str).tolist())
         window_signature = _signature(_flatten(group["window_ids"]))
         sample_rows.append(
             {
@@ -333,7 +333,7 @@ def _build_sample_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
                 "sample_ordinal": int(sample_ordinal),
                 "sample_id": sample_id,
                 "response_rows": int(len(group)),
-                "unique_bundle_count": int(group["bundle_label"].nunique()),
+                "unique_bundle_count": int(group["bundle_signature"].nunique()),
                 "bundle_signature": bundle_signature,
                 "window_signature": window_signature,
                 "bundle_size_signature": _signature(group["bundle_size"].astype(str).tolist()),
@@ -447,8 +447,8 @@ def _build_evidence_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
     responses["is_singleton"] = responses["decoded_scores"].apply(lambda scores: len(scores) == 1)
 
     rows: list[dict[str, object]] = []
-    for (tag, sample_ordinal, bundle_label), group in responses.groupby(
-        ["experiment_tag", "sample_ordinal", "bundle_label"],
+    for (tag, sample_ordinal, bundle_signature), group in responses.groupby(
+        ["experiment_tag", "sample_ordinal", "bundle_signature"],
         dropna=False,
     ):
         non_abstain = group[~group["abstained"]]
@@ -457,7 +457,8 @@ def _build_evidence_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
                 "experiment_tag": tag,
                 "family_slug": family_slug_from_tag(tag),
                 "sample_ordinal": int(sample_ordinal),
-                "bundle_label": bundle_label,
+                "bundle_label": str(group["bundle_label"].iloc[0]),
+                "bundle_signature": bundle_signature,
                 "response_rows": int(len(group)),
                 "bundle_size": int(group["bundle_size"].iloc[0]),
                 "window_signature": _signature(_flatten(group["window_ids"])),
@@ -469,7 +470,7 @@ def _build_evidence_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows).sort_values(
-        ["family_slug", "experiment_tag", "sample_ordinal", "bundle_label"],
+        ["family_slug", "experiment_tag", "sample_ordinal", "bundle_signature"],
     ).reset_index(drop=True)
 
 

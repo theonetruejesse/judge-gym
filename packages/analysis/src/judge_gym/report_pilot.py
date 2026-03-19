@@ -161,6 +161,7 @@ def subset_bundle(bundle: SnapshotBundle, experiment_tags: list[str]) -> Snapsho
         rubrics=filter_frame(bundle.rubrics),
         evidence=filter_frame(bundle.evidence),
         samples=filter_frame(bundle.samples),
+        response_items=filter_frame(bundle.response_items),
     )
 
 
@@ -201,6 +202,7 @@ def _generate_bundle_report(
             "rubric_rows": int(len(bundle.rubrics)),
             "evidence_rows": int(len(bundle.evidence)),
             "sample_rows": int(len(bundle.samples)),
+            "response_item_rows": int(len(bundle.response_items)),
         }
         summary_path = output_dir / "summary.json"
         summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True))

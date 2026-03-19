@@ -4,7 +4,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { zInternalQuery } from "../../utils/custom_fns";
 
-export const ANALYSIS_EXPORT_SCHEMA_VERSION = 2;
+export const ANALYSIS_EXPORT_SCHEMA_VERSION = 3;
 const DEFAULT_PAGE_LIMIT = 100;
 const MAX_PAGE_LIMIT = 250;
 
@@ -114,6 +114,8 @@ export const AnalysisResponseRowSchema = z.object({
   ]),
   bundle_strategy_version: z.string().nullable(),
   clustering_seed: z.number().nullable(),
+  bundle_signature: z.string(),
+  cluster_id: z.string().nullable(),
   randomizations: z.array(
     z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
   ),
@@ -473,6 +475,36 @@ async function buildEvidenceContext(
   };
 }
 
+function buildBundleSignature(
+  evidenceIds: Id<"evidences">[],
+) {
+  return evidenceIds
+    .map((evidenceId) => String(evidenceId))
+    .slice()
+    .sort((left, right) => left.localeCompare(right))
+    .join("|");
+}
+
+async function buildBundlePlanContext(
+  ctx: QueryCtx,
+  bundlePlanId: Id<"bundle_plans"> | null | undefined,
+) {
+  const clusterIdBySignature = new Map<string, string | null>();
+  if (!bundlePlanId) {
+    return { clusterIdBySignature };
+  }
+  const bundleItems = await ctx.db
+    .query("bundle_plan_items")
+    .withIndex("by_bundle_plan", (q) => q.eq("bundle_plan_id", bundlePlanId))
+    .collect();
+  for (const item of bundleItems) {
+    if (!clusterIdBySignature.has(item.bundle_signature)) {
+      clusterIdBySignature.set(item.bundle_signature, item.cluster_id ?? null);
+    }
+  }
+  return { clusterIdBySignature };
+}
+
 export const listAnalysisExperiments = zInternalQuery({
   args: z.object({}),
   returns: z.array(AnalysisExperimentSummarySchema),
@@ -544,6 +576,10 @@ export const listAnalysisResponses = zInternalQuery({
       scoreCriticByTargetId.set(String(critic.score_target_id), critic);
     }
     const { evidenceLabelById, evidenceById } = await buildEvidenceContext(ctx, experiment);
+    const { clusterIdBySignature } = await buildBundlePlanContext(
+      ctx,
+      experiment.bundle_plan_id,
+    );
 
     const rows = await Promise.all(scores.map(async (score) => {
       const sample = sampleById.get(String(score.sample_id));
@@ -565,6 +601,7 @@ export const listAnalysisResponses = zInternalQuery({
       const evidenceUrls = items.map((item) => evidenceById.get(String(item.evidence_id))?.url ?? "");
       const windowIds = items.map((item) => item.window_id);
       const evidencePositions = items.map((item) => item.position);
+      const bundleSignature = buildBundleSignature(evidenceIds);
 
       return {
         response_id: score._id,
@@ -588,6 +625,8 @@ export const listAnalysisResponses = zInternalQuery({
         bundle_strategy: normalizedExperiment.bundle_strategy,
         bundle_strategy_version: normalizedExperiment.bundle_strategy_version,
         clustering_seed: normalizedExperiment.clustering_seed,
+        bundle_signature: bundleSignature,
+        cluster_id: clusterIdBySignature.get(bundleSignature) ?? null,
         randomizations: normalizedExperiment.randomizations,
         decoded_scores: score.decoded_scores,
         abstained: score.decoded_scores.length === 0,

@@ -36,12 +36,18 @@ def build_transport() -> httpx.MockTransport:
                 200,
                 json={
                     "value": {
-                        "export_schema_version": 1,
+                        "export_schema_version": 3,
                         "experiment": {
                             "experiment_id": "exp_1",
                             "experiment_tag": "exp-tag",
                             "pool_id": "pool_1",
                             "pool_tag": "pool-tag",
+                            "bundle_plan_id": None,
+                            "bundle_plan_tag": "plan-tag",
+                            "bundle_strategy": "semantic_cluster",
+                            "bundle_strategy_version": "v2",
+                            "clustering_seed": 7,
+                            "bundle_source_view": "l2_neutralized",
                             "evidence_count": 2,
                             "model_id": "gpt-4.1-mini",
                             "rubric_model": "gpt-4.1-mini",
@@ -95,6 +101,12 @@ def build_transport() -> httpx.MockTransport:
                     "abstain_enabled": True,
                     "evidence_view": "l0_raw",
                     "evidence_bundle_size": 2,
+                    "bundle_plan_tag": "plan-tag",
+                    "bundle_strategy": "semantic_cluster",
+                    "bundle_strategy_version": "v2",
+                    "clustering_seed": 7,
+                    "bundle_signature": "ev_1|ev_2",
+                    "cluster_id": "cluster_1",
                     "randomizations": [],
                     "decoded_scores": [2, 3] if cursor is None else [],
                     "abstained": cursor is not None,
@@ -202,9 +214,13 @@ class ExportPipelineTest(unittest.TestCase):
             self.assertEqual(len(bundle.responses), 2)
             self.assertEqual(bundle.responses.iloc[0]["bundle_label"], "E1 | E2")
             self.assertEqual(bundle.responses.iloc[1]["abstained"], True)
+            self.assertEqual(bundle.responses.iloc[0]["bundle_signature"], "ev_1|ev_2")
+            self.assertEqual(bundle.responses.iloc[0]["cluster_id"], "cluster_1")
             self.assertEqual(len(bundle.rubrics), 1)
             self.assertEqual(len(bundle.evidence), 1)
             self.assertEqual(len(bundle.samples), 1)
+            self.assertEqual(len(bundle.response_items), 4)
+            self.assertEqual(bundle.response_items.iloc[0]["bundle_plan_tag"], "plan-tag")
 
             connection = connect_cache(str(db_path))
             try:

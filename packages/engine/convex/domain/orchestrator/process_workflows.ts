@@ -109,6 +109,45 @@ async function reconcileProcessStageAfterTransportFinalized(
   );
 }
 
+async function reconcileProcessStageAfterTransportFinalizedWithRetry(
+  step: WorkflowStep,
+  customKey: string,
+  entityType: "batch" | "job",
+  entityId: string,
+) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      await reconcileProcessStageAfterTransportFinalized(step, customKey);
+      return {
+        reconciled: true,
+        attempts: attempt,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  await emitTraceEvent(step, {
+    trace_id: traceIdForCustomKey(customKey),
+    entity_type: entityType,
+    entity_id: entityId,
+    event_name: "process_stage_reconcile_deferred",
+    status: "running",
+    custom_key: customKey,
+    stage: customKey.split(":")[2] ?? null,
+    payload_json: JSON.stringify({
+      attempts: 5,
+      error: lastError instanceof Error ? lastError.message : String(lastError),
+    }),
+  });
+
+  return {
+    reconciled: false,
+    attempts: 5,
+  };
+}
+
 function classifyError(error: unknown): string {
   return classifyRequestError(String(error ?? ""));
 }
@@ -214,7 +253,12 @@ export async function handleQueuedJobWorkflow(
         custom_key: job.custom_key,
         stage: job.custom_key.split(":")[2] ?? null,
       });
-      await reconcileProcessStageAfterTransportFinalized(step, job.custom_key);
+      await reconcileProcessStageAfterTransportFinalizedWithRetry(
+        step,
+        job.custom_key,
+        "job",
+        String(job._id),
+      );
     }
   } finally {
     await step.runMutation(
@@ -765,7 +809,12 @@ export async function handleRunningBatchWorkflow(
           missing_results: counters.missingResultCount,
         }),
       });
-      await reconcileProcessStageAfterTransportFinalized(step, batch.custom_key);
+      await reconcileProcessStageAfterTransportFinalizedWithRetry(
+        step,
+        batch.custom_key,
+        "batch",
+        String(batch._id),
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const classified = classifyError(message);

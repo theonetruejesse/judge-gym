@@ -53,8 +53,7 @@ export function parseRubricResponse(
 }
 
 function parseRubricCriteria(rawCriteria: string): string[] {
-  const semicolonSegments = rawCriteria
-    .split(";")
+  const semicolonSegments = splitTopLevel(rawCriteria, ";")
     .map((criterion) => normalizeCriterion(criterion))
     .filter((criterion) => criterion.length > 0);
 
@@ -79,10 +78,37 @@ function parseRubricCriteria(rawCriteria: string): string[] {
 }
 
 function splitCriterionOnComma(criterion: string): string[] {
-  return criterion
-    .split(",")
+  return splitTopLevel(criterion, ",")
     .map((part) => normalizeCriterion(part))
     .filter((part) => part.length > 0);
+}
+
+function splitTopLevel(raw: string, delimiter: ";" | ","): string[] {
+  const segments: string[] = [];
+  let current = "";
+  let parenDepth = 0;
+  let bracketDepth = 0;
+
+  for (const char of raw) {
+    if (char === "(") parenDepth += 1;
+    if (char === ")" && parenDepth > 0) parenDepth -= 1;
+    if (char === "[") bracketDepth += 1;
+    if (char === "]" && bracketDepth > 0) bracketDepth -= 1;
+
+    if (char === delimiter && parenDepth === 0 && bracketDepth === 0) {
+      segments.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length > 0) {
+    segments.push(current);
+  }
+
+  return segments;
 }
 
 function normalizeCriterion(rawCriterion: string): string {

@@ -646,6 +646,59 @@ describe("run reporting", () => {
     expect(summary.completed_count).toBe(2);
   });
 
+  test("backfillRunTerminalStates repairs stale completed run status and experiment totals", async () => {
+    const t = initTest();
+    const { experiment_id } = await setupExperiment(t);
+
+    const started = await t.mutation(internal.domain.runs.run_service.startRunFlow, {
+      experiment_id,
+      target_count: 2,
+    });
+    await markRunArtifacts(t, started.run_id, 0);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(started.run_id, {
+        status: "running",
+        completed_count: 0,
+      });
+      await ctx.db.patch(experiment_id, {
+        total_count: 0,
+      });
+    });
+
+    const dryRun = await t.mutation(api.packages.codex.backfillRunTerminalStates, {
+      dry_run: true,
+      run_ids: [started.run_id],
+    });
+    expect(dryRun.updated).toBe(1);
+    expect(dryRun.rows).toEqual([
+      expect.objectContaining({
+        run_id: started.run_id,
+        previous_status: "running",
+        predicted_outcome: "completed",
+        changed: true,
+      }),
+    ]);
+
+    const applied = await t.mutation(api.packages.codex.backfillRunTerminalStates, {
+      dry_run: false,
+      run_ids: [started.run_id],
+    });
+    expect(applied.updated).toBe(1);
+
+    const summary = await t.query(api.packages.lab.getRunSummary, {
+      run_id: started.run_id,
+    });
+    expect(summary.status).toBe("completed");
+    expect(summary.completed_count).toBe(2);
+
+    const experimentSummary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id,
+    });
+    expect(experimentSummary.total_count).toBe(2);
+    expect(experimentSummary.latest_run?.status).toBe("completed");
+  });
+
   test("backfillExperimentTotalCounts repairs stale experiment total_count values", async () => {
     const t = initTest();
     const { experiment_id } = await setupExperiment(t);
