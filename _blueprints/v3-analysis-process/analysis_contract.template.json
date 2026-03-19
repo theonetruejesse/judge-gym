@@ -1,0 +1,73 @@
+{
+  "contractVersion": 1,
+  "createdAt": "2026-03-19",
+  "purpose": "Freeze V3 analysis inputs and rules so multiple agents can iterate without drift.",
+  "dataSource": {
+    "sqlitePath": "packages/analysis/_cache/analysis.sqlite",
+    "exportSchemaVersion": 3,
+    "selectionPolicy": {
+      "includeTagPrefixes": ["v3_", "v3_1_"],
+      "runSelector": "latest_completed"
+    }
+  },
+  "inclusion": {
+    "includeTags": [],
+    "excludeTags": [
+      "v3_a6_gpt_4_1_bundle_5_l2",
+      "v3_a6_gpt_5_2_bundle_5_l2",
+      "v3_a7_gpt_4_1_bundle_5_l3",
+      "v3_a7_gpt_5_2_bundle_5_l3"
+    ],
+    "excludeRationale": "These families had uncontrolled/mismatched bundling in the original V3 run and are excluded from scientific interpretation."
+  },
+  "analysisUnit": {
+    "primaryKey": ["experiment_tag", "sample_ordinal"],
+    "secondaryKey": ["bundle_signature"],
+    "notes": "Use bundle_signature as a matching key when bundling is part of the contrast."
+  },
+  "contrastRegistry": {
+    "path": "packages/analysis/contracts/v3_contrasts.json",
+    "version": "v1",
+    "notes": "Each contrast declares inferential vs descriptive-only, matching keys, and primary endpoints."
+  },
+  "endpoints": {
+    "primary": [
+      "abstain_rate",
+      "singleton_rate",
+      "mean_subset_size",
+      "mean_expected_stage",
+      "mid_scale_mass",
+      "stage_entropy"
+    ],
+    "secondary": [
+      "tbm_conflict",
+      "closed_world_conflict",
+      "mean_expert_agreement_prob"
+    ]
+  },
+  "multiplicity": {
+    "method": "BH-FDR",
+    "scope": "primary_endpoints_per_contrast_family"
+  },
+  "aggregationPolicy": {
+    "primary": ["geometry_metrics", "weighted_linear_opinion_pool"],
+    "secondary": ["log_opinion_pool"],
+    "diagnostic": ["local_tbm", "local_closed_world"]
+  },
+  "spotChecks": {
+    "seed": 1337,
+    "topKUnstableSamples": 10,
+    "topKEffectContributors": 10,
+    "notes": "Spot checks must be deterministic and referenced by table rows."
+  },
+  "figurePromotion": {
+    "tiers": ["hero", "report", "appendix", "exploratory", "discard"],
+    "heroMaxCount": 10,
+    "readabilityRule": "Hero/report figures must be readable without zooming and must not mix incomparable scale/bundle regimes."
+  },
+  "outputs": {
+    "investigationRoot": "packages/analysis/_outputs/v3/investigation",
+    "pilotDoc": "docs/pilots/v3_gpt_ablations.md",
+    "paper": "docs/pilots/paper.md"
+  }
+}

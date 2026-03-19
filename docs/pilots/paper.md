@@ -1,287 +1,229 @@
 # Measuring Adjudicative Geometry in LLM-as-Judge Evaluation of Contested Political Concepts
 
-_Working paper draft. This is still based on pilot evidence and remains provisional, but it should be read as a self-contained research document rather than a loose project note._
-
 ## Abstract
 
-Large language models are increasingly used as automated evaluators in benchmark pipelines, preference modeling, and applied social analysis. Most LLM-as-Judge work focuses on prompt bias, position bias, verbosity bias, or human-alignment benchmarking. We study a different question: how the full judge configuration reshapes evaluation behavior on **contested political concepts** where disagreement is expected and ground truth is weak or absent. We introduce **judge-gym**, a design-space engine that treats rubric model, scoring model, concept framing, abstention policy, scale size, evidence representation, and evidence grouping as configurable experimental axes. Across two pilots, we find that judge behavior is best described in terms of **adjudicative geometry**: stable patterns of abstention, scale occupancy, subset breadth, and stage concentration. The V2 pilot established qualitatively distinct geometries across frontier models. The V3 matched ablation pilot showed that abstention policy, concept framing, and rubric/scoring model placement are strong behavioral levers, while `l3` abstraction was weaker than expected in the frozen matrix. V3 also revealed that "unusual geometry" is not unitary: some configurations exhibit genuine **adjudicative compression** (high abstention, near-zero mid-scale use), while others produce **interior concentration** (low abstention, high mid-scale mass, broader subsets). We argue that contested-concept LLM judging should be treated as a configurable measurement regime rather than a neutral drop-in evaluator.
+This paper studies how large language models behave when they are used as judges over contested political concepts rather than over tasks with a stable ground truth. The central claim is that judge behavior is strongly configuration-sensitive. Changing abstention policy, concept framing, model placement within the pipeline, scale size, evidence representation, or evidence grouping can produce meaningfully different evaluative regimes. To study this, we built `judge-gym`, a design-space engine that turns judge configuration into an experimental surface instead of a hard-coded benchmark pipeline. Across two pilots, we find that the most stable description of model behavior is not a single scalar score but a geometry: abstention rate, scale occupancy, subset breadth, expected stage, stage entropy, and related summaries. The strongest empirical results are that abstention is a real behavioral lever, concept framing is one of the largest movers in the matrix, model placement inside the rubric/scoring pipeline matters, and bundle construction is part of the measurement instrument rather than an irrelevant implementation detail. We also find that unusual judge behavior is not unitary. Some configurations exhibit genuine adjudicative compression, while others produce interior concentration with low abstention and broad mid-scale use. The practical conclusion is that LLM-as-Judge systems for contested concepts should be treated as configurable measurement regimes, not as neutral drop-in evaluators.
 
 ## 1. Introduction
 
-LLM-as-Judge systems are attractive because they are cheap, fast, and scalable. But the usual framing assumes that evaluator differences can be treated as noise, prompt sensitivity, or alignment error around a fundamentally shared task. That assumption is much weaker for **contested concepts** such as fascism, democratic backsliding, or illiberal democracy. In these settings, the problem is not only whether a judge is consistent, but what kind of evaluative geometry it inhabits.
+LLM-as-Judge systems are attractive because they are cheap, scalable, and easy to integrate into existing evaluation pipelines. In many standard benchmark settings, the working assumption is that evaluator variation is a nuisance around a basically shared task. That assumption becomes weaker once the target of evaluation is a contested political concept such as fascism, illiberal democracy, democratic erosion, or authoritarian populism. In those settings, disagreement is not always error, and the main problem is not simply whether the evaluator is accurate, but what sort of evaluative behavior it systematically produces.
 
-The central claim of this paper is narrow:
+The project described in this paper begins from that observation. We do not ask only whether a model can output a label. We ask what happens when the full judge configuration is varied in a controlled way. Does the model abstain more? Does it collapse to edge states? Does it occupy the middle of the scale? Does it prefer singleton verdicts or broader subsets? Does a change in concept framing or evidence grouping alter the geometry of judgment? These are the questions that matter if the goal is to build a measurement framework rather than a one-off benchmark.
 
-> LLM-as-Judge behavior on contested political concepts is strongly **configuration-sensitive**, and different judge configurations can induce distinct adjudicative geometries.
+The paper advances a narrow empirical thesis:
 
-By adjudicative geometry, we mean the stable shape of a judge's outputs over a rubric scale:
+> LLM-as-Judge behavior on contested concepts is strongly configuration-sensitive, and that sensitivity is best described in terms of adjudicative geometry rather than a single aggregate score.
 
-- how often it abstains,
-- how much of the scale it actually uses,
-- whether it prefers singleton versus subset verdicts,
-- how much mass it places in mid-scale states,
-- and how concentrated or diffuse its stage usage becomes.
+This is a design and measurement paper, not a claim that we have solved contested-concept evaluation. The project is still pilot-scale. But the evidence is strong enough to support a change in framing. The right object of study is not "the model as judge" in the abstract. The right object is the configured regime: model family, rubric policy, scoring policy, abstention gate, scale, evidence surface, and bundle plan.
 
-This framing departs from an earlier version of the project that centered **epistemic entrenchment**. The pilots to date support a stronger empirical claim about geometry than a strong theoretical claim about entrenched epistemics or hallucinated consensus. The evidence is currently best read as a measurement and design-space story, not a grand normative theory.
+This project sits in the broader LLM-as-Judge literature, but it departs from the most common framing in a specific way. Much of the existing work focuses on evaluator agreement, position bias, verbosity bias, or self-favoring behavior. Those are real concerns, but they are not enough for contested-concept measurement. In this setting, the main problem is not only whether the judge is biased. It is whether different judge configurations produce systematically different evaluative geometries in the first place.
 
-## 2. Related Methodological Context
+## 2. Problem Setting
 
-### 2.1. LLM-as-Judge Evaluation
+Contested concepts are not cleanly reducible to factual lookup. They are appraisive, internally complex, and open to reasonable disagreement. A judge operating over such concepts is not merely retrieving a latent true label. It is performing a structured interpretation under uncertainty, underdetermination, and framing dependence.
 
-The modern LLM-as-Judge literature established that frontier models can perform reasonably well as evaluators, but it also revealed systematic biases. MT-Bench and related work showed promising agreement with human preferences, while later work identified position bias, verbosity bias, evaluator self-favoring, and prompt-template sensitivity as persistent issues (Zheng et al., 2023; Dubois et al., 2024; Shi et al., 2025; Wu & Aji, 2023; Stureborg et al., 2024; Panickssery et al., 2024).
+That matters for methodology. If the target concept is politically loaded and operationally unstable, then evaluation cannot be reduced to a single forced-choice classification score. The geometry of the response becomes part of the measurement itself. A system that abstains frequently, uses almost no mid-scale states, and produces nearly all singleton verdicts is doing something meaningfully different from a system that occupies the middle of the scale, returns adjacent subsets, and varies its response breadth across evidence. Those differences are not noise to be averaged away. They are part of the phenomenon.
 
-Our work extends that line from **format bias** to **regime geometry**. We ask not only whether prompt structure changes the score, but whether the entire evaluation surface changes under configuration shifts.
+We therefore treat the judge as a configurable measurement regime. The point is not to identify a universally correct geometry. The point is to map the conditions under which different geometries emerge, determine which interventions materially move them, and build a framework in which those movements can be analyzed systematically.
 
-### 2.2. Political and Ideological Sensitivity
+## 3. System Design
 
-Prior work showed that language models reflect different political priors and alignment effects (Santurkar et al., 2023; Feng et al., 2023; Hartmann et al., 2023). That makes contested-concept judgment a particularly useful stress test: unlike factual QA, disagreement is not necessarily error. The question becomes whether different models and pipeline regimes exhibit systematically different evaluative structures.
+`judge-gym` is a design-space engine for LLM-as-Judge evaluation. Experiments are represented as data rather than as one-off scripts. The main configurable axes include:
 
-### 2.3. Calibration and Uncertainty
+- rubric model
+- scoring model
+- concept framing
+- scale size
+- abstention policy
+- evidence representation level
+- evidence grouping policy
+- scoring method
+- randomization and ordering controls
 
-Probability-style probes tend to outperform verbal confidence for calibration tasks (Kadavath et al., 2022). In our setting, the relevant confidence target is not correctness but **expert agreement belief**, because contested political concepts do not have clean objective labels. Subset verdicts and belief-function style aggregation remain methodologically relevant because they can separate forced-choice inflation from structured ambiguity (Dempster, 1967; Shafer, 1976; Guerdan et al., 2025).
+The engine implements a multi-stage pipeline:
 
-## 3. Conceptual Frame
+1. collect evidence into reusable pools and windows
+2. generate rubrics per sample
+3. critique rubrics for observability and discriminability
+4. score evidence against the rubric
+5. critique scores and compute experiment-level summaries
 
-### 3.1. Contested Concepts
+The important design choice is that the engine treats these settings as an experimental matrix. That makes it possible to compare regimes at matched sample grain instead of only at pooled response grain.
 
-Following Gallie (1956), contested concepts are appraisive, internally complex, revisable, and open to reasonable disagreement. Concepts like fascism or democratic erosion are not simply latent classes waiting to be decoded. They are structured evaluative constructs, which makes them particularly sensitive to the priors and behavioral regimes of automated judges.
+## 4. Measurement Framework
 
-### 3.2. Adjudicative Geometry
+The current analysis framework is built around geometry-first summaries. These are the statistics that turned out to be most interpretable and stable across the pilots:
 
-We use **adjudicative geometry** as a descriptive term for the shape of judge behavior under a given configuration. A judge can be:
+- abstain rate
+- singleton rate
+- mean subset size
+- expected stage
+- mid-scale occupancy
+- stage entropy
+- expert-agreement confidence
 
-- **smooth / graded**, with broad interior-scale usage,
-- **thresholded**, with selective gating,
-- **compressed**, with high abstention and collapsed mid-scale use,
-- or **interior-concentrated**, with low abstention but narrow use of the scale interior.
+These metrics are complemented by several secondary layers:
 
-This language is descriptive rather than causal. It is intended to summarize the behavioral structure of a configuration, not to explain why the behavior occurs.
+- matched family deltas with uncertainty estimates
+- local semantic rubric embeddings
+- aggregation sensitivity panels
+- evidence- and sample-level instability summaries
 
-### 3.3. Adjudicative Compression
+This stack emerged out of the pilots themselves. Earlier versions of the project leaned more heavily on belief-function aggregation. The current evidence suggests a different hierarchy. Geometry-first summaries are the main analytical language. Weighted linear pooling is the most stable global aggregation baseline. DST and TBM remain useful as diagnostic lenses for ambiguity and conflict, but they are not the most reliable headline summary for this use case.
 
-One important geometry we retain from earlier drafts is **adjudicative compression**: reduced effective use of the rubric scale. Operationally, compressed regimes show:
+This choice is also methodologically conservative. The existing evaluator literature already suggests that LLM judgment is sensitive to prompt form, label order, verbosity, and other design choices. The geometry-first framework is an attempt to make that sensitivity visible rather than suppress it inside a single scalar endpoint.
 
-- high abstain rate,
-- near-zero mid-scale occupancy,
-- low stage entropy,
-- and near-total singleton behavior.
+## 5. Experimental Program
 
-The V3 pilot supports compression as a real phenomenon for some configurations, but not as a universal model property.
+### 5.1. V2: Prototype Discovery Pilot
 
-## 4. Methodology
+The first mature pilot asked a simple question: do different frontier and near-frontier models already exhibit qualitatively different judgment regimes under a common setup? The answer was yes.
 
-### 4.1. Design Space Engine
+Under a shared task configuration, models exhibited distinct patterns of scale use, abstention, and dynamic range. Some models distributed mass broadly through the interior of the scale. Others thresholded more sharply. One regime in particular showed a pronounced collapse toward abstention and early-stage outputs. That first pilot did not yet support strong causal claims, but it did establish that adjudicative geometry was a meaningful object of analysis rather than a cosmetic byproduct.
 
-`judge-gym` treats judge evaluation as a configuration surface rather than a fixed benchmark pipeline. The main experiment axes are:
+The main contribution of V2 was therefore discovery. It justified moving from model comparison to matched ablation.
 
-- rubric model,
-- scoring model,
-- concept,
-- scoring method (`single` or `subset`),
-- scale size,
-- abstention policy,
-- evidence view (`l0`, `l1`, `l2`, `l3`),
-- evidence grouping / bundle size,
-- and randomization settings.
+### 5.2. V3: Matched GPT Ablation Pilot
 
-The goal is to treat experiments as data, not code.
+The second pilot was a matched ablation matrix over GPT-family configurations. The original matrix tested abstention, `l3` evidence view, scale size, rubric/scoring model placement, concept framing, smaller/chat variants, and a control condition. A follow-up correction pass repaired the earlier bundle comparisons and added a cleaner clustering panel, high-scale clustered probes, and symmetric small/chat follow-ups.
 
-### 4.2. Pipeline
+The final analyzed slice contains thirty-two completed experiments with thirty matched samples each. Four early legacy bundle experiments were excluded from scientific interpretation because their grouping policy was not comparable across models. The resulting matrix is much cleaner than the earlier exploratory state and is strong enough to support a coherent pilot read.
 
-The current engine implements a five-part workflow:
+## 6. Results
 
-1. **Evidence collection**
-   - collect article evidence into reusable pools and windows
-2. **Rubric generation**
-   - generate a rubric per sample, then critique it for observability and discriminability
-3. **Scoring**
-   - score the evidence against the rubric using configurable scoring behavior
-4. **Aggregation / analysis**
-   - compute sample-level and experiment-level behavioral summaries, plus diagnostic uncertainty summaries
-5. **Follow-up comparison**
-   - compare interventions at matched sample grain rather than only pooled response grain
+### 6.1. Abstention Is a Real Behavioral Lever
 
-### 4.3. Controls
+The abstention toggle is one of the strongest and cleanest interventions in the whole matrix. It changes the operating regime, not just the formatting of the final answer. The effect is especially strong for `gpt-5.2`, but it is visible across the smaller/chat follow-ups as well.
 
-The current pilot line incorporates the following controls:
+The important implication is that abstention cannot be treated as a cosmetic feature or a nuisance control. It is part of the measurement regime. Turning it on changes how the judge occupies the space of possible verdicts.
 
-| Control | Purpose | Status |
-| :------ | :------ | :----- |
-| Tone neutralization | reduce style / rhetoric confounds | implemented |
-| Scale design | reduce midpoint and compression ambiguity | active ablation axis |
-| Label/order randomization | reduce anchor and position bias | active |
-| Rubric validation | reduce rubric-quality confounding | active |
-| Abstention gate | separate refusal from forced-choice inflation | active |
-| Fresh-context probing | reduce confidence-context leakage | partially developed |
-| Free-form suffix parsing | avoid structured-output degradation | active |
+### 6.2. Concept Framing Is One of the Largest Movers
 
-These design choices are directly motivated by the evaluator-bias literature (Wu & Aji, 2023; Dubois et al., 2024; Krumdick et al., 2025; Tam et al., 2024).
+The concept swap from fascism to illiberal democracy produces one of the largest matched shifts in the matrix. It changes abstention, subset breadth, and expected stage together. That coherence makes it one of the strongest findings in the current project.
 
-### 4.4. Measurement Stack
+This result matters because it shows that concept framing is not a shallow wording tweak. The choice of conceptual frame is one of the main determinants of evaluative behavior. For contested-concept measurement, concept engineering is not a peripheral concern. It is central.
 
-The current analysis uses several overlapping lenses:
+### 6.3. Model Placement Inside the Pipeline Matters
 
-- abstain rate,
-- singleton rate,
-- mean subset size,
-- expected stage,
-- mid-scale occupancy,
-- stage entropy,
-- expert-agreement confidence,
-- DST / TBM style belief aggregation,
-- local semantic rubric embeddings.
+The rubric/scoring role swap shows that model identity is not the whole story. Which model generates the rubric and which model applies it affects abstention and confidence materially. That means pipeline placement is a first-class experimental axis. The configured pair matters, not just the individual model labels.
 
-The current lesson from V3 is that **geometry-first metrics** are more interpretable than any single aggregation formalism on their own.
+### 6.4. Compression Is Real, but It Is Not the Only Non-Smooth Regime
 
-## 5. Pilot Evidence
+The control condition yields a genuinely compressed regime: very high abstention, almost no mid-scale use, low stage entropy, and near-total singleton behavior. That is a real empirical phenomenon and deserves to be named.
 
-### 5.1. V2 - Engine Prototype Testing
+But V3 also shows that not all unusual regimes look like compression. The corrected clustered bundle and high-scale follow-ups reveal a different pattern: low abstention, high interior occupancy, and broader subset use. This is not smooth graded use in the ordinary sense, but it is also not collapse. It is better described as interior concentration.
 
-The V2 pilot established that distinct models can exhibit qualitatively distinct adjudicative geometries under a common engine setup.
+This distinction is important. Without it, different kinds of non-smooth behavior get flattened into the same story. The pilots now support at least four descriptive geometry types:
 
-The main findings were:
+- smooth graded use
+- thresholded gating
+- abstain-heavy compression
+- interior concentration
 
-- models differed in mid-scale occupancy, abstention, and dynamic range,
-- within-vendor version differences could exceed cross-vendor differences,
-- `gpt-5.2-chat` exhibited a compressed regime relative to `gpt-4.1` and Qwen,
-- and these differences were strong enough to justify an ablation-oriented follow-up rather than a simple model bakeoff.
+### 6.5. Bundle Construction Is Part of the Instrument
 
-The key V2 contribution was discovery: geometry itself appeared to be a meaningful object of analysis.
+The corrected bundle comparisons are one of the most important methodological results in the project. Changing the grouping policy of the same evidence universe changes abstention, singleton behavior, subset breadth, and belief-function conflict. In other words, clustering is not just a data-preparation detail. It is part of the measurement instrument.
 
-### 5.2. V3 - GPT Ablations
+This changes how the project should be interpreted going forward. Evidence bundles cannot be treated as innocent packaging. They are one of the ways the experimental surface is instantiated. If they are not standardized, the comparison surface itself becomes unstable.
 
-The V3 pilot moved from pooled comparison to a matched intervention matrix over 22 completed experiments, with 30 samples per experiment.
+### 6.6. `l3` Remains Weaker Than Expected
 
-The strongest V3 findings were:
+The expectation going into V3 was that abstracted evidence might materially change the geometry of judgment. In the current matrix, that effect is weaker than expected. Once the corrected clustering surface is in place, `l3` still moves the regime modestly, but it does not move it at the level of abstention, concept framing, or model placement.
 
-1. **Abstention is a real behavioral lever.**
-   - especially strong for `gpt-5.2`
-2. **Concept framing is one of the strongest movers.**
-   - `fascism` versus `illiberal democracy` produced large matched shifts
-3. **Rubric/scoring model placement matters.**
-   - the role split is a real design axis
-4. **Adjudicative compression is real, but not universal.**
-   - the `d1` control produced a genuinely compressed regime
-5. **`l3` was weaker than expected in the frozen matrix.**
-6. **Scale size mostly changed expressivity, not certainty.**
+This does not mean `l3` is useless. It means it is not a first-order driver in the current setup. It remains worth keeping in the design space, especially for future cross-provider comparisons, but the present evidence does not support treating it as a dominant intervention.
 
-### 5.3. Two Different Non-Smooth Regimes
+### 6.7. Scale Size Changes Expression More Than Confidence
 
-V3 also showed that "weird geometry" is not one phenomenon.
+The move from four to five stages lowers abstention and raises expected stage, especially for `gpt-5.2`. The higher clustered scale probes extend that result. `gpt-4.1` uses the added expressive space more cleanly than `gpt-5.2`. The main pattern, however, is consistent: larger scales mostly change how the model expresses judgment, not how confident it reports itself to be.
 
-At minimum, the current evidence supports two distinct non-smooth regimes:
+This is a useful result because it narrows the interpretation of scale design. Scale size seems to be an expressivity lever more than a certainty lever. That suggests future scale ablations should be tied more tightly to geometry than to calibration claims.
 
-1. **Compression**
-   - high abstain,
-   - near-zero mid-scale occupancy,
-   - low entropy,
-   - near-total singleton behavior
-2. **Interior concentration**
-   - low abstain,
-   - high mid-scale occupancy,
-   - broader subset use,
-   - but still a relatively narrow internal operating band
+### 6.8. Smaller and Chat Variants Are Not Merely Weaker Copies
 
-This is important because it means future analysis should not treat every non-smooth output regime as the same pathology.
+The follow-up panel shows that `gpt-4.1-mini` and `gpt-5.2-chat` are not simply reduced-capability versions of the mainline regimes. They occupy distinct geometries. In particular, the clustered bundle follow-up for `gpt-5.2-chat` is one of the stronger positive results in the whole follow-up panel.
 
-### 5.4. Rubric Layer Findings
+This matters for study design. If smaller/chat models are treated only as cheaper proxies, the resulting comparison misses the fact that they may be operating under different behavioral regimes altogether.
 
-The current rubric analysis now includes real local semantic embeddings, not just lexical overlap.
+### 6.9. Rubric Semantics Matter, but They Are Not the Whole Story
 
-The strongest current rubric-layer conclusions are:
+The rubric analysis now includes real local semantic embeddings. The main result is that matched contrasts often retain high full-rubric similarity, while larger differences emerge at the stage level, especially toward the upper part of the scale.
 
-- full-rubric similarity is generally high across matched contrasts,
-- the larger semantic shifts often appear at the **stage level**, especially upper stages,
-- many behavioral differences are therefore likely happening in scoring behavior and evidence interaction, not solely through wholesale rubric rewrites.
+That means many behavioral shifts cannot be explained by wholesale rubric rewrites. A significant share of the action is happening in scoring behavior and evidence interaction. The rubric layer is part of the explanation, but not the whole explanation.
 
-This makes the rubric layer important, but not sufficient as a full explanation of V3 behavior.
+### 6.10. Geometry-First Analysis Is More Stable Than Global Conflict-Heavy Aggregation
 
-## 6. What We Think Is Real
+Belief-function aggregation is still informative, especially for diagnosing bundle-policy sensitivity and conflict structure. But the pilot now makes the hierarchy clearer. Geometry-first summaries are the most stable and interpretable analytical backbone. Weighted linear pooling is the best behaved global aggregation baseline. Log pooling is sharper but more brittle. Local DST and TBM remain useful as diagnostic ambiguity lenses, not as the main headline summary.
 
-The strongest current claims are:
+This is not a rejection of belief-function thinking. It is a narrowing of role. For this use case, the main report should be geometry-first. Belief-style aggregation belongs in the sensitivity and robustness layer.
 
-1. **Adjudicative geometry is configuration-sensitive.**
-2. **Abstention is not cosmetic.**
-3. **Concept framing matters materially.**
-4. **Pipeline placement matters.**
-5. **Compression is a real descriptive phenomenon for some configurations.**
+## 7. Interpretation
 
-These are all supported by current pilot evidence without requiring a stronger theoretical claim than the data can currently bear.
+The most important conceptual result of the pilots is that LLM-as-Judge behavior over contested concepts should be treated as a configurable measurement regime. Once that framing is adopted, several puzzles become easier to interpret.
 
-## 7. What We Do Not Yet Think Is Established
+Why does the same model family sometimes look compressed and sometimes look expressive? Because the model label alone is not the operative object. The operative object is the configured regime. Why do bundle comparisons matter so much? Because the way evidence is grouped changes the measurement instrument itself. Why does concept framing move so much? Because contested concepts are not neutral class names. They shape the evaluative surface the model is asked to inhabit.
 
-We do **not** currently think the following are established:
+The project therefore shifts from a search for the best judge in the abstract to a search for a stable and interpretable measurement framework. That is a more demanding goal, but it is also the only framing that matches the empirical behavior we have observed.
 
-1. **Epistemic entrenchment** as the primary framing.
-   - The evidence is stronger on geometry than on strong claims about entrenched epistemics.
-2. **Clean causal interpretation of the bundle families.**
-   - `a6/a7` remain interesting but methodologically messy in V3.
-3. **`l3` as a major first-order lever.**
-   - It remains worth testing, but the frozen V3 matrix does not support a strong claim.
-4. **DST as the dominant interpretive lens.**
-   - It remains useful, but geometry-first interpretation is currently more robust.
+## 8. Limitations
 
-## 8. Current Research Direction
+The current evidence remains pilot-scale. The matrix is much cleaner than the earlier exploratory passes, but it is still small relative to the ambition of the framework.
 
-The project should currently be framed as:
+The strongest current claims are about geometry and matched intervention effects, not about human validity or external truth. The project does not yet establish that any given regime is correct. It establishes that regimes differ materially and systematically.
 
-> judge-gym is a design-space engine for measuring how LLM judge configurations reshape adjudicative geometry on contested concepts.
+Several important tasks remain incomplete:
 
-The near-term purpose of V3.1 is not to reopen the whole study, but to resolve the strongest remaining ambiguities:
+- direct certainty analysis by verdict geometry
+- motif-level rubric analysis
+- broader provider-family comparisons
+- stronger case-study treatment of the most unstable samples
+- more formal robustness treatment for global aggregation choices
 
-1. fix the bundle/clustering comparison surface,
-2. run symmetric smaller/chat model follow-ups,
-3. probe higher-cardinality clustered scales,
-4. improve verdict-geometry versus certainty analysis.
+The project is also still concentrated in a narrow provider space. That was acceptable for a pilot designed to stabilize the instrument, but it should not be mistaken for a comprehensive comparative study.
 
-If these succeed, the project will have a much stronger basis for a more stable paper draft.
+## 9. Toward V4
 
-## 9. Limitations
+The next pilot should be narrower in narrative scope and broader in experimental support.
 
-- The current evidence is still pilot-scale.
-- Some key families, especially the bundle families, remain partly descriptive rather than cleanly causal.
-- The rubric-embedding layer is now real, but motif-level rubric analysis remains future work.
-- The relationship between verdict geometry and expert-agreement certainty is not yet fully analyzed.
-- The current aggregation stack is still partly diagnostic rather than final.
+First, the provider family should expand. The current project is strong enough to justify symmetric follow-up panels across additional commercial and open-weight families. The point is no longer to see whether the phenomenon exists. The point is to determine how much of it is regime-specific versus provider-family-specific.
 
-## 10. Selected References
+Second, the window and bundle process should be standardized more aggressively. Bundle plans should be first-class measurement objects. Random baselines, semantic clusters, and projected abstraction bundles should be reusable plans defined over a shared evidence universe. That would make matching provable rather than merely plausible.
 
-Dempster, A. P. (1967). Upper and lower probabilities induced by a multivalued mapping. _The Annals of Mathematical Statistics_, 38(2), 325-339.
+Third, concept-space exploration should become more explicit. The current concept result is already strong enough to justify treating conceptual engineering as part of the experimental program. A future pass should move from isolated concept swaps to a small engineered family of related successor concepts and test whether some of them induce more stable geometries than inherited political labels do.
 
-Dubois, Y., Li, X., Taori, R., Zhang, T., Gulrajani, I., Ba, J., Guestrin, C., Liang, P., & Hashimoto, T. (2024). Alpaca-Eval 2: Length-controlled evaluation of instruction-following models.
+Fourth, the analysis stack should continue to formalize its own outputs. Pre-registered primary endpoints, standard multiplicity control, stronger verdict-geometry certainty tables, and a tighter split between report-grade and exploratory figures would make the system more legible and easier to extend.
 
-Feng, S., Park, C. Y., Liu, Y., & Tsvetkov, Y. (2023). From pretraining data to language models to downstream tasks: Tracking the trails of political biases leading to unfair NLP models.
+## 10. Conclusion
 
-Gallie, W. B. (1956). Essentially contested concepts. _Proceedings of the Aristotelian Society_, 56, 167-198.
+The main result of this project is not that one model won a benchmark. The main result is that contested-concept LLM judging is configuration-sensitive in ways that are empirically large, methodologically important, and analytically tractable.
 
-Guerdan, L., et al. (2025). Rating indeterminacy: Examining when LLM evaluators disagree with humans.
+Across the current pilots, several findings now look robust enough to carry forward: abstention is a real behavioral lever, concept framing is one of the strongest movers, model placement matters, compression is real but not universal, and bundle construction is part of the instrument. These findings support a shift in how LLM-as-Judge systems should be studied in politically and conceptually contested settings.
 
-Hartmann, J., Schwenzow, J., & Witte, M. (2023). The political ideology of conversational AI: Converging evidence on ChatGPT's pro-environmental, left-libertarian orientation.
+The project is therefore best understood as the construction of a measurement framework. The framework is not finished. But it is far enough along to support a clear conclusion: if contested-concept judging is going to be studied seriously, it has to be studied as a design space, not as a single frozen evaluator.
 
-Kadavath, S., Conerly, T., Askell, A., et al. (2022). Language models (mostly) know what they know.
+## References
 
-Kim, S., Shin, J., Cho, Y., et al. (2024). Prometheus 2: An open source language model specialized in evaluating other language models.
+Dubois, Y., Li, X., Taori, R., Zhang, T., Gulrajani, I., Ba, J., Guestrin, C., Liang, P., & Hashimoto, T. Alpaca-Eval 2: Length-controlled evaluation of instruction-following models.
 
-Krumdick, M., Lovering, C., Singh, S., & Hoover, B. (2025). No free labels: Limitations of LLM-as-a-judge without human grounding.
+Gallie, W. B. Essentially contested concepts.
 
-Panickssery, A., Bowman, S. R., & Feng, S. (2024). LLM evaluators recognize and favor their own generations.
+Guerdan, L., et al. Rating indeterminacy: Examining when LLM evaluators disagree with humans.
 
-Santurkar, S., Durmus, E., Ladhak, F., Lee, C., Liang, P., & Hashimoto, T. (2023). Whose opinions do language models reflect?
+Kadavath, S., Conerly, T., Askell, A., et al. Language models (mostly) know what they know.
 
-Shafer, G. (1976). _A Mathematical Theory of Evidence_. Princeton University Press.
+Krumdick, M., Lovering, C., Singh, S., & Hoover, B. No free labels: Limitations of LLM-as-a-judge without human grounding.
 
-Shankar, S., Le, D., Basta, S., Lakhotia, K., Edunov, S., & Ghosh, S. (2024). Who validates the validators? Aligning LLM-assisted evaluation of LLM outputs with human preferences.
+Panickssery, A., Bowman, S. R., & Feng, S. LLM evaluators recognize and favor their own generations.
 
-Shi, Z., Wang, J., Huang, Z., et al. (2025). Judging the judges: Evaluating alignment and vulnerabilities in LLMs-as-judges.
+Santurkar, S., Durmus, E., Ladhak, F., Lee, C., Liang, P., & Hashimoto, T. Whose opinions do language models reflect?
 
-Stureborg, R., Alikaniotis, D., & Suhara, Y. (2024). Large language models are inconsistent and biased evaluators.
+Shafer, G. A Mathematical Theory of Evidence.
 
-Tam, Z. R., Wu, C., Tsai, Y., et al. (2024). Let me speak freely? A study on the impact of format restrictions on performance of large language models.
+Shi, Z., Wang, J., Huang, Z., et al. Judging the judges: Evaluating alignment and vulnerabilities in LLMs-as-judges.
 
-Tan, J., Jiang, T., & Bansal, M. (2024). JudgeBench: A benchmark for evaluating LLM-based judges.
+Stureborg, R., Alikaniotis, D., & Suhara, Y. Large language models are inconsistent and biased evaluators.
 
-Wu, M., & Aji, A. F. (2023). Style over substance: Evaluation biases for large language models.
+Tam, Z. R., Wu, C., Tsai, Y., et al. Let me speak freely? A study on the impact of format restrictions on performance of large language models.
 
-You, J., Ying, Z., & Leskovec, J. (2020). Design space for graph neural networks.
+Wu, M., & Aji, A. F. Style over substance: Evaluation biases for large language models.
 
-Zheng, L., Chiang, W., Sheng, Y., et al. (2023). Judging LLM-as-a-judge with MT-Bench and Chatbot Arena.
+Zheng, L., Chiang, W., Sheng, Y., et al. Judging LLM-as-a-judge with MT-Bench and Chatbot Arena.

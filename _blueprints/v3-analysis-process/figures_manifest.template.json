@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "createdAt": "2026-03-19",
+  "contractRef": {
+    "contractPath": "_blueprints/v3-analysis-process/analysis_contract.json",
+    "contractHash": "REPLACE_WITH_HASH"
+  },
+  "figures": [
+    {
+      "figureId": "hero_contrast_heatmap",
+      "tier": "hero",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png",
+      "purpose": "One-screen summary of primary endpoints across inferential contrasts.",
+      "inputs": [
+        "tables/family_effects.csv",
+        "tables/family_effects_qvalues.csv"
+      ],
+      "readability": {
+        "status": "report_grade",
+        "knownIssues": [],
+        "repairTransforms": []
+      }
+    },
+    {
+      "figureId": "c7_scale_9_verdict_distribution",
+      "tier": "exploratory",
+      "path": "packages/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/c7_bundle_5_cluster_l2_scale_9_verdict_distribution.png",
+      "purpose": "Exploratory distribution over subset verdict categories under high scale; expected to be unreadable without bucketing.",
+      "inputs": ["tables/bundle_verdict_profiles.csv"],
+      "readability": {
+        "status": "unreadable",
+        "knownIssues": [
+          "verdict-category explosion",
+          "axis label overlap",
+          "dense per-cell annotations"
+        ],
+        "repairTransforms": [
+          "bucket_verdicts_by_geometry",
+          "drop_cell_annotations_above_threshold",
+          "paginate_facets"
+        ]
+      }
+    }
+  ]
+}
+

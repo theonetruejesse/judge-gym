@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "For V3/V3.1, the primary aggregation stack should be geometry-first metrics plus a weighted linear opinion pool over stage distributions, while DST/TBM should remain a local diagnostic lens rather than the headline experiment-level summary.",
+  "confidence": 0.76,
+  "rationale": "The literature and local outputs both suggest that global DST/TBM conflict is highly sensitive to dependence and fan-in, whereas weighted pooling provides a more stable comparison baseline.",
+  "keyAssumptions": [
+    "The main question is comparative stance and behavior, not formal belief-function conflict as an end in itself."
+  ],
+  "validationCriteria": [
+    "Primary V3 rankings and intervention reads remain stable under weighted linear pooling.",
+    "DST/TBM is retained only for local bundle diagnostics and sensitivity checks."
+  ],
+  "critiquePoints": [
+    "Some meaningful uncertainty structure may be lost if DST/TBM is demoted too far."
+  ],
+  "questions": [
+    "Should the linear pool include an explicit abstain bin or treat abstentions as missing for some summaries?"
+  ]
+}
