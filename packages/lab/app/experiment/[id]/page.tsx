@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "@judge-gym/engine";
+import { api } from "@judge-gym/engine-convex";
 import {
   RANDOMIZATION_LABELS,
   SCORING_METHOD_LABELS,

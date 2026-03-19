@@ -10,5 +10,5 @@ if [ -f "$ROOT_DIR/.env.local" ]; then
 fi
 
 exec npx -y convex@latest mcp start \
-  --project-dir "$ROOT_DIR/packages/engine" \
+  --project-dir "$ROOT_DIR/packages/engine-convex" \
   --disable-tools envGet,envSet,envRemove,tables

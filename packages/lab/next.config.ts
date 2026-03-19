@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
-  transpilePackages: ["@judge-gym/engine"],
+  transpilePackages: ["@judge-gym/engine-convex"],
   env: {
     NEXT_PUBLIC_CONVEX_URL: convexUrl,
   },

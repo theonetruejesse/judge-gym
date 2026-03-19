@@ -1,4 +1,4 @@
-import { modelTypeSchema, type ModelType } from "@judge-gym/engine";
+import { modelTypeSchema, type ModelType } from "@judge-gym/engine-convex";
 
 export const MODEL_OPTIONS = modelTypeSchema.options.map(
   (option) => option.valueOf(),

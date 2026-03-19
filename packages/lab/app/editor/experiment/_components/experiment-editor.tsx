@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
-import { api } from "@judge-gym/engine";
+import { api } from "@judge-gym/engine-convex";
 import LabNavbar from "@/components/lab_navbar";
 import { ExperimentForm } from "./experiment-form";
 import {

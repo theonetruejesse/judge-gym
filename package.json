@@ -14,7 +14,7 @@
     "build": "turbo build",
     "test": "turbo test",
     "typecheck": "turbo run typecheck",
-    "validate:convex": "(cd packages/engine && npx convex codegen) && bun run typecheck"
+    "validate:convex": "(cd packages/engine-convex && npx convex codegen) && bun run typecheck"
   },
   "devDependencies": {
     "@types/bun": "latest",

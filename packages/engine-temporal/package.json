@@ -1,21 +1,21 @@
 {
-  "name": "@judge-gym/temporal-engine",
+  "name": "@judge-gym/engine-temporal",
   "version": "0.1.0",
   "private": true,
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "nodemon src/dev.ts",
+    "dev": "../../scripts/with_root_env.sh nodemon src/dev.ts",
     "build": "tsc --build",
     "build.watch": "tsc --build --watch",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "start": "ts-node src/worker.ts",
-    "start.watch": "nodemon src/worker.ts",
+    "start": "../../scripts/with_root_env.sh ts-node src/worker.ts",
+    "start.watch": "../../scripts/with_root_env.sh nodemon src/worker.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "workflow": "ts-node src/client.ts",
+    "workflow": "../../scripts/with_root_env.sh ts-node src/client.ts",
     "test": "mocha --exit --require ts-node/register --require source-map-support/register src/mocha/*.test.ts"
   },
   "nodemonConfig": {

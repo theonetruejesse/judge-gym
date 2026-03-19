@@ -5,7 +5,7 @@ import {
   SCORING_METHOD_LABELS,
   VIEW_LABELS,
 } from "@/lib/ui-maps";
-import type { ModelType } from "@judge-gym/engine";
+import type { ModelType } from "@judge-gym/engine-convex";
 const methodOptions = Object.keys(SCORING_METHOD_LABELS) as [
   "single",
   "subset",

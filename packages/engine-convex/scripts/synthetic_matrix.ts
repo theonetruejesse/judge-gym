@@ -146,7 +146,7 @@ function initReport() {
     "",
     `- generated_at: ${nowIso()}`,
     `- label: ${reportLabel}`,
-    "- runner: `packages/engine/scripts/synthetic_matrix.ts`",
+    "- runner: `packages/engine-convex/scripts/synthetic_matrix.ts`",
     "",
     "## Scenarios",
     "",

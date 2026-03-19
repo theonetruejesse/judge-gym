@@ -67,4 +67,4 @@ echo "Syncing Python dependencies..."
 
 echo "Setup complete."
 echo "Next: start Convex dev server with:"
-echo "  cd packages/engine && bun run dev"
+echo "  cd packages/engine-convex && bun run dev"

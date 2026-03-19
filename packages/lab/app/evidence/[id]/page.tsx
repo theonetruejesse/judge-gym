@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "@judge-gym/engine";
+import { api } from "@judge-gym/engine-convex";
 import { NORMALIZATION_LEVELS, VIEW_LABELS } from "@/lib/ui-maps";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

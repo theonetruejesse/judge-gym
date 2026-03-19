@@ -19,7 +19,17 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Validation routine**
 
 - After Convex schema or function changes, run `bun run validate:convex` from the repo root.
-- That routine runs `npx convex codegen` in `packages/engine` and then the root TypeScript typecheck.
+- That routine runs `npx convex codegen` in `packages/engine-convex` and then the root TypeScript typecheck.
+
+**JavaScript install flow**
+
+- Use `bun install` from the repo root as the only supported JavaScript dependency install flow.
+- Workspace packages should not keep independent npm lockfiles.
+
+**Environment source of truth**
+
+- The repo root `.env.local` is the source of truth for shared runtime configuration.
+- Package-local env files are optional convenience copies only; the live package scripts now source the root `.env.local`.
 
 **What exists today**
 
@@ -71,8 +81,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
 - Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving windows, pools, and the experiment config intact.
-- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine`) to run an Axiom ingest smoke test through Convex.
-- The engine now includes a codex live-debug surface (`packages/engine/convex/maintenance/codex.ts`) with process health, local recent-event tailing, Axiom trace references, and safe auto-heal actions for run/window flows.
+- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine-convex`) to run an Axiom ingest smoke test through Convex.
+- The engine now includes a codex live-debug surface (`packages/engine-convex/convex/maintenance/codex.ts`) with process health, local recent-event tailing, Axiom trace references, and safe auto-heal actions for run/window flows.
 - `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
 - `getProcessHealth` now returns `request_state_meta` (`approximate`, scanned target count, snapshot freshness) so operators can detect when health is in bounded/approximate mode.
 - Run diagnostics now read run-scoped artifacts and requests via direct `run_id` indexes (`rubrics`, `rubric_critics`, `scores`, `score_critics`, `llm_requests`) instead of full-table artifact scans.
@@ -88,12 +98,12 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - Window finalization now waits for zero in-flight transport work (queued/running/finalizing batch/job) before emitting `window_completed`, and workflow transport finalizers trigger an explicit stage reconcile pass so completion/error can finalize after the last job/batch closes.
 - `startScheduler` now debounces repeated kickoff requests via `scheduler_locks` before falling back to the bounded `_scheduled_functions` scan, reducing duplicate-start contention during operator/manual nudges.
-- The engine includes Bun live-debug commands in `packages/engine`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
-- The engine includes Bun process telemetry analysis in `packages/engine`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
-- The engine includes a synthetic matrix runner in `packages/engine`: `bun run debug:matrix` (nuke-per-scenario, synthetic window/run setup, telemetry report output).
-- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine/docs/`.
+- The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
+- The engine includes Bun process telemetry analysis in `packages/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
+- The engine includes a synthetic matrix runner in `packages/engine-convex`: `bun run debug:matrix` (nuke-per-scenario, synthetic window/run setup, telemetry report output).
+- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
-- A new live E2E matrix test (`packages/engine/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
+- A new live E2E matrix test (`packages/engine-convex/convex/tests/live_e2e_matrix.test.ts`) drives production lab endpoints and reports run diagnostics + trace ordering.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
@@ -116,19 +126,21 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Top-level packages**
 | Path | Role |
 | --- | --- |
-| `packages/engine` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
+| `packages/engine-convex` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
+| `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, and runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
-| `packages/temporal-engine` | Temporal worker package for background workflow execution experiments |
+| `packages/engine-temporal` | Temporal worker package for background workflow execution experiments |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
 **Local development**
 
-- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal dev server in `packages/temporal-server` and the Temporal worker in `packages/temporal-engine`.
+- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal dev server in `packages/temporal-server` and the Temporal worker in `packages/engine-temporal`.
 - The Temporal server persists local state to `packages/temporal-server/.temporal/dev.sqlite3` by default and serves the Web UI on `http://127.0.0.1:8233`.
+- `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
 
-**Engine internals (`packages/engine/convex/`)**
+**Engine internals (`packages/engine-convex/convex/`)**
 | Path | Role |
 | --- | --- |
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
@@ -335,7 +347,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 ## Run Policy Defaults
 
-`ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine/convex/settings.ts`.
+`ENGINE_SETTINGS.run_policy` governs batching, polling, retries, and token limits. These defaults are hardcoded in `packages/engine-convex/convex/settings.ts`.
 
 | Policy field              | Default | Meaning                                                   | Enforced in                            |
 | ------------------------- | ------- | --------------------------------------------------------- | -------------------------------------- |
@@ -424,13 +436,13 @@ stateDiagram-v2
 
 ## Key Files to Trace
 
-- Orchestration base: `packages/engine/convex/domain/orchestrator/base.ts`
-- Window orchestrator: `packages/engine/convex/domain/window/window_orchestrator.ts`
-- Window flow lifecycle: `packages/engine/convex/domain/window/window_service.ts`
-- Evidence search: `packages/engine/convex/domain/window/evidence_search.ts`
-- Scheduler: `packages/engine/convex/domain/orchestrator/scheduler.ts`
-- Workflows: `packages/engine/convex/domain/orchestrator/process_workflows.ts`
-- LLM services: `packages/engine/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`
-- Rate limiting: `packages/engine/convex/platform/rate_limiter/*`
-- Provider calls: `packages/engine/convex/platform/providers/*`
-- Schema and models: `packages/engine/convex/schema.ts`, `packages/engine/convex/models/*`
+- Orchestration base: `packages/engine-convex/convex/domain/orchestrator/base.ts`
+- Window orchestrator: `packages/engine-convex/convex/domain/window/window_orchestrator.ts`
+- Window flow lifecycle: `packages/engine-convex/convex/domain/window/window_service.ts`
+- Evidence search: `packages/engine-convex/convex/domain/window/evidence_search.ts`
+- Scheduler: `packages/engine-convex/convex/domain/orchestrator/scheduler.ts`
+- Workflows: `packages/engine-convex/convex/domain/orchestrator/process_workflows.ts`
+- LLM services: `packages/engine-convex/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`
+- Rate limiting: `packages/engine-convex/convex/platform/rate_limiter/*`
+- Provider calls: `packages/engine-convex/convex/platform/providers/*`
+- Schema and models: `packages/engine-convex/convex/schema.ts`, `packages/engine-convex/convex/models/*`

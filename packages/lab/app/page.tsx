@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "@judge-gym/engine";
+import { api } from "@judge-gym/engine-convex";
 import { STATUS_COLORS, STATUS_COLORS_MUTED } from "@/lib/ui-maps";
 import { Button } from "@/components/ui/button";
 import {

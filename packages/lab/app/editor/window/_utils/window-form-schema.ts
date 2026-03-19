@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { MODEL_OPTIONS } from "@/lib/ui-maps";
-import type { ModelType } from "@judge-gym/engine";
+import type { ModelType } from "@judge-gym/engine-convex";
 
 const modelOptions = MODEL_OPTIONS as [ModelType, ...ModelType[]];
 
