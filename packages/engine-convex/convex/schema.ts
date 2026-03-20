@@ -7,6 +7,10 @@ import {
   LlmRequestsTableSchema,
   ProcessRequestTargetStateTableSchema,
 } from "./models/llm_calls";
+import {
+  LlmAttemptPayloadsTableSchema,
+  LlmAttemptsTableSchema,
+} from "./models/attempts";
 import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
 import {
   ExperimentsTableSchema,
@@ -37,6 +41,14 @@ import {
 export default defineSchema({
   llm_prompt_templates: defineTable(zodOutputToConvex(LlmPromptTemplatesTableSchema))
     .index("by_content_hash", ["content_hash"]),
+  llm_attempts: defineTable(zodOutputToConvex(LlmAttemptsTableSchema))
+    .index("by_process", ["process_kind", "process_id"])
+    .index("by_process_stage", ["process_kind", "process_id", "stage"])
+    .index("by_target", ["target_type", "target_id"])
+    .index("by_status", ["status"]),
+  llm_attempt_payloads: defineTable(zodOutputToConvex(LlmAttemptPayloadsTableSchema))
+    .index("by_attempt", ["attempt_id"])
+    .index("by_attempt_kind", ["attempt_id", "kind"]),
   llm_batches: defineTable(zodOutputToConvex(LlmBatchesTableSchema))
     .index("by_status", ["status"])
     .index("by_custom_key_status", ["custom_key", "status"])

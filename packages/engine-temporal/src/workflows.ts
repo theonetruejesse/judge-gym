@@ -157,33 +157,54 @@ async function executeProcessWorkflow<TStage extends string>(args: {
     };
   });
 
-  snapshot.executionStatus = "running";
-  await projectSnapshot(snapshot);
-
-  for (const stage of args.stages) {
-    await awaitResume();
-
-    snapshot.stage = stage;
-    snapshot.stageStatus = "running";
-    snapshot.executionStatus = paused ? "paused" : "running";
+  try {
+    snapshot.executionStatus = "running";
     await projectSnapshot(snapshot);
 
-    await runStageActivity(snapshot, stage);
+    for (const stage of args.stages) {
+      await awaitResume();
 
-    snapshot.stageHistory = [...snapshot.stageHistory, stage];
+      snapshot.stage = stage;
+      snapshot.stageStatus = "running";
+      snapshot.executionStatus = paused ? "paused" : "running";
+      await projectSnapshot(snapshot);
+
+      const stageResult = await runStageActivity(snapshot, stage);
+
+      snapshot.stageHistory = [...snapshot.stageHistory, stage];
+      snapshot.stageStatus = "done";
+
+      if (stageResult.errorMessage) {
+        snapshot.lastErrorMessage = stageResult.errorMessage;
+      }
+
+      if (stageResult.haltProcess) {
+        snapshot.executionStatus =
+          stageResult.terminalExecutionStatus ?? "completed";
+        await projectSnapshot(snapshot);
+        return snapshot;
+      }
+
+      await projectSnapshot(snapshot);
+
+      if (snapshot.pauseAfter === stage) {
+        paused = true;
+        await awaitResume();
+      }
+    }
+
+    snapshot.executionStatus = "completed";
     snapshot.stageStatus = "done";
     await projectSnapshot(snapshot);
-
-    if (snapshot.pauseAfter === stage) {
-      paused = true;
-      await awaitResume();
-    }
+    return snapshot;
+  } catch (error) {
+    snapshot.executionStatus = "failed";
+    snapshot.stageStatus = "failed";
+    snapshot.lastErrorMessage =
+      error instanceof Error ? error.message : String(error);
+    await projectSnapshot(snapshot);
+    throw error;
   }
-
-  snapshot.executionStatus = "completed";
-  snapshot.stageStatus = "done";
-  await projectSnapshot(snapshot);
-  return snapshot;
 }
 
 export async function runWorkflow(

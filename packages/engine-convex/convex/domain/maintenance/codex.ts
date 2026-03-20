@@ -2887,7 +2887,7 @@ export const backfillExperimentBundlePlans: ReturnType<typeof zMutation> = zMuta
         createdBundlePlan = ensured.created;
         if (previousBundlePlanId !== nextBundlePlanId) {
           await ctx.db.patch(experiment._id, {
-            bundle_plan_id: nextBundlePlanId,
+            bundle_plan_id: nextBundlePlanId ?? undefined,
           });
         }
       } else if (previousBundlePlanId != null && existing == null) {

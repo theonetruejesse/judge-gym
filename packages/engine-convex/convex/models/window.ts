@@ -13,6 +13,9 @@ export const WindowsTableSchema = z.object({
     end_date: z.string(),
     country: z.string(),
     query: z.string(),
+    workflow_id: z.string().nullable().optional(),
+    workflow_run_id: z.string().nullable().optional(),
+    last_error_message: z.string().nullable().optional(),
 });
 
 export const EvidencesTableSchema = z.object({
@@ -22,10 +25,16 @@ export const EvidencesTableSchema = z.object({
     l0_raw_content: z.string(),
     l1_cleaned_content: z.string().nullable(),
     l1_request_id: zid("llm_requests").nullable(),
+    l1_attempt_id: zid("llm_attempts").nullable().optional(),
+    l1_error_message: z.string().nullable().optional(),
     l2_neutralized_content: z.string().nullable(),
     l2_request_id: zid("llm_requests").nullable(),
+    l2_attempt_id: zid("llm_attempts").nullable().optional(),
+    l2_error_message: z.string().nullable().optional(),
     l3_abstracted_content: z.string().nullable(),
     l3_request_id: zid("llm_requests").nullable(),
+    l3_attempt_id: zid("llm_attempts").nullable().optional(),
+    l3_error_message: z.string().nullable().optional(),
 });
 
 export const PoolsTableSchema = z.object({

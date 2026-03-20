@@ -33,7 +33,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 **What exists today**
 
-- Evidence windows are fully orchestrated in the Convex engine with a 3-stage LLM pipeline (clean → neutralize → abstract).
+- Evidence windows are now started from the Convex engine and executed by a Temporal-owned `WindowWorkflow` with the same 3-stage LLM pipeline (clean → neutralize → abstract).
+- The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
@@ -59,8 +60,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Ops now also include `packages/codex:backfillExperimentTotalCounts` to repair historical experiment aggregates after the `total_count` addition.
 - Ops now also include `packages/codex:backfillSampleScoreCounts` to repair historical sample score aggregates and strip legacy sample score ID fields before their final schema removal.
 - Run-stage reconcile now emits explicit reconcile outcomes (`run_stage_reconciled`) and can fail-safe pause a run (`status=paused`) when reconcile fails with no active transport left.
-- The engine has a scheduler, batch/job orchestration, and rate limiting.
-- Run-level experiment orchestration (rubric generation + scoring + critics) is implemented in the Convex engine.
+- Run-level experiment orchestration (rubric generation + scoring + critics) still runs on the legacy Convex scheduler/batch/job engine while the Temporal rewrite is rolled out window-first.
+- The legacy Convex engine still owns scheduler, batch/job orchestration, and rate limiting for runs and any not-yet-migrated process surfaces.
 - The engine now exports full window/run/batch/job/request/scheduler telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
 - Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
 - Batch submit now uses a durable `submitting` phase with provider metadata lookup recovery, so unknown-outcome submit failures can recover the provider batch reference without blindly re-submitting.
@@ -126,11 +127,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Top-level packages**
 | Path | Role |
 | --- | --- |
-| `packages/engine-convex` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
+| `packages/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, legacy run orchestration, and worker-facing write surfaces |
 | `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
-| `packages/engine-temporal` | Temporal worker package with the greenfield `RunWorkflow` / `WindowWorkflow` skeleton, test harness, and Upstash quota scaffolding |
+| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` execution, `RunWorkflow` skeleton, local test harness, and Upstash quota scaffolding |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
@@ -146,10 +147,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
 | `domain/llm_calls/` | Batch/job/request repos + services |
 | `domain/runs/` | Experiment creation + pool binding + run orchestration |
+| `domain/temporal/` | Convex-side Temporal client/start helpers |
 | `domain/window/` | Evidence window orchestration + search |
 | `models/` | Zod schemas for tables and shared enums |
 | `platform/` | Providers, rate limiter, run policy |
-| `packages/` | Public Convex API surfaces (e.g. `lab.ts`) |
+| `packages/` | Public Convex API surfaces (e.g. `lab.ts`, `worker.ts`) |
 | `utils/` | Scheduling helpers, zod helpers, tags |
 | `schema.ts` | Convex table definitions + indexes |
 
@@ -167,10 +169,12 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/runs/run_orchestrator.ts` | Stage configs + pending/advance helpers + run prompt orchestration |
 | `domain/runs/run_service.ts` | Run lifecycle, apply results, stage advancement |
 | `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
+| `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start action for windows |
 | `domain/window/window_orchestrator.ts` | Stage configs + evidence-specific orchestration |
 | `domain/window/window_service.ts` | Window lifecycle, apply results, stage advancement |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
 | `domain/window/evidence_search.ts` | Firecrawl-based news search |
+| `packages/worker.ts` | Narrow worker-facing Convex API for Temporal activities |
 | `platform/providers/*` | OpenAI batch + chat integrations |
 | `platform/rate_limiter/*` | Token bucket configs + rate limiter wiring |
 | `models/*` | Table schemas and shared enums |
@@ -180,17 +184,23 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 ## Data Model (Core Tables)
 
-**Orchestration tables**
+**Window execution tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `windows` | Evidence window state | `status`, `current_stage`, `target_count`, `completed_count`, `model`, `query`, `country`, `start_date`, `end_date` |
-| `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_request_id` |
+| `windows` | Evidence window state | `status`, `current_stage`, `target_count`, `completed_count`, `model`, `query`, `country`, `start_date`, `end_date`, `workflow_id`, `workflow_run_id`, `last_error_message` |
+| `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_attempt_id`, `l1/l2/l3_error_message` |
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
-| `llm_requests` | Individual LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
+| `llm_attempts` | Append-only worker-side LLM attempt ledger | `process_kind`, `process_id`, `target_kind`, `target_id`, `stage`, `provider`, `model`, `workflow_id`, `status`, `started_at`, `finished_at`, `input_tokens`, `output_tokens`, `total_tokens` |
+| `llm_attempt_payloads` | Prompt/output/error payload blobs for attempts | `attempt_id`, `kind`, `content_text`, `content_hash`, `byte_size`, `content_type` |
+| `process_observability` | Legacy local observability mirror still used by the Convex scheduler/run debug loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
+
+**Legacy run execution tables**
+| Table | Purpose | Key fields |
+| --- | --- | --- |
+| `llm_requests` | Individual run-side LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
 | `process_request_targets` | Current per-target request snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
 | `llm_jobs` | Non-batched request transport attempt log | `status`, `model`, `custom_key`, `attempt_index`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request transport attempt log | `status`, `model`, `custom_key`, `batch_ref`, `attempt_index`, `next_poll_at`, `last_error` |
-| `process_observability` | Small per-process local observability mirror for the live loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
 | `scheduler_locks` | Dedicated scheduler heartbeat/lock rows | `lock_key`, `status`, `heartbeat_ts_ms`, `expires_at_ms` |
 
 **Experiment and run tables (orchestrated)**
@@ -208,6 +218,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Indexes that drive orchestration**
 
 - `evidences.by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending` gate per-stage work.
+- `llm_attempts.by_process`, `by_process_stage`, and `by_target` support Temporal-window audit/debug lookups.
 - `llm_requests.by_orphaned` identifies pending requests without a batch or job.
 - `llm_batches.by_status`, `llm_jobs.by_status` allow scheduler polling by status.
 
@@ -218,16 +229,12 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **High-level path**
 
 1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
-2. `startWindowFlow` checks for existing evidence; if none exist, it runs `collectWindowEvidence`, calls `evidence_search.searchNews` (Firecrawl), and inserts evidence rows with `l0_raw_content`. Raw-collection provider failures now mark the window `status=error` at `l0_raw` and emit `window_collection_failed` instead of leaving the window in silent `scraping` limbo.
-3. `startWindowOrchestration` sets the window to `running`, sets `current_stage` to `l1_cleaned`, and calls `WindowOrchestrator.enqueueStage`.
-4. `WindowOrchestrator.enqueueStage` lists pending evidence for the stage using the stage-specific index.
-5. The orchestrator builds prompts and creates one `llm_request` per evidence item.
-6. The orchestrator records the request ID on the evidence row.
-7. The orchestrator routes the request set to a **batch** or **job** based on the run policy.
-8. The scheduler polls queued/running batches and jobs, starting workflows when `next_*` timestamps are due.
-9. Workflows submit to the provider, poll for results, and apply outputs.
-10. `applyRequestResult` updates the evidence output field and calls `maybeAdvanceWindowStage`.
-11. `maybeAdvanceWindowStage` advances to the next stage or completes the window if all evidence items are done.
+2. `startWindowFlow` starts a Temporal `windowWorkflow` through `domain/temporal/temporal_client.ts`, then binds the returned `workflow_id` / `workflow_run_id` onto the window through `packages/worker.ts`.
+3. The Temporal worker runs the `collect` stage, calls Firecrawl search, and inserts `evidences` with `l0_raw_content` through the Convex worker API.
+4. If search returns zero results, the worker marks the window `completed` with zero counts and halts the workflow cleanly.
+5. For each transform stage (`l1_cleaned`, `l2_neutralized`, `l3_abstracted`), the worker lists pending evidence inputs, records a new `llm_attempt`, calls OpenAI chat, stores payloads, and applies the transformed content back onto the evidence row.
+6. Stage failures are tracked per evidence row (`*_attempt_id`, `*_error_message`), and a stage that exhausts every pending item marks the whole window `error`.
+7. The workflow projects snapshot state back into Convex as it advances, keeping `windows.status`, `current_stage`, and workflow bindings aligned with Temporal execution.
 
 **Run flow (experiment)**
 
@@ -242,26 +249,23 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 ```mermaid
 flowchart TD
-  Lab[Convex lab API] --> WindowService[window_service]
-  WindowService --> Orchestrator[WindowOrchestrator]
-  Orchestrator --> Requests[llm_request_repo]
-  Orchestrator -->|batch| Batches[llm_batch_repo]
-  Orchestrator -->|job| Jobs[llm_job_repo]
-  Scheduler[orchestrator/scheduler] --> Workflows[process_workflows]
-  Workflows --> Batches
-  Workflows --> Jobs
-  Batches --> ProviderBatch[OpenAI batch API]
-  Jobs --> ProviderChat[OpenAI chat API]
-  ProviderBatch --> Results[applyBatchResults]
-  ProviderChat --> Results[applyRequestSuccess]
-  Results --> TargetRegistry[target_registry]
-  TargetRegistry --> WindowService
-  WindowService -->|advance stage| Orchestrator
+  Lab[Convex lab API] --> StartWindow[startWindowFlow]
+  StartWindow --> TemporalStart[temporal_client.startWindowWorkflow]
+  TemporalStart --> WindowWorkflow[Temporal WindowWorkflow]
+  WindowWorkflow --> WindowActivities[Window activities]
+  WindowActivities --> Firecrawl[Firecrawl search]
+  WindowActivities --> OpenAI[OpenAI chat]
+  WindowActivities --> WorkerApi[Convex packages/worker API]
+  WorkerApi --> WindowTables[windows/evidences/llm_attempts]
+  Lab --> RunService[legacy run_service]
+  RunService --> Scheduler[legacy scheduler + batch/job engine]
 ```
+
+Window execution is now Temporal-owned. Run execution is still on the legacy Convex scheduler/batch/job path until the run migration lands.
 
 ---
 
-## Decision Tree: Batch vs Job
+## Decision Tree: Batch vs Job (Legacy Run Path)
 
 **Where the decision is made**
 
@@ -279,29 +283,27 @@ flowchart TD
 
 ---
 
-## Custom Keys and Routing
+## Custom Keys and Routing (Legacy Run Path)
 
 Custom keys are how LLM results route back into domain handlers.
 
 **Request keys**
 
-- `WindowOrchestrator.makeRequestKey` formats request keys as `evidence:<evidence_id>:<stage>`.
 - `RunOrchestrator.makeRequestKey` formats rubric-stage request keys as `sample:<sample_id>:<stage>`.
 - `RunOrchestrator.makeRequestKey` formats score-stage request keys as `sample_score_target:<sample_score_target_id>:<stage>`.
 
 **Process keys**
 
-- `WindowOrchestrator.makeProcessKey` formats batch/job keys as `window:<window_id>:<stage>`.
 - `RunOrchestrator.makeProcessKey` formats batch/job keys as `run:<run_id>:<stage>`.
 
 **Routing**
 
 - `target_registry` maps custom key prefixes to handlers.
-- `evidence` routes are window-specific, and run-stage handlers support both `sample` and `sample_score_target` targets.
+- The remaining active registry routes are run-specific, and run-stage handlers support both `sample` and `sample_score_target` targets.
 
 ---
 
-## Scheduler Mechanics
+## Scheduler Mechanics (Legacy Run Path)
 
 **Scheduler**
 
@@ -316,7 +318,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 ---
 
-## Rate Limiting, Retries, and Backoff
+## Rate Limiting, Retries, and Backoff (Legacy Run Path)
 
 **Rate limiting**
 
@@ -369,9 +371,12 @@ Custom keys are how LLM results route back into domain handlers.
 ```mermaid
 stateDiagram-v2
   [*] --> start
-  start --> running: startWindowOrchestration
-  running --> completed: all stages succeed
-  running --> error: all requests fail
+  start --> queued: bindWindowWorkflow
+  queued --> running: Temporal workflow starts
+  running --> paused: pause_after / pause_now
+  paused --> running: resume
+  running --> completed: no evidence or all stages succeed
+  running --> error: stage exhausts all pending items
 ```
 
 **LLM request lifecycle**
@@ -428,6 +433,9 @@ stateDiagram-v2
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
+- Window execution is now split across Convex + Temporal, but run execution still uses the legacy Convex scheduler/batch/job engine; the old queue tables remain until the run migration is finished.
+- `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
+- Temporal-window quota methods are wired through the worker API surface, but quota reservation/settlement is still scaffold-only today.
 - For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
 - Batch completion now treats missing per-request result rows as request errors/retries, preventing silent `pending` stalls.
 - `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
@@ -436,10 +444,10 @@ stateDiagram-v2
 
 ## Key Files to Trace
 
-- Orchestration base: `packages/engine-convex/convex/domain/orchestrator/base.ts`
-- Window orchestrator: `packages/engine-convex/convex/domain/window/window_orchestrator.ts`
-- Window flow lifecycle: `packages/engine-convex/convex/domain/window/window_service.ts`
-- Evidence search: `packages/engine-convex/convex/domain/window/evidence_search.ts`
+- Window Temporal starter: `packages/engine-convex/convex/domain/temporal/temporal_client.ts`
+- Window worker API: `packages/engine-convex/convex/packages/worker.ts`
+- Window Temporal service: `packages/engine-temporal/src/window/service.ts`
+- Window Temporal workflow: `packages/engine-temporal/src/workflows.ts`
 - Scheduler: `packages/engine-convex/convex/domain/orchestrator/scheduler.ts`
 - Workflows: `packages/engine-convex/convex/domain/orchestrator/process_workflows.ts`
 - LLM services: `packages/engine-convex/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`

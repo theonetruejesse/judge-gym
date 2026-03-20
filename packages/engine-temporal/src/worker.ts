@@ -15,20 +15,59 @@ async function createWorker(
   });
 }
 
+async function shutdownWorkers(workers: Worker[]) {
+  await Promise.allSettled(
+    workers.map(async (worker) => {
+      await worker.shutdown();
+    }),
+  );
+}
+
 export async function runWorkers() {
   const config = getTemporalRuntimeConfig();
   const connection = await NativeConnection.connect({
     address: config.address,
   });
+  const workers: Worker[] = [];
+  let shuttingDown = false;
+
+  const shutdown = async () => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    await shutdownWorkers(workers);
+  };
+
+  const handleSignal = (signal: NodeJS.Signals) => {
+    console.log(`Received ${signal}. Shutting down Temporal workers...`);
+    void shutdown();
+  };
+
+  process.once("SIGINT", handleSignal);
+  process.once("SIGTERM", handleSignal);
+  process.once("SIGUSR2", handleSignal);
 
   try {
-    const workers = await Promise.all([
-      createWorker(connection, config.taskQueues.run),
-      createWorker(connection, config.taskQueues.window),
-    ]);
+    workers.push(
+      await createWorker(connection, config.taskQueues.run),
+      await createWorker(connection, config.taskQueues.window),
+    );
 
-    await Promise.all(workers.map((worker) => worker.run()));
+    const runPromises = workers.map((worker) => worker.run());
+
+    try {
+      await Promise.all(runPromises);
+    } catch (error) {
+      await shutdown();
+      await Promise.allSettled(runPromises);
+      throw error;
+    }
   } finally {
+    process.removeListener("SIGINT", handleSignal);
+    process.removeListener("SIGTERM", handleSignal);
+    process.removeListener("SIGUSR2", handleSignal);
+    await shutdown();
     await connection.close();
   }
 }

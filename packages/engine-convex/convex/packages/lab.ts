@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
@@ -12,7 +12,6 @@ import {
 } from "../models/_shared";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
-import { classifyRequestError } from "../domain/llm_calls/llm_request_repo";
 
 const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   query: true,
@@ -84,54 +83,27 @@ export const startWindowFlow = zInternalAction({
       }),
     });
 
-    let collectionResult;
     try {
-      collectionResult = await ctx.runAction(
-        internal.domain.window.window_service.collectWindowEvidence,
+      const { workflow_id, workflow_run_id } =
+        await ctx.runAction(internal.domain.temporal.temporal_client.startWindowWorkflow, {
+          window_id,
+        });
+      await ctx.runMutation(
+        api.packages.worker.bindWindowWorkflow,
         {
           window_id,
-          limit: evidence_limit,
+          workflow_id,
+          workflow_run_id,
         },
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await ctx.runMutation(
-        internal.domain.window.window_service.markWindowCollectionError,
-        {
-          window_id,
-          error_class: classifyRequestError(errorMessage),
-          error_message: errorMessage,
-        },
-      );
-      return;
-    }
-
-    if (collectionResult.total === 0) {
-      await ctx.runMutation(
-        internal.domain.window.window_service.markWindowNoEvidence,
-        { window_id },
-      );
-      return;
-    }
-
-    await ctx.runMutation(
-      internal.domain.window.window_service.startWindowOrchestration,
-      { window_id },
-    );
-
-    await ctx.runMutation(
-      internal.domain.orchestrator.scheduler.startScheduler,
-      {},
-    );
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${window_id}`,
-      entity_type: "scheduler",
-      entity_id: "scheduler",
-      event_name: "scheduler_kickoff_for_window",
-      payload_json: JSON.stringify({
+      await ctx.runMutation(api.packages.worker.markWindowProcessError, {
         window_id,
-      }),
-    });
+        stage: "collect",
+        error_message: errorMessage,
+      });
+    }
   },
 });
 
@@ -349,7 +321,7 @@ export const listBundlePlans: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.bundle_plan_repo.listBundlePlans,
       args,
     );
-    return plans.map((plan) => ({
+    return plans.map((plan: (typeof plans)[number]) => ({
       bundle_plan_id: plan._id,
       bundle_plan_tag: plan.bundle_plan_tag,
       pool_id: plan.pool_id,

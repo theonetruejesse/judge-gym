@@ -2,6 +2,7 @@ import { TestWorkflowEnvironment } from "@temporalio/testing";
 import assert from "assert";
 import { after, before, describe, it } from "mocha";
 import { Worker } from "@temporalio/worker";
+import type { ProjectProcessStateInput } from "@judge-gym/engine-settings";
 import {
   acquireSharedTestWorkflowEnvironment,
   releaseSharedTestWorkflowEnvironment,
@@ -30,7 +31,15 @@ describe("run workflow", function () {
       connection: nativeConnection,
       taskQueue,
       workflowsPath: require.resolve("../workflows"),
-      activities,
+      activities: {
+        projectProcessState: async <TStage extends string>(
+          input: ProjectProcessStateInput<TStage>,
+        ) => input,
+        runRunStage: activities.runRunStage,
+        runWindowStage: async () => {
+          throw new Error("runWindowStage should not be used in run tests");
+        },
+      },
     });
 
     const result = await worker.runUntil(

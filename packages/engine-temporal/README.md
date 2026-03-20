@@ -9,7 +9,11 @@ Temporal worker package for judge-gym. It now contains the first greenfield rewr
 - a local test harness helper that caches the Temporal CLI under `packages/engine-temporal/.temporal/test-server-downloads`
 - the first Upstash quota/runtime scaffolding for worker-side rate limiting
 
-The current code is still scaffolding. Activities only project process state and return placeholder stage summaries; the Convex worker API, artifact writes, provider adapters, and real quota settlement logic have not been wired yet.
+The current code is in a mixed state:
+
+- the window path is live and calls Firecrawl + OpenAI through `src/window/service.ts`, with Convex worker-API writes for workflow binding, evidence insertion, attempt logging, stage result application, and window-level error/completion projection
+- the run path is still scaffold-only and has not yet replaced the legacy Convex scheduler/batch/job engine
+- Upstash quota wiring exists at the worker boundary, but real reservation/refund/reconciliation logic is still not implemented
 
 Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. For now, the repo root `.env.local` is the source of truth for runtime configuration; package-local env files are optional convenience copies, not the authoritative config.
 
@@ -45,3 +49,11 @@ Started run workflow run:my-run-id
 - `TEMPORAL_TEST_SERVER_DOWNLOAD_DIR` can override the default in-repo CLI cache directory used by the local test harness
 - `TEMPORAL_TEST_SERVER_EXECUTABLE` can point tests at a preinstalled Temporal CLI binary
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are now the worker-side quota env vars
+
+## Current implementation map
+
+- `src/workflows.ts`: generic process workflow shell plus the current `windowWorkflow` / `runWorkflow`
+- `src/window/service.ts`: live window activity implementation (collect + transform stages)
+- `src/convex/client.ts`: worker-side Convex HTTP client for the narrow worker API
+- `src/quota/`: provider-aware Upstash quota scaffolding
+- `src/mocha/window-service.test.ts`: unit coverage for the window activity service

@@ -28,6 +28,7 @@
     ]
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.12.0",
     "@judge-gym/engine-settings": "workspace:*",
     "@temporalio/activity": "^1.15.0",
     "@temporalio/client": "^1.15.0",
@@ -35,6 +36,7 @@
     "@upstash/redis": "^1.35.6",
     "@temporalio/worker": "^1.15.0",
     "@temporalio/workflow": "^1.15.0",
+    "convex": "^1.32.0",
     "nanoid": "3.x"
   },
   "devDependencies": {
