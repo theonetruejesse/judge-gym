@@ -6,6 +6,11 @@ import {
 export type TemporalRuntimeConfig = {
   address: string;
   namespace: string;
+  tls:
+    | {
+        serverNameOverride?: string;
+      }
+    | undefined;
   retryDelayMs: number;
   taskQueues: {
     run: string;
@@ -14,11 +19,20 @@ export type TemporalRuntimeConfig = {
 };
 
 export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
+  const tlsEnabled =
+    process.env[ENGINE_ENV_KEYS.temporalTlsEnabled] === "1";
+  const tlsServerName =
+    process.env[ENGINE_ENV_KEYS.temporalTlsServerName] ?? undefined;
   return {
     address:
       process.env[ENGINE_ENV_KEYS.temporalAddress] ?? "localhost:7233",
     namespace:
       process.env[ENGINE_ENV_KEYS.temporalNamespace] ?? "default",
+    tls: tlsEnabled
+      ? {
+          ...(tlsServerName ? { serverNameOverride: tlsServerName } : {}),
+        }
+      : undefined,
     retryDelayMs: Number(
       process.env[ENGINE_ENV_KEYS.temporalRetryDelayMs] ?? 5000,
     ),

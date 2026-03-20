@@ -41,6 +41,8 @@ Started run workflow run:my-run-id
 - Root `.env.local` is the authoritative env file for `bun dev` and the direct package scripts.
 - `TEMPORAL_ADDRESS` defaults to `localhost:7233`
 - `TEMPORAL_NAMESPACE` defaults to `default`
+- `TEMPORAL_TLS_ENABLED=1` enables TLS for the worker/client connection to Temporal
+- `TEMPORAL_TLS_SERVER_NAME` optionally sets the TLS server-name override (useful for proxied frontends such as Railway TCP proxies)
 - `TEMPORAL_RUN_TASK_QUEUE` defaults to `judge-gym.run`
 - `TEMPORAL_WINDOW_TASK_QUEUE` defaults to `judge-gym.window`
 - `TEMPORAL_RETRY_DELAY_MS` defaults to `5000` for the dev worker retry loop

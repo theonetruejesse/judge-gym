@@ -19,6 +19,7 @@ async function run() {
   const config = getTemporalRuntimeConfig();
   const connection = await Connection.connect({
     address: config.address,
+    tls: config.tls,
   });
   const client = new Client({
     connection,

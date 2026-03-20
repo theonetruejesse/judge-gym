@@ -6,9 +6,16 @@ import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils/custom_fns";
 
 function getTemporalConfig() {
+  const tlsEnabled = process.env.TEMPORAL_TLS_ENABLED === "1";
+  const tlsServerName = process.env.TEMPORAL_TLS_SERVER_NAME ?? undefined;
   return {
     address: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
     namespace: process.env.TEMPORAL_NAMESPACE ?? "default",
+    tls: tlsEnabled
+      ? {
+          ...(tlsServerName ? { serverNameOverride: tlsServerName } : {}),
+        }
+      : undefined,
     taskQueues: {
       run:
         process.env.TEMPORAL_RUN_TASK_QUEUE ?? "judge-gym.run",
@@ -24,6 +31,7 @@ export async function startWindowWorkflowExecution(args: {
   const config = getTemporalConfig();
   const connection = await Connection.connect({
     address: config.address,
+    tls: config.tls,
   });
 
   try {
@@ -54,6 +62,7 @@ export async function startRunWorkflowExecution(args: {
   const config = getTemporalConfig();
   const connection = await Connection.connect({
     address: config.address,
+    tls: config.tls,
   });
 
   try {
@@ -86,6 +95,7 @@ async function withTemporalClient<T>(
   const config = getTemporalConfig();
   const connection = await Connection.connect({
     address: config.address,
+    tls: config.tls,
   });
 
   try {

@@ -56,6 +56,7 @@ export async function runWorkers() {
   const config = getTemporalRuntimeConfig();
   const connection = await NativeConnection.connect({
     address: config.address,
+    tls: config.tls,
   });
   const workers: Worker[] = [];
   const runPromises: Promise<void>[] = [];

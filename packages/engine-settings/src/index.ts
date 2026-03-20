@@ -88,6 +88,8 @@ export const ENGINE_ENV_KEYS = {
   upstashKeyPrefix: "UPSTASH_KEY_PREFIX",
   temporalAddress: "TEMPORAL_ADDRESS",
   temporalNamespace: "TEMPORAL_NAMESPACE",
+  temporalTlsEnabled: "TEMPORAL_TLS_ENABLED",
+  temporalTlsServerName: "TEMPORAL_TLS_SERVER_NAME",
   temporalRetryDelayMs: "TEMPORAL_RETRY_DELAY_MS",
   temporalTaskQueue: "TEMPORAL_TASK_QUEUE",
   temporalRunTaskQueue: "TEMPORAL_RUN_TASK_QUEUE",
