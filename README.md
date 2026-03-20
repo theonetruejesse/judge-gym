@@ -62,7 +62,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Ops now also include `packages/codex:backfillExperimentTotalCounts` to repair historical experiment aggregates after the `total_count` addition.
 - Ops now also include `packages/codex:backfillSampleScoreCounts` to repair historical sample score aggregates and strip legacy sample score ID fields before their final schema removal.
 - Run-stage reconcile now emits explicit reconcile outcomes (`run_stage_reconciled`) and can fail-safe pause a run (`status=paused`) when reconcile fails with no active transport left.
-- Window and run execution now both launch through Temporal workflows; the legacy Convex scheduler/batch/job engine remains in the repo as transitional infrastructure until the old queue tables and maintenance paths are pruned.
+- Window and run execution now both launch through Temporal workflows; the legacy Convex scheduler/batch/job engine remains in the repo only as transitional debt while the old queue tables and services are pruned.
 - The engine now exports full window/run/batch/job/request/scheduler telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
 - Batch submission and polling now use lease-based claim locks (with a `finalizing` status during apply) to prevent duplicate provider batch calls and duplicate apply work across concurrent scheduler/workflow executions.
 - Batch submit now uses a durable `submitting` phase with provider metadata lookup recovery, so unknown-outcome submit failures can recover the provider batch reference without blindly re-submitting.
@@ -71,10 +71,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Batch/job workflow leases now renew through long-running submit/run/apply sections, reducing duplicate execution after claim expiry on slow provider calls.
 - OpenAI batch polling now treats terminal provider states such as `expired` and `cancelled` as errors instead of re-polling them forever.
 - Orchestrator batch enqueue now enforces `run_policy.max_batch_size` by sharding large request sets across multiple `llm_batches` (default cap `100`), preventing oversized workflow completion payloads on large score stages.
-- Batch-level retry handling now records failed `llm_requests` as immutable error rows and creates new retry request rows for subsequent attempts.
-- Run parse failures now follow the same retry policy (new retry request rows + scheduler requeue) instead of immediately exhausting attempts, and run-stage pending-state checks are batched per stage to reduce per-target request lookups.
-- Run-stage pending-state and stage-transition reconciliation now read from `process_request_targets` snapshots instead of global `llm_requests` status scans, reducing read-limit failures on large score-stage backlogs.
-- Local `process_observability` mirroring now skips request-level noise; live health derives request failure state from `process_request_targets` instead of per-request event spam on the hot observability row.
+- The remaining `llm_requests` / `process_request_targets` reconciliation logic is legacy-only and no longer drives live window/run execution.
 - Stale `submitting` batches are now superseded when a sibling batch for the same `custom_key` already recovered or completed with a provider `batch_ref`.
 - Successful request apply now reconciles the owning run stage immediately, so stages with exhausted residual requests do not remain stuck `running` after artifact state is already settled.
 - `llm_batches` and `llm_jobs` now behave as append-only transport attempt logs: a failed attempt stays `error`, and the next retry creates a fresh row with the next `attempt_index`.
@@ -84,15 +81,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
 - Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving windows, pools, and the experiment config intact.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine-convex`) to run an Axiom ingest smoke test through Convex.
-- The engine now includes a codex live-debug surface (`packages/engine-convex/convex/maintenance/codex.ts`) with process health, local recent-event tailing, Axiom trace references, and safe auto-heal actions for run/window flows.
-- `getProcessHealth` now uses persisted per-target request snapshots (`process_request_targets`) to avoid per-target request scans and stay reliable on high-cardinality runs/windows.
-- `getProcessHealth` now returns `request_state_meta` (`approximate`, scanned target count, snapshot freshness) so operators can detect when health is in bounded/approximate mode.
-- Run diagnostics now read run-scoped artifacts and requests via direct `run_id` indexes (`rubrics`, `rubric_critics`, `scores`, `score_critics`, `llm_requests`) instead of full-table artifact scans.
-- Run diagnostics now separate historical failed attempts from terminal failed targets, and include a short failed-output preview for run-scoped request forensics.
+- The engine now includes a codex live-debug surface (`packages/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
+- `getProcessHealth` now derives live health from persisted run/window state, `process_observability`, and `llm_attempts` instead of the legacy request/batch snapshot tables.
+- Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures and including a short failed-output preview for Temporal-owned forensics.
 - Score-critic prompts now mirror the exact randomized rubric surface shown to `score_gen` (same identifiers, label hiding, and rubric order) instead of leaking decoded canonical stage labels back into the critic.
 - Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
 - Non-abstain score prompts now use an explicit forced-choice fallback: if no stronger stage is supported, the model must emit the weakest displayed stage identifier instead of `None`, blank verdicts, or other out-of-contract text.
-- System prompts are now deduplicated in `llm_prompt_templates`, and `llm_requests` stores `system_prompt_id` instead of duplicating raw system prompt text on each attempt row.
+- System prompts are now deduplicated in `llm_prompt_templates`, and Temporal-owned execution references those templates through the append-only `llm_attempts` ledger.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables (including Convex system scheduled-function scans) to prevent read-limit failures when historical telemetry/backlog is large.
 - Codex scheduler liveness checks now prefer `scheduler_locks` heartbeat state and use only a tiny best-effort `_scheduled_functions` fallback, which keeps `getProcessHealth` and `getStuckWork` stable after large scheduled-function history buildup.
 - Codex health/stuck surfaces now explicitly flag `retryable_no_transport` stalls when a stage has retryable targets, no pending replacements, and no active batch/job transport; the scheduler also auto-requeues those stranded retryables during normal ticks.
@@ -145,8 +140,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Engine internals (`packages/engine-convex/convex/`)**
 | Path | Role |
 | --- | --- |
-| `domain/orchestrator/` | Scheduler, workflows, routing of LLM results |
-| `domain/llm_calls/` | Batch/job/request repos + services |
+| `domain/orchestrator/` | Transitional legacy scheduler/batch/job infrastructure retained until final prune |
+| `domain/llm_calls/` | Transitional legacy batch/job/request repos + services retained until final prune |
 | `domain/runs/` | Experiment creation + pool binding + run orchestration |
 | `domain/temporal/` | Convex-side Temporal client/start helpers |
 | `domain/window/` | Evidence window orchestration + search |
@@ -193,13 +188,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
 | `llm_attempts` | Append-only worker-side LLM attempt ledger | `process_kind`, `process_id`, `target_type`, `target_id`, `stage`, `provider`, `model`, `workflow_id`, `status`, `started_at`, `finished_at`, `input_tokens`, `output_tokens`, `total_tokens` |
 | `llm_attempt_payloads` | Prompt/output/error payload blobs for attempts | `attempt_id`, `kind`, `content_text`, `content_hash`, `byte_size`, `content_type` |
-| `process_observability` | Legacy local observability mirror still used by the Convex scheduler/run debug loop | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
+| `process_observability` | Local Temporal-era process observability mirror for debug surfaces and agent triage | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
 
 **Legacy run execution tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `llm_requests` | Individual run-side LLM call attempts | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
-| `process_request_targets` | Current per-target request snapshots used by debug health | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
+| `llm_requests` | Legacy run-side request queue attempts retained during final prune | `status`, `run_id`, `model`, `custom_key`, `system_prompt_id`, `attempt_index`, `next_attempt_at`, `job_id`, `batch_id`, `last_error` |
+| `process_request_targets` | Legacy per-target request snapshots retained during final prune | `process_type`, `process_id`, `stage`, `custom_key`, `resolution`, `active_request_id`, `success_request_id`, `attempt_count`, `retry_count`, `latest_error_class` |
 | `llm_jobs` | Non-batched request transport attempt log | `status`, `model`, `custom_key`, `attempt_index`, `next_run_at`, `last_error` |
 | `llm_batches` | Batched request transport attempt log | `status`, `model`, `custom_key`, `batch_ref`, `attempt_index`, `next_poll_at`, `last_error` |
 | `scheduler_locks` | Dedicated scheduler heartbeat/lock rows | `lock_key`, `status`, `heartbeat_ts_ms`, `expires_at_ms` |
@@ -220,8 +215,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 - `evidences.by_window_l1_pending`, `by_window_l2_pending`, `by_window_l3_pending` gate per-stage work.
 - `llm_attempts.by_process`, `by_process_stage`, and `by_target` support Temporal window/run audit/debug lookups.
-- `llm_requests.by_orphaned` identifies pending requests without a batch or job.
-- `llm_batches.by_status`, `llm_jobs.by_status` allow scheduler polling by status.
+- `llm_requests.by_orphaned` and `llm_batches.by_status` / `llm_jobs.by_status` are legacy indexes retained only until the final queue-table prune.
 
 ---
 
@@ -270,7 +264,7 @@ Window and run execution are now Temporal-owned. The legacy Convex scheduler/bat
 
 ---
 
-## Decision Tree: Batch vs Job (Legacy Run Path)
+## Decision Tree: Batch vs Job (Legacy Run Path, Transitional Only)
 
 **Where the decision is made**
 
@@ -288,7 +282,7 @@ Window and run execution are now Temporal-owned. The legacy Convex scheduler/bat
 
 ---
 
-## Custom Keys and Routing (Legacy Run Path)
+## Custom Keys and Routing (Legacy Run Path, Transitional Only)
 
 Custom keys are how LLM results route back into domain handlers.
 
@@ -308,7 +302,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 ---
 
-## Scheduler Mechanics (Legacy Run Path)
+## Scheduler Mechanics (Legacy Run Path, Transitional Only)
 
 **Scheduler**
 
@@ -323,7 +317,7 @@ Custom keys are how LLM results route back into domain handlers.
 
 ---
 
-## Rate Limiting, Retries, and Backoff (Legacy Run Path)
+## Rate Limiting, Retries, and Backoff (Legacy Run Path, Transitional Only)
 
 **Rate limiting**
 
@@ -442,7 +436,6 @@ stateDiagram-v2
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota methods are wired through the worker API surface, but quota reservation/settlement is still scaffold-only today.
 - For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
-- Batch completion now treats missing per-request result rows as request errors/retries, preventing silent `pending` stalls.
 - `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
 
 ---
@@ -453,9 +446,10 @@ stateDiagram-v2
 - Window worker API: `packages/engine-convex/convex/packages/worker.ts`
 - Window Temporal service: `packages/engine-temporal/src/window/service.ts`
 - Window Temporal workflow: `packages/engine-temporal/src/workflows.ts`
-- Scheduler: `packages/engine-convex/convex/domain/orchestrator/scheduler.ts`
-- Workflows: `packages/engine-convex/convex/domain/orchestrator/process_workflows.ts`
-- LLM services: `packages/engine-convex/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`
+- Process debug surface: `packages/engine-convex/convex/domain/maintenance/process_debug.ts`
+- Transitional scheduler: `packages/engine-convex/convex/domain/orchestrator/scheduler.ts`
+- Transitional workflows: `packages/engine-convex/convex/domain/orchestrator/process_workflows.ts`
+- Transitional LLM services: `packages/engine-convex/convex/domain/llm_calls/llm_batch_service.ts`, `llm_job_service.ts`
 - Rate limiting: `packages/engine-convex/convex/platform/rate_limiter/*`
 - Provider calls: `packages/engine-convex/convex/platform/providers/*`
 - Schema and models: `packages/engine-convex/convex/schema.ts`, `packages/engine-convex/convex/models/*`

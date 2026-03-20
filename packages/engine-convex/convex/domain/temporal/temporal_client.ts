@@ -125,6 +125,19 @@ export async function resumeRunWorkflowExecution(args: {
   });
 }
 
+export async function resumeWindowWorkflowExecution(args: {
+  window_id: string;
+}) {
+  return withTemporalClient(async (client) => {
+    const handle = client.workflow.getHandle(`window:${args.window_id}`);
+    return handle.executeUpdate("resume", {
+      args: [{
+        cmdId: `cmd:resume:${Date.now()}`,
+      }],
+    });
+  });
+}
+
 export const startWindowWorkflow = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
@@ -167,6 +180,18 @@ export const resumeRunWorkflow = zInternalAction({
     return resumeRunWorkflowExecution({
       run_id: String(args.run_id),
       pause_after: args.pause_after,
+    });
+  },
+});
+
+export const resumeWindowWorkflow = zInternalAction({
+  args: z.object({
+    window_id: zid("windows"),
+  }),
+  returns: z.any(),
+  handler: async (_ctx, args) => {
+    return resumeWindowWorkflowExecution({
+      window_id: String(args.window_id),
     });
   },
 });

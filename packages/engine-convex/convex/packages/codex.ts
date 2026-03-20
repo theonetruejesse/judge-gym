@@ -1,18 +1,20 @@
 export {
   analyzeProcessTelemetry,
-  autoHealProcess,
   backfillExperimentBundlePlans,
   backfillExperimentTotalCounts,
   backfillRunCompletedCounts,
   backfillRunTerminalStates,
   backfillSampleScoreCounts,
-  getProcessHealth,
-  repairRunStageTransport,
-  getStuckWork,
-  runDebugActions,
   tailTrace,
   testAxiomIngest,
 } from "../domain/maintenance/codex";
+export {
+  autoHealProcess,
+  getProcessHealth,
+  getStuckWork,
+  repairRunStageTransport,
+  runDebugActions,
+} from "../domain/maintenance/process_debug";
 export {
   getRunDiagnostics,
   getRunSummary,

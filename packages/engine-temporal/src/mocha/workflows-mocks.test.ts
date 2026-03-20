@@ -54,8 +54,11 @@ describe("window workflow controls", function () {
         taskQueue,
       });
 
-      await testEnv.sleep("1 second");
-      const pausedSnapshot = await handle.query(getProcessSnapshotQuery);
+      let pausedSnapshot = await handle.query(getProcessSnapshotQuery);
+      for (let attempt = 0; attempt < 10 && pausedSnapshot.executionStatus !== "paused"; attempt += 1) {
+        await testEnv.sleep("200 milliseconds");
+        pausedSnapshot = await handle.query(getProcessSnapshotQuery);
+      }
       assert.equal(pausedSnapshot.executionStatus, "paused");
       assert.equal(pausedSnapshot.stage, "collect");
 

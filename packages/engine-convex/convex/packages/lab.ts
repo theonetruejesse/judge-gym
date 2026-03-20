@@ -107,6 +107,29 @@ export const startWindowFlow = zInternalAction({
   },
 });
 
+export const resumeWindowExecution = zInternalAction({
+  args: z.object({
+    window_id: zid("windows"),
+    evidence_limit: z.number().int().min(1),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    try {
+      await ctx.runAction(internal.domain.temporal.temporal_client.resumeWindowWorkflow, {
+        window_id: args.window_id,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(api.packages.worker.markWindowProcessError, {
+        window_id: args.window_id,
+        stage: "collect",
+        error_message: errorMessage,
+      });
+    }
+    return null;
+  },
+});
+
 
 // todo, clean up the list functions
 
@@ -576,14 +599,10 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
     const sampleIdByScoreTargetId = new Map(
       scoreTargets.map((target) => [String(target._id), target.sample_id] as const),
     );
-    const requestRows = await ctx.db
-      .query("llm_requests")
-      .withIndex("by_run", (q) => q.eq("run_id", run_id))
-      .collect();
-    const targetStates = await ctx.db
-      .query("process_request_targets")
+    const attemptRows = await ctx.db
+      .query("llm_attempts")
       .withIndex("by_process", (q) =>
-        q.eq("process_type", "run").eq("process_id", run_id),
+        q.eq("process_kind", "run").eq("process_id", run_id),
       )
       .collect();
     const runSummary = await ctx.runQuery(
@@ -608,7 +627,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       score_critic: { pending: 0, success: 0, error: 0 },
     };
     const failed_requests = [] as Array<{
-      request_id: Id<"llm_requests">;
+      request_id: Id<"llm_attempts">;
       custom_key: string;
       attempt_index: number | null;
       last_error: string | null;
@@ -616,9 +635,21 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       assistant_output_preview: string | null;
     }>;
 
-    for (const request of requestRows) {
-      const parts = request.custom_key.split(":");
-      const stage = parts[2];
+    const failedAttemptPayloads = new Map<string, string | null>();
+    const outputAttemptPayloads = new Map<string, string | null>();
+    for (const attempt of attemptRows) {
+      if (attempt.error_payload_id) {
+        const payload = await ctx.db.get(attempt.error_payload_id);
+        failedAttemptPayloads.set(String(attempt._id), payload?.content_text ?? null);
+      }
+      if (attempt.assistant_output_payload_id) {
+        const payload = await ctx.db.get(attempt.assistant_output_payload_id);
+        outputAttemptPayloads.set(String(attempt._id), payload?.content_text ?? null);
+      }
+    }
+
+    for (const attempt of attemptRows) {
+      const stage = attempt.stage;
       if (
         stage !== "rubric_gen" &&
         stage !== "rubric_critic" &&
@@ -627,37 +658,116 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       ) {
         continue;
       }
-      stageRollup[stage][request.status] += 1;
-      if (request.status === "error") {
+      const normalizedStatus = attempt.status === "started"
+        ? "pending"
+        : attempt.status === "succeeded"
+          ? "success"
+          : "error";
+      stageRollup[stage][normalizedStatus] += 1;
+      if (normalizedStatus === "error") {
         failed_requests.push({
-          request_id: request._id,
-          custom_key: request.custom_key,
-          attempt_index: request.attempt_index ?? null,
-          last_error: request.last_error ?? null,
-          status: request.status,
-          assistant_output_preview: request.assistant_output?.slice(0, 400) ?? null,
+          request_id: attempt._id,
+          custom_key: `${attempt.target_type}:${attempt.target_id}:${attempt.stage}`,
+          attempt_index: null,
+          last_error: failedAttemptPayloads.get(String(attempt._id)) ?? null,
+          status: "error",
+          assistant_output_preview: outputAttemptPayloads.get(String(attempt._id))?.slice(0, 400) ?? null,
         });
       }
     }
 
-    const terminal_failed_targets = targetStates
-      .filter((state) => state.resolution === "exhausted")
-      .map((state) => ({
-        sample_id: state.target_type === "sample"
-          ? state.target_id as Id<"samples">
-          : sampleIdByScoreTargetId.get(state.target_id) ?? null,
-        sample_ordinal: state.target_type === "sample"
-          ? sampleOrdinalById.get(state.target_id) ?? null
-          : sampleOrdinalById.get(String(sampleIdByScoreTargetId.get(state.target_id) ?? "")) ?? null,
-        target_type: state.target_type,
-        target_id: state.target_id,
-        stage: state.stage,
-        custom_key: state.custom_key,
-        attempt_count: state.attempt_count,
-        retry_count: state.retry_count,
-        error_class: state.latest_error_class,
-        error_message: state.latest_error_message,
-      }));
+    const terminal_failed_targets = [
+      ...samples.flatMap((sample) => {
+        const rows = [] as Array<{
+          sample_id: Id<"samples"> | null;
+          sample_ordinal: number | null;
+          target_type: "sample";
+          target_id: string;
+          stage: "rubric_gen" | "rubric_critic";
+          custom_key: string;
+          attempt_count: number;
+          retry_count: number;
+          error_class: string | null;
+          error_message: string | null;
+        }>;
+        if (sample.rubric_gen_error_message) {
+          rows.push({
+            sample_id: sample._id,
+            sample_ordinal: sampleOrdinalById.get(String(sample._id)) ?? null,
+            target_type: "sample",
+            target_id: String(sample._id),
+            stage: "rubric_gen",
+            custom_key: `sample:${sample._id}:rubric_gen`,
+            attempt_count: sample.rubric_gen_attempt_id ? 1 : 0,
+            retry_count: 0,
+            error_class: "attempt_failed",
+            error_message: sample.rubric_gen_error_message,
+          });
+        }
+        if (sample.rubric_critic_error_message) {
+          rows.push({
+            sample_id: sample._id,
+            sample_ordinal: sampleOrdinalById.get(String(sample._id)) ?? null,
+            target_type: "sample",
+            target_id: String(sample._id),
+            stage: "rubric_critic",
+            custom_key: `sample:${sample._id}:rubric_critic`,
+            attempt_count: sample.rubric_critic_attempt_id ? 1 : 0,
+            retry_count: 0,
+            error_class: "attempt_failed",
+            error_message: sample.rubric_critic_error_message,
+          });
+        }
+        return rows;
+      }),
+      ...scoreTargets.flatMap((target) => {
+        const sampleId = sampleIdByScoreTargetId.get(String(target._id)) ?? null;
+        const sampleOrdinal = sampleId
+          ? sampleOrdinalById.get(String(sampleId)) ?? null
+          : null;
+        const rows = [] as Array<{
+          sample_id: Id<"samples"> | null;
+          sample_ordinal: number | null;
+          target_type: "sample_score_target";
+          target_id: string;
+          stage: "score_gen" | "score_critic";
+          custom_key: string;
+          attempt_count: number;
+          retry_count: number;
+          error_class: string | null;
+          error_message: string | null;
+        }>;
+        if (target.score_gen_error_message) {
+          rows.push({
+            sample_id: sampleId,
+            sample_ordinal: sampleOrdinal,
+            target_type: "sample_score_target",
+            target_id: String(target._id),
+            stage: "score_gen",
+            custom_key: `sample_score_target:${target._id}:score_gen`,
+            attempt_count: target.score_gen_attempt_id ? 1 : 0,
+            retry_count: 0,
+            error_class: "attempt_failed",
+            error_message: target.score_gen_error_message,
+          });
+        }
+        if (target.score_critic_error_message) {
+          rows.push({
+            sample_id: sampleId,
+            sample_ordinal: sampleOrdinal,
+            target_type: "sample_score_target",
+            target_id: String(target._id),
+            stage: "score_critic",
+            custom_key: `sample_score_target:${target._id}:score_critic`,
+            attempt_count: target.score_critic_attempt_id ? 1 : 0,
+            retry_count: 0,
+            error_class: "attempt_failed",
+            error_message: target.score_critic_error_message,
+          });
+        }
+        return rows;
+      }),
+    ];
 
     const terminal_failed_target_summary = Object.entries(
       terminal_failed_targets.reduce<Record<string, { count: number; sample_ordinals: number[] }>>(
@@ -708,7 +818,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
         total_for_run: scoreTargetsPerSample * run.target_count,
       },
       request_counts: {
-        total: requestRows.length,
+        total: attemptRows.length,
         error: terminal_failed_targets.length,
         historical_error: failed_requests.length,
         terminal_failed_targets: terminal_failed_targets.length,

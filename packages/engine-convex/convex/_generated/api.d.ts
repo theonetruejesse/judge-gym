@@ -16,6 +16,7 @@ import type * as domain_llm_calls_llm_job_service from "../domain/llm_calls/llm_
 import type * as domain_llm_calls_llm_request_repo from "../domain/llm_calls/llm_request_repo.js";
 import type * as domain_maintenance_codex from "../domain/maintenance/codex.js";
 import type * as domain_maintenance_danger from "../domain/maintenance/danger.js";
+import type * as domain_maintenance_process_debug from "../domain/maintenance/process_debug.js";
 import type * as domain_maintenance_v3_campaign from "../domain/maintenance/v3_campaign.js";
 import type * as domain_orchestrator_base from "../domain/orchestrator/base.js";
 import type * as domain_orchestrator_process_workflows from "../domain/orchestrator/process_workflows.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   "domain/llm_calls/llm_request_repo": typeof domain_llm_calls_llm_request_repo;
   "domain/maintenance/codex": typeof domain_maintenance_codex;
   "domain/maintenance/danger": typeof domain_maintenance_danger;
+  "domain/maintenance/process_debug": typeof domain_maintenance_process_debug;
   "domain/maintenance/v3_campaign": typeof domain_maintenance_v3_campaign;
   "domain/orchestrator/base": typeof domain_orchestrator_base;
   "domain/orchestrator/process_workflows": typeof domain_orchestrator_process_workflows;
