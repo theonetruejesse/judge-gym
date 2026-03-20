@@ -2,6 +2,7 @@ import {
   ENGINE_ENV_KEYS,
   TEMPORAL_TASK_QUEUES,
 } from "@judge-gym/engine-settings";
+import { rootCertificates } from "node:tls";
 
 export type TemporalRuntimeConfig = {
   address: string;
@@ -9,6 +10,7 @@ export type TemporalRuntimeConfig = {
   tls:
     | {
         serverNameOverride?: string;
+        serverRootCACertificate?: Uint8Array;
       }
     | undefined;
   retryDelayMs: number;
@@ -31,6 +33,13 @@ export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
     tls: tlsEnabled
       ? {
           ...(tlsServerName ? { serverNameOverride: tlsServerName } : {}),
+          ...(rootCertificates.length > 0
+            ? {
+                serverRootCACertificate: Buffer.from(
+                  rootCertificates.join("\n"),
+                ),
+              }
+            : {}),
         }
       : undefined,
     retryDelayMs: Number(

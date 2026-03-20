@@ -4,6 +4,7 @@ import z from "zod";
 import { Client, Connection } from "@temporalio/client";
 import { zid } from "convex-helpers/server/zod4";
 import { zInternalAction } from "../../utils/custom_fns";
+import { rootCertificates } from "node:tls";
 
 function getTemporalConfig() {
   const tlsEnabled = process.env.TEMPORAL_TLS_ENABLED === "1";
@@ -14,6 +15,13 @@ function getTemporalConfig() {
     tls: tlsEnabled
       ? {
           ...(tlsServerName ? { serverNameOverride: tlsServerName } : {}),
+          ...(rootCertificates.length > 0
+            ? {
+                serverRootCACertificate: Buffer.from(
+                  rootCertificates.join("\n"),
+                ),
+              }
+            : {}),
         }
       : undefined,
     taskQueues: {
