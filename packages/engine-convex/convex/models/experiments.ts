@@ -31,4 +31,7 @@ export const RunsTableSchema = z.object({
     rubric_critic_count: z.number(),
     score_gen_count: z.number(),
     score_critic_count: z.number(),
+    workflow_id: z.string().optional(),
+    workflow_run_id: z.string().optional(),
+    last_error_message: z.string().nullable().optional(),
 });

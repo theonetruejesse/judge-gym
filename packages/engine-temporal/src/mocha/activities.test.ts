@@ -9,18 +9,6 @@ import {
 } from "../testing";
 
 describe("temporal migration activities", () => {
-  it("keeps placeholder run stages pure", async () => {
-    const result = await activities.runRunStage({
-      runId: "run_123",
-      stage: "rubric_gen",
-    });
-
-    assert.equal(result.processKind, "run");
-    assert.equal(result.processId, "run_123");
-    assert.equal(result.stage, "rubric_gen");
-    assert.equal(result.summary, "run:run_123:rubric_gen");
-  });
-
   it("uses an in-repo cache directory by default for workflow tests", () => {
     const config = getTemporalTestEnvironmentConfig();
 

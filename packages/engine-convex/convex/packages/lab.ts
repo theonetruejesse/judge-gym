@@ -365,10 +365,6 @@ export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
         target_count: args.target_count,
       }),
     });
-    await ctx.runMutation(
-      internal.domain.orchestrator.scheduler.startScheduler,
-      {},
-    );
     return {
       run_id: result.run_id,
       samples_created: args.target_count,

@@ -51,6 +51,80 @@ export async function startWindowWorkflowExecution(args: {
   }
 }
 
+export async function startRunWorkflowExecution(args: {
+  run_id: string;
+  pause_after?: "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic" | null;
+}) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({
+    address: config.address,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: config.namespace,
+    });
+
+    const handle = await client.workflow.start("runWorkflow", {
+      args: [{
+        runId: args.run_id,
+        pauseAfter: args.pause_after ?? null,
+      }],
+      taskQueue: config.taskQueues.run,
+      workflowId: `run:${args.run_id}`,
+    });
+
+    return {
+      workflow_id: handle.workflowId,
+      workflow_run_id: handle.firstExecutionRunId,
+    };
+  } finally {
+    await connection.close();
+  }
+}
+
+async function withTemporalClient<T>(
+  fn: (client: Client) => Promise<T>,
+) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({
+    address: config.address,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: config.namespace,
+    });
+    return await fn(client);
+  } finally {
+    await connection.close();
+  }
+}
+
+export async function resumeRunWorkflowExecution(args: {
+  run_id: string;
+  pause_after?: "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic" | null;
+}) {
+  return withTemporalClient(async (client) => {
+    const handle = client.workflow.getHandle(`run:${args.run_id}`);
+    if (args.pause_after !== undefined) {
+      await handle.executeUpdate("setPauseAfter", {
+        args: [{
+          cmdId: `cmd:set-pause-after:${Date.now()}`,
+          pauseAfter: args.pause_after ?? null,
+        }],
+      });
+    }
+    return handle.executeUpdate("resume", {
+      args: [{
+        cmdId: `cmd:resume:${Date.now()}`,
+      }],
+    });
+  });
+}
+
 export const startWindowWorkflow = zInternalAction({
   args: z.object({
     window_id: zid("windows"),
@@ -62,6 +136,37 @@ export const startWindowWorkflow = zInternalAction({
   handler: async (_ctx, args) => {
     return startWindowWorkflowExecution({
       window_id: String(args.window_id),
+    });
+  },
+});
+
+export const startRunWorkflow = zInternalAction({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: z.enum(["rubric_gen", "rubric_critic", "score_gen", "score_critic"]).nullable().optional(),
+  }),
+  returns: z.object({
+    workflow_id: z.string(),
+    workflow_run_id: z.string(),
+  }),
+  handler: async (_ctx, args) => {
+    return startRunWorkflowExecution({
+      run_id: String(args.run_id),
+      pause_after: args.pause_after ?? null,
+    });
+  },
+});
+
+export const resumeRunWorkflow = zInternalAction({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: z.enum(["rubric_gen", "rubric_critic", "score_gen", "score_critic"]).nullable().optional(),
+  }),
+  returns: z.any(),
+  handler: async (_ctx, args) => {
+    return resumeRunWorkflowExecution({
+      run_id: String(args.run_id),
+      pause_after: args.pause_after,
     });
   },
 });

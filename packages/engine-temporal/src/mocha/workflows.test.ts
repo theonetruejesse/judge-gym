@@ -8,7 +8,6 @@ import {
   releaseSharedTestWorkflowEnvironment,
 } from "./shared_test_env";
 import { runWorkflow } from "../workflows";
-import * as activities from "../activities";
 import { TEST_TASK_QUEUES } from "../testing";
 
 describe("run workflow", function () {
@@ -35,7 +34,12 @@ describe("run workflow", function () {
         projectProcessState: async <TStage extends string>(
           input: ProjectProcessStateInput<TStage>,
         ) => input,
-        runRunStage: activities.runRunStage,
+        runRunStage: async ({ runId, stage }: { runId: string; stage: string; }) => ({
+          processKind: "run",
+          processId: runId,
+          stage,
+          summary: `${runId}:${stage}`,
+        }),
         runWindowStage: async () => {
           throw new Error("runWindowStage should not be used in run tests");
         },

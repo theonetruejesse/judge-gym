@@ -5,15 +5,8 @@ import type {
   WindowStageKey,
 } from "@judge-gym/engine-settings";
 import { getConvexWorkerClient } from "./convex/client";
+import { runRunStageActivity } from "./run/service";
 import { runWindowStageActivity } from "./window/service";
-
-function buildStageSummary(
-  processKind: "run" | "window",
-  processId: string,
-  stage: string,
-) {
-  return `${processKind}:${processId}:${stage}`;
-}
 
 export async function projectProcessState<TStage extends string>(
   input: ProjectProcessStateInput<TStage>,
@@ -30,12 +23,7 @@ export async function runRunStage(
     stage: RunStageKey;
   },
 ): Promise<StageActivityResult<RunStageKey>> {
-  return {
-    processKind: "run",
-    processId: input.runId,
-    stage: input.stage,
-    summary: buildStageSummary("run", input.runId, input.stage),
-  };
+  return runRunStageActivity(input.runId, input.stage);
 }
 
 export async function runWindowStage(

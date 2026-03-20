@@ -3,13 +3,39 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { WindowsTableSchema } from "../models/window";
+import { RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import {
   LlmAttemptPayloadKindSchema,
   LlmAttemptStatusSchema,
 } from "../models/attempts";
 import { modelTypeSchema, providerTypeSchema } from "../platform/providers/provider_types";
+import {
+  buildRubricCriticPrompt,
+  buildRubricGenPrompt,
+  buildScoreCriticPrompt,
+  buildScoreCriticVerdictSummary,
+  buildScoreGenPrompt,
+} from "../domain/runs/run_prompts";
+import {
+  normalizeExperimentConfig,
+  resolveRandomizationStrategy,
+  resolveScaleStrategy,
+  type ExperimentConfig,
+} from "../domain/runs/run_strategies";
+import {
+  extractReasoningBeforeVerdict,
+  parseExpertAgreementResponse,
+  parseQualityResponse,
+  parseRubricResponse,
+  parseSingleVerdict,
+  parseSubsetVerdict,
+} from "../domain/runs/run_parsers";
+import { generateLabelMapping } from "../utils/randomize";
+import { syncExperimentTotalCount } from "../domain/runs/experiment_progress";
+import { incrementSampleScoreCounter } from "../domain/runs/sample_progress";
 
 const ProcessSnapshotSchema = z.object({
   processKind: z.enum(["run", "window"]),
@@ -34,6 +60,7 @@ const ProcessSnapshotSchema = z.object({
 });
 
 const StageInputSchema = z.enum(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
+const RunStageInputSchema = RunStageSchema;
 
 function stableHash(content: string): string {
   let hash = 5381;
@@ -86,6 +113,162 @@ function windowStageFields(stage: z.infer<typeof StageInputSchema>) {
         errorField: "l3_error_message" as const,
       };
   }
+}
+
+function mapRunStage(
+  stage: string | null | undefined,
+): Doc<"runs">["current_stage"] {
+  if (
+    stage === "rubric_gen"
+    || stage === "rubric_critic"
+    || stage === "score_gen"
+    || stage === "score_critic"
+  ) {
+    return stage;
+  }
+  return "rubric_gen";
+}
+
+function runStageFields(stage: z.infer<typeof RunStageInputSchema>) {
+  switch (stage) {
+    case "rubric_gen":
+      return {
+        targetType: "sample" as const,
+        attemptField: "rubric_gen_attempt_id" as const,
+        errorField: "rubric_gen_error_message" as const,
+        outputField: "rubric_id" as const,
+      };
+    case "rubric_critic":
+      return {
+        targetType: "sample" as const,
+        attemptField: "rubric_critic_attempt_id" as const,
+        errorField: "rubric_critic_error_message" as const,
+        outputField: "rubric_critic_id" as const,
+      };
+    case "score_gen":
+      return {
+        targetType: "sample_score_target" as const,
+        attemptField: "score_gen_attempt_id" as const,
+        errorField: "score_gen_error_message" as const,
+        outputField: "score_id" as const,
+      };
+    case "score_critic":
+      return {
+        targetType: "sample_score_target" as const,
+        attemptField: "score_critic_attempt_id" as const,
+        errorField: "score_critic_error_message" as const,
+        outputField: "score_critic_id" as const,
+      };
+  }
+}
+
+function buildRunLabelMapping(
+  config: ExperimentConfig,
+  scaleSize: number,
+  seed: number,
+): Record<string, number> {
+  const randomization = resolveRandomizationStrategy(config);
+  const scale = resolveScaleStrategy(config);
+  if (randomization.anonLabel) {
+    return generateLabelMapping(scaleSize, seed);
+  }
+  const mapping: Record<string, number> = {};
+  scale.letterLabels.forEach((label, idx) => {
+    mapping[label] = idx + 1;
+  });
+  return mapping;
+}
+
+function renderBundledEvidence(
+  items: Array<{ evidence: Doc<"evidences"> }>,
+  config: ExperimentConfig,
+) {
+  return {
+    l0_raw_content: items.map(({ evidence }, index) => {
+      return [`EVIDENCE ${index + 1}`, evidence.l0_raw_content].join("\n");
+    }).join("\n\n"),
+    l1_cleaned_content: items.map(({ evidence }, index) => {
+      return [
+        `EVIDENCE ${index + 1}`,
+        evidence.l1_cleaned_content ?? evidence.l0_raw_content,
+      ].join("\n");
+    }).join("\n\n"),
+    l2_neutralized_content: items.map(({ evidence }, index) => {
+      return [
+        `EVIDENCE ${index + 1}`,
+        evidence.l2_neutralized_content
+          ?? evidence.l1_cleaned_content
+          ?? evidence.l0_raw_content,
+      ].join("\n");
+    }).join("\n\n"),
+    l3_abstracted_content: items.map(({ evidence }, index) => {
+      return [
+        `EVIDENCE ${index + 1}`,
+        evidence.l3_abstracted_content
+          ?? evidence.l2_neutralized_content
+          ?? evidence.l1_cleaned_content
+          ?? evidence.l0_raw_content,
+      ].join("\n");
+    }).join("\n\n"),
+    selected_content: items.map(({ evidence }, index) => {
+      const selectedContent =
+        evidence.l3_abstracted_content
+        ?? evidence.l2_neutralized_content
+        ?? evidence.l1_cleaned_content
+        ?? evidence.l0_raw_content;
+      return [`EVIDENCE ${index + 1}`, selectedContent].join("\n");
+    }).join("\n\n"),
+  };
+}
+
+async function getRunStageProgressDirect(
+  ctx: MutationCtx,
+  run_id: Id<"runs">,
+  stage: z.infer<typeof RunStageInputSchema>,
+) {
+  if (stage === "rubric_gen" || stage === "rubric_critic") {
+    const samples = await ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .collect();
+    const completed = samples.filter((sample: Doc<"samples">) =>
+      stage === "rubric_gen"
+        ? sample.rubric_id != null
+        : sample.rubric_critic_id != null
+    ).length;
+    const failed = samples.filter((sample: Doc<"samples">) =>
+      stage === "rubric_gen"
+        ? sample.rubric_id == null && sample.rubric_gen_error_message != null
+        : sample.rubric_critic_id == null && sample.rubric_critic_error_message != null
+    ).length;
+    return {
+      total: samples.length,
+      completed,
+      failed,
+      hasPending: completed + failed < samples.length,
+    };
+  }
+
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
+    .withIndex("by_run", (q) => q.eq("run_id", run_id))
+    .collect();
+  const completed = scoreTargets.filter((target: Doc<"sample_score_targets">) =>
+    stage === "score_gen"
+      ? target.score_id != null
+      : target.score_critic_id != null
+  ).length;
+  const failed = scoreTargets.filter((target: Doc<"sample_score_targets">) =>
+    stage === "score_gen"
+      ? target.score_id == null && target.score_gen_error_message != null
+      : target.score_critic_id == null && target.score_critic_error_message != null
+  ).length;
+  return {
+    total: scoreTargets.length,
+    completed,
+    failed,
+    hasPending: completed + failed < scoreTargets.length,
+  };
 }
 
 export const getWindowExecutionContext = zQuery({
@@ -158,11 +341,373 @@ export const bindWindowWorkflow = zMutation({
   },
 });
 
+export const getRunExecutionContext = zQuery({
+  args: z.object({
+    run_id: zid("runs"),
+  }),
+  returns: z.object({
+    run_id: zid("runs"),
+    experiment_id: zid("experiments"),
+    workflow_id: z.string().nullable(),
+    workflow_run_id: z.string().nullable(),
+    status: RunsTableSchema.shape.status,
+    current_stage: RunsTableSchema.shape.current_stage,
+    target_count: RunsTableSchema.shape.target_count,
+    completed_count: RunsTableSchema.shape.completed_count,
+    pause_after: RunsTableSchema.shape.pause_after,
+  }),
+  handler: async (ctx, { run_id }) => {
+    const run = await ctx.db.get(run_id);
+    if (!run) {
+      throw new Error("Run not found");
+    }
+    return {
+      run_id,
+      experiment_id: run.experiment_id,
+      workflow_id: run.workflow_id ?? null,
+      workflow_run_id: run.workflow_run_id ?? null,
+      status: run.status,
+      current_stage: run.current_stage,
+      target_count: run.target_count,
+      completed_count: run.completed_count,
+      pause_after: run.pause_after ?? null,
+    };
+  },
+});
+
+export const bindRunWorkflow = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    workflow_id: z.string(),
+    workflow_run_id: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.run_id, {
+      workflow_id: args.workflow_id,
+      workflow_run_id: args.workflow_run_id,
+      status: "queued",
+      current_stage: "rubric_gen",
+      last_error_message: null,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${args.run_id}`,
+      entity_type: "run",
+      entity_id: String(args.run_id),
+      event_name: "run_workflow_bound",
+      status: "queued",
+      stage: "rubric_gen",
+      payload_json: JSON.stringify({
+        workflow_id: args.workflow_id,
+        workflow_run_id: args.workflow_run_id,
+      }),
+    });
+    return null;
+  },
+});
+
+export const listRunStageInputs = zQuery({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageInputSchema,
+  }),
+  returns: z.array(z.object({
+    target_type: z.enum(["sample", "sample_score_target"]),
+    target_id: z.string(),
+    model: modelTypeSchema,
+    system_prompt: z.string(),
+    user_prompt: z.string(),
+    metadata_json: z.string().nullable(),
+  })),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      throw new Error("Run not found");
+    }
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) {
+      throw new Error("Experiment not found");
+    }
+    const config = normalizeExperimentConfig(experiment);
+
+    if (args.stage === "rubric_gen" || args.stage === "rubric_critic") {
+      const samples = await ctx.db
+        .query("samples")
+        .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+        .collect();
+      const orderedSamples = samples
+        .slice()
+        .sort((left, right) => left._creationTime - right._creationTime);
+      const results: Array<{
+        target_type: "sample";
+        target_id: string;
+        model: Doc<"samples">["model"];
+        system_prompt: string;
+        user_prompt: string;
+        metadata_json: string | null;
+      }> = [];
+
+      for (const sample of orderedSamples) {
+        if (args.stage === "rubric_gen") {
+          if (sample.rubric_id || sample.rubric_gen_error_message) {
+            continue;
+          }
+          const prompt = buildRubricGenPrompt({
+            concept: experiment.rubric_config.concept,
+            scale_size: experiment.rubric_config.scale_size,
+          });
+          results.push({
+            target_type: "sample",
+            target_id: String(sample._id),
+            model: experiment.rubric_config.model,
+            system_prompt: prompt.system_prompt,
+            user_prompt: prompt.user_prompt,
+            metadata_json: JSON.stringify({
+              sample_id: sample._id,
+              concept: experiment.rubric_config.concept,
+              scale_size: experiment.rubric_config.scale_size,
+            }),
+          });
+          continue;
+        }
+
+        if (!sample.rubric_id || sample.rubric_critic_id || sample.rubric_critic_error_message) {
+          continue;
+        }
+        const rubric = await ctx.db.get(sample.rubric_id);
+        if (!rubric) {
+          continue;
+        }
+        const prompt = buildRubricCriticPrompt({
+          concept: rubric.concept,
+          rubric: {
+            stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+          },
+        });
+        results.push({
+          target_type: "sample",
+          target_id: String(sample._id),
+          model: rubric.model,
+          system_prompt: prompt.system_prompt,
+          user_prompt: prompt.user_prompt,
+          metadata_json: JSON.stringify({
+            sample_id: sample._id,
+            rubric_id: rubric._id,
+          }),
+        });
+      }
+
+      return results;
+    }
+
+    const samples = await ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .collect();
+    const samplesById = new Map(
+      samples.map((sample) => [String(sample._id), sample] as const),
+    );
+    const rubrics = await Promise.all(
+      samples
+        .filter((sample) => sample.rubric_id != null)
+        .map((sample) => ctx.db.get(sample.rubric_id!)),
+    );
+    const rubricBySampleId = new Map<string, NonNullable<typeof rubrics[number]>>();
+    for (const sample of samples) {
+      if (!sample.rubric_id) {
+        continue;
+      }
+      const rubric = rubrics.find((candidate) => candidate?._id === sample.rubric_id);
+      if (rubric) {
+        rubricBySampleId.set(String(sample._id), rubric);
+      }
+    }
+
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .collect();
+    const targetIds = scoreTargets.map((target) => target._id);
+    const itemRows = (
+      await Promise.all(
+        targetIds.map((score_target_id) =>
+          ctx.db
+            .query("sample_score_target_items")
+            .withIndex("by_score_target", (q) => q.eq("score_target_id", score_target_id))
+            .collect(),
+        ),
+      )
+    ).flat();
+    const evidenceIds = Array.from(new Set(itemRows.map((item) => String(item.evidence_id))));
+    const evidences = await Promise.all(
+      evidenceIds.map((evidenceId) => ctx.db.get(evidenceId as Id<"evidences">)),
+    );
+    const evidenceById = new Map(
+      evidences.filter((evidence): evidence is Doc<"evidences"> => evidence != null)
+        .map((evidence) => [String(evidence._id), evidence] as const),
+    );
+    const itemsByTargetId = new Map<string, Array<{ position: number; evidence: Doc<"evidences"> }>>();
+    for (const item of itemRows) {
+      const evidence = evidenceById.get(String(item.evidence_id));
+      if (!evidence) {
+        continue;
+      }
+      const current = itemsByTargetId.get(String(item.score_target_id)) ?? [];
+      current.push({
+        position: item.position,
+        evidence,
+      });
+      itemsByTargetId.set(String(item.score_target_id), current);
+    }
+
+    const results: Array<{
+      target_type: "sample_score_target";
+      target_id: string;
+      model: Doc<"samples">["model"];
+      system_prompt: string;
+      user_prompt: string;
+      metadata_json: string | null;
+    }> = [];
+
+    for (const target of scoreTargets) {
+      const sample = samplesById.get(String(target.sample_id));
+      if (!sample || !sample.rubric_id) {
+        continue;
+      }
+      const rubric = rubricBySampleId.get(String(sample._id));
+      if (!rubric) {
+        continue;
+      }
+      const items = (itemsByTargetId.get(String(target._id)) ?? [])
+        .slice()
+        .sort((left, right) => left.position - right.position)
+        .map((item) => ({ evidence: item.evidence }));
+      if (items.length === 0) {
+        continue;
+      }
+
+      const renderedEvidence = renderBundledEvidence(items, config);
+
+      if (args.stage === "score_gen") {
+        if (target.score_id || target.score_gen_error_message) {
+          continue;
+        }
+        const prompt = buildScoreGenPrompt({
+          config,
+          evidence: {
+            l0_raw_content: renderedEvidence.l0_raw_content,
+            l1_cleaned_content: renderedEvidence.l1_cleaned_content,
+            l2_neutralized_content: renderedEvidence.l2_neutralized_content,
+            l3_abstracted_content: renderedEvidence.l3_abstracted_content,
+          },
+          rubric: {
+            stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+          },
+          sample: {
+            label_mapping: rubric.label_mapping,
+            display_seed: sample.seed,
+          },
+          evidence_item_count: items.length,
+        });
+        results.push({
+          target_type: "sample_score_target",
+          target_id: String(target._id),
+          model: sample.model,
+          system_prompt: prompt.system_prompt,
+          user_prompt: prompt.user_prompt,
+          metadata_json: JSON.stringify({
+            sample_id: sample._id,
+            score_target_id: target._id,
+            evidence_item_count: items.length,
+          }),
+        });
+        continue;
+      }
+
+      const score = target.score_id
+        ? await ctx.db.get(target.score_id)
+        : await ctx.db
+          .query("scores")
+          .withIndex("by_score_target", (q) => q.eq("score_target_id", target._id))
+          .first();
+      if (!score || target.score_critic_id || target.score_critic_error_message) {
+        continue;
+      }
+
+      const prompt = buildScoreCriticPrompt({
+        config,
+        evidence: renderedEvidence.selected_content,
+        rubric: {
+          stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+        },
+        sample: {
+          label_mapping: rubric.label_mapping,
+          display_seed: sample.seed,
+        },
+        verdict: buildScoreCriticVerdictSummary({
+          decoded_scores: score.decoded_scores,
+          displayed_identifiers_by_stage: rubric.label_mapping
+            ? Object.entries(rubric.label_mapping)
+              .sort((left, right) => left[1] - right[1])
+              .map(([token]) => token)
+            : rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
+          method: config.scoring_config.method,
+        }),
+        evidence_item_count: items.length,
+      });
+      results.push({
+        target_type: "sample_score_target",
+        target_id: String(target._id),
+        model: sample.model,
+        system_prompt: prompt.system_prompt,
+        user_prompt: prompt.user_prompt,
+        metadata_json: JSON.stringify({
+          sample_id: sample._id,
+          score_target_id: target._id,
+          score_id: score._id,
+          evidence_item_count: items.length,
+        }),
+      });
+    }
+
+    return results;
+  },
+});
+
 export const projectProcessState = zMutation({
   args: ProcessSnapshotSchema,
   returns: z.null(),
   handler: async (ctx, args) => {
-    if (args.processKind !== "window") {
+    if (args.processKind === "run") {
+      const run_id = args.processId as Id<"runs">;
+      const run = await ctx.db.get(run_id);
+      if (!run) {
+        throw new Error("Run not found");
+      }
+
+      await ctx.db.patch(run_id, {
+        workflow_id: args.workflowId,
+        workflow_run_id: args.workflowRunId,
+        status: mapExecutionStatus(args.executionStatus),
+        current_stage: mapRunStage(args.stage),
+        last_error_message: args.lastErrorMessage ?? null,
+      });
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${run_id}`,
+        entity_type: "run",
+        entity_id: String(run_id),
+        event_name: "run_snapshot_projected",
+        status: mapExecutionStatus(args.executionStatus),
+        stage: args.stage ?? "rubric_gen",
+        payload_json: JSON.stringify({
+          stage_status: args.stageStatus,
+          pause_after: args.pauseAfter,
+          last_control_command_id: args.lastControlCommandId,
+          stage_history: args.stageHistory,
+          workflow_id: args.workflowId,
+          workflow_run_id: args.workflowRunId,
+        }),
+      });
       return null;
     }
 
@@ -556,6 +1101,349 @@ export const markWindowProcessError = zMutation({
       event_name: "window_process_failed",
       status: "error",
       stage: args.stage ?? "l0_raw",
+      payload_json: JSON.stringify({
+        error_message: args.error_message,
+      }),
+    });
+    return null;
+  },
+});
+
+export const applyRunStageResult = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    target_id: z.string(),
+    stage: RunStageInputSchema,
+    attempt_id: zid("llm_attempts"),
+    output: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      throw new Error("Run not found");
+    }
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) {
+      throw new Error("Experiment not found");
+    }
+    const config = normalizeExperimentConfig(experiment);
+
+    if (args.stage === "rubric_gen") {
+      const sample = await ctx.db.get(args.target_id as Id<"samples">);
+      if (!sample || sample.run_id !== args.run_id) {
+        throw new Error("Sample not found for run");
+      }
+      if (sample.rubric_id) {
+        return null;
+      }
+      const parsed = parseRubricResponse(
+        args.output,
+        experiment.rubric_config.scale_size,
+      );
+      const label_mapping = buildRunLabelMapping(
+        config,
+        experiment.rubric_config.scale_size,
+        sample.seed,
+      );
+      const rubric_id = await ctx.db.insert("rubrics", {
+        run_id: args.run_id,
+        sample_id: sample._id,
+        model: experiment.rubric_config.model,
+        concept: experiment.rubric_config.concept,
+        scale_size: experiment.rubric_config.scale_size,
+        llm_request_id: null,
+        llm_attempt_id: args.attempt_id,
+        justification: parsed.reasoning,
+        stages: parsed.stages,
+        label_mapping,
+      });
+      await ctx.db.patch(sample._id, {
+        rubric_id,
+        rubric_gen_attempt_id: args.attempt_id,
+        rubric_gen_error_message: null,
+      });
+    }
+
+    if (args.stage === "rubric_critic") {
+      const sample = await ctx.db.get(args.target_id as Id<"samples">);
+      if (!sample || sample.run_id !== args.run_id) {
+        throw new Error("Sample not found for run");
+      }
+      if (sample.rubric_critic_id) {
+        return null;
+      }
+      if (!sample.rubric_id) {
+        throw new Error("Rubric missing for sample");
+      }
+      const rubric = await ctx.db.get(sample.rubric_id);
+      if (!rubric) {
+        throw new Error("Rubric not found");
+      }
+      const parsed = parseQualityResponse(args.output);
+      const rubric_critic_id = await ctx.db.insert("rubric_critics", {
+        run_id: args.run_id,
+        sample_id: sample._id,
+        model: rubric.model,
+        llm_request_id: null,
+        llm_attempt_id: args.attempt_id,
+        justification: parsed.reasoning,
+        expert_agreement_prob: {
+          observability_score: parsed.observabilityScore,
+          discriminability_score: parsed.discriminabilityScore,
+        },
+      });
+      await ctx.db.patch(sample._id, {
+        rubric_critic_id,
+        rubric_critic_attempt_id: args.attempt_id,
+        rubric_critic_error_message: null,
+      });
+    }
+
+    if (args.stage === "score_gen") {
+      const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
+      if (!target || target.run_id !== args.run_id) {
+        throw new Error("Score target not found for run");
+      }
+      if (target.score_id) {
+        return null;
+      }
+      const sample = await ctx.db.get(target.sample_id);
+      if (!sample) {
+        throw new Error("Sample not found");
+      }
+      if (!sample.rubric_id) {
+        throw new Error("Rubric missing for sample");
+      }
+      const rubric = await ctx.db.get(sample.rubric_id);
+      if (!rubric) {
+        throw new Error("Rubric not found");
+      }
+      const parsedVerdict = config.scoring_config.method === "subset"
+        ? parseSubsetVerdict(args.output, rubric.label_mapping)
+        : parseSingleVerdict(args.output, rubric.label_mapping);
+      const justification = extractReasoningBeforeVerdict(args.output);
+      const score_id = await ctx.db.insert("scores", {
+        run_id: args.run_id,
+        sample_id: sample._id,
+        score_target_id: target._id,
+        model: sample.model,
+        llm_request_id: null,
+        llm_attempt_id: args.attempt_id,
+        justification,
+        decoded_scores: parsedVerdict.decodedScores ?? [],
+      });
+      await ctx.db.patch(target._id, {
+        score_id,
+        score_gen_attempt_id: args.attempt_id,
+        score_gen_error_message: null,
+      });
+      await incrementSampleScoreCounter(ctx, sample._id, "score_count");
+    }
+
+    if (args.stage === "score_critic") {
+      const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
+      if (!target || target.run_id !== args.run_id) {
+        throw new Error("Score target not found for run");
+      }
+      if (target.score_critic_id) {
+        return null;
+      }
+      const sample = await ctx.db.get(target.sample_id);
+      if (!sample) {
+        throw new Error("Sample not found");
+      }
+      const parsed = parseExpertAgreementResponse(args.output);
+      const score_critic_id = await ctx.db.insert("score_critics", {
+        run_id: args.run_id,
+        sample_id: sample._id,
+        score_target_id: target._id,
+        model: sample.model,
+        llm_request_id: null,
+        llm_attempt_id: args.attempt_id,
+        justification: parsed.reasoning,
+        expert_agreement_prob: parsed.expertAgreementProb,
+      });
+      await ctx.db.patch(target._id, {
+        score_critic_id,
+        score_critic_attempt_id: args.attempt_id,
+        score_critic_error_message: null,
+      });
+      await incrementSampleScoreCounter(ctx, sample._id, "score_critic_count");
+    }
+
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${args.run_id}`,
+      entity_type: "run",
+      entity_id: String(args.run_id),
+      event_name: "run_stage_result_applied",
+      status: "running",
+      stage: args.stage,
+      payload_json: JSON.stringify({
+        target_id: args.target_id,
+        attempt_id: args.attempt_id,
+      }),
+    });
+    return null;
+  },
+});
+
+export const markRunStageFailure = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    target_id: z.string(),
+    stage: RunStageInputSchema,
+    attempt_id: zid("llm_attempts"),
+    error_message: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const fields = runStageFields(args.stage);
+    if (fields.targetType === "sample") {
+      const sample = await ctx.db.get(args.target_id as Id<"samples">);
+      if (!sample || sample.run_id !== args.run_id) {
+        throw new Error("Sample not found for run");
+      }
+      if ((sample as any)[fields.outputField]) {
+        return null;
+      }
+      await ctx.db.patch(sample._id, {
+        [fields.attemptField]: args.attempt_id,
+        [fields.errorField]: args.error_message,
+      } as Partial<Doc<"samples">>);
+    } else {
+      const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
+      if (!target || target.run_id !== args.run_id) {
+        throw new Error("Score target not found for run");
+      }
+      if ((target as any)[fields.outputField]) {
+        return null;
+      }
+      await ctx.db.patch(target._id, {
+        [fields.attemptField]: args.attempt_id,
+        [fields.errorField]: args.error_message,
+      } as Partial<Doc<"sample_score_targets">>);
+    }
+
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${args.run_id}`,
+      entity_type: "run",
+      entity_id: String(args.run_id),
+      event_name: "run_stage_attempt_failed",
+      status: "error",
+      stage: args.stage,
+      payload_json: JSON.stringify({
+        target_id: args.target_id,
+        attempt_id: args.attempt_id,
+        error_message: args.error_message,
+      }),
+    });
+    return null;
+  },
+});
+
+export const finalizeRunStage = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageInputSchema,
+  }),
+  returns: z.object({
+    total: z.number(),
+    completed: z.number(),
+    failed: z.number(),
+    has_pending: z.boolean(),
+    halt_process: z.boolean(),
+    terminal_execution_status: z.enum(["completed", "failed", "canceled"]).nullable(),
+    error_message: z.string().nullable(),
+  }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      throw new Error("Run not found");
+    }
+    const progress = await getRunStageProgressDirect(ctx, args.run_id, args.stage);
+    const stageCountField = `${args.stage}_count` as const;
+    if ((run as any)[stageCountField] !== progress.completed) {
+      await ctx.db.patch(args.run_id, {
+        [stageCountField]: progress.completed,
+      } as Partial<Doc<"runs">>);
+    }
+
+    if (args.stage === "score_critic" && !progress.hasPending && progress.failed === 0) {
+      const samples = await ctx.db
+        .query("samples")
+        .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+        .collect();
+      const completed_count = samples.filter((sample) =>
+        sample.score_target_total > 0
+        && (sample.score_critic_count ?? 0) >= sample.score_target_total
+      ).length;
+      await ctx.db.patch(args.run_id, {
+        completed_count,
+      });
+      await syncExperimentTotalCount(ctx, run.experiment_id);
+    }
+
+    if (progress.failed > 0 && !progress.hasPending) {
+      const error_message =
+        `Run ${args.run_id} failed in stage ${args.stage} with ${progress.failed} failed target(s)`;
+      await ctx.db.patch(args.run_id, {
+        status: "error",
+        current_stage: args.stage,
+        last_error_message: error_message,
+      });
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${args.run_id}`,
+        entity_type: "run",
+        entity_id: String(args.run_id),
+        event_name: "run_process_failed",
+        status: "error",
+        stage: args.stage,
+        payload_json: JSON.stringify({
+          completed: progress.completed,
+          failed: progress.failed,
+          total: progress.total,
+        }),
+      });
+      return {
+        ...progress,
+        has_pending: progress.hasPending,
+        halt_process: true,
+        terminal_execution_status: "failed" as const,
+        error_message,
+      };
+    }
+
+    return {
+      ...progress,
+      has_pending: progress.hasPending,
+      halt_process: false,
+      terminal_execution_status: null,
+      error_message: null,
+    };
+  },
+});
+
+export const markRunProcessError = zMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageSchema.nullable(),
+    error_message: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.run_id, {
+      status: "error",
+      current_stage: args.stage ?? "rubric_gen",
+      last_error_message: args.error_message,
+    });
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${args.run_id}`,
+      entity_type: "run",
+      entity_id: String(args.run_id),
+      event_name: "run_process_failed",
+      status: "error",
+      stage: args.stage ?? "rubric_gen",
       payload_json: JSON.stringify({
         error_message: args.error_message,
       }),

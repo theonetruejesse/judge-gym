@@ -1,10 +1,10 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zInternalMutation } from "../../utils/custom_fns";
+import { zInternalAction, zInternalMutation } from "../../utils/custom_fns";
 import { RunOrchestrator, type RunRequestTargetType } from "./run_orchestrator";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { ENGINE_SETTINGS } from "../../settings";
 import { getProviderForModel } from "../../platform/providers/provider_types";
 import { RunStageSchema, type RunStage } from "../../models/experiments";
@@ -67,41 +67,99 @@ export const startRunFlow = zInternalMutation({
       internal.domain.runs.run_repo.createRun,
       args,
     );
-
-    const orchestrator = new RunOrchestrator(ctx);
-    await ctx.db.patch(run_id, {
-      status: "running",
-      current_stage: "rubric_gen",
-    });
     await emitTraceEvent(ctx, {
       trace_id: `run:${run_id}`,
       entity_type: "run",
       entity_id: String(run_id),
-      event_name: "run_stage_started",
+      event_name: "run_created",
       stage: "rubric_gen",
-      status: "running",
+      status: "start",
       payload_json: JSON.stringify({
         experiment_id: args.experiment_id,
         target_count: args.target_count,
         pause_after: args.pause_after ?? null,
       }),
     });
-    await orchestrator.enqueueStage(run_id, "rubric_gen");
-    await emitTraceEvent(ctx, {
-      trace_id: `run:${run_id}`,
-      entity_type: "run",
-      entity_id: String(run_id),
-      event_name: "run_stage_enqueued",
-      stage: "rubric_gen",
-      status: "queued",
-      payload_json: JSON.stringify({
-        experiment_id: args.experiment_id,
-        target_count: args.target_count,
+    await ctx.scheduler.runAfter(
+      0,
+      internal.domain.runs.run_service.startRunExecution,
+      {
+        run_id,
         pause_after: args.pause_after ?? null,
-      }),
-    });
+      },
+    );
 
     return { run_id };
+  },
+});
+
+export const startRunExecution = zInternalAction({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: RunStageSchema.nullable().optional(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    await emitTraceEvent(ctx, {
+      trace_id: `run:${args.run_id}`,
+      entity_type: "run",
+      entity_id: String(args.run_id),
+      event_name: "run_flow_started",
+      stage: "rubric_gen",
+      payload_json: JSON.stringify({
+        pause_after: args.pause_after ?? null,
+      }),
+    });
+
+    try {
+      const { workflow_id, workflow_run_id } = await ctx.runAction(
+        internal.domain.temporal.temporal_client.startRunWorkflow,
+        {
+          run_id: args.run_id,
+          pause_after: args.pause_after ?? null,
+        },
+      );
+      await ctx.runMutation(api.packages.worker.bindRunWorkflow, {
+        run_id: args.run_id,
+        workflow_id,
+        workflow_run_id,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(api.packages.worker.markRunProcessError, {
+        run_id: args.run_id,
+        stage: "rubric_gen",
+        error_message: errorMessage,
+      });
+    }
+    return null;
+  },
+});
+
+export const resumeRunExecution = zInternalAction({
+  args: z.object({
+    run_id: zid("runs"),
+    pause_after: RunStageSchema.nullable().optional(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    try {
+      await ctx.runAction(
+        internal.domain.temporal.temporal_client.resumeRunWorkflow,
+        {
+          run_id: args.run_id,
+          pause_after: args.pause_after,
+        },
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(api.packages.worker.markRunProcessError, {
+        run_id: args.run_id,
+        stage: null,
+        error_message: errorMessage,
+      });
+    }
+    return null;
   },
 });
 
@@ -140,13 +198,6 @@ export const startRunFlowForCampaign = zInternalMutation({
         pause_after: args.pause_after ?? null,
       }),
     });
-
-    if (args.start_scheduler) {
-      await ctx.runMutation(
-        internal.domain.orchestrator.scheduler.startScheduler,
-        {},
-      );
-    }
 
     return result;
   },
@@ -211,6 +262,43 @@ export const resumePausedRunFlow = zInternalMutation({
         run_id: run._id,
         outcome: "not_paused" as const,
         status: run.status,
+        current_stage: run.current_stage,
+      };
+    }
+
+    if (run.workflow_id) {
+      const nextPauseAfter = args.pause_after ?? null;
+      await ctx.db.patch(run._id, {
+        status: "running",
+        pause_after: nextPauseAfter,
+        last_error_message: null,
+      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.runs.run_service.resumeRunExecution,
+        {
+          run_id: run._id,
+          pause_after: nextPauseAfter,
+        },
+      );
+      await emitTraceEvent(ctx, {
+        trace_id: `run:${run._id}`,
+        entity_type: "run",
+        entity_id: String(run._id),
+        event_name: "run_resumed",
+        stage: run.current_stage,
+        status: "running",
+        payload_json: JSON.stringify({
+          resumed_stage: run.current_stage,
+          previous_pause_after: run.pause_after ?? null,
+          pause_after: nextPauseAfter,
+          workflow_id: run.workflow_id,
+        }),
+      });
+      return {
+        run_id: run._id,
+        outcome: "advanced" as const,
+        status: "running",
         current_stage: run.current_stage,
       };
     }

@@ -5,6 +5,7 @@ import type {
   QuotaReservationInput,
   QuotaReservationResult,
   QuotaSettlementInput,
+  RunStageKey,
   WindowStageKey,
 } from "@judge-gym/engine-settings";
 
@@ -38,10 +39,31 @@ type WindowStageInput = {
   input: string;
 };
 
+type RunExecutionContext = {
+  run_id: string;
+  experiment_id: string;
+  workflow_id: string | null;
+  workflow_run_id: string | null;
+  status: string;
+  current_stage: string;
+  target_count: number;
+  completed_count: number;
+  pause_after: string | null;
+};
+
+type RunStageInput = {
+  target_type: "sample" | "sample_score_target";
+  target_id: string;
+  model: string;
+  system_prompt: string;
+  user_prompt: string;
+  metadata_json: string | null;
+};
+
 type AttemptStartInput = {
-  process_kind: "window";
+  process_kind: "window" | "run";
   process_id: string;
-  target_type: "evidence";
+  target_type: "evidence" | "sample" | "sample_score_target";
   target_id: string;
   stage: string;
   provider: string;
@@ -83,6 +105,12 @@ type StageFailureInput = {
 };
 
 const workerApi = {
+  getRunExecutionContext: makeFunctionReference<"query">(
+    "packages/worker:getRunExecutionContext",
+  ),
+  bindRunWorkflow: makeFunctionReference<"mutation">(
+    "packages/worker:bindRunWorkflow",
+  ),
   getWindowExecutionContext: makeFunctionReference<"query">(
     "packages/worker:getWindowExecutionContext",
   ),
@@ -97,6 +125,9 @@ const workerApi = {
   ),
   listWindowStageInputs: makeFunctionReference<"query">(
     "packages/worker:listWindowStageInputs",
+  ),
+  listRunStageInputs: makeFunctionReference<"query">(
+    "packages/worker:listRunStageInputs",
   ),
   recordLlmAttemptStart: makeFunctionReference<"mutation">(
     "packages/worker:recordLlmAttemptStart",
@@ -116,6 +147,18 @@ const workerApi = {
   markWindowProcessError: makeFunctionReference<"mutation">(
     "packages/worker:markWindowProcessError",
   ),
+  applyRunStageResult: makeFunctionReference<"mutation">(
+    "packages/worker:applyRunStageResult",
+  ),
+  markRunStageFailure: makeFunctionReference<"mutation">(
+    "packages/worker:markRunStageFailure",
+  ),
+  finalizeRunStage: makeFunctionReference<"mutation">(
+    "packages/worker:finalizeRunStage",
+  ),
+  markRunProcessError: makeFunctionReference<"mutation">(
+    "packages/worker:markRunProcessError",
+  ),
   reserveQuota: makeFunctionReference<"mutation">(
     "packages/worker:reserveQuota",
   ),
@@ -129,6 +172,20 @@ export class ConvexWorkerClient {
 
   constructor(url = requireConvexUrl()) {
     this.client = new ConvexHttpClient(url);
+  }
+
+  getRunExecutionContext(run_id: string) {
+    return this.client.query(workerApi.getRunExecutionContext, {
+      run_id,
+    }) as Promise<RunExecutionContext>;
+  }
+
+  bindRunWorkflow(args: {
+    run_id: string;
+    workflow_id: string;
+    workflow_run_id: string;
+  }) {
+    return this.client.mutation(workerApi.bindRunWorkflow, args);
   }
 
   getWindowExecutionContext(window_id: string) {
@@ -174,6 +231,15 @@ export class ConvexWorkerClient {
     >;
   }
 
+  listRunStageInputs(args: {
+    run_id: string;
+    stage: RunStageKey;
+  }) {
+    return this.client.query(workerApi.listRunStageInputs, args) as Promise<
+      RunStageInput[]
+    >;
+  }
+
   recordLlmAttemptStart(args: AttemptStartInput) {
     return this.client.mutation(workerApi.recordLlmAttemptStart, args) as Promise<{
       attempt_id: string;
@@ -202,6 +268,49 @@ export class ConvexWorkerClient {
     error_message: string;
   }) {
     return this.client.mutation(workerApi.markWindowProcessError, args);
+  }
+
+  applyRunStageResult(args: {
+    run_id: string;
+    target_id: string;
+    stage: RunStageKey;
+    attempt_id: string;
+    output: string;
+  }) {
+    return this.client.mutation(workerApi.applyRunStageResult, args);
+  }
+
+  markRunStageFailure(args: {
+    run_id: string;
+    target_id: string;
+    stage: RunStageKey;
+    attempt_id: string;
+    error_message: string;
+  }) {
+    return this.client.mutation(workerApi.markRunStageFailure, args);
+  }
+
+  finalizeRunStage(args: {
+    run_id: string;
+    stage: RunStageKey;
+  }) {
+    return this.client.mutation(workerApi.finalizeRunStage, args) as Promise<{
+      total: number;
+      completed: number;
+      failed: number;
+      has_pending: boolean;
+      halt_process: boolean;
+      terminal_execution_status: "completed" | "failed" | "canceled" | null;
+      error_message: string | null;
+    }>;
+  }
+
+  markRunProcessError(args: {
+    run_id: string;
+    stage: RunStageKey | null;
+    error_message: string;
+  }) {
+    return this.client.mutation(workerApi.markRunProcessError, args);
   }
 
   reserveQuota(args: QuotaReservationInput) {
