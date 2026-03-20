@@ -20,7 +20,7 @@ reviews:
     - "!**/coverage/**"
     - "!**/convex/_generated/**"
   path_instructions:
-    - path: "packages/engine/convex/**"
+    - path: "packages/engine-convex/convex/**"
       instructions: >
         Enforce Convex style: zod helpers from convex/utils.ts, explicit args/returns,
         internal.* references for cross calls, 2-space indent, semicolons, trailing commas.
