@@ -1,9 +1,21 @@
 import z from "zod";
-import { internal } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { zAction, zQuery } from "../../utils/custom_fns";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
+const ControlActionSchema = z.enum([
+  "set_pause_after",
+  "pause_now",
+  "resume",
+  "cancel",
+  "repair_bounded",
+]);
+const RepairBoundedOperationSchema = z.enum([
+  "reproject_snapshot",
+  "resume_if_paused",
+  "clear_pause_after",
+]);
 
 const AnalyzeStageSummarySchema = z.object({
   stage: z.string(),
@@ -85,6 +97,92 @@ const TailTraceReturnSchema = z.object({
   external_trace_ref: z.string().nullable(),
 });
 
+const TemporalProcessInspectionSchema = z.object({
+  health: z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    trace_id: z.string(),
+    telemetry_backend: z.literal("axiom"),
+    external_trace_ref: z.string().nullable(),
+    status: z.string(),
+    current_stage: z.string(),
+  }),
+  temporal: z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    workflow_id: z.string(),
+    workflow_found: z.boolean(),
+    workflow_run_id: z.string().nullable(),
+    workflow_type: z.string().nullable(),
+    task_queue: z.string().nullable(),
+    temporal_status: z.string().nullable(),
+    history_length: z.number().nullable(),
+    start_time_ms: z.number().nullable(),
+    execution_time_ms: z.number().nullable(),
+    close_time_ms: z.number().nullable(),
+    snapshot: z.object({
+      processKind: ProcessTypeSchema,
+      processId: z.string(),
+      workflowId: z.string(),
+      workflowRunId: z.string(),
+      workflowType: z.string(),
+      executionStatus: z.enum([
+        "queued",
+        "running",
+        "paused",
+        "completed",
+        "failed",
+        "canceled",
+      ]),
+      stage: z.string().nullable(),
+      stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
+      pauseAfter: z.string().nullable(),
+      stageHistory: z.array(z.string()),
+      lastControlCommandId: z.string().nullable(),
+      lastErrorMessage: z.string().nullable(),
+    }).nullable(),
+    snapshot_query_error: z.string().nullable(),
+  }),
+});
+
+const ControlProcessExecutionResultSchema = z.object({
+  process_type: ProcessTypeSchema,
+  process_id: z.string(),
+  action: ControlActionSchema,
+  cmd_id: z.string(),
+  accepted: z.boolean(),
+  reason: z.string().nullable(),
+  workflow_id: z.string().nullable(),
+  temporal_status: z.string().nullable(),
+  snapshot: z.object({
+    processKind: ProcessTypeSchema,
+    processId: z.string(),
+    workflowId: z.string(),
+    workflowRunId: z.string(),
+    workflowType: z.string(),
+    executionStatus: z.enum([
+      "queued",
+      "running",
+      "paused",
+      "completed",
+      "failed",
+      "canceled",
+    ]),
+    stage: z.string().nullable(),
+    stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
+    pauseAfter: z.string().nullable(),
+    stageHistory: z.array(z.string()),
+    lastControlCommandId: z.string().nullable(),
+    lastErrorMessage: z.string().nullable(),
+  }).nullable(),
+  repair_result: z.object({
+    accepted: z.boolean(),
+    cmdId: z.string(),
+    operation: RepairBoundedOperationSchema,
+    reason: z.string().optional(),
+  }).nullable(),
+});
+
 type AnalyzeStageSummary = z.infer<typeof AnalyzeStageSummarySchema>;
 type ProcessTelemetryAnalysis = z.infer<typeof ProcessTelemetryAnalysisSchema>;
 type TailTraceReturn = z.infer<typeof TailTraceReturnSchema>;
@@ -126,7 +224,12 @@ export const analyzeProcessTelemetry = zQuery({
     const events = (observability?.recent_events ?? [])
       .slice(-args.max_events)
       .slice()
-      .sort((left, right) => left.seq - right.seq);
+      .sort(
+        (
+          left: TailTraceReturn["events"][number],
+          right: TailTraceReturn["events"][number],
+        ) => left.seq - right.seq,
+      );
 
     const eventCounts = new Map<string, number>();
     const requestEntities = new Set<string>();
@@ -274,6 +377,83 @@ export const analyzeProcessTelemetry = zQuery({
           : events.filter((event: TailTraceReturn["events"][number]) => event.seq > terminalSeq).length,
       },
     };
+  },
+});
+
+export const inspectProcessExecution: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    include_recent_events: z.number().int().min(0).max(500).optional(),
+  }),
+  returns: TemporalProcessInspectionSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof TemporalProcessInspectionSchema>> => {
+    const [health, temporal] = await Promise.all([
+      ctx.runQuery(api.packages.codex.getProcessHealth, {
+        process_type: args.process_type,
+        process_id: args.process_id,
+        include_recent_events: args.include_recent_events,
+      }),
+      ctx.runAction(internal.domain.temporal.temporal_client.inspectProcessWorkflow, {
+        process_type: args.process_type,
+        process_id: args.process_id,
+      }),
+    ]);
+
+    return {
+      health: {
+        process_type: health.process_type,
+        process_id: health.process_id,
+        trace_id: health.trace_id,
+        telemetry_backend: health.telemetry_backend,
+        external_trace_ref: health.external_trace_ref,
+        status: health.status,
+        current_stage: health.current_stage,
+      },
+      temporal,
+    };
+  },
+});
+
+export const controlProcessExecution: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    action: ControlActionSchema,
+    cmd_id: z.string().optional(),
+    pause_after: z.string().nullable().optional(),
+    operation: RepairBoundedOperationSchema.optional(),
+    note: z.string().optional(),
+  }),
+  returns: ControlProcessExecutionResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof ControlProcessExecutionResultSchema>> => {
+    const health = await ctx.runQuery(api.packages.codex.getProcessHealth, {
+      process_type: args.process_type,
+      process_id: args.process_id,
+    });
+
+    if (!health.execution_binding.workflow_bound) {
+      return {
+        process_type: args.process_type,
+        process_id: args.process_id,
+        action: args.action,
+        cmd_id: args.cmd_id ?? `cmd:${args.action}:${args.process_type}:${args.process_id}:unbound`,
+        accepted: false,
+        reason: "workflow_not_bound",
+        workflow_id: null,
+        temporal_status: null,
+        snapshot: null,
+        repair_result: null,
+      };
+    }
+
+    return ctx.runAction(internal.domain.temporal.temporal_client.controlProcessWorkflow, args);
   },
 });
 

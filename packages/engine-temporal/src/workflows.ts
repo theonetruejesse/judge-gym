@@ -1,7 +1,9 @@
 import {
+  CancellationScope,
   condition,
   defineQuery,
   defineUpdate,
+  isCancellation,
   proxyActivities,
   setHandler,
   workflowInfo,
@@ -56,6 +58,12 @@ async function projectSnapshot<TStage extends string>(
   snapshot: ProcessSnapshot<TStage>,
 ) {
   return projectProcessState(snapshot);
+}
+
+async function projectSnapshotNonCancellable<TStage extends string>(
+  snapshot: ProcessSnapshot<TStage>,
+) {
+  return CancellationScope.nonCancellable(() => projectProcessState(snapshot));
 }
 
 async function runStageActivity<TStage extends string>(
@@ -124,6 +132,7 @@ async function executeProcessWorkflow<TStage extends string>(args: {
   setHandler(setPauseAfterUpdate, async (input: SetPauseAfterInput) => {
     snapshot.pauseAfter = input.pauseAfter as TStage | null;
     snapshot.lastControlCommandId = input.cmdId;
+    await projectSnapshot(snapshot);
     return snapshot;
   });
 
@@ -132,6 +141,7 @@ async function executeProcessWorkflow<TStage extends string>(args: {
     snapshot.executionStatus = "paused";
     snapshot.stageStatus = "paused";
     snapshot.lastControlCommandId = input.cmdId;
+    await projectSnapshot(snapshot);
     return snapshot;
   });
 
@@ -144,11 +154,47 @@ async function executeProcessWorkflow<TStage extends string>(args: {
         snapshot.stageStatus = "running";
       }
     }
+    await projectSnapshot(snapshot);
     return snapshot;
   });
 
   setHandler(repairBoundedUpdate, async (input: RepairBoundedInput) => {
     snapshot.lastControlCommandId = input.cmdId;
+    switch (input.operation) {
+      case "reproject_snapshot":
+        await projectSnapshot(snapshot);
+        return {
+          accepted: true,
+          cmdId: input.cmdId,
+          operation: input.operation,
+        };
+      case "resume_if_paused":
+        if (!paused && snapshot.executionStatus !== "paused") {
+          return {
+            accepted: false,
+            cmdId: input.cmdId,
+            operation: input.operation,
+            reason: "not_paused",
+          };
+        }
+        paused = false;
+        snapshot.executionStatus = "running";
+        snapshot.stageStatus = snapshot.stage != null ? "running" : "pending";
+        await projectSnapshot(snapshot);
+        return {
+          accepted: true,
+          cmdId: input.cmdId,
+          operation: input.operation,
+        };
+      case "clear_pause_after":
+        snapshot.pauseAfter = null;
+        await projectSnapshot(snapshot);
+        return {
+          accepted: true,
+          cmdId: input.cmdId,
+          operation: input.operation,
+        };
+    }
     return {
       accepted: false,
       cmdId: input.cmdId,
@@ -198,6 +244,14 @@ async function executeProcessWorkflow<TStage extends string>(args: {
     await projectSnapshot(snapshot);
     return snapshot;
   } catch (error) {
+    if (isCancellation(error)) {
+      snapshot.executionStatus = "canceled";
+      snapshot.stageStatus =
+        snapshot.stageStatus === "running" ? "paused" : snapshot.stageStatus;
+      snapshot.lastErrorMessage = null;
+      await projectSnapshotNonCancellable(snapshot);
+      throw error;
+    }
     snapshot.executionStatus = "failed";
     snapshot.stageStatus = "failed";
     snapshot.lastErrorMessage =

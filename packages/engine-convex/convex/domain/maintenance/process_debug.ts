@@ -522,33 +522,59 @@ async function repairProcessExecutionAction(
   }
 
   if (process.process_type === "run") {
-    if (process.row.status === "paused") {
-      await ctx.runMutation(internal.domain.runs.run_service.resumePausedRunFlow, {
-        run_id: process.row._id,
-        pause_after: process.row.pause_after ?? null,
-        start_scheduler: false,
-      });
-    } else if (process.row.workflow_id) {
-      await ctx.scheduler.runAfter(0, internal.domain.runs.run_service.resumeRunExecution, {
-        run_id: process.row._id,
-        pause_after: process.row.pause_after ?? null,
+    if (!process.row.workflow_id) {
+      if (process.row.status === "paused") {
+        await ctx.runMutation(internal.domain.runs.run_service.resumePausedRunFlow, {
+          run_id: process.row._id,
+          pause_after: process.row.pause_after ?? null,
+          start_scheduler: false,
+        });
+      } else {
+        await ctx.scheduler.runAfter(0, internal.domain.runs.run_service.startRunExecution, {
+          run_id: process.row._id,
+          pause_after: process.row.pause_after ?? null,
+        });
+      }
+    } else if (process.row.status === "paused") {
+      await ctx.scheduler.runAfter(0, internal.domain.temporal.temporal_client.controlProcessWorkflow, {
+        process_type: "run",
+        process_id: String(process.row._id),
+        action: "resume",
       });
     } else {
-      await ctx.scheduler.runAfter(0, internal.domain.runs.run_service.startRunExecution, {
-        run_id: process.row._id,
-        pause_after: process.row.pause_after ?? null,
+      await ctx.scheduler.runAfter(0, internal.domain.temporal.temporal_client.controlProcessWorkflow, {
+        process_type: "run",
+        process_id: String(process.row._id),
+        action: "repair_bounded",
+        operation: "reproject_snapshot",
       });
     }
-  } else if (process.row.workflow_id) {
-    await ctx.scheduler.runAfter(0, internal.packages.lab.resumeWindowExecution, {
-      window_id: process.row._id,
-      evidence_limit: process.row.target_count,
-    });
   } else {
-    await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowFlow, {
-      window_id: process.row._id,
-      evidence_limit: process.row.target_count,
-    });
+    if (!process.row.workflow_id) {
+      await ctx.scheduler.runAfter(
+        0,
+        process.row.status === "paused"
+          ? internal.packages.lab.resumeWindowExecution
+          : internal.packages.lab.startWindowFlow,
+        {
+          window_id: process.row._id,
+          evidence_limit: process.row.target_count,
+        },
+      );
+    } else if (process.row.status === "paused") {
+      await ctx.scheduler.runAfter(0, internal.domain.temporal.temporal_client.controlProcessWorkflow, {
+        process_type: "window",
+        process_id: String(process.row._id),
+        action: "resume",
+      });
+    } else {
+      await ctx.scheduler.runAfter(0, internal.domain.temporal.temporal_client.controlProcessWorkflow, {
+        process_type: "window",
+        process_id: String(process.row._id),
+        action: "repair_bounded",
+        operation: "reproject_snapshot",
+      });
+    }
   }
 
   return {

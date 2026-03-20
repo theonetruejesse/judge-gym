@@ -4,7 +4,7 @@ Temporal worker package for judge-gym. It now contains the greenfield Temporal-o
 
 - `RunWorkflow` with the canonical run stages (`rubric_gen`, `rubric_critic`, `score_gen`, `score_critic`)
 - `WindowWorkflow` with the canonical window stages (`collect`, `l1_cleaned`, `l2_neutralized`, `l3_abstracted`)
-- shared process control handlers for `pause_after`, `pause_now`, `resume`, and bounded repair placeholders
+- shared process control handlers for `pause_after`, `pause_now`, `resume`, cancellation-safe snapshot projection, and bounded repair operations (`reproject_snapshot`, `resume_if_paused`, `clear_pause_after`)
 - a dual-worker entrypoint that listens on separate run/window task queues
 - a local test harness helper that caches the Temporal CLI under `packages/engine-temporal/.temporal/test-server-downloads`
 - the live Redis quota/runtime layer for worker-side rate limiting on OpenAI chat paths

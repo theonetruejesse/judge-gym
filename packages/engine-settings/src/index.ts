@@ -78,6 +78,14 @@ export const TEMPORAL_CONTROL_HANDLERS = {
   repairBounded: "repairBounded",
 } as const;
 
+export const REPAIR_BOUNDED_OPERATIONS = [
+  "reproject_snapshot",
+  "resume_if_paused",
+  "clear_pause_after",
+] as const;
+export type RepairBoundedOperation =
+  (typeof REPAIR_BOUNDED_OPERATIONS)[number];
+
 export const WORKER_AUTH_HEADER = "x-judge-gym-worker-secret";
 
 export const ENGINE_ENV_KEYS = {
@@ -177,7 +185,7 @@ export interface ResumeInput {
 
 export interface RepairBoundedInput {
   cmdId: string;
-  operation: string;
+  operation: RepairBoundedOperation;
   note?: string;
 }
 

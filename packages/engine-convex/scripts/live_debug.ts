@@ -3,10 +3,15 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 type Args = {
-  command: "watch" | "stuck" | "heal" | "tail" | "analyze";
+  command: "watch" | "stuck" | "heal" | "tail" | "analyze" | "inspect" | "control";
   processType?: "run" | "window";
   processId?: string;
   traceId?: string;
+  action?: "set_pause_after" | "pause_now" | "resume" | "cancel" | "repair_bounded";
+  pauseAfter?: string;
+  operation?: "reproject_snapshot" | "resume_if_paused" | "clear_pause_after";
+  cmdId?: string;
+  note?: string;
   olderMs: number;
   limit: number;
   intervalMs: number;
@@ -21,6 +26,11 @@ function parseArgs(argv: string[]): Args {
   let processType: Args["processType"];
   let processId: string | undefined;
   let traceId: string | undefined;
+  let action: Args["action"];
+  let pauseAfter: string | undefined;
+  let operation: Args["operation"];
+  let cmdId: string | undefined;
+  let note: string | undefined;
   let olderMs = 120_000;
   let limit = 50;
   let intervalMs = 4_000;
@@ -45,6 +55,31 @@ function parseArgs(argv: string[]): Args {
     }
     if (arg === "--trace" && argv[i + 1]) {
       traceId = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg === "--action" && argv[i + 1]) {
+      action = argv[i + 1] as Args["action"];
+      i += 1;
+      continue;
+    }
+    if (arg === "--pause-after" && argv[i + 1]) {
+      pauseAfter = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg === "--operation" && argv[i + 1]) {
+      operation = argv[i + 1] as Args["operation"];
+      i += 1;
+      continue;
+    }
+    if (arg === "--cmd-id" && argv[i + 1]) {
+      cmdId = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg === "--note" && argv[i + 1]) {
+      note = argv[i + 1];
       i += 1;
       continue;
     }
@@ -95,6 +130,11 @@ function parseArgs(argv: string[]): Args {
     processType,
     processId,
     traceId,
+    action,
+    pauseAfter,
+    operation,
+    cmdId,
+    note,
     olderMs,
     limit,
     intervalMs,
@@ -292,6 +332,36 @@ function runAnalyze(args: Args) {
   }
 }
 
+function runInspect(args: Args) {
+  requireProcess(args);
+  const result = runConvex("packages/codex:inspectProcessExecution", {
+    process_type: args.processType,
+    process_id: args.processId,
+    include_recent_events: args.limit,
+  }) as any;
+
+  console.log(JSON.stringify(result, null, 2));
+}
+
+function runControl(args: Args) {
+  requireProcess(args);
+  if (!args.action) {
+    throw new Error("Expected --action <set_pause_after|pause_now|resume|cancel|repair_bounded>");
+  }
+
+  const result = runConvex("packages/codex:controlProcessExecution", {
+    process_type: args.processType,
+    process_id: args.processId,
+    action: args.action,
+    pause_after: args.pauseAfter ?? undefined,
+    operation: args.operation ?? undefined,
+    cmd_id: args.cmdId ?? undefined,
+    note: args.note ?? undefined,
+  }) as any;
+
+  console.log(JSON.stringify(result, null, 2));
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -313,6 +383,14 @@ async function main() {
   }
   if (args.command === "analyze") {
     runAnalyze(args);
+    return;
+  }
+  if (args.command === "inspect") {
+    runInspect(args);
+    return;
+  }
+  if (args.command === "control") {
+    runControl(args);
     return;
   }
 

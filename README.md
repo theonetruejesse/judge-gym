@@ -73,6 +73,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine-convex`) to run an Axiom ingest smoke test through Convex.
 - The engine now includes a codex live-debug surface (`packages/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
 - `getProcessHealth` now derives live health from persisted run/window state, `process_observability`, and `llm_attempts` instead of the legacy request/batch snapshot tables.
+- The codex surface now also exposes direct Temporal inspection/control actions: `inspectProcessExecution` and `controlProcessExecution`, so agents can query live workflow state and send explicit `pause_now`, `resume`, `cancel`, `set_pause_after`, or bounded repair commands without relying on queue-era heuristics.
 - Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures and including a short failed-output preview for Temporal-owned forensics.
 - Score-critic prompts now mirror the exact randomized rubric surface shown to `score_gen` (same identifiers, label hiding, and rubric order) instead of leaking decoded canonical stage labels back into the critic.
 - Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
@@ -82,7 +83,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Codex health/stuck surfaces now flag `retryable_stage_failure`, `missing_workflow_binding`, and `stale_projection` directly from Temporal bindings, artifact state, and recent process projection freshness.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
-- The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
+- The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
 - The engine includes Bun process telemetry analysis in `packages/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.

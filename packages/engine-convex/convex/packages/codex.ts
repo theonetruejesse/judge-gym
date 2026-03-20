@@ -1,5 +1,7 @@
 export {
   analyzeProcessTelemetry,
+  controlProcessExecution,
+  inspectProcessExecution,
   tailTrace,
   testAxiomIngest,
 } from "../domain/maintenance/codex";
