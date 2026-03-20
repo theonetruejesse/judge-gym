@@ -1,0 +1,10 @@
+:{$PORT}
+
+@health path /healthz
+respond @health 200
+
+reverse_proxy {$TEMPORAL_FRONTEND_UPSTREAM} {
+  transport http {
+    versions h2c
+  }
+}

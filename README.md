@@ -105,6 +105,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
+| `packages/temporal-proxy` | Caddy-based Railway proxy for exposing `Temporal Frontend` as a worker-compatible external gRPC endpoint |
 | `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Upstash-backed quota enforcement |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
@@ -114,7 +115,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal worker in `packages/engine-temporal`. `packages/temporal-server` only starts a local Temporal dev server when `TEMPORAL_ADDRESS` points at `localhost`/`127.0.0.1`; if `TEMPORAL_ADDRESS` points at Railway or another remote frontend, it becomes a no-op.
 - The Temporal server persists local state to `packages/temporal-server/.temporal/dev.sqlite3` by default and serves the Web UI on `http://127.0.0.1:8233`.
 - `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
-- When using a remote Temporal frontend (for example Railway), set `TEMPORAL_ADDRESS` in root `.env.local` and the Convex deployment env; set `TEMPORAL_TLS_ENABLED=1` and `TEMPORAL_TLS_SERVER_NAME=<frontend host>` if the remote endpoint requires TLS.
+- When using Railway-hosted Temporal, prefer routing clients through `packages/temporal-proxy` instead of the raw Railway frontend exposure. Set `TEMPORAL_ADDRESS` in root `.env.local` and the Convex deployment env to the proxy host; set `TEMPORAL_TLS_ENABLED=1` and `TEMPORAL_TLS_SERVER_NAME=<proxy host>` when using a public HTTPS Railway domain.
 
 **Engine internals (`packages/engine-convex/convex/`)**
 | Path | Role |
