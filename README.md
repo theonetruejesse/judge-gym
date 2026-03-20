@@ -26,6 +26,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Use `bun install` from the repo root as the only supported JavaScript dependency install flow.
 - Workspace packages should not keep independent npm lockfiles.
 
+**Bootstrap**
+
+- Contributor setup lives in `docs/setup.md`.
+- The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
+
 **Environment source of truth**
 
 - The repo root `.env.local` is the source of truth for shared runtime configuration.

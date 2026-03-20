@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 missing=()
-for cmd in node bun uv convex; do
+for cmd in node bun uv convex railway; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     missing+=("$cmd")
   fi
@@ -66,5 +66,12 @@ echo "Syncing Python dependencies..."
 )
 
 echo "Setup complete."
-echo "Next: start Convex dev server with:"
-echo "  cd packages/engine-convex && bun run dev"
+echo
+echo "Next steps:"
+echo "  1. Fill in .env.local"
+echo "  2. Create/link a Convex dev deployment for packages/engine-convex"
+echo "  3. Create a Railway Temporal project from the official template"
+echo "  4. Run scripts/deploy_railway_worker.sh to deploy the Railway worker"
+echo "  5. Start local UI + Convex surfaces with: bun dev"
+echo
+echo "Detailed instructions live in docs/setup.md"
