@@ -105,7 +105,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
-| `packages/temporal-proxy` | Caddy-based Railway proxy for exposing `Temporal Frontend` as a worker-compatible external gRPC endpoint |
+| `packages/temporal-proxy` | Caddy-based Railway proxy for exposing `Temporal Frontend` as a worker-compatible external gRPC endpoint (listens on `8080`) |
 | `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Upstash-backed quota enforcement |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |

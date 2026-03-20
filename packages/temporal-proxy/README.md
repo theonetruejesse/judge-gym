@@ -43,6 +43,8 @@ Expose this service publicly and use that address for:
 If you expose it on a normal Railway HTTPS domain, point clients at port `443` and
 enable TLS in the Temporal client/worker env.
 
+If you expose it through Railway TCP public networking, target port `8080`.
+
 ## Health check
 
 The proxy exposes:
