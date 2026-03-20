@@ -104,18 +104,15 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `packages/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
 | `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
-| `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
-| `packages/temporal-proxy` | Optional Railway proxy package for alternative Temporal frontend exposure experiments |
 | `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Upstash-backed quota enforcement |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
 **Local development**
 
-- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal worker in `packages/engine-temporal`. `packages/temporal-server` only starts a local Temporal dev server when `TEMPORAL_ADDRESS` points at `localhost`/`127.0.0.1`; if `TEMPORAL_ADDRESS` points at Railway or another remote frontend, it becomes a no-op.
-- The Temporal server persists local state to `packages/temporal-server/.temporal/dev.sqlite3` by default and serves the Web UI on `http://127.0.0.1:8233`.
+- `bun dev` from the repo root starts the local UI and Convex development surfaces only (`packages/lab` + `packages/engine-convex`). The Temporal cluster and worker run on Railway in the primary dev path.
 - `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
-- When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for `temporal_server`, while the Railway-hosted `engine-temporal` worker should use the private service alias (for example `temporalserver:7233`).
+- When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for `temporal_server`, while the Railway-hosted `engine-temporal` worker should use the private service alias `temporalserver:7233`.
 - The Railway worker deploy path for `packages/engine-temporal` builds from the repo root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `packages/engine-temporal`.
 
 **Engine internals (`packages/engine-convex/convex/`)**

@@ -15,13 +15,14 @@ The current code is in a mixed state:
 - the run path is also live and calls OpenAI through `src/run/service.ts`, with Convex worker-API writes for workflow binding, attempt logging, parsed artifact application, and stage finalization
 - the worker now enforces provider/model token buckets through Upstash before OpenAI chat calls, then settles those reservations after each attempt finishes
 
-Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. For now, the repo root `.env.local` is the source of truth for runtime configuration; package-local env files are optional convenience copies, not the authoritative config.
+Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. The repo root `.env.local` is the source of truth for local scripts, but the primary dev/runtime path is a Railway-hosted Temporal worker service.
 
 ## Running it
 
 1. Install repo dependencies with `bun install` from the repo root.
-1. Run `bun dev` from the repo root to start the Temporal server and worker with the rest of the monorepo.
-1. In another shell, run `bun run workflow -- run my-run-id` from `packages/engine-temporal` to start a run workflow, or `bun run workflow -- window my-window-id` to start a window workflow.
+1. Deploy the package to Railway using the repo-root `Dockerfile`.
+1. Set the worker service env so `TEMPORAL_ADDRESS=temporalserver:7233` and `TEMPORAL_NAMESPACE=default`.
+1. Use `bun run workflow -- run my-run-id` or `bun run workflow -- window my-window-id` from `packages/engine-temporal` only for direct client-side workflow operations when needed.
 
 The workflow returns the final process snapshot after running all stages:
 
@@ -38,8 +39,8 @@ Started run workflow run:my-run-id
 
 ## Environment
 
-- Root `.env.local` is the authoritative env file for `bun dev` and the direct package scripts.
-- `TEMPORAL_ADDRESS` defaults to `localhost:7233`
+- Root `.env.local` is the authoritative env file for direct local package scripts.
+- `TEMPORAL_ADDRESS` defaults to `localhost:7233` for local-only scripts; the Railway worker should use `temporalserver:7233`
 - `TEMPORAL_NAMESPACE` defaults to `default`
 - `TEMPORAL_TLS_ENABLED=1` enables TLS for the worker/client connection to Temporal
 - `TEMPORAL_TLS_SERVER_NAME` optionally sets the TLS server-name override (useful for proxied frontends such as Railway TCP proxies)

@@ -1,8 +1,0 @@
-{
-  "name": "@judge-gym/temporal-proxy",
-  "private": true,
-  "description": "Caddy-based gRPC proxy for exposing Railway Temporal Frontend to external workers/clients",
-  "scripts": {
-    "typecheck": "node -e \"process.exit(0)\""
-  }
-}

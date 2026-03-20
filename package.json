@@ -10,7 +10,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo dev --filter=@judge-gym/engine-convex --filter=@judge-gym/lab",
     "build": "turbo build",
     "test": "turbo test",
     "typecheck": "turbo run typecheck",
