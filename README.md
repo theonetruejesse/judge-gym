@@ -65,7 +65,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Samples now persist `score_count` and `score_critic_count`, and score fanout is stored in generalized `sample_score_targets` / `sample_score_target_items` rows so both single-evidence and bundled-evidence runs share one scoring model.
 - `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
 - Window and run execution now both launch through Temporal workflows; the legacy Convex scheduler/batch/job engine has been removed from the live schema and active code paths.
-- The engine now exports full window/run/batch/job/request/scheduler telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
+- The engine now exports Temporal-owned process and worker telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
@@ -79,7 +79,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Non-abstain score prompts now use an explicit forced-choice fallback: if no stronger stage is supported, the model must emit the weakest displayed stage identifier instead of `None`, blank verdicts, or other out-of-contract text.
 - System prompts are now deduplicated in `llm_prompt_templates`, and Temporal-owned execution references those templates through the append-only `llm_attempts` ledger.
 - Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables and the local `process_observability` mirror to prevent read-limit failures when historical telemetry/backlog is large.
-- Codex health/stuck surfaces now flag `retryable_no_transport` and missing-workflow stalls directly from Temporal bindings, artifact state, and recent process projection freshness.
+- Codex health/stuck surfaces now flag `retryable_stage_failure`, `missing_workflow_binding`, and `stale_projection` directly from Temporal bindings, artifact state, and recent process projection freshness.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, and `bun run debug:tail`.
@@ -226,7 +226,7 @@ flowchart TD
   WorkerApi --> RunTables[runs/samples/targets/rubrics/scores]
 ```
 
-Window and run execution are now Temporal-owned. The legacy Convex scheduler/batch/job path remains in the repo only until the old queue-based infrastructure is pruned.
+Window and run execution are now Temporal-owned, and the old Convex queue substrate has been pruned from the live engine path.
 
 ## Provider Layer
 

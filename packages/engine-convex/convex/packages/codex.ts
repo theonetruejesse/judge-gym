@@ -7,7 +7,7 @@ export {
   autoHealProcess,
   getProcessHealth,
   getStuckWork,
-  repairRunStageTransport,
+  repairProcessExecution,
   runDebugActions,
 } from "../domain/maintenance/process_debug";
 export {

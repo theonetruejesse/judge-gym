@@ -94,7 +94,6 @@ export const ENGINE_ENV_KEYS = {
   temporalTlsEnabled: "TEMPORAL_TLS_ENABLED",
   temporalTlsServerName: "TEMPORAL_TLS_SERVER_NAME",
   temporalRetryDelayMs: "TEMPORAL_RETRY_DELAY_MS",
-  temporalTaskQueue: "TEMPORAL_TASK_QUEUE",
   temporalRunTaskQueue: "TEMPORAL_RUN_TASK_QUEUE",
   temporalWindowTaskQueue: "TEMPORAL_WINDOW_TASK_QUEUE",
   temporalTestServerMode: "TEMPORAL_TEST_SERVER_MODE",

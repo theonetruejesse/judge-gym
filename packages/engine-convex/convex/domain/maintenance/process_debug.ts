@@ -1,19 +1,17 @@
 import z from "zod";
-import { zid } from "convex-helpers/server/zod4";
 import type { Doc, Id } from "../../_generated/dataModel";
-import { api, internal } from "../../_generated/api";
+import { internal } from "../../_generated/api";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { zMutation, zQuery } from "../../utils/custom_fns";
-import { RunStageSchema } from "../../models/experiments";
 import { buildExternalTraceRef } from "../telemetry/events";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
-const DebugActionTypeSchema = z.enum(["repair_stage_transport"]);
+const DebugActionTypeSchema = z.enum(["repair_process_execution"]);
 const StuckReasonSchema = z.enum([
   "raw_collection_no_progress",
-  "retryable_no_transport",
-  "stage_transition_no_transport",
-  "pending_requests_on_dead_transport",
+  "retryable_stage_failure",
+  "missing_workflow_binding",
+  "stale_projection",
 ]);
 
 const StageProgressSchema = z.object({
@@ -24,10 +22,12 @@ const StageProgressSchema = z.object({
   failed: z.number(),
 });
 
-const RequestStateMetaSchema = z.object({
+const ProjectionMetaSchema = z.object({
   approximate: z.boolean(),
   scanned_targets: z.number(),
   latest_updated_at_ms: z.number().nullable(),
+  last_milestone_at_ms: z.number().nullable(),
+  projection_fresh: z.boolean(),
 });
 
 const HealthSummarySchema = z.object({
@@ -39,23 +39,21 @@ const HealthSummarySchema = z.object({
   status: z.string(),
   current_stage: z.string(),
   stage_progress: z.array(StageProgressSchema),
-  active_transport: z.object({
-    queued_batches: z.number(),
-    running_batches: z.number(),
-    queued_jobs: z.number(),
-    running_jobs: z.number(),
-    orphaned_requests: z.number(),
+  execution_binding: z.object({
+    workflow_bound: z.boolean(),
+    workflow_id: z.string().nullable(),
+    workflow_run_id: z.string().nullable(),
+    projection_fresh: z.boolean(),
   }),
   stalled_signals: z.object({
     no_progress_for_ms: z.number().nullable(),
     oldest_pending_request_age_ms: z.number().nullable(),
-    scheduler_scheduled: z.boolean(),
     recoverable_stage_stalls: z.array(z.object({
       stage: z.string(),
       retryable_targets: z.number(),
     })),
   }),
-  request_state_meta: RequestStateMetaSchema,
+  projection_meta: ProjectionMetaSchema,
   error_summary: z.array(
     z.object({
       class: z.string(),
@@ -105,7 +103,7 @@ const StuckWorkSchema = z.object({
 });
 
 const DebugActionSchema = z.object({
-  action: z.literal("repair_stage_transport"),
+  action: z.literal("repair_process_execution"),
   process_type: ProcessTypeSchema,
   process_id: z.string(),
   stage: z.string(),
@@ -118,27 +116,21 @@ const DebugActionResultSchema = z.object({
   reason: z.string(),
 });
 
-const RepairRunStageTransportResultSchema = z.object({
-  run_id: z.string(),
+const RepairProcessExecutionResultSchema = z.object({
+  process_type: ProcessTypeSchema,
+  process_id: z.string(),
   stage: z.string(),
   dry_run: z.boolean(),
   outcome: z.enum([
     "missing_process",
-    "invalid_stage",
     "not_running",
     "stage_mismatch",
-    "active_transport_exists",
     "repaired",
-    "reenqueued_stage",
-    "no_pending_requests",
+    "execution_started",
+    "execution_resumed",
     "no_repair_needed",
   ]),
-  repaired_request_count: z.number(),
-  pending_request_count: z.number(),
-  detached_batch_ids: z.array(z.string()),
-  detached_job_ids: z.array(z.string()),
-  active_transport_present: z.boolean(),
-  scheduler_started: z.boolean(),
+  workflow_bound_before: z.boolean(),
 });
 
 type ProcessRow =
@@ -159,6 +151,7 @@ type LocalTraceEvent = {
 };
 
 const ACTIVE_STATUSES = new Set(["start", "queued", "running"]);
+const ACTIVE_PROJECTION_FRESH_MS = 30_000;
 
 function groupCounts(values: string[]) {
   const grouped = new Map<string, number>();
@@ -379,10 +372,16 @@ async function collectProcessHealth(
   const { error_summary, historical_error_summary } = await buildErrorSummaries(ctx, process, attempts);
 
   const latestUpdatedAt = observability?.updated_at_ms ?? null;
-  const milestone = observability?.last_milestone_at_ms ?? latestUpdatedAt ?? process.row._creationTime;
+  const lastMilestoneAt = observability?.last_milestone_at_ms ?? latestUpdatedAt ?? process.row._creationTime;
+  const milestone = lastMilestoneAt;
   const noProgressForMs = ACTIVE_STATUSES.has(process.row.status)
     ? Math.max(0, Date.now() - milestone)
     : null;
+  const projectionFresh = process.row.status === "completed"
+    || process.row.status === "canceled"
+    || process.row.status === "paused"
+    || latestUpdatedAt == null
+    || Math.max(0, Date.now() - latestUpdatedAt) <= ACTIVE_PROJECTION_FRESH_MS;
   const pendingStages = stage_progress.filter((stage) => stage.pending > 0);
   const recent_events = (observability?.recent_events ?? [])
     .slice(-(args.include_recent_events ?? 25));
@@ -397,17 +396,15 @@ async function collectProcessHealth(
     status: process.row.status,
     current_stage: process.row.current_stage,
     stage_progress,
-    active_transport: {
-      queued_batches: 0,
-      running_batches: 0,
-      queued_jobs: 0,
-      running_jobs: 0,
-      orphaned_requests: 0,
+    execution_binding: {
+      workflow_bound: Boolean(process.row.workflow_id),
+      workflow_id: process.row.workflow_id ?? null,
+      workflow_run_id: process.row.workflow_run_id ?? null,
+      projection_fresh: projectionFresh,
     },
     stalled_signals: {
       no_progress_for_ms: noProgressForMs,
       oldest_pending_request_age_ms: pendingStages.length > 0 ? noProgressForMs : null,
-      scheduler_scheduled: false,
       recoverable_stage_stalls: noProgressForMs != null && noProgressForMs > 0 && pendingStages.length > 0
         ? [{
             stage: process.row.current_stage,
@@ -415,10 +412,12 @@ async function collectProcessHealth(
           }]
         : [],
     },
-    request_state_meta: {
+    projection_meta: {
       approximate: false,
       scanned_targets: stage_progress.reduce((sum, stage) => sum + stage.target_total, 0),
       latest_updated_at_ms: latestUpdatedAt,
+      last_milestone_at_ms: lastMilestoneAt,
+      projection_fresh: projectionFresh,
     },
     error_summary,
     historical_error_summary,
@@ -456,7 +455,7 @@ async function detectStuckWorkForProcess(
   if (!process.row.workflow_id) {
     return [{
       ...base,
-      reason: stage === "l0_raw" ? "raw_collection_no_progress" : "stage_transition_no_transport",
+      reason: "missing_workflow_binding",
       details: "Process has no bound Temporal workflow",
     }];
   }
@@ -464,7 +463,7 @@ async function detectStuckWorkForProcess(
   if (process.row.status === "error" && process.row.last_error_message) {
     return [{
       ...base,
-      reason: "retryable_no_transport",
+      reason: "retryable_stage_failure",
       details: process.row.last_error_message,
     }];
   }
@@ -472,7 +471,7 @@ async function detectStuckWorkForProcess(
   if (ACTIVE_STATUSES.has(process.row.status)) {
     return [{
       ...base,
-      reason: stage === "l0_raw" ? "raw_collection_no_progress" : "pending_requests_on_dead_transport",
+      reason: stage === "l0_raw" ? "raw_collection_no_progress" : "stale_projection",
       details: "Temporal workflow is bound but no recent process projection was recorded",
     }];
   }
@@ -480,7 +479,7 @@ async function detectStuckWorkForProcess(
   return [];
 }
 
-async function repairStageTransport(
+async function repairProcessExecutionAction(
   ctx: MutationCtx,
   action: z.infer<typeof DebugActionSchema>,
   dry_run: boolean,
@@ -553,10 +552,10 @@ async function repairStageTransport(
   }
 
   return {
-    action: action.action,
-    entity_id: `${action.process_type}:${action.process_id}:${action.stage}`,
-    status: "applied",
-    reason: process.row.workflow_id ? "workflow_nudged" : "workflow_started",
+      action: action.action,
+      entity_id: `${action.process_type}:${action.process_id}:${action.stage}`,
+      status: "applied",
+      reason: process.row.workflow_id ? "workflow_nudged" : "workflow_started",
   };
 }
 
@@ -584,12 +583,6 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
       scan_caps_hit: z.boolean(),
       health_checks_limited: z.boolean(),
       scanned: z.object({
-        queued_batches: z.number(),
-        submitting_batches: z.number(),
-        running_batches: z.number(),
-        finalizing_batches: z.number(),
-        queued_jobs: z.number(),
-        orphaned_requests: z.number(),
         candidate_runs: z.number(),
         candidate_windows: z.number(),
         health_checks: z.number(),
@@ -629,12 +622,6 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         scan_caps_hit: false,
         health_checks_limited: false,
         scanned: {
-          queued_batches: 0,
-          submitting_batches: 0,
-          running_batches: 0,
-          finalizing_batches: 0,
-          queued_jobs: 0,
-          orphaned_requests: 0,
           candidate_runs: runs.length,
           candidate_windows: windows.length,
           health_checks: healthChecks,
@@ -657,7 +644,7 @@ export const runDebugActions: ReturnType<typeof zMutation> = zMutation({
     const results: Array<z.infer<typeof DebugActionResultSchema>> = [];
     for (const action of args.actions) {
       try {
-        results.push(await repairStageTransport(ctx, action, args.dry_run));
+        results.push(await repairProcessExecutionAction(ctx, action, args.dry_run));
       } catch (error) {
         results.push({
           action: action.action,
@@ -694,10 +681,10 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
       executed_actions: z.number(),
       remaining_actions: z.number(),
       next_cursor: z.number().nullable(),
-      request_state_approximate: z.boolean(),
+      projection_state_approximate: z.boolean(),
       scan_caps_hit: z.boolean(),
       scanned_target_states: z.number(),
-      scanned_batches: z.number(),
+      scanned_processes: z.number(),
     }),
   }),
   handler: async (ctx, args) => {
@@ -711,13 +698,13 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
       stuckItems
         .filter((item) =>
           item.reason === "raw_collection_no_progress"
-          || item.reason === "retryable_no_transport"
-          || item.reason === "stage_transition_no_transport"
-          || item.reason === "pending_requests_on_dead_transport")
+          || item.reason === "retryable_stage_failure"
+          || item.reason === "missing_workflow_binding"
+          || item.reason === "stale_projection")
         .map(() => process.row.current_stage),
     );
     const orderedActions = [...uniqueStages].map((stage) => ({
-      action: "repair_stage_transport" as const,
+      action: "repair_process_execution" as const,
       process_type: args.process_type,
       process_id: args.process_id,
       stage,
@@ -732,7 +719,7 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
     const results: Array<z.infer<typeof DebugActionResultSchema>> = [];
     for (const action of page) {
       try {
-        results.push(await repairStageTransport(ctx, action, args.dry_run));
+        results.push(await repairProcessExecutionAction(ctx, action, args.dry_run));
       } catch (error) {
         results.push({
           action: action.action,
@@ -752,98 +739,87 @@ export const autoHealProcess: ReturnType<typeof zMutation> = zMutation({
         executed_actions: page.length,
         remaining_actions: Math.max(0, orderedActions.length - (cursor + page.length)),
         next_cursor: nextCursor,
-        request_state_approximate: false,
+        projection_state_approximate: false,
         scan_caps_hit: false,
         scanned_target_states: 0,
-        scanned_batches: 0,
+        scanned_processes: 1,
       },
     };
   },
 });
 
-export const repairRunStageTransport: ReturnType<typeof zMutation> = zMutation({
+export const repairProcessExecution: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
-    run_id: zid("runs"),
-    stage: RunStageSchema.optional(),
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    stage: z.string().optional(),
     dry_run: z.boolean().default(true),
-    start_scheduler: z.boolean().default(true),
   }),
-  returns: RepairRunStageTransportResultSchema,
+  returns: RepairProcessExecutionResultSchema,
   handler: async (
     ctx,
     args,
-  ): Promise<z.infer<typeof RepairRunStageTransportResultSchema>> => {
-    const run = await ctx.db.get(args.run_id);
-    if (!run) {
+  ): Promise<z.infer<typeof RepairProcessExecutionResultSchema>> => {
+    const process = await getProcessRow(ctx, args.process_type, args.process_id);
+    if (!process) {
       return {
-        run_id: String(args.run_id),
+        process_type: args.process_type,
+        process_id: args.process_id,
         stage: args.stage ?? "unknown",
         dry_run: args.dry_run,
         outcome: "missing_process",
-        repaired_request_count: 0,
-        pending_request_count: 0,
-        detached_batch_ids: [],
-        detached_job_ids: [],
-        active_transport_present: false,
-        scheduler_started: false,
+        workflow_bound_before: false,
       };
     }
 
-    const stage = args.stage ?? run.current_stage;
-    if (stage !== run.current_stage) {
+    const stage = args.stage ?? process.row.current_stage;
+    if (stage !== process.row.current_stage) {
       return {
-        run_id: String(run._id),
+        process_type: args.process_type,
+        process_id: String(process.row._id),
         stage,
         dry_run: args.dry_run,
         outcome: "stage_mismatch",
-        repaired_request_count: 0,
-        pending_request_count: 0,
-        detached_batch_ids: [],
-        detached_job_ids: [],
-        active_transport_present: Boolean(run.workflow_id),
-        scheduler_started: false,
+        workflow_bound_before: Boolean(process.row.workflow_id),
       };
     }
 
-    if (run.status === "completed" || run.status === "canceled") {
+    if (process.row.status === "completed" || process.row.status === "canceled") {
       return {
-        run_id: String(run._id),
+        process_type: args.process_type,
+        process_id: String(process.row._id),
         stage,
         dry_run: args.dry_run,
         outcome: "not_running",
-        repaired_request_count: 0,
-        pending_request_count: 0,
-        detached_batch_ids: [],
-        detached_job_ids: [],
-        active_transport_present: Boolean(run.workflow_id),
-        scheduler_started: false,
+        workflow_bound_before: Boolean(process.row.workflow_id),
       };
     }
 
-    const result = await repairStageTransport(ctx, {
-      action: "repair_stage_transport",
-      process_type: "run",
-      process_id: String(run._id),
+    const workflowBoundBefore = Boolean(process.row.workflow_id);
+    const result = await repairProcessExecutionAction(ctx, {
+      action: "repair_process_execution",
+      process_type: args.process_type,
+      process_id: String(process.row._id),
       stage,
     }, args.dry_run);
 
     return {
-      run_id: String(run._id),
+      process_type: args.process_type,
+      process_id: String(process.row._id),
       stage,
       dry_run: args.dry_run,
       outcome: result.status === "applied"
-        ? (run.workflow_id ? "repaired" : "reenqueued_stage")
+        ? process.row.status === "paused"
+          ? "execution_resumed"
+          : workflowBoundBefore
+            ? "repaired"
+            : "execution_started"
         : result.reason === "not_running"
           ? "not_running"
           : result.reason === "stage_mismatch"
             ? "stage_mismatch"
             : "no_repair_needed",
-      repaired_request_count: 0,
-      pending_request_count: 0,
-      detached_batch_ids: [],
-      detached_job_ids: [],
-      active_transport_present: Boolean(run.workflow_id),
-      scheduler_started: false,
+      workflow_bound_before: workflowBoundBefore,
     };
   },
 });

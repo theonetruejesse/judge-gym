@@ -178,10 +178,10 @@ function printHealth(data: any) {
     );
   }
   console.log(
-    `transport batches(q/r)=${data.active_transport.queued_batches}/${data.active_transport.running_batches} jobs(q/r)=${data.active_transport.queued_jobs}/${data.active_transport.running_jobs} orphans=${data.active_transport.orphaned_requests}`,
+    `execution workflow_bound=${data.execution_binding.workflow_bound} projection_fresh=${data.execution_binding.projection_fresh} workflow_id=${data.execution_binding.workflow_id ?? "null"} workflow_run_id=${data.execution_binding.workflow_run_id ?? "null"}`,
   );
   console.log(
-    `stalled no_progress_ms=${data.stalled_signals.no_progress_for_ms ?? "null"} oldest_pending_ms=${data.stalled_signals.oldest_pending_request_age_ms ?? "null"} scheduler_scheduled=${data.stalled_signals.scheduler_scheduled}`,
+    `stalled no_progress_ms=${data.stalled_signals.no_progress_for_ms ?? "null"} oldest_pending_ms=${data.stalled_signals.oldest_pending_request_age_ms ?? "null"} latest_projection_ms=${data.projection_meta.latest_updated_at_ms ?? "null"}`,
   );
   if (Array.isArray(data.error_summary) && data.error_summary.length > 0) {
     const summary = data.error_summary.map((row: any) => `${row.class}:${row.count}`).join(", ");

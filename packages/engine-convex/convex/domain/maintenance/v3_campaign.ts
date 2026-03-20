@@ -23,21 +23,15 @@ const ScientificValiditySchema = z.enum([
 ]);
 
 const RecoverableReasonSchema = z.enum([
-  "pending_requests_on_dead_transport",
-  "pending_request_no_owner",
-  "retryable_no_transport",
-  "scheduler_not_running",
+  "missing_workflow_binding",
+  "retryable_stage_failure",
+  "stale_projection",
 ]);
 const StuckReasonSchema = z.enum([
-  "batch_missing_ref",
-  "finalizing_no_progress",
-  "pending_requests_on_dead_transport",
-  "pending_request_no_owner",
   "raw_collection_no_progress",
-  "retryable_no_transport",
-  "stage_transition_no_transport",
-  "stage_waiting_on_exhausted_requests",
-  "scheduler_not_running",
+  "missing_workflow_binding",
+  "retryable_stage_failure",
+  "stale_projection",
 ]);
 
 const StageCountsSchema = z.object({
@@ -268,19 +262,13 @@ function classifyCampaignState(args: {
     .filter((run): run is NonNullable<ListedExperiment["latest_run"]> => run != null);
 
   const recoverableReasons = new Set<z.infer<typeof RecoverableReasonSchema>>([
-    "pending_requests_on_dead_transport",
-    "pending_request_no_owner",
-    "retryable_no_transport",
-    "scheduler_not_running",
+    "missing_workflow_binding",
+    "retryable_stage_failure",
+    "stale_projection",
   ]);
 
   const hasInvalidSignals = missingTags.length > 0
-    || latestRuns.some((run) => run.has_failures || run.status === "error" || run.status === "canceled")
-    || stuckItems.some((item) =>
-      item.reason === "stage_waiting_on_exhausted_requests"
-      || item.reason === "batch_missing_ref"
-      || item.reason === "finalizing_no_progress"
-    );
+    || latestRuns.some((run) => run.has_failures || run.status === "error" || run.status === "canceled");
 
   if (hasInvalidSignals) {
     return {
