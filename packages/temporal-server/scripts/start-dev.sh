@@ -6,6 +6,22 @@ TEMPORAL_SERVER_IP="${TEMPORAL_SERVER_IP:-127.0.0.1}"
 TEMPORAL_SERVER_PORT="${TEMPORAL_SERVER_PORT:-7233}"
 TEMPORAL_UI_PORT="${TEMPORAL_UI_PORT:-8233}"
 TEMPORAL_DB_FILENAME="${TEMPORAL_DB_FILENAME:-.temporal/dev.sqlite3}"
+TEMPORAL_ADDRESS="${TEMPORAL_ADDRESS:-${TEMPORAL_SERVER_IP}:${TEMPORAL_SERVER_PORT}}"
+
+TEMPORAL_ADDRESS_HOST="${TEMPORAL_ADDRESS%%:*}"
+LOCAL_TEMPORAL_HOSTS=("localhost" "127.0.0.1" "::1")
+USE_LOCAL_TEMPORAL_SERVER=0
+for host in "${LOCAL_TEMPORAL_HOSTS[@]}"; do
+  if [[ "$TEMPORAL_ADDRESS_HOST" == "$host" ]]; then
+    USE_LOCAL_TEMPORAL_SERVER=1
+    break
+  fi
+done
+
+if [[ "$USE_LOCAL_TEMPORAL_SERVER" != "1" ]]; then
+  echo "TEMPORAL_ADDRESS=$TEMPORAL_ADDRESS points to a remote Temporal frontend; skipping local temporal-server startup."
+  exit 0
+fi
 
 if ! command -v temporal >/dev/null 2>&1; then
   echo "Temporal CLI not found. Install it first so root bun dev can start the local server." >&2

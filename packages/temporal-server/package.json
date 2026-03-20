@@ -7,5 +7,6 @@
   "scripts": {
     "dev": "../../scripts/with_root_env.sh bash ./scripts/start-dev.sh",
     "typecheck": "node -e \"process.exit(0)\""
-  }
+  },
+  "description": "Local Temporal dev-server wrapper that no-ops when TEMPORAL_ADDRESS points at a remote frontend"
 }

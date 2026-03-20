@@ -111,7 +111,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 **Local development**
 
-- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal dev server in `packages/temporal-server` and the Temporal worker in `packages/engine-temporal`.
+- `bun dev` from the repo root starts all workspace `dev` processes, including the Temporal worker in `packages/engine-temporal`. `packages/temporal-server` only starts a local Temporal dev server when `TEMPORAL_ADDRESS` points at `localhost`/`127.0.0.1`; if `TEMPORAL_ADDRESS` points at Railway or another remote frontend, it becomes a no-op.
 - The Temporal server persists local state to `packages/temporal-server/.temporal/dev.sqlite3` by default and serves the Web UI on `http://127.0.0.1:8233`.
 - `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
 
