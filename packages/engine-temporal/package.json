@@ -28,9 +28,11 @@
     ]
   },
   "dependencies": {
+    "@judge-gym/engine-settings": "workspace:*",
     "@temporalio/activity": "^1.15.0",
     "@temporalio/client": "^1.15.0",
     "@temporalio/envconfig": "^1.15.0",
+    "@upstash/redis": "^1.35.6",
     "@temporalio/worker": "^1.15.0",
     "@temporalio/workflow": "^1.15.0",
     "nanoid": "3.x"

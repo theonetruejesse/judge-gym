@@ -1,19 +1,19 @@
-import { setTimeout as sleep } from 'node:timers/promises';
-import { runWorker } from './worker';
-
-const RETRY_DELAY_MS = Number(process.env.TEMPORAL_RETRY_DELAY_MS ?? 5000);
+import { setTimeout as sleep } from "node:timers/promises";
+import { getTemporalRuntimeConfig } from "./runtime";
+import { runWorkers } from "./worker";
 
 async function run() {
+  const config = getTemporalRuntimeConfig();
   for (;;) {
     try {
-      await runWorker();
+      await runWorkers();
       return;
     } catch (error) {
       console.error(
-        `Temporal worker failed to start. Retrying in ${RETRY_DELAY_MS}ms.`,
+        `Temporal workers failed to start. Retrying in ${config.retryDelayMs}ms.`,
         error,
       );
-      await sleep(RETRY_DELAY_MS);
+      await sleep(config.retryDelayMs);
     }
   }
 }

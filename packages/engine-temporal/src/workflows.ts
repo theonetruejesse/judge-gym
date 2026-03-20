@@ -1,12 +1,211 @@
-import { proxyActivities } from '@temporalio/workflow';
-// Only import the activity types
-import type * as activities from './activities';
+import {
+  condition,
+  defineQuery,
+  defineUpdate,
+  proxyActivities,
+  setHandler,
+  workflowInfo,
+} from "@temporalio/workflow";
+import type {
+  PauseNowInput,
+  ProcessSnapshot,
+  RepairBoundedInput,
+  RepairBoundedResult,
+  ResumeInput,
+  RunStageKey,
+  RunWorkflowInput,
+  SetPauseAfterInput,
+  WindowStageKey,
+  WindowWorkflowInput,
+} from "@judge-gym/engine-settings";
+import type * as activities from "./activities";
 
-const { greet } = proxyActivities<typeof activities>({
-  startToCloseTimeout: '1 minute',
+const RUN_STAGES: RunStageKey[] = [
+  "rubric_gen",
+  "rubric_critic",
+  "score_gen",
+  "score_critic",
+];
+const WINDOW_STAGES: WindowStageKey[] = [
+  "collect",
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+];
+
+const {
+  projectProcessState,
+  runRunStage,
+  runWindowStage,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "5 minutes",
 });
 
-/** A workflow that simply calls an activity */
-export async function example(name: string): Promise<string> {
-  return await greet(name);
+export const getProcessSnapshotQuery =
+  defineQuery<ProcessSnapshot>("getProcessSnapshot");
+export const setPauseAfterUpdate =
+  defineUpdate<ProcessSnapshot, [SetPauseAfterInput]>("setPauseAfter");
+export const pauseNowUpdate =
+  defineUpdate<ProcessSnapshot, [PauseNowInput]>("pauseNow");
+export const resumeUpdate =
+  defineUpdate<ProcessSnapshot, [ResumeInput]>("resume");
+export const repairBoundedUpdate =
+  defineUpdate<RepairBoundedResult, [RepairBoundedInput]>("repairBounded");
+
+async function projectSnapshot<TStage extends string>(
+  snapshot: ProcessSnapshot<TStage>,
+) {
+  return projectProcessState(snapshot);
+}
+
+async function runStageActivity<TStage extends string>(
+  snapshot: ProcessSnapshot<TStage>,
+  stage: TStage,
+) {
+  if (snapshot.processKind === "run") {
+    return runRunStage({
+      runId: snapshot.processId,
+      stage: stage as RunStageKey,
+    });
+  }
+
+  return runWindowStage({
+    windowId: snapshot.processId,
+    stage: stage as WindowStageKey,
+  });
+}
+
+function buildInitialSnapshot<TStage extends string>(args: {
+  processKind: "run" | "window";
+  processId: string;
+  workflowType: string;
+  pauseAfter: TStage | null;
+}): ProcessSnapshot<TStage> {
+  const info = workflowInfo();
+  return {
+    processKind: args.processKind,
+    processId: args.processId,
+    workflowId: info.workflowId,
+    workflowRunId: info.runId,
+    workflowType: args.workflowType,
+    executionStatus: "queued",
+    stage: null,
+    stageStatus: "pending",
+    pauseAfter: args.pauseAfter,
+    stageHistory: [],
+    lastControlCommandId: null,
+    lastErrorMessage: null,
+  };
+}
+
+async function executeProcessWorkflow<TStage extends string>(args: {
+  processKind: "run" | "window";
+  processId: string;
+  workflowType: string;
+  stages: TStage[];
+  pauseAfter: TStage | null;
+}): Promise<ProcessSnapshot<TStage>> {
+  const snapshot = buildInitialSnapshot(args);
+  let paused = false;
+
+  const awaitResume = async () => {
+    if (!paused) return;
+    snapshot.executionStatus = "paused";
+    snapshot.stageStatus = "paused";
+    await projectSnapshot(snapshot);
+    await condition(() => !paused);
+    snapshot.executionStatus = "running";
+    snapshot.stageStatus = "pending";
+    await projectSnapshot(snapshot);
+  };
+
+  setHandler(getProcessSnapshotQuery, () => snapshot);
+
+  setHandler(setPauseAfterUpdate, async (input: SetPauseAfterInput) => {
+    snapshot.pauseAfter = input.pauseAfter as TStage | null;
+    snapshot.lastControlCommandId = input.cmdId;
+    return snapshot;
+  });
+
+  setHandler(pauseNowUpdate, async (input: PauseNowInput) => {
+    paused = true;
+    snapshot.executionStatus = "paused";
+    snapshot.stageStatus = "paused";
+    snapshot.lastControlCommandId = input.cmdId;
+    return snapshot;
+  });
+
+  setHandler(resumeUpdate, async (input: ResumeInput) => {
+    paused = false;
+    snapshot.lastControlCommandId = input.cmdId;
+    if (snapshot.executionStatus === "paused") {
+      snapshot.executionStatus = "running";
+      if (snapshot.stage != null) {
+        snapshot.stageStatus = "running";
+      }
+    }
+    return snapshot;
+  });
+
+  setHandler(repairBoundedUpdate, async (input: RepairBoundedInput) => {
+    snapshot.lastControlCommandId = input.cmdId;
+    return {
+      accepted: false,
+      cmdId: input.cmdId,
+      operation: input.operation,
+      reason: "repair_not_implemented",
+    };
+  });
+
+  snapshot.executionStatus = "running";
+  await projectSnapshot(snapshot);
+
+  for (const stage of args.stages) {
+    await awaitResume();
+
+    snapshot.stage = stage;
+    snapshot.stageStatus = "running";
+    snapshot.executionStatus = paused ? "paused" : "running";
+    await projectSnapshot(snapshot);
+
+    await runStageActivity(snapshot, stage);
+
+    snapshot.stageHistory = [...snapshot.stageHistory, stage];
+    snapshot.stageStatus = "done";
+    await projectSnapshot(snapshot);
+
+    if (snapshot.pauseAfter === stage) {
+      paused = true;
+      await awaitResume();
+    }
+  }
+
+  snapshot.executionStatus = "completed";
+  snapshot.stageStatus = "done";
+  await projectSnapshot(snapshot);
+  return snapshot;
+}
+
+export async function runWorkflow(
+  input: RunWorkflowInput,
+): Promise<ProcessSnapshot<RunStageKey>> {
+  return executeProcessWorkflow<RunStageKey>({
+    processKind: "run",
+    processId: input.runId,
+    workflowType: "RunWorkflow",
+    stages: RUN_STAGES,
+    pauseAfter: input.pauseAfter ?? null,
+  });
+}
+
+export async function windowWorkflow(
+  input: WindowWorkflowInput,
+): Promise<ProcessSnapshot<WindowStageKey>> {
+  return executeProcessWorkflow<WindowStageKey>({
+    processKind: "window",
+    processId: input.windowId,
+    workflowType: "WindowWorkflow",
+    stages: WINDOW_STAGES,
+    pauseAfter: input.pauseAfter ?? null,
+  });
 }

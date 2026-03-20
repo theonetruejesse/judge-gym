@@ -127,10 +127,10 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Path | Role |
 | --- | --- |
 | `packages/engine-convex` | Convex backend: schema, orchestrators, scheduler, provider calls, rate limiting, data access |
-| `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, and runtime-agnostic defaults |
+| `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
 | `packages/temporal-server` | Workspace wrapper that runs the local Temporal dev server |
-| `packages/engine-temporal` | Temporal worker package for background workflow execution experiments |
+| `packages/engine-temporal` | Temporal worker package with the greenfield `RunWorkflow` / `WindowWorkflow` skeleton, test harness, and Upstash quota scaffolding |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 

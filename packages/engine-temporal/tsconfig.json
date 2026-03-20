@@ -8,7 +8,12 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@judge-gym/engine-settings": [
+        "../engine-settings/src/index.ts"
+      ]
+    },
     "outDir": "./lib"
   },
   "include": [

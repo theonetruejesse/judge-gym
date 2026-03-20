@@ -3,7 +3,7 @@ node_modules/
 .turbo/
 
 # Convex generated
-packages/engine/convex/_generated/
+packages/engine-convex/convex/_generated/
 
 # Python
 packages/analysis/.venv/
@@ -40,5 +40,5 @@ dist/
 bun.lockb
 
 # Temporal workspace local artifacts
-packages/temporal-engine/package-lock.json
+packages/engine-temporal/.temporal/
 packages/temporal-server/.temporal/
