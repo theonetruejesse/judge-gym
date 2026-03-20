@@ -17,6 +17,11 @@ export const LlmAttemptPayloadKindSchema = z.enum([
   "error",
 ]);
 
+export const LlmPromptTemplatesTableSchema = z.object({
+  content_hash: z.string(),
+  content: z.string(),
+});
+
 export const LlmAttemptsTableSchema = z.object({
   process_kind: z.enum(["window", "run"]),
   process_id: z.string(),

@@ -1,10 +1,5 @@
 export {
   analyzeProcessTelemetry,
-  backfillExperimentBundlePlans,
-  backfillExperimentTotalCounts,
-  backfillRunCompletedCounts,
-  backfillRunTerminalStates,
-  backfillSampleScoreCounts,
   tailTrace,
   testAxiomIngest,
 } from "../domain/maintenance/codex";

@@ -7,10 +7,10 @@ import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
 import { getExperimentTotalCount } from "./experiment_progress";
 import {
-  countCompletedSamples,
   getRunCompletedCount,
   getRunProgressSnapshot,
 } from "./run_progress";
+import { countCompletedSamples } from "./sample_progress";
 
 function deriveExperimentStatus(
   runs: Array<Doc<"runs">>,
@@ -60,35 +60,15 @@ async function latestRunHasFailures(
   run: Doc<"runs">,
   samples: Array<Doc<"samples">>,
 ): Promise<{ hasFailures: boolean; completedCount: number }> {
-  const completedCount = countCompletedSamples(samples, []);
-
-  if (run.status === "completed" || run.status === "error" || run.status === "canceled") {
-    if (samples.length < run.target_count) {
-      return { hasFailures: true, completedCount };
-    }
-    if (samples.some((sample) => sample.rubric_id == null || sample.rubric_critic_id == null)) {
-      return { hasFailures: true, completedCount };
-    }
-
-    return {
-      hasFailures: samples.some(
-        (sample) =>
-          (sample.score_count ?? 0) < (sample.score_target_total ?? 0)
-          || (sample.score_critic_count ?? 0) < (sample.score_target_total ?? 0),
-      ),
-      completedCount,
-    };
-  }
-
-  const targetStates = await ctx.db
-    .query("process_request_targets")
-    .withIndex("by_process", (q) =>
-      q.eq("process_type", "run").eq("process_id", run._id),
-    )
+  const scoreTargets = await ctx.db
+    .query("sample_score_targets")
+    .withIndex("by_run", (q) => q.eq("run_id", run._id))
     .collect();
+  const completedCount = countCompletedSamples(samples, scoreTargets);
+  const snapshot = await getRunProgressSnapshot(ctx, run._id);
 
   return {
-    hasFailures: targetStates.some((state) => state.resolution === "exhausted"),
+    hasFailures: snapshot?.hasFailures ?? false,
     completedCount,
   };
 }

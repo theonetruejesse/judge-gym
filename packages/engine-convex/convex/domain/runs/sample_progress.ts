@@ -49,6 +49,43 @@ export function countSampleScoreCounts(
   };
 }
 
+export function countCompletedSamples(
+  samples: Doc<"samples">[],
+  scoreTargets: SampleScoreTargetDoc[],
+  artifactIndex?: ScoreArtifactIndex,
+): number {
+  if (samples.length === 0) return 0;
+
+  const targetIdsWithScoreCritic = artifactIndex
+    ? artifactIndex.scoreTargetIdsWithScoreCritic
+    : new Set(
+        scoreTargets
+          .filter((target) => target.score_critic_id != null)
+          .map((target) => String(target._id)),
+      );
+
+  const targetsBySample = new Map<string, SampleScoreTargetDoc[]>();
+  for (const target of scoreTargets) {
+    const key = String(target.sample_id);
+    const current = targetsBySample.get(key) ?? [];
+    current.push(target);
+    targetsBySample.set(key, current);
+  }
+
+  return samples.filter((sample) => {
+    if (sample.rubric_id == null || sample.rubric_critic_id == null) {
+      return false;
+    }
+
+    const sampleTargets = targetsBySample.get(String(sample._id)) ?? [];
+    if (sampleTargets.length === 0) {
+      return false;
+    }
+
+    return sampleTargets.every((target) => targetIdsWithScoreCritic.has(String(target._id)));
+  }).length;
+}
+
 export async function getSampleScoreCounts(
   ctx: SampleProgressCtx,
   sampleId: Id<"samples">,

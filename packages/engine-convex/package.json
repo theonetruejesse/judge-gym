@@ -21,7 +21,6 @@
     "debug:heal": "../../scripts/with_root_env.sh bun run scripts/live_debug.ts heal",
     "debug:tail": "../../scripts/with_root_env.sh bun run scripts/live_debug.ts tail",
     "debug:analyze": "../../scripts/with_root_env.sh bun run scripts/live_debug.ts analyze",
-    "debug:matrix": "../../scripts/with_root_env.sh bun run scripts/synthetic_matrix.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:once": "vitest run",

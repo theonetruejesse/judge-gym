@@ -32,6 +32,7 @@ async function createWindowWithEvidence(
       start_date: "2026-03-01",
       end_date: "2026-03-02",
       query,
+      target_count: evidenceCount,
     },
   );
 
@@ -220,42 +221,6 @@ describe("bundle score targets", () => {
     const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
     expect(scoreTargets).toHaveLength(1);
     expect(scoreTargets[0]?.items).toHaveLength(4);
-  });
-
-  test("bundle token gate fails fast when estimated input is too large", async () => {
-    const t = initTest();
-    const windows = await Promise.all([
-      createWindowWithEvidence(t, "gate-a", 2, "gate-a"),
-      createWindowWithEvidence(t, "gate-b", 2, "gate-b"),
-      createWindowWithEvidence(t, "gate-c", 2, "gate-c"),
-    ]);
-    const pool = await createPoolFromWindows(t, windows);
-
-    const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-      pool_id: pool.pool_id,
-      experiment_config: {
-        rubric_config: {
-          model: "gpt-4.1",
-          scale_size: 4,
-          concept: "fascism",
-        },
-        scoring_config: {
-          model: "gpt-4.1",
-          method: "subset",
-          abstain_enabled: true,
-          evidence_view: "l0_raw",
-          randomizations: [],
-          evidence_bundle_size: 3,
-        },
-      },
-    });
-
-    await expect(
-      t.mutation(internal.domain.runs.run_repo.createRun, {
-        experiment_id,
-        target_count: 1,
-      }),
-    ).rejects.toThrow(/internal cap/i);
   });
 
   test("windows and pools persist count fields", async () => {

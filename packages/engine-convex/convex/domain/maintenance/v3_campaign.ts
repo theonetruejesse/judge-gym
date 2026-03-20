@@ -115,10 +115,8 @@ const ResetExperimentRowSchema = z.object({
     rubric_critics: z.number(),
     scores: z.number(),
     score_critics: z.number(),
-    llm_batches: z.number(),
-    llm_jobs: z.number(),
-    llm_requests: z.number(),
-    process_request_targets: z.number(),
+    llm_attempts: z.number(),
+    llm_attempt_payloads: z.number(),
     process_observability: z.number(),
   }),
 });
@@ -368,10 +366,8 @@ export const resetRuns = zMutation({
       rubric_critics: 0,
       scores: 0,
       score_critics: 0,
-      llm_batches: 0,
-      llm_jobs: 0,
-      llm_requests: 0,
-      process_request_targets: 0,
+      llm_attempts: 0,
+      llm_attempt_payloads: 0,
       process_observability: 0,
     };
 

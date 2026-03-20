@@ -42,10 +42,3 @@ export const ProcessObservabilityTableSchema = z.object({
   last_error_summary: z.string().nullable().optional(),
   updated_at_ms: z.number(),
 });
-
-export const SchedulerLockTableSchema = z.object({
-  lock_key: z.string(),
-  status: z.enum(["idle", "running"]),
-  heartbeat_ts_ms: z.number(),
-  expires_at_ms: z.number(),
-});

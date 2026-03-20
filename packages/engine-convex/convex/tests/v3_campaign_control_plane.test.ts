@@ -3,19 +3,14 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
 import { api, internal } from "../_generated/api";
-import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import type { Id } from "../_generated/dataModel";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
-const rateLimiterModules = import.meta.glob(
-  "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
-);
 const activeTests: ConvexTestInstance[] = [];
 
 function initTest(): ConvexTestInstance {
   const t = convexTest(schema, buildModules());
-  t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
   activeTests.push(t);
   return t;
 }
@@ -173,195 +168,6 @@ describe("v3 campaign control plane", () => {
     ]);
   });
 
-  test("startV3Experiments launches only cohort rows and persists pause_after", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-15T12:00:00.000Z"));
-    const t = initTest();
-    try {
-      const { pool_id } = await seedWindowAndEvidence(t);
-      await seedExperiment(t, {
-        experiment_tag: "v3_test_alpha",
-        pool_id,
-        evidence_bundle_size: 1,
-      });
-      await seedExperiment(t, {
-        experiment_tag: "v3_test_beta",
-        pool_id,
-        evidence_bundle_size: 2,
-      });
-      await seedExperiment(t, {
-        experiment_tag: "not_v3_gamma",
-        pool_id,
-      });
-
-      const launched = await t.mutation(api.packages.codex.startV3Experiments, {
-        target_count: 2,
-        pause_after: "rubric_critic",
-        start_scheduler: false,
-      });
-      expect(launched.selected_experiment_count).toBe(2);
-      expect(launched.rows.filter((row: (typeof launched.rows)[number]) => row.action === "started")).toHaveLength(2);
-      expect(launched.rows.every((row: (typeof launched.rows)[number]) =>
-        row.reason === "scheduled_start" && row.run_id === null
-      )).toBe(true);
-
-      await t.finishAllScheduledFunctions(() => {
-        vi.runAllTimers();
-      });
-
-      const status = await t.query(api.packages.codex.getV3CampaignStatus, {
-        expected_pause_after: "rubric_critic",
-      });
-      expect(status.selected_experiment_count).toBe(2);
-      expect(status.counts.with_latest_run).toBe(2);
-      expect(status.experiments.every((experiment: (typeof status.experiments)[number]) =>
-        experiment.latest_run?.pause_after === "rubric_critic"
-      )).toBe(true);
-      expect(status.workload_family_summary).toEqual([
-        {
-          estimated_total_score_targets: 2,
-          experiment_count: 1,
-          start: 0,
-          queued: 0,
-          completed: 0,
-          running: 1,
-          paused: 0,
-          error: 0,
-          canceled: 0,
-          with_failures: 0,
-        },
-        {
-          estimated_total_score_targets: 4,
-          experiment_count: 1,
-          start: 0,
-          queued: 0,
-          completed: 0,
-          running: 1,
-          paused: 0,
-          error: 0,
-          canceled: 0,
-          with_failures: 0,
-        },
-      ]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  test("resumeV3Experiments resumes paused latest runs in place", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-15T12:00:00.000Z"));
-    const t = initTest();
-    try {
-      const { pool_id } = await seedWindowAndEvidence(t);
-      const alpha = await seedExperiment(t, {
-        experiment_tag: "v3_test_alpha",
-        pool_id,
-      });
-      await seedExperiment(t, {
-        experiment_tag: "not_v3_gamma",
-        pool_id,
-      });
-
-      const runId = await t.mutation(internal.domain.runs.run_repo.createRun, {
-        experiment_id: alpha,
-        target_count: 1,
-        pause_after: "rubric_critic",
-      });
-      const rubricRequestId = await t.mutation(
-        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
-        {
-          model: "gpt-4.1-mini",
-          user_prompt: "rubric request",
-          custom_key: "sample:test:rubric_gen",
-          attempt_index: 1,
-        },
-      );
-      const rubricCriticRequestId = await t.mutation(
-        internal.domain.llm_calls.llm_request_repo.createLlmRequest,
-        {
-          model: "gpt-4.1-mini",
-          user_prompt: "rubric critic request",
-          custom_key: "sample:test:rubric_critic",
-          attempt_index: 1,
-        },
-      );
-
-      await t.run(async (ctx) => {
-        const samples = (await ctx.db.query("samples").collect())
-          .filter((sample) => sample.run_id === runId);
-        expect(samples).toHaveLength(1);
-        const rubricId = await ctx.db.insert("rubrics", {
-          run_id: runId,
-          sample_id: samples[0]!._id,
-          model: "gpt-4.1-mini",
-          concept: "fascism",
-          scale_size: 4,
-          llm_request_id: rubricRequestId,
-          justification: "ok",
-          stages: [
-            { stage_number: 1, label: "Weak", criteria: ["a"] },
-            { stage_number: 2, label: "Medium", criteria: ["b"] },
-            { stage_number: 3, label: "Strong", criteria: ["c"] },
-            { stage_number: 4, label: "Max", criteria: ["d"] },
-          ],
-          label_mapping: {},
-        });
-        const rubricCriticId = await ctx.db.insert("rubric_critics", {
-          run_id: runId,
-          sample_id: samples[0]!._id,
-          model: "gpt-4.1-mini",
-          llm_request_id: rubricCriticRequestId,
-          justification: "ok",
-          expert_agreement_prob: {
-            observability_score: 0.9,
-            discriminability_score: 0.8,
-          },
-        });
-        await ctx.db.patch(samples[0]!._id, {
-          rubric_id: rubricId,
-          rubric_critic_id: rubricCriticId,
-        });
-        await ctx.db.patch(runId, {
-          status: "paused",
-          current_stage: "rubric_critic",
-          rubric_gen_count: 1,
-          rubric_critic_count: 1,
-        });
-      });
-
-      const resumed = await t.mutation(api.packages.codex.resumeV3Experiments, {
-        pause_after: null,
-        start_scheduler: false,
-      });
-      expect(resumed.selected_experiment_count).toBe(1);
-      expect(resumed.rows).toEqual([
-        expect.objectContaining({
-          experiment_tag: "v3_test_alpha",
-          action: "resumed",
-          reason: "scheduled_resume",
-          run_id: runId,
-        }),
-      ]);
-
-      await t.finishAllScheduledFunctions(() => {
-        vi.runAllTimers();
-      });
-
-      await t.run(async (ctx) => {
-        const run = await ctx.db.get(runId);
-        expect(run?.status).toBe("running");
-        expect(run?.current_stage).toBe("score_gen");
-        expect(run?.pause_after).toBeNull();
-
-        const requests = await ctx.db.query("llm_requests").collect();
-        expect(requests.some((request) => request.run_id === runId || request.custom_key.endsWith(":score_gen"))).toBe(true);
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   test("resetRuns wipes run-scoped data for the cohort only", async () => {
     const t = initTest();
     const { pool_id } = await seedWindowAndEvidence(t);
@@ -400,7 +206,7 @@ describe("v3 campaign control plane", () => {
     await t.run(async (ctx) => {
       expect(await ctx.db.query("runs").collect()).toHaveLength(0);
       expect(await ctx.db.query("samples").collect()).toHaveLength(0);
-      expect(await ctx.db.query("llm_requests").collect()).toHaveLength(0);
+      expect(await ctx.db.query("llm_attempts").collect()).toHaveLength(0);
       const experiments = await ctx.db.query("experiments").collect();
       expect(experiments.every((experiment) => experiment.total_count === 0)).toBe(true);
     });

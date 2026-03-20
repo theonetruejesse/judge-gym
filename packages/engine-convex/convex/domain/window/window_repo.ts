@@ -105,11 +105,8 @@ export const insertEvidenceBatch = zInternalMutation({
                 url: evidence.url,
                 l0_raw_content: evidence.raw_content,
                 l1_cleaned_content: null,
-                l1_request_id: null,
                 l2_neutralized_content: null,
-                l2_request_id: null,
                 l3_abstracted_content: null,
-                l3_request_id: null,
             });
         }
 
