@@ -33,10 +33,10 @@
     "@temporalio/activity": "^1.15.0",
     "@temporalio/client": "^1.15.0",
     "@temporalio/envconfig": "^1.15.0",
-    "@upstash/redis": "^1.35.6",
     "@temporalio/worker": "^1.15.0",
     "@temporalio/workflow": "^1.15.0",
     "convex": "^1.32.0",
+    "redis": "^5.8.2",
     "nanoid": "3.x"
   },
   "devDependencies": {

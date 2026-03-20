@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 import type {
   QuotaDimension,
   QuotaDimensions,
@@ -8,15 +8,28 @@ import type {
 } from "@judge-gym/engine-settings";
 import { QUOTA_DIMENSIONS } from "@judge-gym/engine-settings";
 import { buildQuotaBucketPlans as buildQuotaPlansFromPolicy } from "./policies";
-import { getUpstashQuotaRuntimeConfig } from "./runtime";
+import { getRedisQuotaRuntimeConfig } from "./runtime";
 import type {
   QuotaBucketPlan,
   QuotaBucketRef,
   QuotaStore,
 } from "./types";
 
-let cachedRedis: Redis | null = null;
-let cachedQuotaStore: UpstashQuotaStore | null = null;
+type RedisEvalOptions = {
+  keys: string[];
+  arguments: string[];
+};
+
+interface RedisClient {
+  isOpen: boolean;
+  connect(): Promise<void>;
+  eval(script: string, options: RedisEvalOptions): Promise<unknown>;
+  on(event: "error", listener: (error: unknown) => void): this;
+}
+
+let cachedRedis: RedisClient | null = null;
+let redisConnectPromise: Promise<RedisClient> | null = null;
+let cachedQuotaStore: RedisQuotaStore | null = null;
 
 const RESERVATION_RECORD_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -143,7 +156,7 @@ export function buildQuotaBucketRefs(
     QuotaReservationInput,
     "provider" | "model" | "operationType" | "scopeKey" | "dimensions"
   >,
-  keyPrefix = getUpstashQuotaRuntimeConfig().keyPrefix,
+  keyPrefix = getRedisQuotaRuntimeConfig().keyPrefix,
 ): QuotaBucketRef[] {
   const dimensions = getActiveDimensions(input.dimensions);
 
@@ -198,7 +211,7 @@ function buildResolvedQuotaBucketPlans(
     QuotaReservationInput,
     "provider" | "model" | "operationType" | "scopeKey" | "dimensions"
   >,
-  keyPrefix = getUpstashQuotaRuntimeConfig().keyPrefix,
+  keyPrefix = getRedisQuotaRuntimeConfig().keyPrefix,
 ): QuotaBucketPlan[] {
   return buildQuotaPlansFromRefs(
     buildQuotaBucketRefs(input, keyPrefix),
@@ -215,7 +228,7 @@ function buildQuotaPlansFromRefs(
 
 function reservationRecordKey(
   reservationId: string,
-  keyPrefix = getUpstashQuotaRuntimeConfig().keyPrefix,
+  keyPrefix = getRedisQuotaRuntimeConfig().keyPrefix,
 ) {
   return [keyPrefix, "reservation", reservationId].join(":");
 }
@@ -276,37 +289,58 @@ export function estimateTextTokens(content: string): number {
   return Math.ceil(trimmed.length / 4);
 }
 
-export function getUpstashRedisClient() {
-  if (cachedRedis) {
+export async function getRedisClient() {
+  if (cachedRedis?.isOpen) {
     return cachedRedis;
   }
 
-  const config = getUpstashQuotaRuntimeConfig();
-  if (!config.url || !config.token) {
+  if (redisConnectPromise) {
+    return redisConnectPromise;
+  }
+
+  const config = getRedisQuotaRuntimeConfig();
+  if (!config.url) {
     throw new Error(
-      "Upstash Redis is not configured. Expected UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+      "Redis is not configured. Expected REDIS_URL or REDISHOST/REDISPORT.",
     );
   }
 
-  cachedRedis = new Redis({
+  const client = createClient({
     url: config.url,
-    token: config.token,
+    socket: {
+      reconnectStrategy(retries) {
+        return Math.min(retries * 50, 1_000);
+      },
+    },
+  }) as unknown as RedisClient;
+  client.on("error", () => {
+    // Keep connection noise out of the steady-state worker logs.
   });
-  return cachedRedis;
+
+  redisConnectPromise = client.connect().then(() => {
+    cachedRedis = client;
+    return client;
+  }).finally(() => {
+    redisConnectPromise = null;
+  });
+
+  return redisConnectPromise;
 }
 
 export function getQuotaStore() {
-  cachedQuotaStore ??= new UpstashQuotaStore();
+  cachedQuotaStore ??= new RedisQuotaStore();
   return cachedQuotaStore;
 }
 
-export class UpstashQuotaStore implements QuotaStore {
-  constructor(private readonly redis: Redis = getUpstashRedisClient()) {}
+export class RedisQuotaStore implements QuotaStore {
+  constructor(
+    private readonly getClient: () => Promise<RedisClient> = getRedisClient,
+  ) {}
 
   async reserve(
     input: QuotaReservationInput,
   ): Promise<QuotaReservationResult> {
-    const config = getUpstashQuotaRuntimeConfig();
+    const config = getRedisQuotaRuntimeConfig();
     const bucketPlans = buildResolvedQuotaBucketPlans(input, config.keyPrefix);
 
     if (!config.enabled) {
@@ -315,7 +349,7 @@ export class UpstashQuotaStore implements QuotaStore {
         reservationId: input.reservationId,
         bucketKeys: bucketPlans.map((plan) => plan.key),
         dimensions: input.dimensions,
-        reason: "upstash_not_configured",
+        reason: "redis_not_configured",
       };
     }
 
@@ -329,8 +363,11 @@ export class UpstashQuotaStore implements QuotaStore {
       };
     }
 
-    const reservationKey = reservationRecordKey(input.reservationId, config.keyPrefix);
-    const script = this.redis.createScript<[string, string]>(RESERVE_SCRIPT);
+    const redis = await this.getClient();
+    const reservationKey = reservationRecordKey(
+      input.reservationId,
+      config.keyPrefix,
+    );
     const keys = [reservationKey, ...bucketPlans.map((plan) => plan.key)];
     const args = [
       String(Date.now()),
@@ -343,7 +380,12 @@ export class UpstashQuotaStore implements QuotaStore {
         String(plan.policy.capacity),
       ]),
     ];
-    const [status, detail] = parseScriptResponse(await script.exec(keys, args));
+    const [status, detail] = parseScriptResponse(
+      await redis.eval(RESERVE_SCRIPT, {
+        keys,
+        arguments: args,
+      }),
+    );
 
     if (status === "allowed" || status === "duplicate") {
       return {
@@ -365,7 +407,7 @@ export class UpstashQuotaStore implements QuotaStore {
   }
 
   async settle(input: QuotaSettlementInput): Promise<void> {
-    const config = getUpstashQuotaRuntimeConfig();
+    const config = getRedisQuotaRuntimeConfig();
     if (!config.enabled) {
       return;
     }
@@ -387,8 +429,11 @@ export class UpstashQuotaStore implements QuotaStore {
       return;
     }
 
-    const script = this.redis.createScript<[string]>(SETTLE_SCRIPT);
-    const reservationKey = reservationRecordKey(input.reservationId, config.keyPrefix);
+    const redis = await this.getClient();
+    const reservationKey = reservationRecordKey(
+      input.reservationId,
+      config.keyPrefix,
+    );
     const keys = [reservationKey, ...bucketPlans.map((plan) => plan.key)];
     const args = [
       String(Date.now()),
@@ -403,6 +448,9 @@ export class UpstashQuotaStore implements QuotaStore {
       ]),
     ];
 
-    await script.exec(keys, args);
+    await redis.eval(SETTLE_SCRIPT, {
+      keys,
+      arguments: args,
+    });
   }
 }

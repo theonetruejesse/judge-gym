@@ -7,6 +7,9 @@ cd "$ROOT_DIR"
 SERVICE_NAME="${RAILWAY_WORKER_SERVICE_NAME:-engine-temporal-worker}"
 RAILWAY_ENVIRONMENT="${RAILWAY_ENVIRONMENT:-production}"
 RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporal-frontend:7233}"
+if [ -z "${RAILWAY_REDIS_URL_REFERENCE:-}" ]; then
+  RAILWAY_REDIS_URL_REFERENCE='${{Redis.REDIS_URL}}'
+fi
 
 source_env() {
   if [ -f "$ROOT_DIR/.env.local" ]; then
@@ -51,10 +54,9 @@ fi
 require_env CONVEX_URL
 require_env OPENAI_API_KEY
 require_env FIRECRAWL_API_KEY
-require_env UPSTASH_REDIS_REST_URL
-require_env UPSTASH_REDIS_REST_TOKEN
 
 status_json="$(railway status --json)"
+redis_url_value="${REDIS_URL:-$RAILWAY_REDIS_URL_REFERENCE}"
 
 if ! node -e '
 const status = JSON.parse(process.argv[1]);
@@ -76,9 +78,12 @@ worker_vars=(
   "CONVEX_URL=$CONVEX_URL"
   "OPENAI_API_KEY=$OPENAI_API_KEY"
   "FIRECRAWL_API_KEY=$FIRECRAWL_API_KEY"
-  "UPSTASH_REDIS_REST_URL=$UPSTASH_REDIS_REST_URL"
-  "UPSTASH_REDIS_REST_TOKEN=$UPSTASH_REDIS_REST_TOKEN"
+  "REDIS_URL=$redis_url_value"
 )
+
+if [ -n "${REDIS_KEY_PREFIX:-}" ]; then
+  worker_vars+=("REDIS_KEY_PREFIX=$REDIS_KEY_PREFIX")
+fi
 
 if [ -n "${AXIOM_DATASET:-}" ]; then
   worker_vars+=("AXIOM_DATASET=$AXIOM_DATASET")

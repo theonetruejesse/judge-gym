@@ -111,7 +111,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `packages/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
 | `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
-| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Upstash-backed quota enforcement |
+| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
@@ -121,6 +121,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
 - When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for the Temporal frontend service, while the Railway-hosted `engine-temporal` worker should use the private service alias `temporal-frontend:7233` unless the template used a different private name.
 - The Railway worker deploy path for `packages/engine-temporal` is pinned in repo via `railway.toml` plus the repo-root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `packages/engine-temporal`.
+- Quota state now assumes a standard Redis service on Railway for the worker runtime instead of Upstash.
 
 **Engine internals (`packages/engine-convex/convex/`)**
 | Path | Role |
@@ -249,7 +250,7 @@ Window and run execution are now Temporal-owned. The legacy Convex scheduler/bat
 - `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
-- Temporal-window and Temporal-run quota enforcement currently lives in `packages/engine-temporal/src/quota/*` and talks directly to Upstash Redis from the worker runtime.
+- Temporal-window and Temporal-run quota enforcement currently lives in `packages/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
 - For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
 - `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
 

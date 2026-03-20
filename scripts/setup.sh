@@ -43,7 +43,7 @@ CONVEX_URL=
 # OPENAI_API_KEY=
 # ANTHROPIC_API_KEY=
 # FIRECRAWL_API_KEY=
-# GOOGLE_API_KEY=
+# GOOGLE_GENERATIVE_AI_API_KEY=
 # OPENROUTER_API_KEY=
 # XAI_API_KEY=
 EOF
@@ -71,9 +71,10 @@ echo "Next steps:"
 echo "  1. Fill in .env.local"
 echo "  2. Create/link a Convex dev deployment for packages/engine-convex"
 echo "  3. Create a Railway Temporal project from the official template"
-echo "  4. Link this repo to that Railway project"
-echo "  5. Run scripts/deploy_railway_worker.sh to deploy the Railway worker"
-echo "  6. Set Convex TEMPORAL_ADDRESS to the public Railway TCP proxy"
-echo "  7. Start local UI + Convex surfaces with: bun dev"
+echo "  4. Add a Redis service to that Railway project"
+echo "  5. Link this repo to that Railway project"
+echo "  6. Run scripts/deploy_railway_worker.sh to deploy the Railway worker"
+echo "  7. Set Convex TEMPORAL_ADDRESS to the public Railway TCP proxy"
+echo "  8. Start local UI + Convex surfaces with: bun dev"
 echo
 echo "Detailed instructions live in docs/setup.md"

@@ -41,8 +41,6 @@ CONVEX_SITE_URL=...
 
 OPENAI_API_KEY=...
 FIRECRAWL_API_KEY=...
-UPSTASH_REDIS_REST_URL=...
-UPSTASH_REDIS_REST_TOKEN=...
 
 TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
@@ -67,6 +65,11 @@ That project should contain the Temporal cluster services. Depending on the
 template version, the service names may vary a little, but you should end up
 with a Temporal frontend service plus the supporting history/matching/database
 services.
+
+Add a Railway Redis service to the same project. The current deploy script
+assumes the default Railway Redis service reference `${{Redis.REDIS_URL}}`.
+If you rename the Redis service or use a different variable reference, override
+`RAILWAY_REDIS_URL_REFERENCE` in `.env.local` before running the deploy script.
 
 For the current official template, the private worker address is typically:
 
@@ -120,8 +123,8 @@ The worker service needs:
 - `CONVEX_URL`
 - `OPENAI_API_KEY`
 - `FIRECRAWL_API_KEY`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
+- `REDIS_URL` via the default Railway service reference `${{Redis.REDIS_URL}}`
+  or your explicit `RAILWAY_REDIS_URL_REFERENCE`
 
 Optional:
 
@@ -138,8 +141,6 @@ TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
 OPENAI_API_KEY=...
 FIRECRAWL_API_KEY=...
-UPSTASH_REDIS_REST_URL=...
-UPSTASH_REDIS_REST_TOKEN=...
 ```
 
 If you use telemetry in Convex:

@@ -1,15 +1,33 @@
 import { ENGINE_ENV_KEYS } from "@judge-gym/engine-settings";
-import type { UpstashQuotaRuntimeConfig } from "./types";
+import type { RedisQuotaRuntimeConfig } from "./types";
 
-export function getUpstashQuotaRuntimeConfig(): UpstashQuotaRuntimeConfig {
-  const url = process.env[ENGINE_ENV_KEYS.upstashUrl] ?? null;
-  const token = process.env[ENGINE_ENV_KEYS.upstashToken] ?? null;
+function buildRedisUrlFromDiscreteEnv() {
+  const host = process.env[ENGINE_ENV_KEYS.redisHost] ?? null;
+  const port = process.env[ENGINE_ENV_KEYS.redisPort] ?? null;
+  const password = process.env[ENGINE_ENV_KEYS.redisPassword] ?? null;
+
+  if (!host || !port) {
+    return null;
+  }
+
+  const username = process.env[ENGINE_ENV_KEYS.redisUser] ?? "default";
+  const auth = password
+    ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+    : "";
+
+  return `redis://${auth}${host}:${port}`;
+}
+
+export function getRedisQuotaRuntimeConfig(): RedisQuotaRuntimeConfig {
+  const url =
+    process.env[ENGINE_ENV_KEYS.redisUrl] ??
+    buildRedisUrlFromDiscreteEnv() ??
+    null;
 
   return {
-    enabled: Boolean(url && token),
+    enabled: Boolean(url),
     url,
-    token,
     keyPrefix:
-      process.env[ENGINE_ENV_KEYS.upstashKeyPrefix] ?? "judge-gym:quota",
+      process.env[ENGINE_ENV_KEYS.redisKeyPrefix] ?? "judge-gym:quota",
   };
 }

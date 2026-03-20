@@ -7,13 +7,13 @@ Temporal worker package for judge-gym. It now contains the greenfield Temporal-o
 - shared process control handlers for `pause_after`, `pause_now`, `resume`, and bounded repair placeholders
 - a dual-worker entrypoint that listens on separate run/window task queues
 - a local test harness helper that caches the Temporal CLI under `packages/engine-temporal/.temporal/test-server-downloads`
-- the live Upstash quota/runtime layer for worker-side rate limiting on OpenAI chat paths
+- the live Redis quota/runtime layer for worker-side rate limiting on OpenAI chat paths
 
 The current code is in a mixed state:
 
 - the window path is live and calls Firecrawl + OpenAI through `src/window/service.ts`, with Convex worker-API writes for workflow binding, evidence insertion, attempt logging, stage result application, and window-level error/completion projection
 - the run path is also live and calls OpenAI through `src/run/service.ts`, with Convex worker-API writes for workflow binding, attempt logging, parsed artifact application, and stage finalization
-- the worker now enforces provider/model token buckets through Upstash before OpenAI chat calls, then settles those reservations after each attempt finishes
+- the worker now enforces provider/model token buckets through Redis before OpenAI chat calls, then settles those reservations after each attempt finishes
 
 Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. The repo root `.env.local` is the source of truth for local scripts, but the primary dev/runtime path is a Railway-hosted Temporal worker service.
 
@@ -50,7 +50,7 @@ Started run workflow run:my-run-id
 - `TEMPORAL_TEST_SERVER_MODE=existing` can be used to point tests at an already-running local Temporal server instead of spawning an ephemeral one
 - `TEMPORAL_TEST_SERVER_DOWNLOAD_DIR` can override the default in-repo CLI cache directory used by the local test harness
 - `TEMPORAL_TEST_SERVER_EXECUTABLE` can point tests at a preinstalled Temporal CLI binary
-- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are now the worker-side quota env vars
+- `REDIS_URL` is the primary worker-side quota env var; `REDIS_KEY_PREFIX` optionally overrides the quota key prefix
 
 ## Current implementation map
 
@@ -58,6 +58,6 @@ Started run workflow run:my-run-id
 - `src/window/service.ts`: live window activity implementation (collect + transform stages)
 - `src/run/service.ts`: live run activity implementation (rubric + score stages)
 - `src/convex/client.ts`: worker-side Convex HTTP client for the narrow worker API
-- `src/quota/`: provider-aware Upstash quota reservation/settlement layer
+- `src/quota/`: provider-aware Redis quota reservation/settlement layer
 - `src/mocha/run-service.test.ts`: unit coverage for the run activity service
 - `src/mocha/window-service.test.ts`: unit coverage for the window activity service

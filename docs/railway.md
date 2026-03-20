@@ -23,17 +23,18 @@ This repo treats Railway as the canonical Temporal runtime:
    https://railway.com/deploy/temporal-workflow-engine
    ```
 
-2. Add a public TCP proxy to the Temporal frontend service on port `7233`
-3. Put that public `host:port` into:
+2. Add a Redis service to the same Railway project
+3. Add a public TCP proxy to the Temporal frontend service on port `7233`
+4. Put that public `host:port` into:
    - root `.env.local` `TEMPORAL_ADDRESS`
    - Convex env `TEMPORAL_ADDRESS`
-4. Link the repo locally:
+5. Link the repo locally:
 
    ```bash
    railway link --project <project-id> --environment production
    ```
 
-5. Deploy the worker:
+6. Deploy the worker:
 
    ```bash
    ./scripts/deploy_railway_worker.sh
@@ -51,6 +52,15 @@ That matches the current official Railway Temporal template. If your project
 uses a different private service name, override
 `RAILWAY_TEMPORAL_PRIVATE_ADDRESS` in `.env.local` before running the deploy
 script.
+
+The deploy script also defaults the worker Redis connection to:
+
+```bash
+RAILWAY_REDIS_URL_REFERENCE=${{Redis.REDIS_URL}}
+```
+
+If your Railway Redis service uses a different service name or variable
+reference, override `RAILWAY_REDIS_URL_REFERENCE` in `.env.local`.
 
 ## Publishing your own project template
 

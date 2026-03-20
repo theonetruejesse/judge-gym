@@ -25,10 +25,9 @@ export interface QuotaBucketPlan extends QuotaBucketRef {
   policy: TokenBucketPolicy;
 }
 
-export interface UpstashQuotaRuntimeConfig {
+export interface RedisQuotaRuntimeConfig {
   enabled: boolean;
   url: string | null;
-  token: string | null;
   keyPrefix: string;
 }
 
