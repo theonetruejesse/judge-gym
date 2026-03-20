@@ -11,13 +11,9 @@ function getTemporalConfig() {
     namespace: process.env.TEMPORAL_NAMESPACE ?? "default",
     taskQueues: {
       run:
-        process.env.TEMPORAL_RUN_TASK_QUEUE ??
-        process.env.TEMPORAL_TASK_QUEUE ??
-        "judge-gym.run",
+        process.env.TEMPORAL_RUN_TASK_QUEUE ?? "judge-gym.run",
       window:
-        process.env.TEMPORAL_WINDOW_TASK_QUEUE ??
-        process.env.TEMPORAL_TASK_QUEUE ??
-        "judge-gym.window",
+        process.env.TEMPORAL_WINDOW_TASK_QUEUE ?? "judge-gym.window",
     },
   };
 }
