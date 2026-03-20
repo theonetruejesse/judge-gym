@@ -20,8 +20,8 @@ Use `bun install` from the repo root for dependency installation. The package ex
 ## Running it
 
 1. Install repo dependencies with `bun install` from the repo root.
-1. Deploy the package to Railway using the repo-root `Dockerfile`.
-1. Set the worker service env so `TEMPORAL_ADDRESS=temporalserver:7233` and `TEMPORAL_NAMESPACE=default`.
+1. Deploy the package to Railway using the repo-root `railway.toml` and repo-root `Dockerfile`.
+1. Set the worker service env so `TEMPORAL_ADDRESS=temporal-frontend:7233` and `TEMPORAL_NAMESPACE=default`, unless your Railway Temporal template uses a different private frontend alias.
 1. Use `bun run workflow -- run my-run-id` or `bun run workflow -- window my-window-id` from `packages/engine-temporal` only for direct client-side workflow operations when needed.
 
 The workflow returns the final process snapshot after running all stages:
@@ -40,7 +40,7 @@ Started run workflow run:my-run-id
 ## Environment
 
 - Root `.env.local` is the authoritative env file for direct local package scripts.
-- `TEMPORAL_ADDRESS` defaults to `localhost:7233` for local-only scripts; the Railway worker should use `temporalserver:7233`
+- `TEMPORAL_ADDRESS` defaults to `localhost:7233` for local-only scripts; the Railway worker should use `temporal-frontend:7233` unless your template used a different private alias
 - `TEMPORAL_NAMESPACE` defaults to `default`
 - `TEMPORAL_TLS_ENABLED=1` enables TLS for the worker/client connection to Temporal
 - `TEMPORAL_TLS_SERVER_NAME` optionally sets the TLS server-name override (useful for proxied frontends such as Railway TCP proxies)

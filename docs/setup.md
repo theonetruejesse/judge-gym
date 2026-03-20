@@ -44,7 +44,7 @@ FIRECRAWL_API_KEY=...
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 
-TEMPORAL_ADDRESS=<public temporal_server tcp host:port>
+TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
 ```
 
@@ -52,23 +52,41 @@ Notes:
 
 - Local scripts use the public Temporal TCP endpoint.
 - The Railway worker does **not** use that public endpoint. It uses the private
-  Railway alias `temporalserver:7233`.
+  Railway alias `temporal-frontend:7233` unless your template used a different
+  private service name.
 
 ## 3. Create the Railway Temporal project
 
-Create a fresh Railway project from the official Temporal template. That project
-should contain at least:
+Create a fresh Railway project from the official Temporal template:
 
-- `temporal_server`
-- `temporal-ui`
-- `temporal-postgres`
+```text
+https://railway.com/deploy/temporal-workflow-engine
+```
 
-Then add a public TCP proxy on `temporal_server` targeting port `7233`.
+That project should contain the Temporal cluster services. Depending on the
+template version, the service names may vary a little, but you should end up
+with a Temporal frontend service plus the supporting history/matching/database
+services.
+
+For the current official template, the private worker address is typically:
+
+```bash
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporal-frontend:7233
+```
+
+If your template uses different private service naming, override
+`RAILWAY_TEMPORAL_PRIVATE_ADDRESS` in `.env.local` before running the deploy
+script.
+
+Add a public TCP proxy on the Temporal frontend service targeting port `7233`.
 
 That public `host:port` is the value used by:
 
 - local `.env.local` `TEMPORAL_ADDRESS`
 - Convex deployment env `TEMPORAL_ADDRESS`
+
+The Railway worker does **not** use that public address. It stays on the
+private Railway network.
 
 ## 4. Link your repo to Railway
 
@@ -91,13 +109,13 @@ Deploy the `engine-temporal` worker service from the repo root:
 That script:
 
 - creates `engine-temporal-worker` if it does not exist
-- deploys the repo-root `Dockerfile`
+- deploys using the repo-root `railway.toml` plus the repo-root `Dockerfile`
 - syncs the worker env vars from `.env.local`
-- forces the worker to use `temporalserver:7233` internally
+- defaults the worker to `temporal-frontend:7233` internally
 
 The worker service needs:
 
-- `TEMPORAL_ADDRESS=temporalserver:7233`
+- `TEMPORAL_ADDRESS=temporal-frontend:7233`
 - `TEMPORAL_NAMESPACE=default`
 - `CONVEX_URL`
 - `OPENAI_API_KEY`
@@ -116,7 +134,7 @@ Optional:
 Convex needs the **public** Temporal address, not the Railway private one:
 
 ```bash
-TEMPORAL_ADDRESS=<public temporal_server tcp host:port>
+TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
 OPENAI_API_KEY=...
 FIRECRAWL_API_KEY=...
@@ -157,8 +175,23 @@ Recommended smoke test:
 ## Deployment model
 
 - local dev: UI + Convex tooling
-- Railway `temporal_server`: Temporal cluster
+- Railway Temporal template: Temporal cluster
 - Railway `engine-temporal-worker`: worker runtime
 - Convex cloud: workflow starts and persistent state
 
 That is the supported path going forward.
+
+## Maintainer note: making this truly one-click
+
+The clean end state is:
+
+1. keep `railway.toml` + `Dockerfile` in this repo as the canonical worker
+   deployment config
+2. create a Railway project from the official Temporal template
+3. deploy `engine-temporal-worker` into that project
+4. once that project shape is stable, publish **your own Railway template**
+   from the working project so contributors can deploy the full Temporal side in
+   one click
+
+Until that custom template exists, the supported contributor flow is:
+official Temporal template first, then `./scripts/deploy_railway_worker.sh`.

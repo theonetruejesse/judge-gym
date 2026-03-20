@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 SERVICE_NAME="${RAILWAY_WORKER_SERVICE_NAME:-engine-temporal-worker}"
 RAILWAY_ENVIRONMENT="${RAILWAY_ENVIRONMENT:-production}"
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporalserver:7233}"
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporal-frontend:7233}"
 
 source_env() {
   if [ -f "$ROOT_DIR/.env.local" ]; then
@@ -111,7 +111,8 @@ echo
 echo "Railway worker is deployed."
 echo "Service: $SERVICE_NAME"
 echo "Temporal address inside Railway: $RAILWAY_TEMPORAL_PRIVATE_ADDRESS"
+echo "Deploy config: railway.toml + repo-root Dockerfile"
 echo
 echo "Convex still needs public Temporal TCP envs configured separately:"
-echo "  TEMPORAL_ADDRESS=<public temporal_server tcp host:port>"
+echo "  TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>"
 echo "  TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}"
