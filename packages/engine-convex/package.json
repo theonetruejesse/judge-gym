@@ -16,6 +16,7 @@
     "predev": "convex dev --until-success",
     "codegen": "convex codegen",
     "telemetry:check": "bun run scripts/check_telemetry.ts",
+    "pilot:smoke": "../../scripts/with_root_env.sh bun run scripts/pilot_smoke.ts",
     "debug:watch": "bun run scripts/live_debug.ts watch",
     "debug:stuck": "bun run scripts/live_debug.ts stuck",
     "debug:heal": "bun run scripts/live_debug.ts heal",

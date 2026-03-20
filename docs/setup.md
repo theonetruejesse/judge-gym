@@ -167,11 +167,25 @@ The Temporal cluster and the Temporal worker should already be running on Railwa
 
 Recommended smoke test:
 
-1. create a small window in the lab UI
-2. confirm the window gets a `workflow_id`
-3. confirm evidence rows appear
-4. check Railway worker logs for `judge-gym.window` polling
-5. use `packages/codex:getProcessHealth` to confirm stage progress
+```bash
+bun run pilot:smoke
+```
+
+That smoke script:
+
+1. checks Temporal queue readiness
+2. creates a tiny window
+3. waits for the window workflow to finish
+4. creates a pool + experiment from the collected evidence
+5. launches a one-sample run
+6. waits for the run workflow to finish
+7. prints a compact JSON summary with workflow ids, counts, and diagnostic totals
+
+If the smoke fails, the first follow-up checks are:
+
+1. Railway worker logs for `judge-gym.window` / `judge-gym.run`
+2. `bun run debug:queues`
+3. `bun run debug:inspect --window <window_id>` or `--run <run_id>`
 
 ## Deployment model
 

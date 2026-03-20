@@ -32,6 +32,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Railway-specific deployment details live in `docs/railway.md`.
 - Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
 - The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
+- After the stack is configured, `bun run pilot:smoke` is the recommended first end-to-end validation path.
 
 **Environment source of truth**
 
@@ -88,6 +89,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
+- The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
 - The engine includes Bun process telemetry analysis in `packages/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.

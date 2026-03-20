@@ -13,6 +13,7 @@
     "dev": "turbo dev --filter=@judge-gym/engine-convex --filter=@judge-gym/lab",
     "build": "turbo build",
     "test": "turbo test",
+    "pilot:smoke": "cd packages/engine-convex && bun run pilot:smoke",
     "typecheck": "turbo run typecheck",
     "validate:convex": "(cd packages/engine-convex && npx convex codegen) && bun run typecheck"
   },

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 type Args = {
@@ -180,15 +180,15 @@ function runConvex(functionName: string, payload: object) {
       functionName,
       functionName.replace("packages/codex:", "domain/maintenance/codex:"),
     ];
-  const localConvexBin = path.join(process.cwd(), "node_modules", ".bin", "convex");
-  const hasLocalConvexBin = existsSync(localConvexBin);
+  const nodeBin = process.env.NVM_BIN
+    ? path.join(process.env.NVM_BIN, "node")
+    : "node";
+  const convexCliBundle = path.join(process.cwd(), "node_modules", "convex", "dist", "cli.bundle.cjs");
 
   let lastError: string | null = null;
   for (const candidate of candidates) {
-    const command = hasLocalConvexBin ? localConvexBin : "npx";
-    const args = hasLocalConvexBin
-      ? ["run", candidate, JSON.stringify(payload)]
-      : ["-y", "convex@latest", "run", candidate, JSON.stringify(payload)];
+    const command = nodeBin;
+    const args = [convexCliBundle, "run", candidate, JSON.stringify(payload)];
 
     const result = spawnSync(command, args, {
       cwd: process.cwd(),
