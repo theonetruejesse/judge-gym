@@ -1,6 +1,10 @@
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { setTimeout as sleep } from "node:timers/promises";
 import * as activities from "./activities";
 import { getTemporalRuntimeConfig } from "./runtime";
+
+const CONNECTION_CLOSE_RETRY_MS = 250;
+const CONNECTION_CLOSE_ATTEMPTS = 5;
 
 async function createWorker(
   connection: NativeConnection,
@@ -23,12 +27,38 @@ async function shutdownWorkers(workers: Worker[]) {
   );
 }
 
+async function closeConnectionSafely(connection: NativeConnection) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= CONNECTION_CLOSE_ATTEMPTS; attempt += 1) {
+    try {
+      await connection.close();
+      return;
+    } catch (error) {
+      lastError = error;
+      const message =
+        error instanceof Error ? error.message : String(error);
+      if (
+        !message.includes("Workers hold a reference to it") ||
+        attempt >= CONNECTION_CLOSE_ATTEMPTS
+      ) {
+        throw error;
+      }
+      await sleep(CONNECTION_CLOSE_RETRY_MS * attempt);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+}
+
 export async function runWorkers() {
   const config = getTemporalRuntimeConfig();
   const connection = await NativeConnection.connect({
     address: config.address,
   });
   const workers: Worker[] = [];
+  const runPromises: Promise<void>[] = [];
   let shuttingDown = false;
 
   const shutdown = async () => {
@@ -49,12 +79,14 @@ export async function runWorkers() {
   process.once("SIGUSR2", handleSignal);
 
   try {
-    workers.push(
-      await createWorker(connection, config.taskQueues.run),
-      await createWorker(connection, config.taskQueues.window),
-    );
-
-    const runPromises = workers.map((worker) => worker.run());
+    for (const taskQueue of [
+      config.taskQueues.run,
+      config.taskQueues.window,
+    ]) {
+      const worker = await createWorker(connection, taskQueue);
+      workers.push(worker);
+      runPromises.push(worker.run());
+    }
 
     try {
       await Promise.all(runPromises);
@@ -68,7 +100,8 @@ export async function runWorkers() {
     process.removeListener("SIGTERM", handleSignal);
     process.removeListener("SIGUSR2", handleSignal);
     await shutdown();
-    await connection.close();
+    await Promise.allSettled(runPromises);
+    await closeConnectionSafely(connection);
   }
 }
 

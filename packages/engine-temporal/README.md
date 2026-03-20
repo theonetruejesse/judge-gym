@@ -43,7 +43,6 @@ Started run workflow run:my-run-id
 - `TEMPORAL_NAMESPACE` defaults to `default`
 - `TEMPORAL_RUN_TASK_QUEUE` defaults to `judge-gym.run`
 - `TEMPORAL_WINDOW_TASK_QUEUE` defaults to `judge-gym.window`
-- `TEMPORAL_TASK_QUEUE` can still be used as a shared fallback for both queues during local setup
 - `TEMPORAL_RETRY_DELAY_MS` defaults to `5000` for the dev worker retry loop
 - `TEMPORAL_TEST_SERVER_MODE=existing` can be used to point tests at an already-running local Temporal server instead of spawning an ephemeral one
 - `TEMPORAL_TEST_SERVER_DOWNLOAD_DIR` can override the default in-repo CLI cache directory used by the local test harness

@@ -14,7 +14,6 @@ export type TemporalRuntimeConfig = {
 };
 
 export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
-  const sharedTaskQueue = process.env[ENGINE_ENV_KEYS.temporalTaskQueue];
   return {
     address:
       process.env[ENGINE_ENV_KEYS.temporalAddress] ?? "localhost:7233",
@@ -26,11 +25,9 @@ export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
     taskQueues: {
       run:
         process.env[ENGINE_ENV_KEYS.temporalRunTaskQueue] ??
-        sharedTaskQueue ??
         TEMPORAL_TASK_QUEUES.run,
       window:
         process.env[ENGINE_ENV_KEYS.temporalWindowTaskQueue] ??
-        sharedTaskQueue ??
         TEMPORAL_TASK_QUEUES.window,
     },
   };
