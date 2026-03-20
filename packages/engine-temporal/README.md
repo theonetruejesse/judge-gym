@@ -7,13 +7,13 @@ Temporal worker package for judge-gym. It now contains the greenfield Temporal-o
 - shared process control handlers for `pause_after`, `pause_now`, `resume`, and bounded repair placeholders
 - a dual-worker entrypoint that listens on separate run/window task queues
 - a local test harness helper that caches the Temporal CLI under `packages/engine-temporal/.temporal/test-server-downloads`
-- the first Upstash quota/runtime scaffolding for worker-side rate limiting
+- the live Upstash quota/runtime layer for worker-side rate limiting on OpenAI chat paths
 
 The current code is in a mixed state:
 
 - the window path is live and calls Firecrawl + OpenAI through `src/window/service.ts`, with Convex worker-API writes for workflow binding, evidence insertion, attempt logging, stage result application, and window-level error/completion projection
 - the run path is also live and calls OpenAI through `src/run/service.ts`, with Convex worker-API writes for workflow binding, attempt logging, parsed artifact application, and stage finalization
-- Upstash quota wiring exists at the worker boundary, but real reservation/refund/reconciliation logic is still not implemented
+- the worker now enforces provider/model token buckets through Upstash before OpenAI chat calls, then settles those reservations after each attempt finishes
 
 Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. For now, the repo root `.env.local` is the source of truth for runtime configuration; package-local env files are optional convenience copies, not the authoritative config.
 
@@ -56,6 +56,6 @@ Started run workflow run:my-run-id
 - `src/window/service.ts`: live window activity implementation (collect + transform stages)
 - `src/run/service.ts`: live run activity implementation (rubric + score stages)
 - `src/convex/client.ts`: worker-side Convex HTTP client for the narrow worker API
-- `src/quota/`: provider-aware Upstash quota scaffolding
+- `src/quota/`: provider-aware Upstash quota reservation/settlement layer
 - `src/mocha/run-service.test.ts`: unit coverage for the run activity service
 - `src/mocha/window-service.test.ts`: unit coverage for the window activity service

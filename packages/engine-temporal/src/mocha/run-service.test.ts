@@ -2,12 +2,25 @@ import assert from "assert";
 import { describe, it } from "mocha";
 import { runRunStageActivityWithDeps } from "../run/service";
 
+function buildQuota() {
+  return {
+    reserve: async () => ({
+      allowed: true,
+      reservationId: "reservation_1",
+      bucketKeys: ["quota:test"],
+      dimensions: { requests: 1 },
+    }),
+    settle: async () => undefined,
+  };
+}
+
 describe("run stage service", () => {
   it("records successful rubric generation attempts and finalizes the stage", async () => {
     const calls: string[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
+        quota: buildQuota(),
         convex: {
           async getRunExecutionContext() {
             return {
@@ -88,6 +101,7 @@ describe("run stage service", () => {
 
     const result = await runRunStageActivityWithDeps(
       {
+        quota: buildQuota(),
         convex: {
           async getRunExecutionContext() {
             return {
@@ -164,6 +178,7 @@ describe("run stage service", () => {
 
     const result = await runRunStageActivityWithDeps(
       {
+        quota: buildQuota(),
         convex: {
           async getRunExecutionContext() {
             return {
@@ -222,5 +237,87 @@ describe("run stage service", () => {
     assert.equal(result.terminalExecutionStatus, "failed");
     assert.match(result.errorMessage ?? "", /still has pending targets/);
     assert.deepEqual(calls, ["finalize", "mark-process-error"]);
+  });
+
+  it("marks the run stage failure when quota reservation is denied", async () => {
+    const calls: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        quota: {
+          reserve: async () => ({
+            allowed: false,
+            reservationId: "reservation_1",
+            bucketKeys: ["quota:test"],
+            dimensions: { requests: 1 },
+            reason: "quota_denied:500",
+          }),
+          settle: async () => undefined,
+        },
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_999",
+              experiment_id: "exp_999",
+              workflow_id: "run:run_999",
+              workflow_run_id: "workflow-run-4",
+              status: "running",
+              current_stage: "rubric_gen",
+              target_count: 1,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [{
+              target_type: "sample" as const,
+              target_id: "sample_1",
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            return { attempt_id: "attempt_1" };
+          },
+          async recordLlmAttemptFinish() {
+            calls.push("finish");
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            calls.push("mark-failure");
+            return null;
+          },
+          async finalizeRunStage() {
+            calls.push("finalize");
+            return {
+              total: 1,
+              completed: 0,
+              failed: 1,
+              has_pending: false,
+              halt_process: true,
+              terminal_execution_status: "failed" as const,
+              error_message: "quota stage failed",
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+      },
+      "run_999",
+      "rubric_gen",
+    );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(result.terminalExecutionStatus, "failed");
+    assert.deepEqual(calls, ["finish", "mark-failure", "finalize"]);
   });
 });

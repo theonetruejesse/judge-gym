@@ -14,6 +14,17 @@ export interface QuotaBucketRef {
   scope: QuotaBucketScope;
 }
 
+export interface TokenBucketPolicy {
+  rate: number;
+  periodMs: number;
+  capacity: number;
+}
+
+export interface QuotaBucketPlan extends QuotaBucketRef {
+  amount: number;
+  policy: TokenBucketPolicy;
+}
+
 export interface UpstashQuotaRuntimeConfig {
   enabled: boolean;
   url: string | null;
@@ -24,7 +35,7 @@ export interface UpstashQuotaRuntimeConfig {
 export interface QuotaPlan {
   reservationId: string;
   reserved: QuotaDimensions;
-  buckets: QuotaBucketRef[];
+  buckets: QuotaBucketPlan[];
 }
 
 export interface QuotaStore {

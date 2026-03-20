@@ -2,6 +2,18 @@ import assert from "assert";
 import { describe, it } from "mocha";
 import { runWindowStageActivityWithDeps } from "../window/service";
 
+function buildQuota() {
+  return {
+    reserve: async () => ({
+      allowed: true,
+      reservationId: "reservation_1",
+      bucketKeys: ["quota:test"],
+      dimensions: { requests: 1 },
+    }),
+    settle: async () => undefined,
+  };
+}
+
 function buildWindowContext() {
   return {
     window_id: "window_123",
@@ -45,6 +57,7 @@ describe("window stage service", () => {
         runOpenAiChat: async () => {
           throw new Error("chat should not be called in collect stage");
         },
+        quota: buildQuota(),
       },
       "window_123",
       "collect",
@@ -60,6 +73,7 @@ describe("window stage service", () => {
 
     const result = await runWindowStageActivityWithDeps(
       {
+        quota: buildQuota(),
         convex: {
           getWindowExecutionContext: async () => buildWindowContext(),
           insertWindowEvidenceBatch: async () => ({ inserted: 0, total: 0 }),
@@ -112,6 +126,7 @@ describe("window stage service", () => {
 
     const result = await runWindowStageActivityWithDeps(
       {
+        quota: buildQuota(),
         convex: {
           getWindowExecutionContext: async () => buildWindowContext(),
           insertWindowEvidenceBatch: async () => ({ inserted: 0, total: 0 }),
@@ -143,6 +158,63 @@ describe("window stage service", () => {
     );
 
     assert.equal(processError, "All l2_neutralized attempts failed for window window_123");
+    assert.equal(result.haltProcess, true);
+    assert.equal(result.terminalExecutionStatus, "failed");
+  });
+
+  it("marks the stage failure when quota reservation is denied", async () => {
+    let stageFailureMessage: string | null = null;
+    let processErrorMessage: string | null = null;
+
+    const result = await runWindowStageActivityWithDeps(
+      {
+        quota: {
+          reserve: async () => ({
+            allowed: false,
+            reservationId: "reservation_1",
+            bucketKeys: ["quota:test"],
+            dimensions: { requests: 1 },
+            reason: "quota_denied:1000",
+          }),
+          settle: async () => undefined,
+        },
+        convex: {
+          getWindowExecutionContext: async () => buildWindowContext(),
+          insertWindowEvidenceBatch: async () => ({ inserted: 0, total: 0 }),
+          listWindowStageInputs: async () => [
+            {
+              evidence_id: "evidence_1",
+              title: "Evidence 1",
+              url: "https://example.com/1",
+              input: "raw article",
+            },
+          ],
+          recordLlmAttemptStart: async () => ({ attempt_id: "attempt_1" }),
+          recordLlmAttemptFinish: async () => null,
+          applyWindowStageResult: async () => {
+            throw new Error("applyWindowStageResult should not be called");
+          },
+          markWindowStageFailure: async ({ error_message }) => {
+            stageFailureMessage = error_message;
+            return null;
+          },
+          markWindowNoEvidence: async () => null,
+          markWindowProcessError: async ({ error_message }) => {
+            processErrorMessage = error_message;
+            return null;
+          },
+        },
+        searchWindowEvidence: async () => [],
+        runOpenAiChat: async () => {
+          throw new Error("runOpenAiChat should not be called");
+        },
+      },
+      "window_123",
+      "l1_cleaned",
+    );
+
+    assert.match(stageFailureMessage ?? "", /Quota reservation denied/);
+    assert.equal(processErrorMessage, "All l1_cleaned attempts failed for window window_123");
     assert.equal(result.haltProcess, true);
     assert.equal(result.terminalExecutionStatus, "failed");
   });

@@ -7,10 +7,127 @@ import type {
   QuotaSettlementInput,
 } from "@judge-gym/engine-settings";
 import { QUOTA_DIMENSIONS } from "@judge-gym/engine-settings";
+import { buildQuotaBucketPlans as buildQuotaPlansFromPolicy } from "./policies";
 import { getUpstashQuotaRuntimeConfig } from "./runtime";
-import type { QuotaBucketRef, QuotaStore } from "./types";
+import type {
+  QuotaBucketPlan,
+  QuotaBucketRef,
+  QuotaStore,
+} from "./types";
 
 let cachedRedis: Redis | null = null;
+let cachedQuotaStore: UpstashQuotaStore | null = null;
+
+const RESERVATION_RECORD_TTL_MS = 24 * 60 * 60 * 1000;
+
+const RESERVE_SCRIPT = `
+local now = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local recordTtl = tonumber(ARGV[3])
+local reservationKey = KEYS[1]
+if redis.call("GET", reservationKey) then
+  return {"duplicate", "0"}
+end
+
+local states = {}
+local argIndex = 4
+local maxRetry = 0
+for i = 2, #KEYS do
+  local key = KEYS[i]
+  local amount = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local rate = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local period = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local capacity = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+
+  local tokens = capacity
+  local updatedAt = now
+  local raw = redis.call("GET", key)
+  if raw then
+    local sep = string.find(raw, ":")
+    if sep then
+      tokens = tonumber(string.sub(raw, 1, sep - 1)) or capacity
+      updatedAt = tonumber(string.sub(raw, sep + 1)) or now
+    end
+    if updatedAt > now then
+      updatedAt = now
+    end
+    local elapsed = now - updatedAt
+    if elapsed > 0 then
+      tokens = math.min(capacity, tokens + ((elapsed * rate) / period))
+    end
+  end
+
+  if amount > 0 and tokens < amount then
+    local deficit = amount - tokens
+    local retryAfter = math.ceil((deficit * period) / rate)
+    if retryAfter > maxRetry then
+      maxRetry = retryAfter
+    end
+    return {"denied", tostring(maxRetry)}
+  end
+
+  states[i - 1] = { key, tokens - amount }
+end
+
+for _, state in ipairs(states) do
+  redis.call("SET", state[1], tostring(state[2]) .. ":" .. tostring(now), "PX", ttl)
+end
+redis.call("SET", reservationKey, "reserved", "PX", recordTtl)
+return {"allowed", "0"}
+`;
+
+const SETTLE_SCRIPT = `
+local now = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local recordTtl = tonumber(ARGV[3])
+local terminalStatus = ARGV[4]
+local reservationKey = KEYS[1]
+local reservationState = redis.call("GET", reservationKey)
+if not reservationState then
+  return {"missing"}
+end
+if reservationState ~= "reserved" then
+  return {"duplicate"}
+end
+
+local argIndex = 5
+for i = 2, #KEYS do
+  local key = KEYS[i]
+  local delta = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local rate = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local period = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+  local capacity = tonumber(ARGV[argIndex]); argIndex = argIndex + 1
+
+  local tokens = capacity
+  local updatedAt = now
+  local raw = redis.call("GET", key)
+  if raw then
+    local sep = string.find(raw, ":")
+    if sep then
+      tokens = tonumber(string.sub(raw, 1, sep - 1)) or capacity
+      updatedAt = tonumber(string.sub(raw, sep + 1)) or now
+    end
+    if updatedAt > now then
+      updatedAt = now
+    end
+    local elapsed = now - updatedAt
+    if elapsed > 0 then
+      tokens = math.min(capacity, tokens + ((elapsed * rate) / period))
+    end
+  end
+
+  if delta ~= 0 then
+    tokens = tokens - delta
+    if tokens > capacity then
+      tokens = capacity
+    end
+    redis.call("SET", key, tostring(tokens) .. ":" .. tostring(now), "PX", ttl)
+  end
+end
+
+redis.call("SET", reservationKey, "settled:" .. terminalStatus, "PX", recordTtl)
+return {"settled"}
+`;
 
 function getActiveDimensions(
   dimensions: QuotaDimensions,
@@ -31,31 +148,28 @@ export function buildQuotaBucketRefs(
   const dimensions = getActiveDimensions(input.dimensions);
 
   return dimensions.flatMap((dimension) => {
-    const providerKey = [
-      keyPrefix,
-      input.provider,
-      "provider",
-      dimension,
-      input.operationType,
-    ].join(":");
-    const scopedKey = [
-      keyPrefix,
-      input.provider,
-      "scope",
-      input.scopeKey,
-      dimension,
-      input.operationType,
-    ].join(":");
-
     const refs: QuotaBucketRef[] = [
       {
         dimension,
-        key: providerKey,
+        key: [
+          keyPrefix,
+          input.provider,
+          "provider",
+          dimension,
+          input.operationType,
+        ].join(":"),
         scope: "provider",
       },
       {
         dimension,
-        key: scopedKey,
+        key: [
+          keyPrefix,
+          input.provider,
+          "scope",
+          input.scopeKey,
+          dimension,
+          input.operationType,
+        ].join(":"),
         scope: "scope",
       },
     ];
@@ -79,6 +193,89 @@ export function buildQuotaBucketRefs(
   });
 }
 
+function buildResolvedQuotaBucketPlans(
+  input: Pick<
+    QuotaReservationInput,
+    "provider" | "model" | "operationType" | "scopeKey" | "dimensions"
+  >,
+  keyPrefix = getUpstashQuotaRuntimeConfig().keyPrefix,
+): QuotaBucketPlan[] {
+  return buildQuotaPlansFromRefs(
+    buildQuotaBucketRefs(input, keyPrefix),
+    input,
+  );
+}
+
+function buildQuotaPlansFromRefs(
+  refs: QuotaBucketRef[],
+  input: Pick<QuotaReservationInput, "provider" | "model" | "dimensions">,
+): QuotaBucketPlan[] {
+  return buildQuotaPlansFromPolicy(refs, input);
+}
+
+function reservationRecordKey(
+  reservationId: string,
+  keyPrefix = getUpstashQuotaRuntimeConfig().keyPrefix,
+) {
+  return [keyPrefix, "reservation", reservationId].join(":");
+}
+
+function maxBucketTtlMs(plans: QuotaBucketPlan[]) {
+  return plans.reduce(
+    (max, plan) => Math.max(max, plan.policy.periodMs * 2),
+    60_000,
+  );
+}
+
+function parseScriptResponse(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((value) => String(value));
+  }
+  return [String(raw)];
+}
+
+function toObservedTargetDimensions(
+  input: QuotaSettlementInput,
+): QuotaDimensions {
+  if (input.status === "refunded") {
+    return {};
+  }
+
+  if (input.observed) {
+    return input.observed;
+  }
+
+  if (input.status === "failed") {
+    return {
+      requests: input.reserved.requests,
+    };
+  }
+
+  return input.reserved;
+}
+
+function diffDimensions(
+  reserved: QuotaDimensions,
+  target: QuotaDimensions,
+): QuotaDimensions {
+  const delta: QuotaDimensions = {};
+  for (const dimension of QUOTA_DIMENSIONS) {
+    const reservedValue = reserved[dimension] ?? 0;
+    const targetValue = target[dimension] ?? 0;
+    const next = targetValue - reservedValue;
+    if (next !== 0) {
+      delta[dimension] = next;
+    }
+  }
+  return delta;
+}
+
+export function estimateTextTokens(content: string): number {
+  const trimmed = content.trim();
+  if (!trimmed) return 0;
+  return Math.ceil(trimmed.length / 4);
+}
+
 export function getUpstashRedisClient() {
   if (cachedRedis) {
     return cachedRedis;
@@ -98,37 +295,114 @@ export function getUpstashRedisClient() {
   return cachedRedis;
 }
 
+export function getQuotaStore() {
+  cachedQuotaStore ??= new UpstashQuotaStore();
+  return cachedQuotaStore;
+}
+
 export class UpstashQuotaStore implements QuotaStore {
+  constructor(private readonly redis: Redis = getUpstashRedisClient()) {}
+
   async reserve(
     input: QuotaReservationInput,
   ): Promise<QuotaReservationResult> {
     const config = getUpstashQuotaRuntimeConfig();
-    const bucketRefs = buildQuotaBucketRefs(input, config.keyPrefix);
+    const bucketPlans = buildResolvedQuotaBucketPlans(input, config.keyPrefix);
 
     if (!config.enabled) {
       return {
         allowed: true,
         reservationId: input.reservationId,
-        bucketKeys: bucketRefs.map((ref) => ref.key),
+        bucketKeys: bucketPlans.map((plan) => plan.key),
         dimensions: input.dimensions,
         reason: "upstash_not_configured",
       };
     }
 
-    getUpstashRedisClient();
+    if (bucketPlans.length === 0) {
+      return {
+        allowed: true,
+        reservationId: input.reservationId,
+        bucketKeys: [],
+        dimensions: input.dimensions,
+        reason: "no_quota_policies",
+      };
+    }
+
+    const reservationKey = reservationRecordKey(input.reservationId, config.keyPrefix);
+    const script = this.redis.createScript<[string, string]>(RESERVE_SCRIPT);
+    const keys = [reservationKey, ...bucketPlans.map((plan) => plan.key)];
+    const args = [
+      String(Date.now()),
+      String(maxBucketTtlMs(bucketPlans)),
+      String(RESERVATION_RECORD_TTL_MS),
+      ...bucketPlans.flatMap((plan) => [
+        String(plan.amount),
+        String(plan.policy.rate),
+        String(plan.policy.periodMs),
+        String(plan.policy.capacity),
+      ]),
+    ];
+    const [status, detail] = parseScriptResponse(await script.exec(keys, args));
+
+    if (status === "allowed" || status === "duplicate") {
+      return {
+        allowed: true,
+        reservationId: input.reservationId,
+        bucketKeys: bucketPlans.map((plan) => plan.key),
+        dimensions: input.dimensions,
+        reason: status === "duplicate" ? "duplicate_reservation" : undefined,
+      };
+    }
+
     return {
-      allowed: true,
+      allowed: false,
       reservationId: input.reservationId,
-      bucketKeys: bucketRefs.map((ref) => ref.key),
+      bucketKeys: bucketPlans.map((plan) => plan.key),
       dimensions: input.dimensions,
+      reason: detail ? `quota_denied:${detail}` : "quota_denied",
     };
   }
 
-  async settle(_input: QuotaSettlementInput): Promise<void> {
-    if (!getUpstashQuotaRuntimeConfig().enabled) {
+  async settle(input: QuotaSettlementInput): Promise<void> {
+    const config = getUpstashQuotaRuntimeConfig();
+    if (!config.enabled) {
       return;
     }
 
-    getUpstashRedisClient();
+    const targetDimensions = toObservedTargetDimensions(input);
+    const deltaDimensions = diffDimensions(input.reserved, targetDimensions);
+    const bucketPlans = buildResolvedQuotaBucketPlans(
+      {
+        provider: input.provider,
+        model: input.model,
+        operationType: input.operationType,
+        scopeKey: input.scopeKey,
+        dimensions: input.reserved,
+      },
+      config.keyPrefix,
+    );
+
+    if (bucketPlans.length === 0) {
+      return;
+    }
+
+    const script = this.redis.createScript<[string]>(SETTLE_SCRIPT);
+    const reservationKey = reservationRecordKey(input.reservationId, config.keyPrefix);
+    const keys = [reservationKey, ...bucketPlans.map((plan) => plan.key)];
+    const args = [
+      String(Date.now()),
+      String(maxBucketTtlMs(bucketPlans)),
+      String(RESERVATION_RECORD_TTL_MS),
+      input.status,
+      ...bucketPlans.flatMap((plan) => [
+        String(deltaDimensions[plan.dimension] ?? 0),
+        String(plan.policy.rate),
+        String(plan.policy.periodMs),
+        String(plan.policy.capacity),
+      ]),
+    ];
+
+    await script.exec(keys, args);
   }
 }

@@ -18,6 +18,9 @@ export type TemporalTestEnvironmentConfig = {
   executablePath: string | null;
 };
 
+const LOCAL_ENV_START_ATTEMPTS = 3;
+const LOCAL_ENV_RETRY_DELAY_MS = 1_000;
+
 function getPackageRoot() {
   return path.resolve(__dirname, "..");
 }
@@ -60,23 +63,42 @@ export async function createTemporalTestWorkflowEnvironment() {
     recursive: true,
   });
 
-  return TestWorkflowEnvironment.createLocal({
-    server: {
-      ip: "127.0.0.1",
-      namespace: config.namespace,
-      ui: false,
-      searchAttributes: [],
-      executable: config.executablePath
-        ? {
-            type: "existing-path",
-            path: config.executablePath,
-          }
-        : {
-            type: "cached-download",
-            downloadDir: config.downloadDir,
-          },
-    },
-  });
+  let lastError: unknown = null;
+  for (
+    let attempt = 1;
+    attempt <= LOCAL_ENV_START_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      return await TestWorkflowEnvironment.createLocal({
+        server: {
+          ip: "127.0.0.1",
+          namespace: config.namespace,
+          ui: false,
+          searchAttributes: [],
+          executable: config.executablePath
+            ? {
+                type: "existing-path",
+                path: config.executablePath,
+              }
+            : {
+                type: "cached-download",
+                downloadDir: config.downloadDir,
+              },
+        },
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt >= LOCAL_ENV_START_ATTEMPTS) {
+        break;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, LOCAL_ENV_RETRY_DELAY_MS * attempt);
+      });
+    }
+  }
+
+  throw lastError;
 }
 
 export const TEST_TASK_QUEUES = {

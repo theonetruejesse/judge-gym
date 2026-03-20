@@ -10,6 +10,7 @@ import {
   neutralizePrompt,
 } from "@judge-gym/engine-settings";
 import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
+import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "./model_registry";
 
 type ChatResult = {
@@ -168,6 +169,7 @@ type WindowStageDependencies = {
   >;
   searchWindowEvidence: typeof searchWindowEvidence;
   runOpenAiChat: typeof runOpenAiChat;
+  quota: QuotaStore;
 };
 
 function getDefaultWindowStageDependencies(): WindowStageDependencies {
@@ -175,6 +177,16 @@ function getDefaultWindowStageDependencies(): WindowStageDependencies {
     convex: getConvexWorkerClient(),
     searchWindowEvidence,
     runOpenAiChat,
+    quota: getQuotaStore(),
+  };
+}
+
+function buildObservedDimensions(result: ChatResult) {
+  return {
+    requests: 1,
+    input_tokens: result.input_tokens ?? undefined,
+    output_tokens: result.output_tokens ?? undefined,
+    total_tokens: result.total_tokens ?? undefined,
   };
 }
 
@@ -262,8 +274,32 @@ export async function runWindowStageActivityWithDeps(
         evidence_url: item.url,
       }),
     });
+    const reservedDimensions = {
+      requests: 1,
+      input_tokens:
+        estimateTextTokens(systemPrompt) + estimateTextTokens(userPrompt),
+      total_tokens:
+        estimateTextTokens(systemPrompt) + estimateTextTokens(userPrompt),
+    };
+    const reservation = await deps.quota.reserve({
+      reservationId: `window:${windowId}:${stage}:${item.evidence_id}:${attempt_id}`,
+      provider,
+      model: window.model,
+      operationType: "chat",
+      scopeKey: `window:${windowId}:${stage}`,
+      dimensions: reservedDimensions,
+      processKind: "window",
+      processId: windowId,
+      workflowId,
+    });
 
     try {
+      if (!reservation.allowed) {
+        throw new Error(
+          `Quota reservation denied for ${stage}: ${reservation.reason ?? "quota_denied"}`,
+        );
+      }
+
       const result = await deps.runOpenAiChat({
         model: window.model,
         systemPrompt,
@@ -276,6 +312,16 @@ export async function runWindowStageActivityWithDeps(
         input_tokens: result.input_tokens,
         output_tokens: result.output_tokens,
         total_tokens: result.total_tokens,
+      });
+      await deps.quota.settle({
+        reservationId: reservation.reservationId,
+        provider,
+        model: window.model,
+        operationType: "chat",
+        scopeKey: `window:${windowId}:${stage}`,
+        reserved: reservedDimensions,
+        observed: buildObservedDimensions(result),
+        status: "applied",
       });
       await convex.applyWindowStageResult({
         window_id: windowId,
@@ -290,6 +336,18 @@ export async function runWindowStageActivityWithDeps(
       successCount += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (reservation.allowed) {
+        await deps.quota.settle({
+          reservationId: reservation.reservationId,
+          provider,
+          model: window.model,
+          operationType: "chat",
+          scopeKey: `window:${windowId}:${stage}`,
+          reserved: reservedDimensions,
+          observed: { requests: 1 },
+          status: "failed",
+        });
+      }
       await convex.recordLlmAttemptFinish({
         attempt_id,
         status: "failed",

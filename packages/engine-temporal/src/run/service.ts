@@ -3,6 +3,7 @@ import type {
   StageActivityResult,
 } from "@judge-gym/engine-settings";
 import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
+import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "../window/model_registry";
 import { runOpenAiChat } from "../window/service";
 
@@ -19,12 +20,23 @@ type RunStageDependencies = {
     | "markRunProcessError"
   >;
   runOpenAiChat: typeof runOpenAiChat;
+  quota: QuotaStore;
 };
 
 function getDefaultRunStageDependencies(): RunStageDependencies {
   return {
     convex: getConvexWorkerClient(),
     runOpenAiChat,
+    quota: getQuotaStore(),
+  };
+}
+
+function buildObservedDimensions(result: Awaited<ReturnType<typeof runOpenAiChat>>) {
+  return {
+    requests: 1,
+    input_tokens: result.input_tokens ?? undefined,
+    output_tokens: result.output_tokens ?? undefined,
+    total_tokens: result.total_tokens ?? undefined,
   };
 }
 
@@ -60,8 +72,32 @@ export async function runRunStageActivityWithDeps(
       user_prompt: input.user_prompt,
       metadata_json: input.metadata_json,
     });
+    const reservedDimensions = {
+      requests: 1,
+      input_tokens:
+        estimateTextTokens(input.system_prompt) + estimateTextTokens(input.user_prompt),
+      total_tokens:
+        estimateTextTokens(input.system_prompt) + estimateTextTokens(input.user_prompt),
+    };
+    const reservation = await deps.quota.reserve({
+      reservationId: `run:${runId}:${stage}:${input.target_id}:${attempt_id}`,
+      provider,
+      model: input.model,
+      operationType: "chat",
+      scopeKey: `run:${runId}:${stage}`,
+      dimensions: reservedDimensions,
+      processKind: "run",
+      processId: runId,
+      workflowId,
+    });
 
     try {
+      if (!reservation.allowed) {
+        throw new Error(
+          `Quota reservation denied for ${stage}: ${reservation.reason ?? "quota_denied"}`,
+        );
+      }
+
       const result = await deps.runOpenAiChat({
         model: input.model,
         systemPrompt: input.system_prompt,
@@ -75,6 +111,16 @@ export async function runRunStageActivityWithDeps(
         output_tokens: result.output_tokens,
         total_tokens: result.total_tokens,
       });
+      await deps.quota.settle({
+        reservationId: reservation.reservationId,
+        provider,
+        model: input.model,
+        operationType: "chat",
+        scopeKey: `run:${runId}:${stage}`,
+        reserved: reservedDimensions,
+        observed: buildObservedDimensions(result),
+        status: "applied",
+      });
       await convex.applyRunStageResult({
         run_id: runId,
         target_id: input.target_id,
@@ -85,6 +131,18 @@ export async function runRunStageActivityWithDeps(
       successCount += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (reservation.allowed) {
+        await deps.quota.settle({
+          reservationId: reservation.reservationId,
+          provider,
+          model: input.model,
+          operationType: "chat",
+          scopeKey: `run:${runId}:${stage}`,
+          reserved: reservedDimensions,
+          observed: { requests: 1 },
+          status: "failed",
+        });
+      }
       await convex.recordLlmAttemptFinish({
         attempt_id,
         status: "failed",
