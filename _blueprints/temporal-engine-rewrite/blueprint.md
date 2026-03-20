@@ -2,7 +2,7 @@
 
 > Greenfield rewrite plan for moving judge-gym's execution runtime from a custom Convex-based scheduler/orchestrator to self-hosted Temporal, while keeping Convex as the domain/UI store.
 >
-> Pass 10 closes the five remaining pre-refactor architecture seams: the control contract, the `llm_attempts` retention contract, the Convex-to-Temporal worker boundary, the compact observability projection, and the safe-deployment SOP. The central conclusion still holds: do not replace Convex as the product store; stop using it as a homemade workflow engine; keep the runtime split enforceable; and now treat the remaining open items as implementation choices, not missing architectural direction. Evidence: `k_001`, `k_002`, `k_005`, `k_012`, `k_013`, `k_014`, `k_015`, `k_016`, `k_017`, `k_018`, `k_019`, `k_020`, `k_021`, `k_022`, `k_023`, `k_024`, `k_025`, `k_026`, `k_027`, `k_028`, `k_029`, `k_030`, `k_031`, `k_032`, `k_033`, `k_034`.
+> Pass 10 closed the remaining pre-refactor architecture seams. The current state is now post-cutover: Convex remains the product/domain store, Temporal owns live execution for windows and runs, the legacy Convex scheduler substrate has been removed from the live path, and the active remaining work is setup hardening plus contributor/bootstrap simplification rather than core runtime design. Evidence: `k_001`, `k_002`, `k_005`, `k_012`, `k_013`, `k_014`, `k_015`, `k_016`, `k_017`, `k_018`, `k_019`, `k_020`, `k_021`, `k_022`, `k_023`, `k_024`, `k_025`, `k_026`, `k_027`, `k_028`, `k_029`, `k_030`, `k_031`, `k_032`, `k_033`, `k_034`.
 
 ---
 
@@ -15,12 +15,31 @@
 - **Pass 4 Focus:** monorepo package/runtime boundary, settings and policy flow, worker-side execution policy ownership, and runtime-specific tooling boundaries.
 - **Pass 5 Focus:** global multi-worker provider quota design, Temporal-native dispatch controls, and the exact boundary between Temporal queue throttling and external shared-bucket enforcement.
 - **Pass 6 Focus:** provider capability divergence, provider-portable adapter architecture, and a registry-first design that stays compatible with future providers without committing to every provider-specific implementation in v0.
-- **Pass 7 Focus:** minimal v0 capability-registry schema, provider-portable `llm_attempts` envelope, and Upstash key generation derived from normalized quota dimensions.
-- **Pass 8 Focus:** concrete v0 quota-dimension enum, concrete Upstash settlement policy, and explicit tracked-versus-enforced usage split.
+- **Pass 7 Focus:** minimal v0 capability-registry schema, provider-portable `llm_attempts` envelope, and normalized quota-key generation derived from normalized quota dimensions.
+- **Pass 8 Focus:** concrete v0 quota-dimension enum, concrete Redis settlement policy, and explicit tracked-versus-enforced usage split.
 - **Pass 9 Focus:** the initial provider-to-dimension mapping table and the provider-aware output reservation policy.
 - **Pass 10 Focus:** final control contract, `llm_attempts` schema and retention contract, Convex-to-Temporal worker API boundary, observability projection/read model, and safe deployment/versioning SOP.
-- **Non-goals:** preserving backward compatibility, migrating in-flight runs, or implementing code in this pass.
+- **Current State Focus:** keep this blueprint aligned with the shipped Temporal cutover, Railway-first deployment model, Redis-backed worker quota layer, and the remaining bootstrap/template work.
+- **Non-goals:** preserving backward compatibility or migrating in-flight runs.
 - **Constraints:** keep the rewrite agent-operable, keep the product model simpler than the current engine, assume self-hosted Temporal, and keep audit/repro guarantees explicit rather than accidental.
+
+### Current Implementation Status Snapshot
+
+**Completed**
+
+- `engine-convex`, `engine-temporal`, and `engine-settings` are the active monorepo split.
+- `WindowWorkflow` and `RunWorkflow` are the live execution owners for new windows and runs.
+- `llm_attempts`, `llm_attempt_payloads`, and `process_observability` exist in the live Convex model.
+- The legacy Convex queue/orchestrator substrate has been pruned from the live path.
+- Local `temporal-server` / proxy packages were removed; the active runtime path is Railway-hosted Temporal plus a Railway-hosted worker.
+- Contributor setup now has a Railway-first path, repo-root `railway.toml`, repo-root `Dockerfile`, `.env.example`, and dedicated setup/deploy docs.
+- Worker quota enforcement is now Redis-backed and intended to use a standard Railway Redis service.
+
+**Still Active**
+
+- Contributor bootstrap is still a two-step infra flow: official Railway Temporal template first, then deploy `engine-temporal-worker` from this repo.
+- The next setup simplification is to publish a project-level `judge-gym` Railway template once the current topology stabilizes.
+- Provider support beyond the current OpenAI-first interactive path remains follow-up work.
 
 ---
 
@@ -34,7 +53,7 @@
 - **Pass 4 refinement:** package graph, config/policy ownership, and the boundary between Convex-side policy storage and worker-side execution enforcement.
 - **Pass 5 refinement:** layered global rate-limit design and the remaining boundaries between Temporal-native dispatch control and Redis-backed quota enforcement.
 - **Pass 6 refinement:** provider capability registry, adapter layering, and provider-portable quota/caching/tooling abstractions.
-- **Pass 7 refinement:** first-class registry fields, first-class attempt-envelope fields, and normalized Upstash key vocabulary.
+- **Pass 7 refinement:** first-class registry fields, first-class attempt-envelope fields, and normalized quota-key vocabulary.
 - **Pass 8 refinement:** exact supported quota dimensions, exact settlement modes, and exact v0 operation-surface narrowing.
 - **Pass 9 refinement:** explicit provider/model dimension mapping and explicit output reservation semantics per provider quota shape.
 - **Pass 10 refinement:** explicit action semantics, explicit audit-ledger shape, explicit worker API boundary, explicit projection schema, and a staged safe-deployment SOP.
@@ -68,9 +87,9 @@
 - `k_022`: OpenAI, Anthropic, and Gemini diverge enough in quota, caching, batch, and tool semantics that the rewrite needs explicit provider capability metadata.
 - `k_023`: maintainable multi-provider support depends on a three-layer execution design: core logic, capability registry, and provider adapters.
 - `k_024`: the minimal v0 capability registry should normalize identity, operation flags, usage-field mapping, and quota dimensions, while leaving wire formats inside adapters.
-- `k_025`: the `llm_attempts` envelope and Upstash keys should share one normalized provider-portable vocabulary, with provider-specific metadata living under `provider_extensions`.
+- `k_025`: the `llm_attempts` envelope and quota keys should share one normalized provider-portable vocabulary, with provider-specific metadata living under `provider_extensions`.
 - `k_026`: v0 should enforce a small supported quota enum, let providers select the subset they actually use, and keep richer usage fields tracked but not independently bucketed.
-- `k_027`: Upstash should be part of v0 from the start, with token buckets, normalized keys, and conservative reservation/reconciliation rules.
+- `k_027`: a Redis-backed shared-bucket store should be part of v0 from the start, with token buckets, normalized keys, and conservative reservation/reconciliation rules.
 - `k_028`: the initial registry snapshot should map OpenAI PAYG to `requests` plus `total_tokens`, Anthropic to `requests` plus split `input_tokens` and `output_tokens`, and Gemini to `requests` plus `input_tokens`, with room for plan-specific overrides like OpenAI Scale Tier.
 - `k_029`: v0 output reservation should follow provider-documented quota semantics rather than a generic bounded heuristic: OpenAI PAYG reserves effective output inside `total_tokens`, Anthropic reserves full `max_tokens` into `output_tokens`, and Gemini has no output-side shared-bucket reservation in v0.
 - `k_030`: the rewrite needs a literal control contract, with different Temporal primitives and acknowledgement rules per action.
@@ -94,7 +113,7 @@ Critical corrections carried forward:
 - **No Convex-owned provider throttling in the rewrite:** provider-facing rate limiting belongs with the worker execution plane, even if Convex stays the policy source. Evidence: `k_020`.
 - **No Temporal-native-only quota assumption:** queue dispatch caps and worker throttles do not fully replace shared request/input/output token quotas. Evidence: `k_021`.
 - **No OpenAI-shaped core assumption:** provider differences in quota dimensions, caching, tool use, and optional batch support belong in capability metadata and adapters, not in workflow conditionals. Evidence: `k_022`, `k_023`.
-- **No provider-wire-names-in-core assumption:** registry fields, `llm_attempts`, and Upstash keys should all derive from normalized dimension IDs and usage mappings, not raw provider field names. Evidence: `k_024`, `k_025`.
+- **No provider-wire-names-in-core assumption:** registry fields, `llm_attempts`, and quota keys should all derive from normalized dimension IDs and usage mappings, not raw provider field names. Evidence: `k_024`, `k_025`.
 - **No split-only token assumption:** the normalized quota vocabulary needs `total_tokens` as well as split `input_tokens` and `output_tokens`, because providers do not all enforce the same token-bucket shape. Evidence: `k_026`, `k_027`.
 - **No fake symmetric provider mapping:** the initial registry snapshot must declare provider/model-specific enforced dimensions instead of inventing an output bucket or split token shape for every provider. Evidence: `k_028`.
 - **No under-reserving Anthropic output:** the v0 policy should not use a bounded output heuristic below `max_tokens` for Anthropic, because the provider itself estimates OTPM from `max_tokens` at request start. Evidence: `k_029`.
@@ -108,43 +127,40 @@ Critical corrections carried forward:
 
 ## 3. Refined Areas of Analysis
 
-
-| Area ID | Scope                                                 | Evidence IDs |
-| ------- | ----------------------------------------------------- | ------------ |
-| `A_05`  | Activity idempotency and LLM audit ledger             | `k_007`      |
-| `A_06`  | Workflow/activity breakdown and control semantics     | `k_008`      |
-| `A_07`  | Start consistency and Convex projection boundary      | `k_009`      |
-| `A_08`  | Observability/control-plane truth split               | `k_010`      |
-| `A_09`  | Runtime/versioning constraints and option pressure    | `k_011`      |
-| `A_10`  | Action taxonomy and control contract                  | `k_012`      |
-| `A_11`  | Provider-aware LLM attempt ledger                     | `k_013`      |
-| `A_12`  | Per-flow start handoff matrix                         | `k_014`      |
-| `A_13`  | Observability truth stack and projection schema       | `k_015`      |
-| `A_14`  | Versioning and replay workflow                        | `k_016`      |
-| `A_15`  | Requirements-based alternatives matrix                | `k_017`      |
-| `A_16`  | Settings and config flow                              | `k_018`      |
-| `A_17`  | Monorepo package and runtime boundary                 | `k_019`      |
-| `A_18`  | Execution policy, rate limiting, and tooling boundary | `k_020`      |
-| `A_19`  | Global provider quota strategy                        | `k_021`      |
-| `A_20`  | Provider capability divergence                        | `k_022`      |
-| `A_21`  | Provider-portable code architecture                   | `k_023`      |
-| `A_22`  | Minimal v0 capability registry schema                 | `k_024`      |
-| `A_23`  | `llm_attempts` envelope and Upstash key model         | `k_025`      |
-| `A_24`  | V0 quota-dimension and tracking split                 | `k_026`      |
-| `A_25`  | Upstash v0 settlement policy                          | `k_027`      |
-| `A_26`  | Initial provider-to-dimension mapping                 | `k_028`      |
-| `A_27`  | Provider-aware output reservation policy              | `k_029`      |
-| `A_28`  | Final control contract                                | `k_030`      |
-| `A_29`  | `llm_attempts` schema and retention contract          | `k_031`      |
-| `A_30`  | Convex to Temporal worker API boundary                | `k_032`      |
-| `A_31`  | Observability projection and repair-read model        | `k_033`      |
-| `A_32`  | Safe deployment and versioning SOP                    | `k_034`      |
-
+| Area ID | Scope                                                  | Evidence IDs |
+| ------- | ------------------------------------------------------ | ------------ |
+| `A_05`  | Activity idempotency and LLM audit ledger              | `k_007`      |
+| `A_06`  | Workflow/activity breakdown and control semantics      | `k_008`      |
+| `A_07`  | Start consistency and Convex projection boundary       | `k_009`      |
+| `A_08`  | Observability/control-plane truth split                | `k_010`      |
+| `A_09`  | Runtime/versioning constraints and option pressure     | `k_011`      |
+| `A_10`  | Action taxonomy and control contract                   | `k_012`      |
+| `A_11`  | Provider-aware LLM attempt ledger                      | `k_013`      |
+| `A_12`  | Per-flow start handoff matrix                          | `k_014`      |
+| `A_13`  | Observability truth stack and projection schema        | `k_015`      |
+| `A_14`  | Versioning and replay workflow                         | `k_016`      |
+| `A_15`  | Requirements-based alternatives matrix                 | `k_017`      |
+| `A_16`  | Settings and config flow                               | `k_018`      |
+| `A_17`  | Monorepo package and runtime boundary                  | `k_019`      |
+| `A_18`  | Execution policy, rate limiting, and tooling boundary  | `k_020`      |
+| `A_19`  | Global provider quota strategy                         | `k_021`      |
+| `A_20`  | Provider capability divergence                         | `k_022`      |
+| `A_21`  | Provider-portable code architecture                    | `k_023`      |
+| `A_22`  | Minimal v0 capability registry schema                  | `k_024`      |
+| `A_23`  | `llm_attempts` envelope and normalized quota-key model | `k_025`      |
+| `A_24`  | V0 quota-dimension and tracking split                  | `k_026`      |
+| `A_25`  | Redis-backed v0 settlement policy                      | `k_027`      |
+| `A_26`  | Initial provider-to-dimension mapping                  | `k_028`      |
+| `A_27`  | Provider-aware output reservation policy               | `k_029`      |
+| `A_28`  | Final control contract                                 | `k_030`      |
+| `A_29`  | `llm_attempts` schema and retention contract           | `k_031`      |
+| `A_30`  | Convex to Temporal worker API boundary                 | `k_032`      |
+| `A_31`  | Observability projection and repair-read model         | `k_033`      |
+| `A_32`  | Safe deployment and versioning SOP                     | `k_034`      |
 
 ---
 
 ## 4. Active Micro-Hypotheses
-
 
 | Hypothesis ID | Statement                                                                                                                                                                                                                                                                                                                                                                         | Evidence | Confidence |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- |
@@ -160,23 +176,22 @@ Critical corrections carried forward:
 | `h_A_14_001`  | Require replay testing and continue-as-new discipline by default, while making pinned worker rollout conditional rather than universal.                                                                                                                                                                                                                                           | `k_016`  | `0.63`     |
 | `h_A_15_001`  | Treat Temporal as the chosen workflow runtime for the rewrite and do not reopen Restate or Inngest unless implementation reveals a concrete blocker.                                                                                                                                                                                                                              | `k_017`  | `0.58`     |
 | `h_A_16_001`  | Split configuration into shared schemas/defaults, Convex-stored versioned operator policy that runs/windows snapshot, and runtime-local secrets/env parsing, rather than keeping one `ENGINE_SETTINGS` module imported everywhere.                                                                                                                                                | `k_018`  | `0.73`     |
-| `h_A_17_001`  | Split the engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`, with hard bans on runtime-specific imports inside shared packages.                                                                                                                                                                                                   | `k_019`  | `0.76`     |
+| `h_A_17_001`  | Split the engine into `engine-settings`, `engine-convex`, and `engine-temporal`, with hard bans on runtime-specific imports inside the shared settings package.                                                                                                                                                                                                                   | `k_019`  | `0.76`     |
 | `h_A_18_001`  | Move provider-facing rate limiting, adapter execution, and Temporal-facing operational tooling to the worker runtime, while Convex remains the owner of policy inputs, policy snapshots, and data-facing ledgers.                                                                                                                                                                 | `k_020`  | `0.70`     |
 | `h_A_19_001`  | Use a layered rate-limit design: Temporal queue partitioning and queue-level dispatch caps for coarse shaping, worker concurrency for host protection, and Redis-backed shared buckets only for provider/model quotas that require cross-worker request and token accounting.                                                                                                     | `k_021`  | `0.76`     |
 | `h_A_20_001`  | Introduce a provider capability registry and provider-specific extension points so the core engine consumes normalized capabilities and quota dimensions instead of baking OpenAI-shaped assumptions into workflows, ledgers, and limiter code.                                                                                                                                   | `k_022`  | `0.78`     |
 | `h_A_21_001`  | Inside `engine-temporal`, use a three-layer split of core execution logic, capability registry, and provider adapters, with a generic attempt-ledger envelope plus `provider_extensions` for provider-specific metadata.                                                                                                                                                          | `k_023`  | `0.74`     |
 | `h_A_22_001`  | The minimal v0 provider capability registry should normalize only identity, operation flags, usage-field mapping, and quota dimensions, leaving provider wire formats and transport details inside adapters.                                                                                                                                                                      | `k_024`  | `0.77`     |
-| `h_A_23_001`  | The rewritten `llm_attempts` ledger and Upstash quota keys should share one normalized vocabulary from the capability registry: keep attempt identity, domain linkage, normalized usage, and payload references as first-class fields, and push provider-specific metadata into `provider_extensions`.                                                                            | `k_025`  | `0.75`     |
+| `h_A_23_001`  | The rewritten `llm_attempts` ledger and quota keys should share one normalized vocabulary from the capability registry: keep attempt identity, domain linkage, normalized usage, and payload references as first-class fields, and push provider-specific metadata into `provider_extensions`.                                                                                    | `k_025`  | `0.75`     |
 | `h_A_24_001`  | The v0 normalized quota-dimension enum should support `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`; providers select the subset they enforce, while `cached_input_tokens`, `thinking_tokens`, and `service_tier` remain tracked usage fields.                                                                          | `k_026`  | `0.78`     |
-| `h_A_25_001`  | V0 should use Upstash token buckets from day one, with normalized quota keys and a conservative settlement policy: `requests=preflight`, `input_tokens=preflight_then_reconcile`, `output_tokens=preflight_then_reconcile`, `total_tokens=preflight_then_reconcile`, and optional `batch_enqueued_input_tokens=preflight_then_reconcile`.                                         | `k_027`  | `0.75`     |
+| `h_A_25_001`  | V0 should use Redis-backed token buckets from day one, with normalized quota keys and a conservative settlement policy: `requests=preflight`, `input_tokens=preflight_then_reconcile`, `output_tokens=preflight_then_reconcile`, `total_tokens=preflight_then_reconcile`, and optional `batch_enqueued_input_tokens=preflight_then_reconcile`.                                    | `k_027`  | `0.75`     |
 | `h_A_26_001`  | The initial v0 registry snapshot should map OpenAI PAYG interactive models to `requests` plus `total_tokens`, Anthropic interactive models to `requests` plus split `input_tokens` and `output_tokens`, and Gemini interactive models to `requests` plus `input_tokens`, while leaving room for provider-plan overrides such as OpenAI Scale Tier.                                | `k_028`  | `0.79`     |
 | `h_A_27_001`  | V0 should use provider-aware output reservation rules instead of one generic bounded heuristic: OpenAI PAYG `total_tokens` reserves estimated input plus the full effective output cap, Anthropic `output_tokens` reserves full `max_tokens`, and Gemini v0 makes no output-side shared-bucket reservation because Gemini's documented quota shape does not require one.          | `k_029`  | `0.78`     |
 | `h_A_28_001`  | Judge-gym should implement operator and agent control as an explicit contract: `StartWorkflow` for start, `Update` for acknowledged state changes like `pause_after`, `pause`, `resume`, and bounded repair, workflow cancellation for `cancel`, and Signals only for best-effort nudges, with explicit command ids for every mutating action.                                    | `k_030`  | `0.76`     |
 | `h_A_29_001`  | The v0 audit layer should use a metadata-first, append-only `llm_attempts` design split across a compact attempt envelope, a separate payload/blob reference shape, and a quota-audit shape, with `provider_extensions` carrying provider-wire details and first-class columns limited to cross-provider operational needs.                                                       | `k_031`  | `0.81`     |
-| `h_A_30_001`  | Temporal workers should talk to Convex only through a small public worker API of auth-gated, idempotent functions that delegate to internal mutations, while `engine-temporal` owns a `ConvexRepo` client wrapper and shared packages remain runtime-pure.                                                                                                                        | `k_032`  | `0.78`     |
+| `h_A_30_001`  | Temporal workers should talk to Convex only through a small public worker API of idempotent functions that delegate to internal mutations, while `engine-temporal` owns a `ConvexRepo` client wrapper and `engine-settings` remains runtime-pure.                                                                                                                                 | `k_032`  | `0.78`     |
 | `h_A_31_001`  | V0 should add a compact Convex `process_observability` projection keyed by `{process_kind, process_id}` that mirrors only linkage, coarse stage/status, pause state, bounded progress, last error summary, and freshness/correlation fields, while the agent loop treats Temporal Visibility as discovery-only and confirms any repair action through stronger Temporal surfaces. | `k_033`  | `0.74`     |
 | `h_A_32_001`  | Judge-gym v0 should adopt a safe-deployment SOP where replay tests against recent histories are mandatory for workflow-code changes, `continue-as-new` is a first-class workflow-design input, deterministic workflow changes use TypeScript patching, and Worker Versioning/ramping is treated as a staged operational tier rather than an unconditional day-one requirement.    | `k_034`  | `0.78`     |
-
 
 Foundational hypotheses from pass 1 remain directionally valid, but the later-pass hypotheses now carry the real implementation pressure.
 
@@ -233,7 +248,7 @@ Pass 7 falsification turns the provider-portable direction into a stronger schem
 
 - The registry should not absorb full provider wire formats or endpoint details.
 - The attempt ledger should not promote every provider field to first-class columns.
-- Upstash keys should not be generated from provider wire names directly.
+- Quota keys should not be generated from provider wire names directly.
 
 See `null_challenges/nc_pass7_registry_and_ledger_schema_challenge.json`.
 
@@ -241,7 +256,7 @@ Pass 8 falsification turned the quota design from “reasonable” into “hones
 
 - A split-only token enum is not enough; `total_tokens` is required for provider compatibility.
 - Cached input and thinking tokens remain important tracked usage, but they still do not justify independent shared-bucket enforcement in v0.
-- Upstash is now the default v0 quota engine, not just a later scalability option.
+- Redis-backed shared buckets are now the default v0 quota engine, not just a later scalability option.
 - Batch quota handling stays architecture-compatible but optional until batch execution itself is in scope.
 
 See `null_challenges/nc_pass8_quota_and_settlement_challenge.json`.
@@ -278,7 +293,7 @@ See `null_challenges/nc_pass10_remaining_pre_refactor_passes_challenge.json`.
 - **Most grounded pass-9 item:** the initial provider mapping and output reservation policy (`k_028 = 0.79`, `k_029 = 0.78`), which are strong enough to freeze the first registry snapshot and remove the last broad output-budget ambiguity from v0 quota design.
 - **Most grounded pass-10 item:** the audit-ledger shape and the staged control/versioning closure (`k_031 = 0.80`, `k_030 = 0.76`, `k_034 = 0.78`), which are strong enough to stop treating those topics as missing architecture passes.
 - **Still weaker than the rest:** observability projection exactness (`k_033 = 0.74`) carries more implementation drift risk than the other finalized defaults, so it should get extra review during coding.
-- **Architecture status:** the remaining work is implementation and rollout, not another research pass.
+- **Architecture status:** the remaining work is setup hardening, provider expansion, and rollout hygiene, not another research pass.
 
 See `certainty/certainty_report.md`.
 
@@ -295,22 +310,23 @@ See `certainty/certainty_report.md`.
 - **Observability split:** use `Visibility -> Describe -> Update receipt -> Query -> Convex projection -> Axiom` as the truth and telemetry precedence order. Evidence: `k_015`.
 - **Runtime/versioning:** run workers on Node in production, treat Bun as a spike path only, require replay testing and continue-as-new discipline, and make pinned worker rollout conditional rather than automatic. Evidence: `k_016`.
 - **Alternatives stance:** Temporal is the chosen stack for the rewrite; no further alternatives research is required before implementation unless a concrete blocker appears. Evidence: `k_017`.
-- **Package graph:** split the current engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`, with runtime-specific imports banned from shared packages. Evidence: `k_019`.
+- **Package graph:** the active package graph is `engine-settings`, `engine-convex`, and `engine-temporal`, with runtime-specific imports banned from the shared settings package. Evidence: `k_019`.
 - **Config flow:** keep shared defaults and schemas pure, store versioned operator policy in Convex, snapshot policy onto runs/windows, and parse secrets locally in each runtime. Evidence: `k_018`.
 - **Execution policy boundary:** keep provider adapters, provider-facing rate limiting, and Temporal-facing operational tooling on the worker side, while Convex keeps policy inputs and audit/projection data. Evidence: `k_020`.
 - **Global quota strategy:** use Temporal queue partitioning and centralized queue-level dispatch shaping for coarse control, and add Redis-backed shared buckets only for provider/model request and token quotas that must hold across workers. Evidence: `k_021`.
 - **Provider portability:** make provider differences explicit through a capability registry and adapter boundary; optional features like batch stay architecture-compatible even if v0 does not implement them for every provider. Evidence: `k_022`, `k_023`.
-- **Shared schema direction:** keep the registry minimal and keep `llm_attempts` generic at the top level; let both the attempt ledger and Upstash keys derive from the same normalized quota vocabulary. Evidence: `k_024`, `k_025`.
-- **Quota direction:** support `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`; treat `cached_input_tokens`, `thinking_tokens`, and `service_tier` as tracked usage fields, and use Upstash token buckets from day one with conservative settlement rules. Evidence: `k_026`, `k_027`.
+- **Shared schema direction:** keep the registry minimal and keep `llm_attempts` generic at the top level; let both the attempt ledger and Redis quota keys derive from the same normalized quota vocabulary. Evidence: `k_024`, `k_025`.
+- **Quota direction:** support `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`; treat `cached_input_tokens`, `thinking_tokens`, and `service_tier` as tracked usage fields, and use Redis-backed token buckets in v0 with conservative settlement rules. Evidence: `k_026`, `k_027`.
 - **Initial provider mapping:** start with OpenAI PAYG as `requests + total_tokens`, Anthropic as `requests + input_tokens + output_tokens`, and Gemini as `requests + input_tokens`, with plan-specific overrides added explicitly in the registry instead of hidden in limiter code. Evidence: `k_028`.
 - **Output reservation direction:** reserve output according to provider-documented quota semantics rather than one generic heuristic: OpenAI PAYG reserves the full effective output cap inside `total_tokens`, Anthropic reserves full `max_tokens` inside `output_tokens`, and Gemini has no output-side shared-bucket reservation in v0. Evidence: `k_029`.
 - **Control contract direction:** use `StartWorkflow` for start, Updates for acknowledged state changes, cancellation for cancel, and Signals only for best-effort nudges; if Updates are not reliably available in the deployed Temporal environment, define an explicit degraded fallback instead of blurring the contract. Evidence: `k_030`.
 - **Command envelope direction:** use one shared `ControlCommand` envelope with a caller-generated `cmdId`; reuse `cmdId` as the Temporal `UpdateId` and as the correlation key in Convex projection/audit surfaces. Evidence: `k_030`.
 - **Audit-ledger direction:** keep `llm_prompt_templates`, ship `llm_attempts` plus `llm_attempt_payloads` in v0, keep payload bodies out of the main attempt row, and use Convex file storage for payload blobs unless production constraints later justify an object-store move. Evidence: `k_031`.
-- **Boundary direction:** make external workers go through a narrow public Convex worker API owned by `engine-convex`, with `engine-temporal` owning the only repo wrapper that can call it, and use a shared secret as the v0 worker-auth mechanism. Evidence: `k_032`.
+- **Boundary direction:** make external workers go through a narrow public Convex worker API owned by `engine-convex`, with `engine-temporal` owning the only repo wrapper that can call it. The current implementation does not use worker-secret auth because the active deployment path is Railway worker plus Convex dev/cloud, but the boundary stays intentionally small. Evidence: `k_032`.
 - **Projection direction:** keep `process_observability` intentionally small and non-authoritative, with Temporal confirmation required before any automated repair action. Evidence: `k_033`.
 - **Deployment direction:** require replay testing and continue-as-new discipline in v0, use patching when workflow code changes are replay-sensitive, and stage Worker Versioning/ramping as the stronger later operational tier rather than a hard day-one requirement. Evidence: `k_034`.
 - **Alternatives stance:** Temporal is the chosen stack for the rewrite; no further alternatives research is required before implementation. Evidence: `k_017`.
+- **Deployment topology direction:** the active primary dev/runtime path is Railway-hosted Temporal plus Railway-hosted `engine-temporal-worker`; local `bun dev` starts only UI and Convex surfaces. The removed local Temporal packages should not be reintroduced into the default path. Implementation state.
 
 ---
 
@@ -327,16 +343,18 @@ See `certainty/certainty_report.md`.
   5. Replace `llm_requests` with a deliberate attempt ledger rather than deleting auditability by accident.
 - **Verification:** no runtime-shaped table remains unlabeled.
 - **Evidence:** `k_005`, `k_007`
+- **Current state:** completed in code. Domain tables, `llm_attempts`, `llm_attempt_payloads`, and `process_observability` are live, and the old queue/orchestrator substrate is no longer part of the active runtime path.
 
 ### S2: Freeze the Package Graph and Runtime Boundary
 
 - **Objective:** prevent mixed-runtime ambiguity from surviving the rewrite.
 - **Key decisions:**
-  1. Split the current engine into `engine-contracts`, `engine-convex`, `engine-temporal`, and optionally `engine-tools`.
-  2. Ban shared packages from importing `convex/_generated`, `@temporalio/`*, provider SDKs, env readers, or filesystem/runtime-specific helpers.
-  3. Give the worker package its own Node-appropriate scripts, tests, and `tsconfig`.
+  1. Keep the current split of `engine-settings`, `engine-convex`, and `engine-temporal`.
+  2. Ban `engine-settings` from importing `convex/_generated`, `@temporalio/`\*, provider SDKs, env readers, or filesystem/runtime-specific helpers.
+  3. Keep the worker package on its own Node-appropriate scripts, tests, and `tsconfig`.
 - **Verification:** each runtime package can typecheck and test without pulling transitive runtime code from another owner.
 - **Evidence:** `k_019`, `nc_pass4_001`
+- **Current state:** completed in code.
 
 ### S3: Split Settings Into Defaults, Policy, and Secrets
 
@@ -354,7 +372,7 @@ See `certainty/certainty_report.md`.
 - **Key decisions:**
   1. Keep provider adapters and provider-facing rate-limiter enforcement inside `engine-temporal`.
   2. Keep Convex as the owner of policy inputs, policy snapshots, prompt templates, and LLM attempt/audit rows.
-  3. Treat `engine-tools` as optional in v0; if it exists, it should stay Node-oriented when it speaks to Temporal directly.
+  3. Keep Temporal-facing operational scripts inside `engine-temporal` unless a later dedicated tools package is clearly justified.
 - **Verification:** no provider-facing limiter remains correctness-critical inside Convex after cutover.
 - **Evidence:** `k_020`, `nc_pass4_001`
 
@@ -388,8 +406,8 @@ See `certainty/certainty_report.md`.
   1. Define the minimal v0 capability-registry schema: identity, operation flags, usage-field mapping, and quota dimensions only.
   2. Define the top-level `llm_attempts` envelope: identity, domain linkage, provider/model identity, lifecycle, normalized usage, and payload references.
   3. Keep provider-specific metadata in `provider_extensions`.
-  4. Generate Upstash keys from normalized registry dimension IDs rather than provider wire names.
-- **Verification:** a new provider can map into the registry, the attempt envelope, and Upstash keys without changing core workflow code or the top-level attempt schema.
+  4. Generate Redis quota keys from normalized registry dimension IDs rather than provider wire names.
+- **Verification:** a new provider can map into the registry, the attempt envelope, and Redis quota keys without changing core workflow code or the top-level attempt schema.
 - **Evidence:** `k_024`, `k_025`, `nc_pass7_001`
 
 ### S4e: Freeze the V0 Quota Enum and Settlement Policy
@@ -398,11 +416,12 @@ See `certainty/certainty_report.md`.
 - **Key decisions:**
   1. Support normalized dimensions `requests`, `input_tokens`, `output_tokens`, `total_tokens`, and optional `batch_enqueued_input_tokens`.
   2. Treat `cached_input_tokens`, `thinking_tokens`, and `service_tier` as tracked-only fields in v0.
-  3. Use Upstash token buckets from day one with normalized keys and dimension-specific reservation modes.
+  3. Use Redis-backed token buckets from day one with normalized keys and dimension-specific reservation modes.
   4. Keep ambiguous provider outcomes conservative: no eager refund until reconciliation is resolved.
   5. Keep batch settlement optional until async batch execution is actually in scope.
 - **Verification:** provider/model entries can select split or total token dimensions honestly, and the first rollout no longer depends on vague limiter placeholders.
 - **Evidence:** `k_026`, `k_027`, `nc_pass8_001`
+- **Current state:** implemented in `packages/engine-temporal/src/quota/redis.ts`, with setup now assuming a Railway Redis service for the worker path.
 
 ### S4f: Freeze the Initial Provider Mapping and Output Reservation Rules
 
@@ -426,6 +445,7 @@ See `certainty/certainty_report.md`.
   4. Run planning must honor explicit `bundle_plan_id` when present; otherwise it may derive bundling from experiment scoring config as a compatibility fallback.
 - **Verification:** every side effect is represented as an Activity, not hidden in Workflow code.
 - **Evidence:** `k_002`, `k_008`
+- **Current state:** completed in code for the v0 surface. `RunWorkflow` and `WindowWorkflow` are the only live top-level workflows.
 
 ### S6: Write the Control Contract Table
 
@@ -441,21 +461,18 @@ See `certainty/certainty_report.md`.
 
 **ControlCommand Envelope**
 
-
 | Field         | Type   | Notes                                                                               |
-| ------------- | ------ | ----------------------------------------------------------------------------------- |
+| ------------- | ------ | ----------------------------------------------------------------------------------- | ----------- | -------- | -------- | ---------------- |
 | `cmdId`       | string | Caller-generated stable command id. Reused as Temporal `UpdateId` where applicable. |
-| `action`      | enum   | `set_pause_after` | `pause_now` | `resume` | `cancel` | `repair_bounded`            |
-| `processKind` | enum   | `run` | `window`                                                                    |
+| `action`      | enum   | `set_pause_after`                                                                   | `pause_now` | `resume` | `cancel` | `repair_bounded` |
+| `processKind` | enum   | `run`                                                                               | `window`    |
 | `processId`   | string | Convex process id                                                                   |
 | `workflowId`  | string | Business-keyed Temporal workflow id                                                 |
-| `issuedBy`    | enum   | `user` | `agent` | `system`                                                         |
+| `issuedBy`    | enum   | `user`                                                                              | `agent`     | `system` |
 | `issuedAt`    | number | Epoch ms                                                                            |
 | `payload`     | object | Action-specific payload                                                             |
 
-
 **Action Contract**
-
 
 | Action                         | Primitive                    | Ack mode                     | Idempotency key                          | Success condition                                                         | Fallback                                                                       |
 | ------------------------------ | ---------------------------- | ---------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -466,7 +483,6 @@ See `certainty/certainty_report.md`.
 | `resume`                       | `executeUpdate`              | completed                    | `cmdId`                                  | workflow state marked running again                                       | if terminal, surface terminal error                                            |
 | `cancel`                       | workflow cancellation        | accepted, then poll terminal | `workflowId` plus optional audit `cmdId` | Temporal status becomes terminal canceled/terminated state                | if in-flight Activities ignore cancellation, keep polling Describe             |
 | `repair_bounded(op)`           | `executeUpdate`              | completed                    | `cmdId`                                  | workflow accepted bounded repair and returned correlation/result metadata | reject unsafe repairs in validator; no signal fallback for dangerous ops       |
-
 
 **Pause Semantics**
 
@@ -487,51 +503,47 @@ See `certainty/certainty_report.md`.
 - **Verification:** duplicate Activity execution cannot silently create duplicate scientific artifacts.
 - **Evidence:** `k_031`, `nc_pass10_001`
 
-`**llm_attempts` Required Fields**
+`**llm_attempts` Required Fields\*\*
 
+| Field                                                                      | Notes                                         |
+| -------------------------------------------------------------------------- | --------------------------------------------- | ---------- | ----------- | --------- | ---------- |
+| `attemptId`                                                                | Primary attempt id                            |
+| `businessOpKey`                                                            | Stable scientific-operation key               |
+| `idempotencyKey`                                                           | Stable dedupe key for Activity retry/re-entry |
+| `workflowId` / `workflowRunId`                                             | Temporal linkage                              |
+| `activityId` / `activityType` / `activityAttempt`                          | Activity linkage                              |
+| `processKind` / `processId`                                                | Domain linkage                                |
+| `stageKey` / `operationType`                                               | Stage + operation classification              |
+| `providerId` / `modelId` / `providerPlan?`                                 | Provider identity                             |
+| `registrySnapshotId`                                                       | Capability/quota snapshot ref                 |
+| `providerRequestId?` / `providerResponseId?`                               | First-class provider correlation              |
+| `providerBatchId?` / `providerBatchCustomId?` / `providerBatchRequestId?`  | Batch correlation where applicable            |
+| `status`                                                                   | `created`                                     | `running`  | `succeeded` | `failed`  | `canceled` |
+| `createdAt` / `startedAt?` / `finishedAt?` / `durationMs?`                 | Lifecycle timestamps                          |
+| `errorClass?` / `errorCode?` / `errorMessageShort?`                        | Bounded error metadata                        |
+| `retryIndex`                                                               | Retry count / attempt number                  |
+| `requests?` / `inputTokens?` / `outputTokens?` / `totalTokens?`            | Normalized usage                              |
+| `cachedInputTokens?` / `thinkingTokens?` / `serviceTier?`                  | Tracked-only usage                            |
+| `estimatedInputTokens?` / `reservedOutputBudget?` / `reservedTotalBudget?` | Reservation metadata                          |
+| `reconciled` / `reconciledAt?`                                             | Quota reconciliation status                   |
+| `retentionClass`                                                           | `none`                                        | `debug_7d` | `audit_90d` | `forever` | `redacted` |
+| `requestPayloadRef?` / `responsePayloadRef?`                               | Blob refs                                     |
+| `requestSha256?` / `responseSha256?`                                       | Content hashes                                |
+| `payloadExpiresAt?`                                                        | Retention boundary                            |
+| `providerExtensions`                                                       | Provider-specific structured metadata         |
 
-| Field                                                                      | Notes                                                       |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `attemptId`                                                                | Primary attempt id                                          |
-| `businessOpKey`                                                            | Stable scientific-operation key                             |
-| `idempotencyKey`                                                           | Stable dedupe key for Activity retry/re-entry               |
-| `workflowId` / `workflowRunId`                                             | Temporal linkage                                            |
-| `activityId` / `activityType` / `activityAttempt`                          | Activity linkage                                            |
-| `processKind` / `processId`                                                | Domain linkage                                              |
-| `stageKey` / `operationType`                                               | Stage + operation classification                            |
-| `providerId` / `modelId` / `providerPlan?`                                 | Provider identity                                           |
-| `registrySnapshotId`                                                       | Capability/quota snapshot ref                               |
-| `providerRequestId?` / `providerResponseId?`                               | First-class provider correlation                            |
-| `providerBatchId?` / `providerBatchCustomId?` / `providerBatchRequestId?`  | Batch correlation where applicable                          |
-| `status`                                                                   | `created` | `running` | `succeeded` | `failed` | `canceled` |
-| `createdAt` / `startedAt?` / `finishedAt?` / `durationMs?`                 | Lifecycle timestamps                                        |
-| `errorClass?` / `errorCode?` / `errorMessageShort?`                        | Bounded error metadata                                      |
-| `retryIndex`                                                               | Retry count / attempt number                                |
-| `requests?` / `inputTokens?` / `outputTokens?` / `totalTokens?`            | Normalized usage                                            |
-| `cachedInputTokens?` / `thinkingTokens?` / `serviceTier?`                  | Tracked-only usage                                          |
-| `estimatedInputTokens?` / `reservedOutputBudget?` / `reservedTotalBudget?` | Reservation metadata                                        |
-| `reconciled` / `reconciledAt?`                                             | Quota reconciliation status                                 |
-| `retentionClass`                                                           | `none` | `debug_7d` | `audit_90d` | `forever` | `redacted`  |
-| `requestPayloadRef?` / `responsePayloadRef?`                               | Blob refs                                                   |
-| `requestSha256?` / `responseSha256?`                                       | Content hashes                                              |
-| `payloadExpiresAt?`                                                        | Retention boundary                                          |
-| `providerExtensions`                                                       | Provider-specific structured metadata                       |
+`**llm_attempt_payloads` Required Fields\*\*
 
-
-`**llm_attempt_payloads` Required Fields**
-
-
-| Field                           | Notes                                              |
-| ------------------------------- | -------------------------------------------------- |
-| `attemptId`                     | Parent attempt                                     |
-| `part`                          | `request` | `response` | `events` | `error_detail` |
-| `storageBackend`                | v0 default: `convex_file`                          |
-| `blobRef`                       | Convex file storage ref                            |
-| `sha256`                        | Integrity hash                                     |
-| `sizeBytes` / `contentType`     | Payload metadata                                   |
-| `createdAt` / `expiresAt?`      | Retention timestamps                               |
-| `redacted` / `redactionReason?` | Redaction state                                    |
-
+| Field                           | Notes                     |
+| ------------------------------- | ------------------------- | ---------- | -------- | -------------- |
+| `attemptId`                     | Parent attempt            |
+| `part`                          | `request`                 | `response` | `events` | `error_detail` |
+| `storageBackend`                | v0 default: `convex_file` |
+| `blobRef`                       | Convex file storage ref   |
+| `sha256`                        | Integrity hash            |
+| `sizeBytes` / `contentType`     | Payload metadata          |
+| `createdAt` / `expiresAt?`      | Retention timestamps      |
+| `redacted` / `redactionReason?` | Redaction state           |
 
 **Replay Contract**
 
@@ -616,6 +628,7 @@ See `certainty/certainty_report.md`.
   - `row_exists_but_workflow_missing`: retry start idempotently or surface `not_started`
   - `workflow_exists_but_row_missing`: treat as invariant violation and require operator repair
   - `workflow_started_but_projection_missing`: re-run projection write idempotently
+- **Current state:** `create-then-start` is the live path for windows and runs, and the Railway-backed worker path is now the active execution route.
 
 ### S9: Build the Two-Layer Observability Model
 
@@ -628,33 +641,30 @@ See `certainty/certainty_report.md`.
 - **Verification:** the system can answer what exists, what is truly stalled, and what safe action comes next.
 - **Evidence:** `k_033`, `nc_pass10_001`
 
-`**process_observability` Required Fields**
+`**process_observability` Required Fields\*\*
 
-
-| Field                  | Notes                                                |
-| ---------------------- | ---------------------------------------------------- |
-| `processKind`          | `run` | `window`                                     |
-| `processId`            | Convex process id                                    |
-| `workflowId`           | Temporal workflow id                                 |
-| `workflowRunId`        | Current Temporal run id                              |
-| `workflowType`         | `RunWorkflow` | `WindowWorkflow`                     |
-| `executionStatus`      | Coarse Temporal status mirror                        |
-| `stage`                | Coarse stage name                                    |
-| `stageStatus`          | `pending` | `running` | `paused` | `done` | `failed` |
-| `pauseAfter?`          | Current pause-after target                           |
-| `pausedAt?`            | Pause timestamp                                      |
-| `lastErrorAt?`         | Last error time                                      |
-| `lastErrorCategory?`   | Retryable/provider/quota/projection/etc.             |
-| `lastErrorMessage?`    | Short bounded summary                                |
-| `lastErrorRef?`        | Attempt/activity/correlation ref                     |
-| `projectionSeq`        | Monotonic projection sequence                        |
-| `lastProjectedAt`      | Projection freshness timestamp                       |
-| `lastControlUpdateId?` | Correlates last control action                       |
-| `traceRef?`            | Axiom trace or equivalent                            |
-
+| Field                  | Notes                                    |
+| ---------------------- | ---------------------------------------- | ---------------- | -------- | ------ | -------- |
+| `processKind`          | `run`                                    | `window`         |
+| `processId`            | Convex process id                        |
+| `workflowId`           | Temporal workflow id                     |
+| `workflowRunId`        | Current Temporal run id                  |
+| `workflowType`         | `RunWorkflow`                            | `WindowWorkflow` |
+| `executionStatus`      | Coarse Temporal status mirror            |
+| `stage`                | Coarse stage name                        |
+| `stageStatus`          | `pending`                                | `running`        | `paused` | `done` | `failed` |
+| `pauseAfter?`          | Current pause-after target               |
+| `pausedAt?`            | Pause timestamp                          |
+| `lastErrorAt?`         | Last error time                          |
+| `lastErrorCategory?`   | Retryable/provider/quota/projection/etc. |
+| `lastErrorMessage?`    | Short bounded summary                    |
+| `lastErrorRef?`        | Attempt/activity/correlation ref         |
+| `projectionSeq`        | Monotonic projection sequence            |
+| `lastProjectedAt`      | Projection freshness timestamp           |
+| `lastControlUpdateId?` | Correlates last control action           |
+| `traceRef?`            | Axiom trace or equivalent                |
 
 **Optional Fields**
-
 
 | Field                    | Notes                    |
 | ------------------------ | ------------------------ |
@@ -664,7 +674,6 @@ See `certainty/certainty_report.md`.
 | `progressMeta?`          | Small capped JSON only   |
 | `lastTemporalEventTime?` | If cheaply available     |
 | `provider?` / `model?`   | Convenience-only mirrors |
-
 
 **Anti-Staleness Rule**
 
@@ -734,7 +743,6 @@ See `certainty/certainty_report.md`.
 
 **Patching Rubric**
 
-
 | Change Type                                                                                                                                  | Requirement                |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | Activity-only implementation change                                                                                                          | no workflow patch required |
@@ -752,20 +760,12 @@ See `certainty/certainty_report.md`.
 **Tooling Package Default**
 
 - Keep Temporal-facing CLIs and operational scripts inside `engine-temporal` in v0.
-- Split out `engine-tools` only after the control surface stabilizes enough to justify a dedicated package boundary.
+- Do not introduce a separate tools package unless the control surface later grows enough to justify it.
 
-**Worker Auth Rotation Default**
+**Worker Auth Default**
 
-- Use one shared worker secret in v0, stored as runtime-local secret material for both `engine-convex` and `engine-temporal`.
-- Support dual-secret rotation by accepting:
-  - `activeWorkerSecret`
-  - `nextWorkerSecret?`
-- Rotation procedure:
-  - deploy Convex worker API accepting both secrets,
-  - deploy workers using `nextWorkerSecret`,
-  - confirm old workers are drained,
-  - remove the old secret from Convex acceptance.
-
+- The current implementation does not use worker-secret auth.
+- Keep the worker API narrow and idempotent; only add explicit worker auth later if the deployment surface becomes broader or multi-tenant enough to require it.
 
 ### S11: Record the Runtime Choice
 
@@ -787,6 +787,7 @@ See `certainty/certainty_report.md`.
   4. Delete old runtime tables only after the Temporal path is proven.
 - **Verification:** every new execution has exactly one runtime owner.
 - **Evidence:** `k_005`, `k_009`
+- **Current state:** completed for the active path. New windows and runs launch through Temporal; the old Convex runtime substrate has been removed from the live route.
 
 ### S13: Rebuild the Agent Monitoring Loop
 
@@ -803,12 +804,12 @@ See `certainty/certainty_report.md`.
 ## 9. Validation Gates
 
 1. **Ownership Gate:** every table/module is labeled `keep`, `delete`, `replace`, or `mirror`.
-2. **Package Boundary Gate:** every module belongs to `engine-contracts`, `engine-convex`, `engine-temporal`, or `engine-tools`, and shared packages do not import runtime-specific code.
+2. **Package Boundary Gate:** every runtime module belongs to `engine-settings`, `engine-convex`, or `engine-temporal`, and the shared settings package does not import runtime-specific code.
 3. **Config Flow Gate:** shared config code is pure, policy snapshots are explicit, and secrets remain runtime-local.
 4. **Execution Policy Gate:** provider-facing rate limiting and adapters live with workers, not Convex.
 5. **Global Quota Gate:** the design distinguishes Temporal-native dispatch shaping from Redis-backed shared quota enforcement and justifies each quota dimension explicitly.
 6. **Provider Portability Gate:** the capability registry and adapter boundary keep OpenAI-specific semantics out of core workflow logic.
-7. **Registry Schema Gate:** the minimal v0 registry contains only fields the core runtime, ledger, and Upstash layer truly consume.
+7. **Registry Schema Gate:** the minimal v0 registry contains only fields the core runtime, ledger, and Redis quota layer truly consume.
 8. **Quota Enum Gate:** the normalized quota vocabulary supports split and total token providers without forcing tracked-only usage fields into independent buckets.
 9. **Provider Mapping Gate:** the initial registry snapshot declares explicit enforced dimensions per provider/model or provider-plan entry instead of assuming fake symmetry.
 10. **Reservation Policy Gate:** output reservation follows provider-documented quota semantics and does not under-reserve Anthropic or invent Gemini output pressure.
