@@ -52,6 +52,30 @@ const RepairBoundedOperationSchema = z.enum([
   "resume_if_paused",
   "clear_pause_after",
 ]);
+const TemporalTaskQueueKindSchema = z.enum(["run", "window"]);
+const TemporalTaskQueuePollerSchema = z.object({
+  identity: z.string(),
+  last_access_time_ms: z.number().nullable(),
+});
+const TemporalTaskQueueHealthRowSchema = z.object({
+  queue_kind: TemporalTaskQueueKindSchema,
+  task_queue: z.string(),
+  workflow_poller_count: z.number(),
+  activity_poller_count: z.number(),
+  workflow_pollers: z.array(TemporalTaskQueuePollerSchema),
+  activity_pollers: z.array(TemporalTaskQueuePollerSchema),
+  approximate_backlog_count: z.number().nullable(),
+  approximate_backlog_age_ms: z.number().nullable(),
+  tasks_add_rate: z.number().nullable(),
+  tasks_dispatch_rate: z.number().nullable(),
+  ready: z.boolean(),
+});
+const TemporalTaskQueueHealthSchema = z.object({
+  namespace: z.string(),
+  checked_at_ms: z.number(),
+  all_ready: z.boolean(),
+  queues: z.array(TemporalTaskQueueHealthRowSchema),
+});
 const TemporalWorkflowInspectionSchema = z.object({
   process_type: ProcessTypeSchema,
   process_id: z.string(),
@@ -126,6 +150,76 @@ function workflowIdForProcess(
   process_id: string,
 ) {
   return `${process_kind}:${process_id}`;
+}
+
+function toMillisFromTimestamp(
+  value: { seconds?: unknown; nanos?: number | null } | null | undefined,
+) {
+  if (!value) return null;
+  const seconds = toNumber(value.seconds);
+  const nanos = value.nanos ?? 0;
+  if (seconds == null && nanos === 0) return null;
+  return Math.max(
+    0,
+    Math.round((seconds ?? 0) * 1000 + nanos / 1_000_000),
+  );
+}
+
+function toMillisFromDuration(
+  value: { seconds?: unknown; nanos?: number | null } | null | undefined,
+) {
+  return toMillisFromTimestamp(value);
+}
+
+function toNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === "object" && value !== null) {
+    const candidate = value as { toNumber?: () => number };
+    if (typeof candidate.toNumber === "function") {
+      const parsed = candidate.toNumber();
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+  }
+  return null;
+}
+
+function normalizePollers(
+  pollers: Array<{
+    identity?: string | null;
+    lastAccessTime?: { seconds?: unknown; nanos?: number | null } | null;
+  }> | null | undefined,
+) {
+  return (pollers ?? []).map((poller) => ({
+    identity: poller.identity ?? "unknown",
+    last_access_time_ms: toMillisFromTimestamp(poller.lastAccessTime),
+  }));
+}
+
+async function describeTaskQueue(
+  connection: Connection,
+  args: {
+    namespace: string;
+    taskQueue: string;
+    taskQueueType: 1 | 2;
+  },
+) {
+  return connection.workflowService.describeTaskQueue({
+    namespace: args.namespace,
+    taskQueue: { name: args.taskQueue },
+    taskQueueType: args.taskQueueType,
+    reportPollers: true,
+    reportStats: true,
+  });
 }
 
 function isWorkflowNotFoundError(error: unknown) {
@@ -291,6 +385,69 @@ export async function inspectProcessWorkflowExecution(args: {
       snapshot_query_error: queried.snapshot_query_error,
     };
   });
+}
+
+export async function inspectTemporalTaskQueuesExecution(args?: {
+  queue_kinds?: Array<z.infer<typeof TemporalTaskQueueKindSchema>>;
+}) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({
+    address: config.address,
+    tls: config.tls,
+  });
+
+  try {
+    const requestedQueueKinds = args?.queue_kinds?.length
+      ? args.queue_kinds
+      : ["run", "window"] as Array<z.infer<typeof TemporalTaskQueueKindSchema>>;
+    const checked_at_ms = Date.now();
+    const queues = await Promise.all(requestedQueueKinds.map(async (queue_kind) => {
+      const task_queue = config.taskQueues[queue_kind];
+      const [workflowInfo, activityInfo] = await Promise.all([
+        describeTaskQueue(connection, {
+          namespace: config.namespace,
+          taskQueue: task_queue,
+          taskQueueType: 1,
+        }),
+        describeTaskQueue(connection, {
+          namespace: config.namespace,
+          taskQueue: task_queue,
+          taskQueueType: 2,
+        }),
+      ]);
+
+      const workflow_pollers = normalizePollers(workflowInfo.pollers);
+      const activity_pollers = normalizePollers(activityInfo.pollers);
+      const stats = workflowInfo.stats ?? activityInfo.stats ?? null;
+      const workflow_poller_count = workflow_pollers.length;
+      const activity_poller_count = activity_pollers.length;
+
+      return {
+        queue_kind,
+        task_queue,
+        workflow_poller_count,
+        activity_poller_count,
+        workflow_pollers,
+        activity_pollers,
+        approximate_backlog_count: toNumber(stats?.approximateBacklogCount),
+        approximate_backlog_age_ms: toMillisFromDuration(
+          stats?.approximateBacklogAge,
+        ),
+        tasks_add_rate: stats?.tasksAddRate ?? null,
+        tasks_dispatch_rate: stats?.tasksDispatchRate ?? null,
+        ready: workflow_poller_count > 0 && activity_poller_count > 0,
+      };
+    }));
+
+    return {
+      namespace: config.namespace,
+      checked_at_ms,
+      all_ready: queues.every((queue) => queue.ready),
+      queues,
+    };
+  } finally {
+    await connection.close();
+  }
 }
 
 export async function controlProcessWorkflowExecution(args: {
@@ -498,6 +655,16 @@ export const inspectProcessWorkflow = zInternalAction({
   returns: TemporalWorkflowInspectionSchema,
   handler: async (_ctx, args) => {
     return inspectProcessWorkflowExecution(args);
+  },
+});
+
+export const inspectTemporalTaskQueues = zInternalAction({
+  args: z.object({
+    queue_kinds: z.array(TemporalTaskQueueKindSchema).optional(),
+  }),
+  returns: TemporalTaskQueueHealthSchema,
+  handler: async (_ctx, args) => {
+    return inspectTemporalTaskQueuesExecution(args);
   },
 });
 

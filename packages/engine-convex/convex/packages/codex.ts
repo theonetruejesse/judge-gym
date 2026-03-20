@@ -1,6 +1,8 @@
 export {
   analyzeProcessTelemetry,
   controlProcessExecution,
+  getTemporalTaskQueueHealth,
+  getV3CampaignSnapshot,
   inspectProcessExecution,
   tailTrace,
   testAxiomIngest,

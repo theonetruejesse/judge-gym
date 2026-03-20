@@ -49,10 +49,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
 - The current V3 cohort uses `scoring_config.evidence_bundle_size` as the only experiment-side bundle control (`1` = single evidence; `5` = the current bundle ablation), and the live `experiments` table is the config source of truth.
 - The V3 cohort control plane now lives in:
+  - `packages/codex:getV3CampaignSnapshot`
   - `packages/codex:getV3CampaignStatus`
+  - `packages/codex:getTemporalTaskQueueHealth`
   - `packages/codex:resetRuns`
   - `packages/codex:startV3Experiments`
-- The current ownDev pool-tag bindings are captured in `_campaigns/v3_finish_pass/manifest.json`:
+- The active V3 finish-pass manifest now targets the corrected 32-experiment matrix from `docs/pilots/v3_gpt_ablations.md`, explicitly excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
+- The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
   - `p1_us_contested_trial_2026_01_01`
   - `p2_no_election_reporting_control_2025_09_08`
 - The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
@@ -84,6 +87,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
+- The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
 - The engine includes Bun process telemetry analysis in `packages/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.

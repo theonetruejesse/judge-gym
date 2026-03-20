@@ -1,61 +1,16 @@
 {
   "taxonomy": [
-    "scheduler_kickoff",
-    "transport_requeue",
-    "provider_submit_poll",
-    "parser_contract",
+    "worker_readiness",
+    "workflow_binding",
+    "raw_collection",
+    "stage_activity",
+    "provider_or_quota",
     "artifact_apply",
-    "stage_reconciliation",
-    "count_accounting",
-    "attempt_model",
+    "projection_staleness",
+    "control_contract",
     "observability_blind_spot",
     "spec_or_manifest_mismatch"
   ],
-  "entries": [
-    {
-      "bug_id": "run_stage_progress_overreads_score_targets",
-      "failure_domain": "stage_reconciliation",
-      "status": "validated",
-      "summary": "Rubric-stage apply/error/reconcile paths recomputed full-run progress by scanning all precreated sample_score_targets, causing 600-target families to time out and exhaust at rubric_critic=29/30.",
-      "first_seen_iteration_id": "20260316T010116Z_rubric_critic_timeout_exhaustion",
-      "validated_iteration_id": "20260316T014718Z_rubric_tail_progress_timeout",
-      "fix_summary": "Made rubric-stage progress stage-local and removed inline stage advancement from the per-request apply/error hot path so early stages no longer pay later score-target fanout costs."
-    },
-    {
-      "bug_id": "run_target_state_diverges_from_applied_artifacts",
-      "failure_domain": "count_accounting",
-      "status": "validated",
-      "summary": "Heavy-family runs could store real rubric_critic artifacts while process_request_targets stayed exhausted and per-request run counter writes kept colliding on the shared runs row, making live status scientifically invalid even with applied outputs.",
-      "first_seen_iteration_id": "20260316T024532Z_run_target_state_divergence",
-      "validated_iteration_id": "20260316T024532Z_run_target_state_divergence",
-      "fix_summary": "Removed shared run/experiment counter writes from the per-request hot path, made live run summaries compute stage counts from progress snapshots, and taught process_request_targets refresh to treat stored stage artifacts as authoritative success."
-    },
-    {
-      "bug_id": "retry_batch_can_strand_without_scheduler_kick",
-      "failure_domain": "transport_requeue",
-      "status": "validated",
-      "summary": "A retry-created queued batch could be inserted after the scheduler drained, leaving the engine with one queued retry batch, no active scheduler lock, and run rows still marked running indefinitely.",
-      "first_seen_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
-      "validated_iteration_id": "20260316T044341Z_retry_batch_scheduler_gap",
-      "fix_summary": "Retry-created batches now explicitly kick startScheduler, and getStuckWork now treats queued-only transport backlog with no scheduler heartbeat as a real scheduler_not_running stall."
-    },
-    {
-      "bug_id": "heavy_stage_handoff_rolls_back_before_score_gen_enqueue",
-      "failure_domain": "stage_reconciliation",
-      "status": "validated",
-      "summary": "Heavy 600-target runs could complete rubric_critic artifacts but never enter score_gen because reconcileRunStage advanced and faned out the next stage in one mutation, rolling back the handoff and leaving no transport.",
-      "first_seen_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
-      "validated_iteration_id": "20260316T052840Z_score_gen_handoff_stall",
-      "fix_summary": "Run stage handoff now commits the stage advance first, then enqueueRunStage fans out downstream work asynchronously in bounded chunks, and getStuckWork surfaces stage_transition_no_transport when the handoff fails."
-    },
-    {
-      "bug_id": "rubric_parser_under_splits_comma_delimited_stage_criteria",
-      "failure_domain": "parser_contract",
-      "status": "validated",
-      "summary": "Rubric generation could exhaust a target even when the model produced a structurally usable rubric because parseRubricResponse only split stage criteria on semicolons, while real rubric outputs sometimes packed additional top-level criteria into comma-delimited clauses inside one semicolon segment.",
-      "first_seen_iteration_id": "20260316T055858Z_rubric_gen_parser_contract",
-      "validated_iteration_id": "20260316T055858Z_rubric_gen_parser_contract",
-      "fix_summary": "Rubric parsing now falls back to comma-delimited criterion recovery when semicolon splitting under-counts a stage, accepts recovered stages up to six criteria, tightens the rubric-gen prompt to require semicolon-only top-level delimiters, and classifies rubric parser failures as parse_error."
-    }
-  ]
+  "entries": [],
+  "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."
 }

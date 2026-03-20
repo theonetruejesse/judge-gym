@@ -23,6 +23,8 @@
     "debug:analyze": "bun run scripts/live_debug.ts analyze",
     "debug:inspect": "bun run scripts/live_debug.ts inspect",
     "debug:control": "bun run scripts/live_debug.ts control",
+    "debug:queues": "bun run scripts/live_debug.ts queues",
+    "debug:campaign": "bun run scripts/live_debug.ts campaign",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:once": "vitest run",

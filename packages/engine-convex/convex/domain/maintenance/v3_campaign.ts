@@ -8,7 +8,7 @@ import { StateStatusSchema } from "../../models/_shared";
 import { emitTraceEvent } from "../telemetry/emit";
 
 const StartPolicySchema = z.enum(["all", "incomplete_only"]);
-const CampaignStateSchema = z.enum([
+export const CampaignStateSchema = z.enum([
   "preflight_clean",
   "healthy_progressing",
   "stalled_recoverable",
@@ -131,7 +131,7 @@ const ResumeRowSchema = z.object({
   run_id: zid("runs").nullable(),
 });
 
-const GetV3CampaignStatusReturnSchema = z.object({
+export const GetV3CampaignStatusReturnSchema = z.object({
   selected_experiment_count: z.number(),
   missing_experiment_tags: z.array(z.string()),
   campaign_state: CampaignStateSchema,
@@ -326,7 +326,7 @@ export const resetRuns = zMutation({
     experiment_tags: z.array(z.string()).optional(),
     allow_active: z.boolean().default(false),
     cursor: z.number().int().min(0).optional(),
-    max_experiments: z.number().int().min(1).max(22).default(2),
+    max_experiments: z.number().int().min(1).max(64).default(2),
   }),
   returns: z.object({
     dry_run: z.boolean(),

@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 type Args = {
-  command: "watch" | "stuck" | "heal" | "tail" | "analyze" | "inspect" | "control";
+  command: "watch" | "stuck" | "heal" | "tail" | "analyze" | "inspect" | "control" | "queues" | "campaign";
   processType?: "run" | "window";
   processId?: string;
   traceId?: string;
@@ -19,6 +19,7 @@ type Args = {
   cursor?: number;
   maxActions?: number;
   apply: boolean;
+  manifestPath: string;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -38,6 +39,7 @@ function parseArgs(argv: string[]): Args {
   let cursor: number | undefined;
   let maxActions: number | undefined;
   let apply = false;
+  let manifestPath = "_campaigns/v3_finish_pass/manifest.json";
 
   for (let i = 1; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -123,6 +125,11 @@ function parseArgs(argv: string[]): Args {
       apply = true;
       continue;
     }
+    if (arg === "--manifest" && argv[i + 1]) {
+      manifestPath = argv[i + 1];
+      i += 1;
+      continue;
+    }
   }
 
   return {
@@ -142,6 +149,7 @@ function parseArgs(argv: string[]): Args {
     cursor,
     maxActions,
     apply,
+    manifestPath,
   };
 }
 
@@ -362,6 +370,21 @@ function runControl(args: Args) {
   console.log(JSON.stringify(result, null, 2));
 }
 
+function runQueues() {
+  const result = runConvex("packages/codex:getTemporalTaskQueueHealth", {}) as any;
+  console.log(JSON.stringify(result, null, 2));
+}
+
+function runCampaign(args: Args) {
+  const manifest = JSON.parse(readFileSync(args.manifestPath, "utf8")) as {
+    required_experiment_tags?: string[];
+  };
+  const result = runConvex("packages/codex:getV3CampaignSnapshot", {
+    experiment_tags: manifest.required_experiment_tags ?? [],
+  }) as any;
+  console.log(JSON.stringify(result, null, 2));
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -391,6 +414,14 @@ async function main() {
   }
   if (args.command === "control") {
     runControl(args);
+    return;
+  }
+  if (args.command === "queues") {
+    runQueues();
+    return;
+  }
+  if (args.command === "campaign") {
+    runCampaign(args);
     return;
   }
 

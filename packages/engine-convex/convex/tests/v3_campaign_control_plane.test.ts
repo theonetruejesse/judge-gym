@@ -4,6 +4,7 @@ import schema from "../schema";
 import { buildModules } from "./test.setup";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { buildV3CampaignSnapshot } from "../domain/maintenance/codex";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
@@ -166,6 +167,75 @@ describe("v3 campaign control plane", () => {
         with_failures: 0,
       },
     ]);
+  });
+
+  test("campaign snapshot combines explicit cohort status with Temporal readiness", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+      evidence_bundle_size: 1,
+    });
+    await seedExperiment(t, {
+      experiment_tag: "v3_test_beta",
+      pool_id,
+      evidence_bundle_size: 2,
+    });
+
+    const status = await t.query(api.packages.codex.getV3CampaignStatus, {
+      experiment_tags: ["v3_test_alpha", "v3_test_beta"],
+    });
+
+    const snapshot = buildV3CampaignSnapshot({
+      status,
+      temporal_readiness: {
+        namespace: "default",
+        checked_at_ms: Date.now(),
+        all_ready: false,
+        queues: [
+        {
+          queue_kind: "run",
+          task_queue: "judge-gym.run",
+          workflow_poller_count: 1,
+          activity_poller_count: 1,
+          workflow_pollers: [
+            { identity: "worker-a", last_access_time_ms: Date.now() },
+          ],
+          activity_pollers: [
+            { identity: "worker-a", last_access_time_ms: Date.now() },
+          ],
+          approximate_backlog_count: 0,
+          approximate_backlog_age_ms: 0,
+          tasks_add_rate: 0,
+          tasks_dispatch_rate: 0,
+          ready: true,
+        },
+        {
+          queue_kind: "window",
+          task_queue: "judge-gym.window",
+          workflow_poller_count: 0,
+          activity_poller_count: 0,
+          workflow_pollers: [],
+          activity_pollers: [],
+          approximate_backlog_count: 3,
+          approximate_backlog_age_ms: 12_000,
+          tasks_add_rate: 0.1,
+          tasks_dispatch_rate: 0,
+          ready: false,
+        },
+        ],
+      },
+      temporal_readiness_error: null,
+    });
+
+    expect(snapshot.status.selected_experiment_count).toBe(2);
+    expect(snapshot.status.campaign_state).toBe("preflight_clean");
+    expect(snapshot.temporal_readiness.all_ready).toBe(false);
+    expect(snapshot.temporal_readiness_error).toBeNull();
+    expect(snapshot.effective_campaign_state).toBe("preflight_clean");
+    expect(snapshot.launch_ready).toBe(false);
+    expect(snapshot.blocked_task_queues).toEqual(["judge-gym.window"]);
   });
 
   test("resetRuns wipes run-scoped data for the cohort only", async () => {

@@ -21,16 +21,31 @@ Treat the **experiments table** as the live config source of truth. The manifest
 - launch modes
 - reset/start/status control-plane functions
 - monitoring/heal policy
+- scientific-validity scope for the current pilot loop
 
 ## Control plane
 
-Use these functions for the cohort:
+Prefer the manifest-declared control plane:
 
+- `control_plane.snapshot_fn`
+- `control_plane.reset_fn`
+- `control_plane.start_fn`
+- `control_plane.resume_fn`
+- `control_plane.inspect_fn`
+- `control_plane.control_fn`
+
+Current defaults are:
+
+- `packages/codex:getV3CampaignSnapshot`
 - `packages/codex:getV3CampaignStatus`
+- `packages/codex:getTemporalTaskQueueHealth`
 - `packages/codex:resetRuns`
 - `packages/codex:startV3Experiments`
+- `packages/codex:resumeV3Experiments`
+- `packages/codex:inspectProcessExecution`
+- `packages/codex:controlProcessExecution`
 
-Do not reconstruct the cohort manually if these are available.
+Do not reconstruct the cohort by prefix search. Always use the manifest’s explicit tags.
 
 ## Campaign states
 
@@ -48,33 +63,50 @@ Use these exact campaign states in reports and `campaign_state.json`:
 - `complete`
 
 Interpretation:
-- `slow_but_progressing` is derived by comparing two snapshots; the control-plane API will usually only tell you `healthy_progressing`.
+- `slow_but_progressing` is derived by comparing two **campaign snapshots** over time; the control plane will usually only tell you `healthy_progressing`.
 - `scientifically_invalid` means results are not trustworthy even if the run technically completed.
+- if Temporal readiness is false, treat the cohort as `stalled_recoverable` unless the snapshot already reports a stronger terminal state.
 
 ## Launch modes
 
 Read them from `manifest.json`.
 
+- `canary`
+  - use the manifest values directly
+  - goal: prove binding + worker polling + first pause gate cheaply
 - `rubric_gate`
-  - use `pause_after="rubric_critic"`
-  - goal: prove first two stages are stable
+  - use the manifest values directly
+  - goal: prove first two stages are stable at full pilot size
 - `full`
-  - use `pause_after=null`
-  - goal: complete the whole matrix
+  - use the manifest values directly
+  - goal: complete the corrected matrix end to end
 
 ## Loop
 
 1. Load manifest + campaign state.
-2. Call `packages/codex:getV3CampaignStatus` for the cohort.
+2. Read the cohort using `control_plane.snapshot_fn` with the manifest’s explicit tags.
 3. If the pass is unhealthy, write an iteration snapshot **before any reset**.
-4. Reset with `packages/codex:resetRuns`.
-5. Launch with `packages/codex:startV3Experiments`.
-6. Monitor with repeated `packages/codex:getV3CampaignStatus`.
-7. If status becomes `stalled_recoverable`, do at most **one** bounded safe-heal pass.
-8. If still unhealthy, or if status becomes `scientifically_invalid` or `stalled_unknown`, capture forensics and stop the pass.
+4. Reset with `control_plane.reset_fn`.
+5. Launch with `control_plane.start_fn`, passing the manifest’s explicit tags and launch-mode values.
+6. Monitor with repeated `control_plane.snapshot_fn`.
+7. If snapshot state becomes `stalled_recoverable`, do at most **one** bounded safe-heal pass.
+8. If still unhealthy, or if state becomes `scientifically_invalid` or `stalled_unknown`, capture forensics and stop the pass.
 9. Diagnose, patch the smallest blocking bug, validate, commit, and start the next iteration.
 
 Safe-heal is diagnostic evidence, not steady-state operating procedure. The objective is an engine that no longer requires agentic monitoring.
+
+### Safe-heal (Temporal-native)
+
+Allowed bounded repairs:
+
+- `packages/codex:controlProcessExecution` with `action="repair_bounded"` and one of:
+  - `reproject_snapshot`
+  - `resume_if_paused`
+  - `clear_pause_after`
+- explicit `resume`
+- explicit `cancel` only when the cohort is already scientifically invalid and you are preserving forensics first
+
+Do **not** invent queue-era transport repair steps. There is no batch/job/request engine anymore.
 
 ## Iteration artifacts
 
@@ -88,7 +120,8 @@ The snapshot/report must include:
 - experiment tags and run ids launched
 - launch mode
 - expected vs observed counts
-- cohort status from `getV3CampaignStatus`
+- cohort status from `snapshot_fn`
+- Temporal readiness summary (run/window queues)
 - stuck summary
 - dominant failure domain
 - scientific validity judgment
@@ -103,23 +136,21 @@ Do not wipe unhealthy run-scoped state before these files exist.
 
 Use these failure domains:
 
-- `scheduler_kickoff`
-- `transport_requeue`
-- `provider_submit_poll`
-- `parser_contract`
+- `worker_readiness`
+- `workflow_binding`
+- `raw_collection`
+- `stage_activity`
+- `provider_or_quota`
 - `artifact_apply`
-- `stage_reconciliation`
-- `count_accounting`
-- `attempt_model`
+- `projection_staleness`
+- `control_contract`
 - `observability_blind_spot`
 - `spec_or_manifest_mismatch`
 
 Use these scientific-validity labels when needed:
 
 - `scientifically_valid`
-- `scientifically_invalid_prompt`
-- `scientifically_invalid_parser`
-- `scientifically_invalid_accounting`
+- `scientifically_invalid`
 - `scientifically_unknown`
 
 ## Subagents
@@ -144,6 +175,7 @@ Subagents investigate only. The main agent owns:
 If the agent cannot answer one of these quickly:
 - what is the cohort state
 - which runs are truly stalled
+- whether Temporal workers are polling the expected task queues
 - whether results are scientifically usable
 - what failure class dominates
 - what exact rows explain the failure

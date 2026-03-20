@@ -2,6 +2,10 @@ import z from "zod";
 import { api, internal } from "../../_generated/api";
 import { zAction, zQuery } from "../../utils/custom_fns";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
+import {
+  CampaignStateSchema,
+  GetV3CampaignStatusReturnSchema,
+} from "./v3_campaign";
 
 const ProcessTypeSchema = z.enum(["run", "window"]);
 const ControlActionSchema = z.enum([
@@ -16,6 +20,7 @@ const RepairBoundedOperationSchema = z.enum([
   "resume_if_paused",
   "clear_pause_after",
 ]);
+const TemporalTaskQueueKindSchema = z.enum(["run", "window"]);
 
 const AnalyzeStageSummarySchema = z.object({
   stage: z.string(),
@@ -182,6 +187,65 @@ const ControlProcessExecutionResultSchema = z.object({
     reason: z.string().optional(),
   }).nullable(),
 });
+const TemporalTaskQueueHealthSchema = z.object({
+  namespace: z.string(),
+  checked_at_ms: z.number(),
+  all_ready: z.boolean(),
+  queues: z.array(z.object({
+    queue_kind: TemporalTaskQueueKindSchema,
+    task_queue: z.string(),
+    workflow_poller_count: z.number(),
+    activity_poller_count: z.number(),
+    workflow_pollers: z.array(z.object({
+      identity: z.string(),
+      last_access_time_ms: z.number().nullable(),
+    })),
+    activity_pollers: z.array(z.object({
+      identity: z.string(),
+      last_access_time_ms: z.number().nullable(),
+    })),
+    approximate_backlog_count: z.number().nullable(),
+    approximate_backlog_age_ms: z.number().nullable(),
+    tasks_add_rate: z.number().nullable(),
+    tasks_dispatch_rate: z.number().nullable(),
+    ready: z.boolean(),
+  })),
+});
+const V3CampaignSnapshotSchema = z.object({
+  status: GetV3CampaignStatusReturnSchema,
+  temporal_readiness: TemporalTaskQueueHealthSchema,
+  temporal_readiness_error: z.string().nullable(),
+  effective_campaign_state: CampaignStateSchema,
+  launch_ready: z.boolean(),
+  blocked_task_queues: z.array(z.string()),
+});
+
+export function buildV3CampaignSnapshot(args: {
+  status: z.infer<typeof GetV3CampaignStatusReturnSchema>;
+  temporal_readiness: z.infer<typeof TemporalTaskQueueHealthSchema>;
+  temporal_readiness_error: string | null;
+}) {
+  const blocked_task_queues = args.temporal_readiness.queues
+    .filter((queue) => !queue.ready)
+    .map((queue) => queue.task_queue);
+  const effective_campaign_state = args.status.campaign_state === "preflight_clean"
+    ? args.status.campaign_state
+    : args.temporal_readiness.all_ready
+      ? args.status.campaign_state
+      : "stalled_recoverable";
+
+  return {
+    status: args.status,
+    temporal_readiness: args.temporal_readiness,
+    temporal_readiness_error: args.temporal_readiness_error,
+    effective_campaign_state,
+    launch_ready:
+      args.status.launch_ready
+      && args.temporal_readiness.all_ready
+      && args.temporal_readiness_error == null,
+    blocked_task_queues,
+  };
+}
 
 type AnalyzeStageSummary = z.infer<typeof AnalyzeStageSummarySchema>;
 type ProcessTelemetryAnalysis = z.infer<typeof ProcessTelemetryAnalysisSchema>;
@@ -415,6 +479,65 @@ export const inspectProcessExecution: ReturnType<typeof zAction> = zAction({
       },
       temporal,
     };
+  },
+});
+
+export const getTemporalTaskQueueHealth: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    queue_kinds: z.array(TemporalTaskQueueKindSchema).optional(),
+  }),
+  returns: TemporalTaskQueueHealthSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof TemporalTaskQueueHealthSchema>> => {
+    return ctx.runAction(
+      internal.domain.temporal.temporal_client.inspectTemporalTaskQueues,
+      args,
+    );
+  },
+});
+
+export const getV3CampaignSnapshot: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    experiment_tags: z.array(z.string()).optional(),
+    expected_pause_after: z.enum([
+      "rubric_gen",
+      "rubric_critic",
+      "score_gen",
+      "score_critic",
+    ]).nullable().optional(),
+    older_than_ms: z.number().int().min(1).default(120_000),
+  }),
+  returns: V3CampaignSnapshotSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof V3CampaignSnapshotSchema>> => {
+    const status = await ctx.runQuery(api.packages.codex.getV3CampaignStatus, args);
+
+    let temporal_readiness: z.infer<typeof TemporalTaskQueueHealthSchema>;
+    let temporal_readiness_error: string | null = null;
+    try {
+      temporal_readiness = await ctx.runAction(
+        internal.domain.temporal.temporal_client.inspectTemporalTaskQueues,
+        {},
+      );
+    } catch (error) {
+      temporal_readiness_error =
+        error instanceof Error ? error.message : String(error);
+      temporal_readiness = {
+        namespace: "unknown",
+        checked_at_ms: Date.now(),
+        all_ready: false,
+        queues: [],
+      };
+    }
+    return buildV3CampaignSnapshot({
+      status,
+      temporal_readiness,
+      temporal_readiness_error,
+    });
   },
 });
 
