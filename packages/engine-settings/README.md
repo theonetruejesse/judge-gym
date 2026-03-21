@@ -23,3 +23,12 @@ The developer-facing settings object lives in `src/index.ts` as
 - change the config object there
 - let the package schemas validate it
 - keep runtime code reading from the resolved `DEFAULT_ENGINE_SETTINGS`
+
+Important timeout split:
+
+- `llm.direct.requestTimeoutMs` is the per-request timeout for normal chat calls
+- `llm.batching.requestTimeoutMs` is the transport timeout for each Batch API
+  request
+- `llm.batching.maxWaitMs` is the total allowed batch poll/wait budget
+- `temporal.activityStartToCloseMs` should stay above the batch wait budget so a
+  long batch does not cause the entire stage activity to time out prematurely

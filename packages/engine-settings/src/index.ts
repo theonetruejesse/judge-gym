@@ -20,14 +20,14 @@ import { TEMPORAL_TASK_QUEUES } from "./temporal";
 export const EngineSettingsSchema = z.object({
   temporal: z.object({
     retryDelayMs: z.number().int().positive().default(5_000),
-    activityStartToCloseMs: z.number().int().positive().default(60 * 60 * 1_000),
+    activityStartToCloseMs: z.number().int().positive().default(150 * 60 * 1_000),
     taskQueues: z.object({
       run: z.string().min(1).default(TEMPORAL_TASK_QUEUES.run),
       window: z.string().min(1).default(TEMPORAL_TASK_QUEUES.window),
     }),
   }).default({
     retryDelayMs: 5_000,
-    activityStartToCloseMs: 60 * 60 * 1_000,
+    activityStartToCloseMs: 150 * 60 * 1_000,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -45,17 +45,18 @@ export const EngineSettingsSchema = z.object({
     batching: BatchSettingsSchema.default(DEFAULT_BATCH_SETTINGS),
     direct: z.object({
       maxConcurrentRequests: z.number().int().positive().default(4),
+      requestTimeoutMs: z.number().int().positive().default(120_000),
     }).default({
       maxConcurrentRequests: 4,
+      requestTimeoutMs: 120_000,
     }),
-    requestTimeoutMs: z.number().int().positive().default(120_000),
     retries: RetrySettingsSchema.default(DEFAULT_RETRY_SETTINGS),
   }).default({
     batching: DEFAULT_BATCH_SETTINGS,
     direct: {
       maxConcurrentRequests: 4,
+      requestTimeoutMs: 120_000,
     },
-    requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
   }),
   window: z.object({
@@ -77,7 +78,7 @@ export type EngineSettings = z.infer<typeof EngineSettingsSchema>;
 export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   temporal: {
     retryDelayMs: 5_000,
-    activityStartToCloseMs: 60 * 60 * 1_000,
+    activityStartToCloseMs: 150 * 60 * 1_000,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -94,13 +95,14 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
       maxBatchSize: 500,
       maxConcurrentBatches: 4,
       completionWindow: "24h",
+      requestTimeoutMs: 120_000,
       pollIntervalMs: 5_000,
-      maxWaitMs: 30 * 60 * 1_000,
+      maxWaitMs: 2 * 60 * 60 * 1_000,
     },
     direct: {
       maxConcurrentRequests: 4,
+      requestTimeoutMs: 120_000,
     },
-    requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
   },
   window: {

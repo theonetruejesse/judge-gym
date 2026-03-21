@@ -84,7 +84,10 @@ describe("window stage service", function () {
           ...DEFAULT_ENGINE_SETTINGS,
           llm: {
             ...DEFAULT_ENGINE_SETTINGS.llm,
-            requestTimeoutMs: 42_000,
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              requestTimeoutMs: 42_000,
+            },
           },
           window: {
             ...DEFAULT_ENGINE_SETTINGS.window,
@@ -148,6 +151,7 @@ describe("window stage service", function () {
   it("routes eligible window work through the batch executor", async () => {
     const calls: string[] = [];
     let attemptCounter = 0;
+    let seenBatchTimeoutMs: number | undefined;
 
     const result = await runWindowStageActivityWithDeps(
       {
@@ -159,6 +163,7 @@ describe("window stage service", function () {
               ...DEFAULT_ENGINE_SETTINGS.llm.batching,
               minBatchSize: 2,
               maxBatchSize: 10,
+              requestTimeoutMs: 88_000,
             },
           },
         },
@@ -203,7 +208,9 @@ describe("window stage service", function () {
         runOpenAiChat: async () => {
           throw new Error("runOpenAiChat should not be called");
         },
-        runOpenAiBatchChat: async <TMetadata>() => ({
+        runOpenAiBatchChat: async <TMetadata>(args: { timeoutMs?: number }) => {
+          seenBatchTimeoutMs = args.timeoutMs;
+          return ({
           batchId: "batch_1",
           outputFileId: "file_out",
           errorFileId: null,
@@ -246,13 +253,15 @@ describe("window stage service", function () {
             },
           ],
           failed: [],
-        } as any),
+        } as any);
+        },
       },
       "window_run_123",
       "l1_cleaned",
     );
 
     assert.equal(result.summary, "window_stage:l1_cleaned:success=2:failed=0");
+    assert.equal(seenBatchTimeoutMs, 88_000);
     assert.deepEqual(calls, [
       "start:1",
       "start:2",

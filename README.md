@@ -248,6 +248,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 **Provider configuration**
 
 - `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, Temporal activity timeout budgets, queue names, and env-key constants.
+- The timeout split is intentional: direct chat requests use `llm.direct.requestTimeoutMs`, batch transport calls use `llm.batching.requestTimeoutMs`, batch poll/wait uses `llm.batching.maxWaitMs`, and Temporal stage activities use the larger `temporal.activityStartToCloseMs` budget.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
 - Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
@@ -257,7 +258,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 ## Known Gaps and Caveats
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
-- Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, and Firecrawl collection behavior now live in one shared package instead of being hardcoded across Convex and Temporal.
+- Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, Firecrawl collection behavior, and Temporal activity budgets now live in one shared package instead of being hardcoded across Convex and Temporal.
 - Temporal now routes eligible run/window LLM work through the OpenAI Batch API when the centralized batch policy allows it, then falls back to direct per-item retries only for failed batch items so retry semantics stay per-target instead of per-batch.
 - Batch-backed run/window stages now emit process heartbeats during batch submit/poll/completion so long rubric stages do not get misclassified as stalled purely because stage-boundary projections are sparse.
 - V3 campaign reset now backfills run ownership onto `sample_score_target_items` before deletion so large rubric-gate cohorts can be reset without hitting Convex read limits from per-target cleanup queries.

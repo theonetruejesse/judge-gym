@@ -529,7 +529,7 @@ async function executeWindowChatAttempt(
       model: args.windowModel,
       systemPrompt: args.systemPrompt,
       userPrompt: args.userPrompt,
-      timeoutMs: settings.llm.requestTimeoutMs,
+      timeoutMs: settings.llm.direct.requestTimeoutMs,
     });
     await deps.convex.applyWindowStageResult({
       window_run_id: args.windowRunId,
@@ -699,7 +699,7 @@ async function processWindowStageBatchChunk(
           metadata: { input, userPrompt, attemptId },
         })),
         settings: settings.llm.batching,
-        timeoutMs: settings.llm.requestTimeoutMs,
+        timeoutMs: settings.llm.batching.requestTimeoutMs,
         onLifecycleEvent: async (event) => {
           await deps.convex.recordProcessHeartbeat?.({
             process_kind: "window",

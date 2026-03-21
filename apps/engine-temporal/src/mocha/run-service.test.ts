@@ -27,7 +27,10 @@ describe("run stage service", function () {
           ...DEFAULT_ENGINE_SETTINGS,
           llm: {
             ...DEFAULT_ENGINE_SETTINGS.llm,
-            requestTimeoutMs: 37_000,
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              requestTimeoutMs: 37_000,
+            },
           },
         },
         quota: buildQuota(),
@@ -197,6 +200,7 @@ describe("run stage service", function () {
   it("routes eligible run work through the batch executor", async () => {
     const calls: string[] = [];
     let attemptCounter = 0;
+    let seenBatchTimeoutMs: number | undefined;
 
     const result = await runRunStageActivityWithDeps(
       {
@@ -208,6 +212,7 @@ describe("run stage service", function () {
               ...DEFAULT_ENGINE_SETTINGS.llm.batching,
               minBatchSize: 2,
               maxBatchSize: 10,
+              requestTimeoutMs: 91_000,
             },
           },
         },
@@ -282,8 +287,9 @@ describe("run stage service", function () {
         async runOpenAiChat() {
           throw new Error("runOpenAiChat should not be called");
         },
-        async runOpenAiBatchChat<TMetadata>() {
+        async runOpenAiBatchChat<TMetadata>(args: { timeoutMs?: number }) {
           calls.push("batch");
+          seenBatchTimeoutMs = args.timeoutMs;
           return {
             batchId: "batch_1",
             outputFileId: "file_out",
@@ -337,6 +343,7 @@ describe("run stage service", function () {
     );
 
     assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
+    assert.equal(seenBatchTimeoutMs, 91_000);
     assert.deepEqual(calls, [
       "start:1",
       "start:2",

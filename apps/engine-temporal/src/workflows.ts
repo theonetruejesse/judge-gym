@@ -38,10 +38,18 @@ const WINDOW_STAGES: WindowStageKey[] = [
 
 const {
   projectProcessState,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
+});
+
+const {
   runRunStage,
   runWindowStage,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  retry: {
+    maximumAttempts: 1,
+  },
 });
 
 export const getProcessSnapshotQuery =
