@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_04_002",
+  "areaOfAnalysisID": "A_04",
+  "statement": "Stage activities are too coarse for full-scale pilot execution, and the current five-minute start-to-close timeout should either be raised or the work should be partitioned so one activity does not serially process an entire stage worth of provider calls.",
+  "confidence": 0.72,
+  "rationale": "Whole-stage sequential loops under a fixed five-minute activity timeout are likely to become brittle under full V3 scale and provider latency.",
+  "keyAssumptions": [
+    "Future pilot runs will process enough units for stage duration to be materially larger than small smoke tests."
+  ],
+  "validationCriteria": [
+    "Pilot-scale stages no longer risk timing out under normal latency.",
+    "Timeout behavior is explicit and testable."
+  ],
+  "critiquePoints": [
+    "Observed smoke success may mean current scale is still within safe bounds for now."
+  ],
+  "questions": [
+    "Do you want finer activity granularity, larger timeouts, or both?"
+  ]
+}

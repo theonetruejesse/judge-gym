@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_01_002",
+  "areaOfAnalysisID": "A_01",
+  "statement": "Window prompt cleanup should happen now, but full run-prompt migration out of Convex should be deferred until after the service/contract cleanup because current run prompt rendering is tightly coupled to Convex-owned domain logic.",
+  "confidence": 0.68,
+  "rationale": "The falsification pass found that run prompts are not just static strings; they depend on randomization, label mapping, and evidence-bundle shaping already owned by Convex.",
+  "keyAssumptions": [
+    "Spring cleaning should prioritize deletions and clearer ownership over larger functional rewrites."
+  ],
+  "validationCriteria": [
+    "Unused Convex window prompt duplication can be removed without behavior change.",
+    "Run prompt ownership can be revisited after contract and service boundaries are clearer."
+  ],
+  "critiquePoints": [
+    "Leaving run prompts in Convex longer preserves an execution/data split inconsistency."
+  ],
+  "questions": [
+    "Do prompt templates need to remain Convex-authored for audit reproducibility, or only Convex-persisted?"
+  ]
+}

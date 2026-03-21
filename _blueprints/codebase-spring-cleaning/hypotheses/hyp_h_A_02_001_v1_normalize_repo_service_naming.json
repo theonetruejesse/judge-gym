@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "The domain/runs package should be normalized around explicit read-service, write-repo, and pure-materializer roles, including renaming experiments_data.ts and bundle_plan_logic.ts to match what they actually do.",
+  "confidence": 0.85,
+  "rationale": "Current names understate real responsibility boundaries and hide mixed modules that blend persistence with orchestration.",
+  "keyAssumptions": [
+    "A clearer naming and file-boundary model will materially improve maintainability and observability."
+  ],
+  "validationCriteria": [
+    "Each renamed/split module maps cleanly to one role: read service, repo, or pure algorithm.",
+    "Public Lab and worker call sites become easier to trace to their owning layer."
+  ],
+  "critiquePoints": [
+    "Some modules may still need to stay co-located for performance or query-shape reasons."
+  ],
+  "questions": [
+    "Should read-model aggregation live in *service.ts or *read.ts / *queries.ts?"
+  ]
+}

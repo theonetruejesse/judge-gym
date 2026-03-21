@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_03_002",
+  "areaOfAnalysisID": "A_03",
+  "statement": "Shared runtime validators should become single-source-of-truth Zod schemas, with TypeScript types inferred from them, instead of being reimplemented across engine-settings, Convex Temporal client code, worker APIs, and analysis exports.",
+  "confidence": 0.79,
+  "rationale": "ProcessSnapshot and stage enums are duplicated today, and the repo already shows drift pressure from multiple literal definitions.",
+  "keyAssumptions": [
+    "A central Zod source can be imported where runtime validation is required without dragging unwanted dependencies into workflow code."
+  ],
+  "validationCriteria": [
+    "ProcessSnapshot, control actions, and stage enums are defined once for runtime validation.",
+    "Downstream files infer types or reuse tuples instead of retyping literal arrays."
+  ],
+  "critiquePoints": [
+    "Temporal workflow bundle size or dependency rules may argue for TS-only contracts in some paths."
+  ],
+  "questions": [
+    "Should the central runtime validators live in engine-convex, engine-settings, or a new contracts submodule?"
+  ]
+}

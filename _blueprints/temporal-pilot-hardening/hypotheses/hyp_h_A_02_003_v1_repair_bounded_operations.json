@@ -1,0 +1,25 @@
+{
+  "microHypothesisID": "h_A_02_003",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Implementing a small allowlisted `repairBounded` update in the Temporal workflows (e.g. refresh projection, rerun current stage once, force pause, force fail) will materially reduce the amount of Convex-side 'nudge' logic and make the agent loop safer and more explainable during full pilot execution.",
+  "confidence": 0.66,
+  "rationale": "The workflows already define an update handler for `repairBounded` but it is stubbed. Today, repair is effectively 'start or resume from Convex' which conflates missing binding, paused execution, and stage failure. A bounded workflow-native repair primitive lets the agent perform a small, explicit operation with a single command id and an acknowledged result.",
+  "keyAssumptions": [
+    "Most recoverable stalls in the pilot will be resolvable by a small number of generic operations (resume, rerun one stage, refresh projection).",
+    "We can implement repairs without breaking workflow determinism by recording intent in workflow state and executing repair via activities in the main loop."
+  ],
+  "validationCriteria": [
+    "Given a process with stale projection but a healthy running workflow, `repairBounded(refresh_projection)` updates Convex mirror without restarting the workflow.",
+    "Given a failed stage activity, `repairBounded(rerun_stage_once)` causes exactly one rerun and records the attempt in `llm_attempts`.",
+    "Repairs are idempotent by `cmdId` and do not create duplicated side effects."
+  ],
+  "critiquePoints": [
+    "Repair operations can become a dumping ground for bespoke hacks; the allowlist must stay small.",
+    "Some failure classes (provider outage, quota exhaustion) cannot be repaired by rerunning without changing config/policy."
+  ],
+  "questions": [
+    "Should repair operations be blocked when the workflow is paused due to `pause_after` (to avoid bypassing experimental gates)?",
+    "Do we need repair operations for run/window separately, or can we keep them unified with stage-specific guards?"
+  ]
+}
+

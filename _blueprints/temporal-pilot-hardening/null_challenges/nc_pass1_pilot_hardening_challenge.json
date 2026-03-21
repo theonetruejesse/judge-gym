@@ -1,0 +1,123 @@
+{
+  "challengeID": "nc_pass1_temporal_pilot_hardening",
+  "targetBundle": "_blueprints/temporal-pilot-hardening",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Manifest/matrix realignment is mandatory before the next pilot loop.",
+      "microHypothesisIDs": [
+        "h_A_01_001"
+      ],
+      "falsificationQueries": [
+        "Is it acceptable to re-run a legacy experiment cohort purely for engine correctness even if it is scientifically invalid for interpretation?",
+        "Does docs/pilots/v3_gpt_ablations.md prohibit running a6/a7 experiments, or only excludes them from scientific interpretation?"
+      ],
+      "falsificationEvidenceFound": [
+        "_blueprints/temporal-pilot-hardening/hypotheses/hyp_h_A_01_001_v1_manifest_matrix_alignment.json",
+        "docs/pilots/v3_gpt_ablations.md"
+      ],
+      "falsificationAnalysis": "The hypothesis is directionally right if the goal is to reproduce the *scientific* V3 story, but it overstates necessity for engine hardening. The doc excludes legacy bundle families (a6/a7) from scientific interpretation, not from execution correctness testing. For a pilot hardening loop, re-running the legacy 22-tag cohort can still be valid as long as reporting clearly labels scientific-validity and does not conflate 'completed' with 'interpretable'.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "A Temporal readiness gate based on task-queue pollers is a reliable required control-plane surface for the agent loop.",
+      "microHypothesisIDs": [
+        "h_A_01_002",
+        "h_A_02_001"
+      ],
+      "falsificationQueries": [
+        "Can Temporal UI/CLI show 'no workers' even when workers are running but saturated?",
+        "Are pollers/poller windows a precise liveness oracle, or an approximate time-windowed signal?",
+        "How reliable are backlog stats (ApproximateBacklogCount/Age) for deciding whether the system is unhealthy?"
+      ],
+      "falsificationEvidenceFound": [
+        "https://temporal.io/change-log/temporal-cli-v0-13-1",
+        "https://deepwiki.com/temporalio/cli/4.4-task-queue-commands",
+        "https://community.temporal.io/t/worker-not-picking-scheduled-workflowtask/4068",
+        "https://community.temporal.io/t/approximatebacklogage-doesnt-agree-with-approximatebacklogcount/18148"
+      ],
+      "falsificationAnalysis": "This is useful but not fully reliable as a hard gate. Temporal poller presence is time-windowed and can produce false negatives when workers are saturated or don't poll due to configured slot limits; a Temporal forum thread notes the UI can warn that no worker is available even while the worker is up, and points to worker slot availability/metrics as the real signal. Backlog stats are explicitly approximate; forum reports show ApproximateBacklogAge can look 'old' even when backlog count is 0 and workflows complete normally. Conclusion: keep task-queue describe as a strong signal for infra triage, but treat it as a warning/diagnostic, not a strict preflight gate unless combined with additional checks (worker service health, worker logs, or Temporal metrics).",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Windows must be decomposed into raw-collection versus semantic view/pipeline tables before pilot-scale iteration is viable.",
+      "microHypothesisIDs": [
+        "h_A_03_001",
+        "h_A_03_002"
+      ],
+      "falsificationQueries": [
+        "Can we run a pilot hardening loop with a single semantic pipeline per evidence and still iterate effectively?",
+        "Is the decomposition a prerequisite for observability/control, or mainly for scientific comparability and multi-pipeline experiments?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine-convex/convex/models/window.ts",
+        "docs/pilots/v3_gpt_ablations.md",
+        "_blueprints/temporal-pilot-hardening/knowledge/k_003_window_process_decomposition.md"
+      ],
+      "falsificationAnalysis": "A full decomposition is not strictly required for 'engine works end-to-end' validation. You can harden the Temporal run/window execution and observability loop with the current schema (single evidence row storing l0-l3) and still run a pilot. However, if you want model-specific semantic cleaning variants, pause/gating at collection versus transforms, and scientifically comparable clustered/bundled surfaces, the current schema becomes a limiting factor quickly. So: decomposition is a medium-term requirement for the *next* experimental surface, not a day-one blocker for basic pilot correctness.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Control Updates must immediately project snapshots to Convex, otherwise the agent loop will be unreliable.",
+      "microHypothesisIDs": [
+        "h_A_04_001"
+      ],
+      "falsificationQueries": [
+        "Can the agent loop confirm control actions via Temporal queries/Update receipts without depending on immediate Convex projection?",
+        "Is calling activities from Update handlers advisable, or should updates be kept short and rely on later workflow loop projection?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine-temporal/src/workflows.ts",
+        "https://temporal.io/change-log/typescript-sdk-v1-9-0-rc0"
+      ],
+      "falsificationAnalysis": "Immediate Convex projection on every Update is convenient but not strictly required for correctness. The agent can use Temporal Update receipts (accepted/completed) and direct workflow queries to confirm state changes. Also, Update handlers should stay lightweight; projecting immediately from the handler calls an Activity, which can increase load and complicate cancellation/ordering. Conclusion: treat immediate projection as an optimization for operator ergonomics, not a required invariant; define the automation truth stack to rely on Temporal first for control confirmation.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Window pause_after='collect' is required before pilot-scale operation.",
+      "microHypothesisIDs": [
+        "h_A_04_002"
+      ],
+      "falsificationQueries": [
+        "Is pause_after for windows necessary, or can we gate by creating smaller windows and/or using the existing run pause_after gate only?",
+        "Does adding pause_after to window flow create churn if the window pipeline will soon be decomposed anyway?"
+      ],
+      "falsificationEvidenceFound": [
+        "packages/engine-temporal/src/workflows.ts",
+        "packages/engine-convex/convex/packages/lab.ts",
+        "_blueprints/temporal-pilot-hardening/knowledge/k_004_control_and_lifecycle_semantics.md"
+      ],
+      "falsificationAnalysis": "Pause_after='collect' is high leverage, but not mandatory for first pilot hardening. You can approximate the gate by creating small windows, inspecting evidence, and only then running semantic transforms or creating pools. If the window decomposition work is imminent, it may be better to implement pause/gates as part of the new pipeline workflow rather than bolt it onto the existing monolithic window flow. Conclusion: optional for pilot v0; recommended when you start iterating on semantic-cleaning variants.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Campaign status must be cohort-scoped and read-budgeted; otherwise monitoring will regress into read-limit failures.",
+      "microHypothesisIDs": [
+        "h_A_05_002"
+      ],
+      "falsificationQueries": [
+        "Does the current getV3CampaignStatus implementation already avoid whole-table scans or expensive per-target reads?",
+        "Could the pilot loop be small enough that this is premature?"
+      ],
+      "falsificationEvidenceFound": [
+        "_campaigns/v3_finish_pass/observability_backlog.json",
+        "packages/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+        "packages/engine-convex/convex/domain/maintenance/process_debug.ts"
+      ],
+      "falsificationAnalysis": "The need is real at scale, but the hypothesis is not a universal blocker. For a small cohort and fresh database, the status path can work even if it isn't perfectly bounded. However, the repo already has an explicit observability backlog item from March 16, 2026 describing read-limit failures in the status path for hot cohorts, so ignoring this will likely regress once you start running large matrix workloads again. Conclusion: keep this as a pre-pilot hardening requirement if the goal is to run the full matrix (n=30, 20+ experiments) without manual babysitting; otherwise it can be deferred for a smaller canary pilot.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed",
+  "summary": {
+    "survivesWithTightening": [
+      "Task-queue health/readiness is important, but must be treated as an approximate diagnostic, not a strict liveness oracle by itself.",
+      "Manifest/matrix alignment is required for scientific interpretation, but not required for runtime correctness hardening if reporting labels validity."
+    ],
+    "likelyDeferrableForPilotV0": [
+      "Full window/evidence schema decomposition",
+      "Immediate Convex projection for every control Update",
+      "Window pause_after='collect' gate"
+    ]
+  }
+}
+

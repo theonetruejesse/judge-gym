@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "Run partial-failure progression is currently broken by design and should be fixed before the next pilot loop by introducing explicit downstream skip/fail propagation and allowing runs to complete with failures instead of halting on any failed target.",
+  "confidence": 0.88,
+  "rationale": "The current progress model leaves downstream work permanently pending after upstream failures and treats any stage failure as terminal even though reporting code already models completed-with-failures semantics.",
+  "keyAssumptions": [
+    "The intended product behavior is to continue with successful units when some stage units fully fail."
+  ],
+  "validationCriteria": [
+    "A run with one failed rubric and many successful rubrics still advances successful units to later stages.",
+    "Pending counts resolve cleanly via explicit skip/fail marking.",
+    "Run summaries end in completed + has_failures when appropriate."
+  ],
+  "critiquePoints": [
+    "The engine may intentionally prefer strict all-or-nothing semantics for rubric stages."
+  ],
+  "questions": [
+    "Should downstream dependents be marked skipped or failed when prerequisites are missing?"
+  ]
+}

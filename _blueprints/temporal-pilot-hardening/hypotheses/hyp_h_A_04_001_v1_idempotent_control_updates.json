@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_04_001",
+  "areaOfAnalysisID": "A_04",
+  "statement": "Before a full pilot loop, every mutating control action (pause_after, pause_now, resume, repair, cancel) should be implemented as a Temporal Update (or cancellation) with caller-generated stable cmdId used for request idempotency, and workflow-side Update handlers should immediately project the updated snapshot so Convex mirrors are timely and reliable for automation.",
+  "confidence": 0.78,
+  "rationale": "The current engine already has Update handlers but they do not project snapshots on Update, and Convex generates cmdIds from Date.now() which is not retry-safe. Pilot agent loops will retry commands; without idempotency and timely projection, the system will either double-apply control actions or appear stale and cause spurious repairs/resets.",
+  "keyAssumptions": [
+    "Temporal TypeScript SDK supports setting a stable update request id or equivalent on workflow updates and/or using signal-with-start semantics to dedupe",
+    "Convex mirrors (process_observability + domain rows) remain the primary fast-triage surface even when Temporal UI is available"
+  ],
+  "validationCriteria": [
+    "Retrying the same control command (same cmdId) returns the same acknowledgement and does not create extra state transitions",
+    "After pause/resume updates, process_observability updates within a bounded SLA (e.g., <10s) without requiring stage boundaries",
+    "Agent loop can distinguish stuck execution vs stale projection"
+  ],
+  "critiquePoints": [
+    "Update idempotency knobs differ by SDK version; this may require a client-side de-dupe ledger instead of server-side request id",
+    "Immediate projection on Update increases write load; might be acceptable but needs bounding"
+  ],
+  "questions": [
+    "What is the preferred idempotency hook in @temporalio/client executeUpdate for TS 1.15.0, and how should we map cmdId onto it?"
+  ]
+}
+

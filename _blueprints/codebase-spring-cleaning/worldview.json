@@ -1,0 +1,193 @@
+{
+  "meta": {
+    "originalQuestion": "What code-structure refinements, ownership clarifications, dead-code removals, settings/schema cleanups, and runtime-semantics checks should judge-gym complete before the next decomp feature wave and full end-to-end pilot loop?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/codebase-spring-cleaning",
+    "finalPlanPath": "blueprint.md",
+    "focus": [
+      "package ownership and dead code",
+      "service/repo/module boundaries",
+      "engine-settings and shared type ownership",
+      "runtime semantics and partial-failure progression",
+      "cleanup required before next feature wave and pilot loop"
+    ]
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019d0da9-f530-7fc1-9559-7467758fe015",
+        "nickname": "Jason",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0da9-fcc6-7832-ac51-71c1dc5e21f9",
+        "nickname": "Einstein",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0daa-0954-7d60-b018-97453f49cd43",
+        "nickname": "Huygens",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0daa-14e4-7df3-8758-009d4439a12d",
+        "nickname": "Copernicus",
+        "role": "researcher"
+      }
+    ],
+    "falsifier": {
+      "id": "019d0dae-a92b-7f13-9700-5829070ea2d1",
+      "nickname": "Helmholtz",
+      "role": "falsifier"
+    },
+    "certaintyScorer": null,
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Package ownership and dead code after the Temporal cutover",
+      "scope": "Determine what code still lives in engine-convex or analysis that should move or be deleted now that provider execution and prompts are Temporal-owned.",
+      "assignedAgent": "019d0da9-f530-7fc1-9559-7467758fe015",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Service/repo/module naming and boundary cleanup",
+      "scope": "Audit naming and responsibility boundaries like experiments_data.ts and bundle_plan_logic.ts and recommend a cleaner layering model.",
+      "assignedAgent": "019d0da9-fcc6-7832-ac51-71c1dc5e21f9",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "engine-settings and shared schema/type ownership",
+      "scope": "Determine how to restructure engine-settings and reduce duplicated zod/type definitions across packages.",
+      "assignedAgent": "019d0daa-0954-7d60-b018-97453f49cd43",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "title": "Runtime semantics, partial-failure progression, and pre-pilot cleanup",
+      "scope": "Check whether partial true failures still progress correctly, find remaining dead queue-era assumptions, and identify cleanup or tests required before the next pilot/decomp work.",
+      "assignedAgent": "019d0daa-14e4-7df3-8758-009d4439a12d",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "knowledgeID": "k_001",
+        "path": "knowledge/k_001_package_ownership_and_dead_code.md",
+        "title": "Package ownership and dead code after Temporal cutover",
+        "confidence": 0.86
+      },
+      {
+        "knowledgeID": "k_002",
+        "path": "knowledge/k_002_service_repo_and_module_boundaries.md",
+        "title": "Service, repo, and module boundary drift",
+        "confidence": 0.83
+      },
+      {
+        "knowledgeID": "k_003",
+        "path": "knowledge/k_003_settings_and_shared_contract_ownership.md",
+        "title": "Settings and shared contract ownership",
+        "confidence": 0.8
+      },
+      {
+        "knowledgeID": "k_004",
+        "path": "knowledge/k_004_runtime_semantics_and_pre_pilot_cleanup.md",
+        "title": "Runtime semantics and pre-pilot cleanup",
+        "confidence": 0.9
+      }
+    ]
+  },
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A_01_001",
+      "path": "hypotheses/hyp_h_A_01_001_v1_remove_dead_provider_execution.json",
+      "confidence": 0.9
+    },
+    {
+      "microHypothesisID": "h_A_01_002",
+      "path": "hypotheses/hyp_h_A_01_002_v1_defer_run_prompt_migration.json",
+      "confidence": 0.74
+    },
+    {
+      "microHypothesisID": "h_A_02_001",
+      "path": "hypotheses/hyp_h_A_02_001_v1_normalize_repo_service_naming.json",
+      "confidence": 0.84
+    },
+    {
+      "microHypothesisID": "h_A_02_002",
+      "path": "hypotheses/hyp_h_A_02_002_v1_split_pool_and_bundle_ownership.json",
+      "confidence": 0.76
+    },
+    {
+      "microHypothesisID": "h_A_03_001",
+      "path": "hypotheses/hyp_h_A_03_001_v1_split_engine_settings_package.json",
+      "confidence": 0.78
+    },
+    {
+      "microHypothesisID": "h_A_03_002",
+      "path": "hypotheses/hyp_h_A_03_002_v1_centralize_runtime_validators.json",
+      "confidence": 0.74
+    },
+    {
+      "microHypothesisID": "h_A_04_001",
+      "path": "hypotheses/hyp_h_A_04_001_v1_fix_partial_failure_progression.json",
+      "confidence": 0.89
+    },
+    {
+      "microHypothesisID": "h_A_04_002",
+      "path": "hypotheses/hyp_h_A_04_002_v1_reduce_activity_scope_and_timeout_risk.json",
+      "confidence": 0.73
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "topic": "prompt_ownership_scope",
+      "summary": "Window prompt cleanup is straightforward, but full run prompt migration out of Convex is a larger refactor than a simple cleanup pass because prompt rendering is still entangled with Convex-owned run-domain logic."
+    },
+    {
+      "topic": "engine_settings_prompt_ownership",
+      "summary": "The strongest cleanup need is splitting engine-settings and deleting duplicate prompt copies; full prompt eviction from engine-settings can be deferred if a dedicated prompt submodule remains cleaner than immediate relocation."
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "S1",
+        "confidence": 0.9
+      },
+      {
+        "id": "S2",
+        "confidence": 0.82
+      },
+      {
+        "id": "S3",
+        "confidence": 0.78
+      },
+      {
+        "id": "S4",
+        "confidence": 0.74
+      },
+      {
+        "id": "S5",
+        "confidence": 0.86
+      },
+      {
+        "id": "S6",
+        "confidence": 0.67
+      },
+      {
+        "id": "S7",
+        "confidence": 0.74
+      },
+      {
+        "id": "S8",
+        "confidence": 0.72
+      }
+    ]
+  }
+}

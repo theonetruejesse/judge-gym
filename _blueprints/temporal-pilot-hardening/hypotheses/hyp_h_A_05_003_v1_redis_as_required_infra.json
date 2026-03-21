@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_05_003",
+  "areaOfAnalysisID": "A_05",
+  "statement": "Because quota enforcement is correctness-critical and now Redis-backed, Railway Redis should be treated as required infra for pilot mode; worker deployment should fail fast without REDIS_URL and should emit distinct telemetry for quota-denied vs quota-store-failed.",
+  "confidence": 0.7,
+  "rationale": "The worker uses Redis Lua scripts for atomic reservation/settlement. Redis outages will manifest as broad execution stalls unless they are explicitly surfaced and handled, and pilot-scale loops will amplify this risk.",
+  "keyAssumptions": [
+    "The quota layer is enabled for the pilot workload and not bypassed.",
+    "Redis connectivity issues are plausible under Railway free-tier variability or misconfiguration."
+  ],
+  "validationCriteria": [
+    "Worker startup fails clearly if REDIS_URL is missing in pilot mode.",
+    "Telemetry differentiates quota capacity denial from quota store errors."
+  ],
+  "critiquePoints": [
+    "If quota enforcement is disabled initially, this is not a blocker.",
+    "A simpler in-memory limiter per worker might be sufficient for early pilots."
+  ],
+  "questions": [
+    "Do we want a pilot-mode toggle that hard-requires Redis, or should Redis be required always?"
+  ]
+}
+

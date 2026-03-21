@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_04_003",
+  "areaOfAnalysisID": "A_04",
+  "statement": "For pilot-scale debugging, we need explicit cancel semantics plus a small set of bounded repair operations exposed to the agent: ensure_workflow_bound (start if missing), nudge_resume (resume if paused or re-trigger), and reproject_snapshot (force projection freshness). These should be first-class control actions rather than overloading a generic repair hook.",
+  "confidence": 0.73,
+  "rationale": "The current system lacks cancel and has a workflow-local repair hook stub, while Convex repair surfaces mix start/resume/nudge behavior implicitly. Pilot loops need explicit, auditable actions and consistent acknowledgements to avoid destructive resets as the only escape hatch.",
+  "keyAssumptions": [
+    "Temporal cancellation is acceptable as the primary stop mechanism (activities may still need to be idempotent/compensating on retry)",
+    "A small bounded repair surface is sufficient for most recoverable stalls in pilot hardening"
+  ],
+  "validationCriteria": [
+    "Cancel marks the Temporal execution as canceled and the Convex domain row as canceled, and stops further attempt writes",
+    "Repair operations are idempotent and safe to run multiple times from an agent loop",
+    "Reproject_snapshot reduces false positive stale_projection stuck signals without changing execution"
+  ],
+  "critiquePoints": [
+    "Some failures may require more invasive repair (e.g., stage-local replay); bounded repair might be insufficient in rare cases",
+    "Cancel semantics can be tricky if a stage activity is mid-flight; may need cancellation-aware activity code"
+  ],
+  "questions": [
+    "Which actions should be Updates vs Signals vs direct client cancellation, given current Convex -> Temporal call boundary?"
+  ]
+}
+

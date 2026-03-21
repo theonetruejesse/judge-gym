@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_01_003",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The vNext pilot loop should redefine safe-heal as a single bounded Temporal-native repair action (start/resume/nudge) that operates on workflow binding + projection freshness, and remove any remaining queue-era transport repair semantics from campaign-state interpretation.",
+  "confidence": 0.78,
+  "rationale": "The historical bug ledger and observability backlog were dominated by queue-era concerns (scheduler kickoff, transport requeue, batch/job lifecycle). The Temporal cutover changed the execution substrate, and the engine already exposes Temporal-native stuck reasons and a generic repair mutation. Keeping queue-era semantics in the pilot loop would create false diagnoses and drift the loop away from actual runtime truth.",
+  "keyAssumptions": [
+    "Convex remains a projection store and can safely trigger Temporal start/resume for processes.",
+    "A single bounded repair is sufficient to distinguish infra staleness from real engine bugs."
+  ],
+  "validationCriteria": [
+    "Campaign reports and stuck summaries use Temporal-native reason codes only.",
+    "Safe-heal executes at most one bounded repair per stuck process per iteration and otherwise stops for forensics.",
+    "Iteration snapshots capture workflow binding + last projection timestamps to support root-cause analysis."
+  ],
+  "critiquePoints": [
+    "Some failures may require multiple interventions (e.g., manual worker restart + resume), but those are infra operations and should not be modeled as repeated agentic heals."
+  ],
+  "questions": [
+    "Should the safe-heal action also attempt workflow cancellation for known-bad executions, or remain strictly start/resume-only?"
+  ]
+}
+

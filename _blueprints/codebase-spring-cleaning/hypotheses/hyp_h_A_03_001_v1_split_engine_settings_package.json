@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "engine-settings should be split into smaller modules so the root entry point becomes an actual EngineSettingsSchema/config surface, while contracts, env-key names, and optional prompt helpers live in dedicated submodules.",
+  "confidence": 0.8,
+  "rationale": "The current single-file index is a mixed contracts/settings/prompts module and is not acting like a settings package.",
+  "keyAssumptions": [
+    "Subpath exports or file-level imports are acceptable in this monorepo."
+  ],
+  "validationCriteria": [
+    "A root settings schema exists and is separate from process/quota contracts.",
+    "The root index no longer exports a kitchen sink of unrelated concepts."
+  ],
+  "critiquePoints": [
+    "Over-separating can make imports noisy if the package remains small."
+  ],
+  "questions": [
+    "Should prompt helpers remain in engine-settings under a dedicated submodule, or move fully into engine-temporal?"
+  ]
+}

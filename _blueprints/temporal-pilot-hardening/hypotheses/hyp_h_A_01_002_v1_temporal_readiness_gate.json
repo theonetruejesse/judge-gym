@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_01_002",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The vNext pilot loop should include a Temporal readiness gate (task-queue pollers present for judge-gym.run and judge-gym.window) and classify \"no workers polling\" as infra-stalled rather than an engine bug, to prevent false-positive stall forensics and unnecessary resets.",
+  "confidence": 0.72,
+  "rationale": "Temporal workflows can be started without any worker polling task queues; the UI even surfaces this explicitly. In an agentic debug loop, a missing worker should not be diagnosed as a scheduler/transport failure or parser bug. Adding a readiness check is low-cost and removes an entire class of confusing incidents.",
+  "keyAssumptions": [
+    "We can query Temporal for task queue poller presence (via CLI or API) from the agent/operator environment.",
+    "The worker topology is not guaranteed always-on in dev/test."
+  ],
+  "validationCriteria": [
+    "Campaign status output includes a readiness field for each required task queue.",
+    "If readiness is false, the loop does not attempt safe-heal, and reports infra-stalled with a clear remediation."
+  ],
+  "critiquePoints": [
+    "If Railway worker is always-on, this gate can be noisy for local-only contributors; it should be a 'warn' or 'force to bypass' rather than a hard block."
+  ],
+  "questions": [
+    "Where should readiness checks run: in Convex (server-side) or in the agent (client-side)?"
+  ]
+}
+

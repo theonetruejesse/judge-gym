@@ -1,0 +1,88 @@
+{
+  "challengeID": "nc_pass1_hypothesis_falsification",
+  "microHypothesisID": "spring_cleaning_hypotheses_v1",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "H1: Convex provider execution layer is removable because Temporal owns side effects",
+      "falsificationQueries": [
+        "Search for runtime call sites of provider_services actions (openAiChatAction, submitOpenAiBatchAction, pollOpenAiBatchAction).",
+        "Search for imports of platform/providers/provider_services.ts outside tests."
+      ],
+      "falsificationEvidenceFound": [
+        "Only references found are the implementation itself and a test mock loader in convex/tests/test.setup.ts."
+      ],
+      "falsificationAnalysis": "No non-test call sites exist for the provider execution actions in engine-convex. The model/type registry is still used widely, but the execution layer is effectively unreachable in the current runtime.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "H2: Prompt ownership should move from Convex to Temporal",
+      "falsificationQueries": [
+        "Identify where prompts are constructed for runs and windows.",
+        "Check if prompt rendering is entangled with Convex-only domain logic (randomizations, label mapping, evidence bundling) such that moving prompts would duplicate business logic."
+      ],
+      "falsificationEvidenceFound": [
+        "Run prompts are rendered in engine-convex worker API (domain/runs/run_prompts.ts + packages/worker.ts).",
+        "Temporal worker currently treats prompts as inputs (listRunStageInputs) and only executes provider calls.",
+        "Window prompts exist in both engine-settings and an unused Convex duplicate evidence_prompts.ts."
+      ],
+      "falsificationAnalysis": "Run prompt rendering is currently coupled to Convex-owned domain logic (randomizations, label mapping, evidence bundling) and moving it would require either duplicating that logic in the worker or expanding the worker API to return richer raw inputs. This makes the 'must move now' version of the hypothesis too strong, but the 'move eventually' version remains plausible.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "H3: engine-settings should be split into settings schema vs contracts/env-keys and stop owning prompts",
+      "falsificationQueries": [
+        "Check engine-settings consumers and whether prompts inside engine-settings reduce drift or increase it.",
+        "Check for duplicated prompt copies elsewhere."
+      ],
+      "falsificationEvidenceFound": [
+        "engine-settings is imported by engine-temporal workflows and activities and contains contracts + env keys + quota dims + prompt strings/builders.",
+        "Convex has a duplicate window prompt file evidence_prompts.ts that has no call sites."
+      ],
+      "falsificationAnalysis": "Splitting engine-settings into multiple modules is justified by mixed concerns, but 'stop owning prompts' is not strictly required. Keeping prompts in a dedicated submodule is defensible if the goal is to avoid drift and keep the worker's prompt dependencies centralized.",
+      "outcome": "Mixed"
+    },
+    {
+      "targetDescription": "H4: domain/runs boundaries are muddled and should be normalized",
+      "falsificationQueries": [
+        "Inspect experiments_data.ts and bundle_plan_logic.ts for role clarity.",
+        "Check whether the existing split already matches CQRS (read vs write) even if names are off."
+      ],
+      "falsificationEvidenceFound": [
+        "experiments_data.ts is query-only read aggregation but owns run summaries as well as experiment summaries.",
+        "bundle_plan_logic.ts is pure algorithm (no DB).",
+        "bundle_plan_repo.ts mixes persistence with higher-level matching and config derivation; experiments_repo.ts includes pool creation."
+      ],
+      "falsificationAnalysis": "The code already has a partial CQRS split (pure logic vs repo vs read aggregation), but file naming and ownership boundaries are inconsistent and misleading. The hypothesis holds, but the fix can likely be primarily rename/split, not a rewrite.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "H5: Run partial-failure progression is broken by design and needs explicit skip/fail propagation",
+      "falsificationQueries": [
+        "Check finalizeRunStage behavior on failed>0.",
+        "Check whether downstream targets can ever become non-pending if upstream prerequisites fail."
+      ],
+      "falsificationEvidenceFound": [
+        "finalizeRunStage marks run error and halts when failed>0 and hasPending is false.",
+        "listRunStageInputs skips ineligible entities but does not mark downstream dependents as failed/skipped, leaving pending work forever unless a terminal rule halts.",
+        "Temporal stage activities also halt if finalizeRunStage returns halt_process."
+      ],
+      "falsificationAnalysis": "The current design makes partial progression for runs impossible without adding explicit skip/fail semantics for downstream dependents. This is not a small bug; it is an execution/semantics mismatch.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "H6: Analysis export should remain engine-owned but be reframed/renamed",
+      "falsificationQueries": [
+        "Check where analysis export APIs are implemented and consumed.",
+        "Check whether moving analysis export fully into the Python package is feasible."
+      ],
+      "falsificationEvidenceFound": [
+        "Python analysis client calls Convex endpoints packages/analysis:*.",
+        "Those endpoints are backed by engine-convex domain/analysis/export.ts, which reads Convex DB tables directly."
+      ],
+      "falsificationAnalysis": "A Convex-resident export surface is required because the data lives in Convex and the Python client already consumes it. Renaming/reframing is a documentation/ownership clarity change; it should preserve the API surface or provide compatibility shims.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "PassedWithDeferrals"
+}
+

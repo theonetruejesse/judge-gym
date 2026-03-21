@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_02_002",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Pool persistence should be separated from experiments persistence, and bundle-plan persistence should be separated from bundle-plan derivation/matching logic.",
+  "confidence": 0.77,
+  "rationale": "Current repo modules mix aggregate CRUD with cross-aggregate orchestration, which makes ownership drift harder to detect.",
+  "keyAssumptions": [
+    "Pools and experiments are distinct enough aggregates to justify separate repos."
+  ],
+  "validationCriteria": [
+    "experiments_repo no longer creates pools.",
+    "bundle_plan_repo becomes persistence-focused while strategy derivation moves into a service/materializer layer."
+  ],
+  "critiquePoints": [
+    "Too much splitting can create indirection without enough value if the domain stays small."
+  ],
+  "questions": [
+    "Should fallback bundle-plan derivation in run_repo survive, or should run creation require an explicit resolved bundle source?"
+  ]
+}

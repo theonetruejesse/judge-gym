@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_03_001",
+  "areaOfAnalysisID": "A_03",
+  "statement": "For pilot-scale iteration, windows should represent only raw collection (search/scrape + insert immutable raw evidence), while semantic cleaning/neutralizing/abstracting should move to a separate pipeline layer that can be paused, resumed, and rerun without overwriting raw evidence.",
+  "confidence": 0.75,
+  "rationale": "The current schema couples raw content and a single semantic pipeline into one evidence row, which blocks multiple semantic variants and makes bundle/clustering inputs ambiguous. Splitting collection from semantic views keeps raw evidence stable and makes semantic transforms a reproducible, versioned, rerunnable process.",
+  "keyAssumptions": [
+    "The pilot loop will require rerunning semantic transforms under different models/prompt versions.",
+    "Raw evidence should be treated as immutable once collected for scientific comparability."
+  ],
+  "validationCriteria": [
+    "Schema can store at least two semantic pipelines for the same evidence_id without duplicating raw rows.",
+    "Window collection can complete and be marked terminal while semantic pipelines can progress independently."
+  ],
+  "critiquePoints": [
+    "Adds tables and codepaths; might be overkill if only one semantic view is ever needed."
+  ],
+  "questions": [
+    "Do we need window-level pause_after for raw collection, or is the collection stage already bounded enough?"
+  ]
+}
+

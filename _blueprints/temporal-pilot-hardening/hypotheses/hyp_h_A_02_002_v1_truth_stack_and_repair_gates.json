@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_02_002",
+  "areaOfAnalysisID": "A_02",
+  "statement": "Before running a full pilot debugging loop, repair actions must be gated on a 'truth stack' that confirms execution state with Temporal (Describe/Query/Update receipt) rather than only Convex `process_observability` freshness, otherwise the agent will perform incorrect repairs on stale mirrored state.",
+  "confidence": 0.72,
+  "rationale": "Convex `process_observability` is intentionally small and time-capped. It can lag or go stale when telemetry export fails or when the worker cannot project. Temporal is the execution owner, so any mutating repair command should confirm the real workflow execution state and then rely on the acknowledged update receipt as the ground truth for 'command applied'.",
+  "keyAssumptions": [
+    "The pilot loop will attempt bounded repairs automatically (resume/nudge/retry stage) at least occasionally.",
+    "Projection freshness and persisted stage counters can be stale or incomplete when the system is under load."
+  ],
+  "validationCriteria": [
+    "The repair pipeline always performs a Temporal read (describe or query) immediately before applying a repair update.",
+    "The repair pipeline treats the Temporal update receipt/result as authoritative, not the subsequent Convex projection row."
+  ],
+  "critiquePoints": [
+    "In a networking outage, Temporal truth reads may fail, forcing the agent to decide between no repair and speculative repair.",
+    "Some repairs are naturally Convex-side (e.g. data cleanup) and do not require Temporal truth checks."
+  ],
+  "questions": [
+    "Which repairs should be Temporal updates vs Convex mutations vs 'human required'?",
+    "Should the agent fall back to 'stale projection only' mode, or treat Temporal read failure as a hard stop?"
+  ]
+}
+

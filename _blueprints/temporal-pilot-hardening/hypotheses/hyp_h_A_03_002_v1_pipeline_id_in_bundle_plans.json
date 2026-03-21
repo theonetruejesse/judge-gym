@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_03_002",
+  "areaOfAnalysisID": "A_03",
+  "statement": "Bundle plans and semantic clustering should reference a semantic pipeline identity (pipeline id/tag + version) in addition to a semantic level (l1/l2/l3), so \"cluster on L2\" means \"cluster on L2 produced by pipeline P\".",
+  "confidence": 0.7,
+  "rationale": "Today bundle plans choose a source semantic level only, which becomes scientifically ambiguous once multiple semantic view variants exist. A pipeline identity makes bundle inputs reproducible and keeps corrected bundle comparisons comparable across model/prompt changes.",
+  "keyAssumptions": [
+    "Semantic clustering/bundling will be used as a first-class ablation surface in the next pilot matrix.",
+    "Multiple semantic pipelines per evidence set will exist (at least in debugging)."
+  ],
+  "validationCriteria": [
+    "Bundle plan materialization can deterministically select the same text surface given the same pipeline id + level.",
+    "Experiments can be rerun without silently changing bundle/clustering inputs."
+  ],
+  "critiquePoints": [
+    "If pipeline variants are rare, this is more schema and UI complexity than needed."
+  ],
+  "questions": [
+    "Should bundle plans store a direct view reference (evidence_view ids) or just pipeline id + level?"
+  ]
+}
+

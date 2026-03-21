@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_04_002",
+  "areaOfAnalysisID": "A_04",
+  "statement": "Window execution should support pause_after at least for the collect stage (pause_after='collect') before running L1-L3 transforms, because it provides a high-leverage gate for pilot debugging and makes it possible to validate evidence quality and scrape yield before paying transformation costs.",
+  "confidence": 0.7,
+  "rationale": "The current WindowWorkflow already supports pauseAfter in its workflow input, but Convex does not expose it. Adding a collect gate provides a simple 'stop after evidence ingest' checkpoint, which matches the run rubric-gate pattern and reduces wasted LLM spend when scrapes are empty, wrong-country, or dominated by boilerplate.",
+  "keyAssumptions": [
+    "The window pipeline will remain a single workflow for the next pilot iteration, or adding pause_after will not conflict with later decomposition work",
+    "Users/agents will actively inspect or validate evidence yield between collect and transforms during pilot hardening"
+  ],
+  "validationCriteria": [
+    "A window started with pause_after='collect' reliably pauses after evidence insertion and before any transform attempts are written",
+    "Resume continues transforms without duplicating collect inserts"
+  ],
+  "critiquePoints": [
+    "If the window pipeline is immediately decomposed into raw-collection and transform workflows, adding pause_after to the monolithic workflow may be short-lived work"
+  ],
+  "questions": [
+    "Should pause_after='collect' be enforced by workflow logic only, or mirrored into the windows domain row to match run semantics?"
+  ]
+}
+

@@ -1,0 +1,246 @@
+{
+  "meta": {
+    "originalQuestion": "What refactors and observability/control-plane changes are needed before judge-gym can run a full-scale Temporal-backed pilot debugging loop, including redesign of the old v3-finish-pass flow, end-to-end Temporal observability, improved start/stop functionality, and possible window/raw-process decomposition for evidence collection and semantic cleaning?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/temporal-pilot-hardening",
+    "finalPlanPath": "blueprint.md",
+    "focus": [
+      "pilot loop redesign",
+      "Temporal observability and agent operability",
+      "window/raw-process decomposition",
+      "start-stop-pause-repair semantics",
+      "remaining hardening before a full-scale pilot"
+    ]
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019d0d5a-5a24-7f33-a701-13ce079444ae",
+        "nickname": "Ohm",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0d5a-7a60-7493-80f9-946b61fd1ec4",
+        "nickname": "Galileo",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0d5a-9340-7483-a839-8164f27db88f",
+        "nickname": "Kuhn",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0d5a-aa34-7372-8b26-97c7130d9945",
+        "nickname": "Hubble",
+        "role": "researcher"
+      },
+      {
+        "id": "019d0d5a-c062-7fe3-8db1-de0aa8cc0edb",
+        "nickname": "Noether",
+        "role": "researcher"
+      }
+    ],
+    "falsifier": {
+      "id": "019d0d5d-3dd4-7eb1-a374-4a14cb349fe2",
+      "nickname": "Nietzsche",
+      "role": "falsifier"
+    },
+    "certaintyScorer": {
+      "id": "019d0d60-05f7-7a12-b7c0-8a5507757bee",
+      "nickname": "Epicurus",
+      "role": "certainty_scorer"
+    },
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Pilot loop redesign and experimental matrix shift",
+      "scope": "Reframe the old v3-finish-pass loop around the new Temporal-backed engine and the updated V3 ablation matrix.",
+      "assignedAgent": "019d0d5a-5a24-7f33-a701-13ce079444ae",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Observability and agent operability",
+      "scope": "Identify the observability/control surfaces needed for a Temporal-backed autonomous pilot debugging loop.",
+      "assignedAgent": "019d0d5a-7a60-7493-80f9-946b61fd1ec4",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "Window/raw-process decomposition and evidence pipeline design",
+      "scope": "Determine whether raw scraping, semantic cleaning, pooling, and clustering should be separated into finer-grained processes and tables.",
+      "assignedAgent": "019d0d5a-9340-7483-a839-8164f27db88f",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_04",
+      "title": "Lifecycle controls for runs and windows",
+      "scope": "Define the start, pause, resume, cancel, and repair semantics the engine needs before a full pilot loop.",
+      "assignedAgent": "019d0d5a-aa34-7372-8b26-97c7130d9945",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_05",
+      "title": "Pilot readiness and remaining hardening",
+      "scope": "Identify the test, setup, deployment, and remaining code-hardening work needed before running the full-scale pilot loop.",
+      "assignedAgent": "019d0d5a-c062-7fe3-8db1-de0aa8cc0edb",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "knowledgeID": "k_001",
+        "path": "knowledge/k_001_pilot_loop_and_matrix.md",
+        "title": "Pilot loop redesign and matrix drift",
+        "confidence": 0.86
+      },
+      {
+        "knowledgeID": "k_002",
+        "path": "knowledge/k_002_observability_and_agent_loop.md",
+        "title": "Observability and agent operability",
+        "confidence": 0.8
+      },
+      {
+        "knowledgeID": "k_003",
+        "path": "knowledge/k_003_window_process_decomposition.md",
+        "title": "Window process decomposition",
+        "confidence": 0.68
+      },
+      {
+        "knowledgeID": "k_004",
+        "path": "knowledge/k_004_control_and_lifecycle_semantics.md",
+        "title": "Control and lifecycle semantics",
+        "confidence": 0.82
+      },
+      {
+        "knowledgeID": "k_005",
+        "path": "knowledge/k_005_pilot_readiness_and_hardening.md",
+        "title": "Pilot readiness and hardening",
+        "confidence": 0.84
+      }
+    ]
+  },
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A_01_001",
+      "path": "hypotheses/hyp_h_A_01_001_v1_manifest_matrix_alignment.json",
+      "confidence": 0.74
+    },
+    {
+      "microHypothesisID": "h_A_01_002",
+      "path": "hypotheses/hyp_h_A_01_002_v1_temporal_readiness_gate.json",
+      "confidence": 0.62
+    },
+    {
+      "microHypothesisID": "h_A_01_003",
+      "path": "hypotheses/hyp_h_A_01_003_v1_temporal_native_safe_heal.json",
+      "confidence": 0.83
+    },
+    {
+      "microHypothesisID": "h_A_02_001",
+      "path": "hypotheses/hyp_h_A_02_001_v1_task_queue_health_surface.json",
+      "confidence": 0.73
+    },
+    {
+      "microHypothesisID": "h_A_02_002",
+      "path": "hypotheses/hyp_h_A_02_002_v1_truth_stack_and_repair_gates.json",
+      "confidence": 0.79
+    },
+    {
+      "microHypothesisID": "h_A_02_003",
+      "path": "hypotheses/hyp_h_A_02_003_v1_repair_bounded_operations.json",
+      "confidence": 0.71
+    },
+    {
+      "microHypothesisID": "h_A_03_001",
+      "path": "hypotheses/hyp_h_A_03_001_v1_split_collection_from_views.json",
+      "confidence": 0.66
+    },
+    {
+      "microHypothesisID": "h_A_03_002",
+      "path": "hypotheses/hyp_h_A_03_002_v1_pipeline_id_in_bundle_plans.json",
+      "confidence": 0.63
+    },
+    {
+      "microHypothesisID": "h_A_03_003",
+      "path": "hypotheses/hyp_h_A_03_003_v1_temporal_partitioning_strategy.json",
+      "confidence": 0.65
+    },
+    {
+      "microHypothesisID": "h_A_04_001",
+      "path": "hypotheses/hyp_h_A_04_001_v1_idempotent_control_updates.json",
+      "confidence": 0.77
+    },
+    {
+      "microHypothesisID": "h_A_04_002",
+      "path": "hypotheses/hyp_h_A_04_002_v1_window_pause_after_collect.json",
+      "confidence": 0.57
+    },
+    {
+      "microHypothesisID": "h_A_04_003",
+      "path": "hypotheses/hyp_h_A_04_003_v1_cancel_and_bounded_repair_ops.json",
+      "confidence": 0.76
+    },
+    {
+      "microHypothesisID": "h_A_05_001",
+      "path": "hypotheses/hyp_h_A_05_001_v1_pilot_smoke_and_task_queue_checks.json",
+      "confidence": 0.82
+    },
+    {
+      "microHypothesisID": "h_A_05_002",
+      "path": "hypotheses/hyp_h_A_05_002_v1_cohort_scoped_status_budget.json",
+      "confidence": 0.72
+    },
+    {
+      "microHypothesisID": "h_A_05_003",
+      "path": "hypotheses/hyp_h_A_05_003_v1_redis_as_required_infra.json",
+      "confidence": 0.78
+    }
+  ],
+  "hypothesisConflicts": [
+    {
+      "topic": "pilot_v0_scope",
+      "summary": "Window decomposition, window pause_after=collect, and immediate projection on every Update are directionally useful, but the null challenge reduced confidence that they are mandatory before a correctness-focused pilot loop."
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "id": "S1",
+        "confidence": 0.9
+      },
+      {
+        "id": "S2",
+        "confidence": 0.83
+      },
+      {
+        "id": "S3",
+        "confidence": 0.82
+      },
+      {
+        "id": "S4",
+        "confidence": 0.86
+      },
+      {
+        "id": "S5",
+        "confidence": 0.77
+      },
+      {
+        "id": "S6",
+        "confidence": 0.7
+      },
+      {
+        "id": "S7",
+        "confidence": 0.78
+      },
+      {
+        "id": "S8",
+        "confidence": 0.61
+      }
+    ]
+  }
+}

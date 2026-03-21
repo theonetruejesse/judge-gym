@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_03_003",
+  "areaOfAnalysisID": "A_03",
+  "statement": "Semantic pipeline execution should start as a single Temporal workflow that fans out activities over evidence ids, but must support partitioning (continue-as-new or child workflows per chunk) if windows/pipelines grow enough to pressure workflow history limits.",
+  "confidence": 0.65,
+  "rationale": "A single workflow is simpler and easier to operate for bounded windows. Temporal guidance indicates child workflows are primarily useful to partition event history and avoid size limits; the engine should only adopt that complexity when window/pipeline sizes demand it.",
+  "keyAssumptions": [
+    "Some pilot windows or future collections may exceed the comfortable history size for a single workflow.",
+    "We can chunk evidence ids deterministically without harming scientific comparability."
+  ],
+  "validationCriteria": [
+    "Pipeline workflow can complete for typical windows without child workflows.",
+    "If evidence count exceeds a threshold, the workflow can safely continue-as-new or spawn chunk workflows without losing idempotency guarantees."
+  ],
+  "critiquePoints": [
+    "Adds workflow-complexity pressure early if over-engineered; may be premature for pilot."
+  ],
+  "questions": [
+    "What is the evidence-count threshold where history pressure becomes real for our workload?"
+  ]
+}
+

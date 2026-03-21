@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The Convex provider execution layer can be deleted from the live engine path, leaving only shared provider/model registry definitions that are still used by schemas and worker APIs.",
+  "confidence": 0.82,
+  "rationale": "Temporal now owns provider side effects, and current repo evidence shows the Convex execution actions are not referenced outside tests.",
+  "keyAssumptions": [
+    "No hidden operator or deployment path still uses provider_services actions.",
+    "Provider/model registries remain needed for shared data validation."
+  ],
+  "validationCriteria": [
+    "Ripgrep confirms no non-test runtime call sites for provider execution actions.",
+    "Worker/runtime code continues to compile after separating the registry from execution code."
+  ],
+  "critiquePoints": [
+    "Deleting too aggressively could break undocumented maintenance flows."
+  ],
+  "questions": [
+    "Should the remaining registry move to engine-settings or stay in engine-convex as the data-plane source of truth?"
+  ]
+}

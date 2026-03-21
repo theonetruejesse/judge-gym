@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_A_05_001",
+  "areaOfAnalysisID": "A_05",
+  "statement": "Before running a full-scale Temporal-backed pilot loop, judge-gym needs an automated end-to-end smoke test (window + run) plus a non-UI worker polling check (task-queue pollers/reachability) so the agent can distinguish infra/polling failures from workflow/LLM failures quickly.",
+  "confidence": 0.78,
+  "rationale": "Current setup docs describe a manual smoke test and the most common Temporal failure mode during pilot operations is 'no workers polling task queue'. Automating both closes a large operator/agent blind spot and reduces iteration time.",
+  "keyAssumptions": [
+    "Temporal CLI or an equivalent programmatic API is available to the agent or CI environment.",
+    "The smoke test can run against a dev Convex deployment and the Railway Temporal cluster without requiring local Temporal."
+  ],
+  "validationCriteria": [
+    "A script can create a small window and observe evidence + stage progress without human UI inspection.",
+    "A script can report whether any workers are polling judge-gym task queues and fail fast if not."
+  ],
+  "critiquePoints": [
+    "Alternative is to implement worker heartbeats mirrored into Convex; this could avoid CLI but risks Convex becoming the liveness oracle again."
+  ],
+  "questions": [
+    "Do we want the polling check implemented via Temporal CLI, Temporal SDK calls, or a small Railway-side 'health' service?"
+  ]
+}
+

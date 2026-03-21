@@ -1,0 +1,23 @@
+{
+  "microHypothesisID": "h_A_05_002",
+  "areaOfAnalysisID": "A_05",
+  "statement": "The V3 control-plane status path must remain cohort-scoped and read-budgeted (avoid whole-table scans) to support full-matrix pilots; otherwise, campaign monitoring will regress into read-limit failures even if Temporal execution is correct.",
+  "confidence": 0.73,
+  "rationale": "The previous V3 pass accumulated explicit read-limit and hot-path issues during cohort status monitoring, and those failure modes are orthogonal to the execution substrate. Temporal does not automatically solve Convex read-budget constraints.",
+  "keyAssumptions": [
+    "The number of historical runs/windows/attempts will grow during pilot operation.",
+    "Cohort membership is known via experiment tags or pool bindings."
+  ],
+  "validationCriteria": [
+    "getV3CampaignStatus (or its successor) can compute cohort state with bounded reads under worst-case cohort load.",
+    "The API surface can return a stable stuck summary and scientific validity judgment without scanning non-cohort rows."
+  ],
+  "critiquePoints": [
+    "If the deployment remains small (few hundred runs), this might be premature.",
+    "If campaign operations move fully outside Convex, the read-budget problem could shift domains rather than disappear."
+  ],
+  "questions": [
+    "Should cohort status be computed from an incremental materialized view (Convex table), or computed on demand with strict take() caps and indexes?"
+  ]
+}
+

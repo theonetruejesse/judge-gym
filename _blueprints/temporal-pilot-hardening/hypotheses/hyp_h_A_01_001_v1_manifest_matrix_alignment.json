@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "Before re-running a V3-like pilot loop on the Temporal engine, the campaign manifest must be updated (or replaced with a vNext campaign id) to align experiment-tag selection and scientific-validity flags with the corrected bundle families c1-c7 described in docs/pilots/v3_gpt_ablations.md, rather than the legacy a6/a7 bundle tags.",
+  "confidence": 0.75,
+  "rationale": "The docs explicitly state the original a6/a7 bundle families were excluded from scientific interpretation and replaced by corrected c1-c7 follow-ups. The current manifest still targets the older 22-tag cohort including a6/a7 and does not include v3_1_c* tags, so a naive \"rerun V3\" loop will be scientifically misaligned and reporting will be confusing.",
+  "keyAssumptions": [
+    "The next pilot loop should match the current scientific story, not the legacy cohort."
+  ],
+  "validationCriteria": [
+    "A vNext manifest lists the intended experiment tags and expected experiment count that match the chosen matrix (legacy 22 or corrected 32 or a new subset).",
+    "Campaign status/reporting flags known-invalid families explicitly and does not silently treat them as valid comparisons."
+  ],
+  "critiquePoints": [
+    "If the objective is only to validate engine correctness, reusing the legacy 22-tag cohort may still be acceptable, as long as scientific interpretation is not conflated with runtime validation."
+  ],
+  "questions": [
+    "Do we want the next pilot loop to reproduce the legacy 22-tag cohort, the corrected 32-tag analysis slice, or a smaller new matrix?"
+  ]
+}
+

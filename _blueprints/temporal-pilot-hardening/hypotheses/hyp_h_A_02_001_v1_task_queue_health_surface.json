@@ -1,0 +1,24 @@
+{
+  "microHypothesisID": "h_A_02_001",
+  "areaOfAnalysisID": "A_02",
+  "statement": "A pilot-ready agent loop requires a first-class Temporal task queue health surface (pollers + backlog + backlog age) exposed through the same control plane as Convex process health, because Convex-only projection cannot answer 'are any workers polling this queue' or 'is backlog increasing' without Temporal-native data.",
+  "confidence": 0.78,
+  "rationale": "The current repo surfaces process binding and projection freshness, but not task queue pollers/backlog. Temporal documents `temporal task-queue describe` as the supported way to list active workers and backlog stats. Without this, the agent will misdiagnose 'stalled' as a workflow bug when it may just be worker outage or queue starvation.",
+  "keyAssumptions": [
+    "The agent loop will run in an environment that can reach the Temporal cluster (e.g. Railway worker or a dedicated ops service).",
+    "The desired monitoring loop needs to attribute stalls to worker polling/backlog vs workflow/activity logic."
+  ],
+  "validationCriteria": [
+    "Given a known-stalled workflow, the control plane can distinguish 'no workers polling task queue' vs 'workers polling but activity failing'.",
+    "The agent can identify queue backlog spikes without scanning Convex tables."
+  ],
+  "critiquePoints": [
+    "Task queue liveness is time-windowed and not a precise second-by-second oracle; it must be treated as a heuristic, not absolute truth.",
+    "Adding a new surface risks creating a new dependency path (Railway->Convex) that can itself fail."
+  ],
+  "questions": [
+    "Do we store queue health snapshots in Convex, or do we expose a live query endpoint the agent calls directly?",
+    "Do we need per-provider/per-task-queue sharding for the pilot, or only the two top-level queues?"
+  ]
+}
+
