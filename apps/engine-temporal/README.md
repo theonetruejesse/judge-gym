@@ -16,6 +16,7 @@ The current code is in a mixed state:
 - the window path is live and calls Firecrawl + OpenAI through `src/window/service.ts`, with Convex worker-API writes for workflow binding, evidence insertion, attempt logging, stage result application, and window-level error/completion projection
 - the run path is also live and calls OpenAI through `src/run/service.ts`, with Convex worker-API writes for workflow binding, attempt logging, parsed artifact application, and stage finalization
 - the worker now enforces provider/model token buckets through Redis before OpenAI chat calls, then settles those reservations after each attempt finishes
+- batch-backed stages emit process heartbeats during batch submit/poll/completion so long rubric windows do not look stale purely because projection updates only happen at stage boundaries
 
 Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. The repo root `.env.local` is the source of truth for local scripts, but the primary dev/runtime path is a Railway-hosted Temporal worker service.
 

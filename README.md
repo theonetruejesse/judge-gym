@@ -259,6 +259,8 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, and Firecrawl collection behavior now live in one shared package instead of being hardcoded across Convex and Temporal.
 - Temporal now routes eligible run/window LLM work through the OpenAI Batch API when the centralized batch policy allows it, then falls back to direct per-item retries only for failed batch items so retry semantics stay per-target instead of per-batch.
+- Batch-backed run/window stages now emit process heartbeats during batch submit/poll/completion so long rubric stages do not get misclassified as stalled purely because stage-boundary projections are sparse.
+- V3 campaign reset now backfills run ownership onto `sample_score_target_items` before deletion so large rubric-gate cohorts can be reset without hitting Convex read limits from per-target cleanup queries.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.

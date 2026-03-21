@@ -266,6 +266,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
   timeoutMs?: number;
+  onLifecycleEvent?: (event: {
+    phase: "submitted" | "polled" | "completed";
+    batchId: string;
+    status: string;
+  }) => Promise<void> | void;
 }): Promise<{
   batchId: string;
   outputFileId: string | null;
@@ -305,6 +310,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
     settings: args.settings,
     timeoutMs: args.timeoutMs,
   });
+  await args.onLifecycleEvent?.({
+    phase: "submitted",
+    batchId: batch.id,
+    status: batch.status,
+  });
 
   const startedAt = Date.now();
   let lifecycle = batch;
@@ -332,7 +342,17 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
 
     await sleep(args.settings.pollIntervalMs);
     lifecycle = await getBatch(batch.id, args.timeoutMs);
+    await args.onLifecycleEvent?.({
+      phase: "polled",
+      batchId: lifecycle.id,
+      status: lifecycle.status,
+    });
   }
+  await args.onLifecycleEvent?.({
+    phase: "completed",
+    batchId: lifecycle.id,
+    status: lifecycle.status,
+  });
 
   const succeeded: Array<BatchChatSuccess<TMetadata>> = [];
   const failed: Array<BatchChatFailure<TMetadata>> = [];

@@ -96,6 +96,14 @@ type AttemptFinishInput = {
   total_tokens?: number | null;
 };
 
+type ProcessHeartbeatInput = {
+  process_kind: "window" | "run";
+  process_id: string;
+  stage: string;
+  event_name?: string;
+  payload_json?: string | null;
+};
+
 type StageResultInput = {
   window_run_id: string;
   evidence_id: string;
@@ -148,6 +156,9 @@ const workerApi = {
   ),
   recordLlmAttemptFinish: makeFunctionReference<"mutation">(
     "packages/worker:recordLlmAttemptFinish",
+  ),
+  recordProcessHeartbeat: makeFunctionReference<"mutation">(
+    "packages/worker:recordProcessHeartbeat",
   ),
   applyWindowStageResult: makeFunctionReference<"mutation">(
     "packages/worker:applyWindowStageResult",
@@ -272,6 +283,10 @@ export class ConvexWorkerClient {
 
   recordLlmAttemptFinish(args: AttemptFinishInput) {
     return this.client.mutation(workerApi.recordLlmAttemptFinish, args);
+  }
+
+  recordProcessHeartbeat(args: ProcessHeartbeatInput) {
+    return this.client.mutation(workerApi.recordProcessHeartbeat, args);
   }
 
   applyWindowStageResult(args: StageResultInput) {

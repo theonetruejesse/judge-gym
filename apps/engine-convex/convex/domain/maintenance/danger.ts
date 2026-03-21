@@ -1,7 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import type { DataModel, Doc } from "../../_generated/dataModel";
-import { zInternalMutation } from "../../utils/custom_fns";
+import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 
 const tableNames = [
   "llm_prompt_templates",
@@ -116,14 +116,10 @@ async function listRunArtifacts(
   ]);
 
   const [scoreTargetItems, payloads] = await Promise.all([
-    Promise.all(
-      scoreTargets.map((target: Doc<"sample_score_targets">) =>
-        ctx.db
-          .query("sample_score_target_items")
-          .withIndex("by_score_target", (q: any) => q.eq("score_target_id", target._id))
-          .collect(),
-      ),
-    ).then((groups) => groups.flat()),
+    ctx.db
+      .query("sample_score_target_items")
+      .withIndex("by_run", (q: any) => q.eq("run_id", run_id))
+      .collect(),
     listRunPayloads(ctx, attempts),
   ]);
 
@@ -374,5 +370,48 @@ export const deleteExperimentRunData = zInternalMutation({
       runs_found: runs.length,
       deleted,
     };
+  },
+});
+
+export const listRunScoreTargetIds = zInternalQuery({
+  args: z.object({
+    run_id: zid("runs"),
+  }),
+  returns: z.array(zid("sample_score_targets")),
+  handler: async (ctx, args) => {
+    const targets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .collect();
+    return targets.map((target) => target._id);
+  },
+});
+
+export const backfillRunScoreTargetItemsBatch = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    score_target_ids: z.array(zid("sample_score_targets")).min(1).max(200),
+  }),
+  returns: z.object({
+    patched: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    let patched = 0;
+    for (const scoreTargetId of args.score_target_ids) {
+      const items = await ctx.db
+        .query("sample_score_target_items")
+        .withIndex("by_score_target", (q) => q.eq("score_target_id", scoreTargetId))
+        .collect();
+      for (const item of items) {
+        if (item.run_id === args.run_id) {
+          continue;
+        }
+        await ctx.db.patch(item._id, {
+          run_id: args.run_id,
+        });
+        patched += 1;
+      }
+    }
+    return { patched };
   },
 });

@@ -1,13 +1,16 @@
 {
   "campaign_id": "v3_finish_pass",
-  "phase": "preflight_clean",
-  "latest_iteration_id": null,
-  "last_successful_gate": null,
-  "current_blockers": [],
+  "phase": "forensics_captured",
+  "latest_iteration_id": "20260321T185657Z_rubric_gate_projection_staleness",
+  "last_successful_gate": "canary",
+  "current_blockers": [
+    "projection_staleness_false_stall_classification"
+  ],
   "reset_allowed": true,
   "notes": [
     "The active V3 finish pass now targets the corrected 32-experiment matrix described in docs/pilots/v3_gpt_ablations.md.",
     "Legacy March 2026 queue-era iterations under _campaigns/v3_finish_pass/iterations remain historical forensics only.",
-    "Use packages/codex:getV3CampaignSnapshot as the primary loop status surface; it combines cohort status with Temporal task-queue readiness."
+    "Use packages/codex:getV3CampaignSnapshot as the primary loop status surface; it combines cohort status with Temporal task-queue readiness.",
+    "2026-03-21 rubric-gate pass showed real run progress after a bounded reproject heal, but cohort classification remained stalled_recoverable because process_observability freshness lagged on a subset of runs."
   ]
 }

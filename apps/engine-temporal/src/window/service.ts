@@ -48,7 +48,9 @@ type WindowStageDependencies = {
     | "markWindowStageFailure"
     | "markWindowNoEvidence"
     | "markWindowProcessError"
-  >;
+  > & {
+    recordProcessHeartbeat?: ConvexWorkerClient["recordProcessHeartbeat"];
+  };
   searchWindowEvidence: typeof searchWindowEvidence;
   runOpenAiChat: typeof runOpenAiChat;
   runOpenAiBatchChat?: typeof runOpenAiBatchChat;
@@ -698,6 +700,20 @@ async function processWindowStageBatchChunk(
         })),
         settings: settings.llm.batching,
         timeoutMs: settings.llm.requestTimeoutMs,
+        onLifecycleEvent: async (event) => {
+          await deps.convex.recordProcessHeartbeat?.({
+            process_kind: "window",
+            process_id: args.windowRunId,
+            stage: args.stage,
+            event_name: `batch_${event.phase}`,
+            payload_json: JSON.stringify({
+              batch_id: event.batchId,
+              status: event.status,
+              model: args.windowModel,
+              item_count: startedAttempts.length,
+            }),
+          });
+        },
       });
 
       await deps.quota.settle({

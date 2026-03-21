@@ -40,7 +40,9 @@ type RunStageDependencies = {
     | "markRunStageFailure"
     | "finalizeRunStage"
     | "markRunProcessError"
-  >;
+  > & {
+    recordProcessHeartbeat?: ConvexWorkerClient["recordProcessHeartbeat"];
+  };
   runOpenAiChat: typeof runOpenAiChat;
   runOpenAiBatchChat?: typeof runOpenAiBatchChat;
   quota: QuotaStore;
@@ -527,6 +529,20 @@ async function processRunStageBatchChunk(
         })),
         settings: settings.llm.batching,
         timeoutMs: settings.llm.requestTimeoutMs,
+        onLifecycleEvent: async (event) => {
+          await deps.convex.recordProcessHeartbeat?.({
+            process_kind: "run",
+            process_id: args.runId,
+            stage: args.stage,
+            event_name: `batch_${event.phase}`,
+            payload_json: JSON.stringify({
+              batch_id: event.batchId,
+              status: event.status,
+              model: args.model,
+              item_count: startedAttempts.length,
+            }),
+          });
+        },
       });
 
       await deps.quota.settle({

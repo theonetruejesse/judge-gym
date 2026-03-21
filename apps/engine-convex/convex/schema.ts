@@ -90,6 +90,7 @@ export default defineSchema({
     .index("by_score_id", ["score_id"])
     .index("by_score_critic_id", ["score_critic_id"]),
   sample_score_target_items: defineTable(zodOutputToConvex(SampleScoreTargetItemsTableSchema))
+    .index("by_run", ["run_id"])
     .index("by_score_target", ["score_target_id"])
     .index("by_evidence", ["evidence_id"])
     .index("by_window", ["window_id"]),

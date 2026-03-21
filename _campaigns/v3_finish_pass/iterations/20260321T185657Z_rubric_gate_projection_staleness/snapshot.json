@@ -1,0 +1,716 @@
+{
+  "blocked_task_queues": [],
+  "effective_campaign_state": "stalled_recoverable",
+  "launch_ready": false,
+  "status": {
+    "campaign_state": "stalled_recoverable",
+    "counts": {
+      "canceled": 0,
+      "completed": 0,
+      "error": 0,
+      "latest_runs_with_failures": 0,
+      "paused": 0,
+      "queued": 0,
+      "running": 18,
+      "start": 0,
+      "total": 18,
+      "with_latest_run": 18
+    },
+    "experiments": [
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7b1dmfx6vrdh7m4nvb0zjvjh83bwke",
+        "experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222574.557,
+          "current_stage": "rubric_critic",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx77hr1ad9z404063n3yn7qn7n83am7k",
+          "stage_counts": {
+            "rubric_critic": 13,
+            "rubric_gen": 30,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh723mbrqfkre4r6jgc3c7fqm183ba9q",
+        "experiment_tag": "v3_1_c1_gpt_5_2_bundle_5_random_l2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222565.2878,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7dart5dxwm020v9jnw75kjh183b12k",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh77y70gj7hmqmchxah3rb5b8983a56g",
+        "experiment_tag": "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222569.555,
+          "current_stage": "rubric_critic",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx737y59n27qx0f6v1p31ag32h83b5tv",
+          "stage_counts": {
+            "rubric_critic": 22,
+            "rubric_gen": 30,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7eyawq412yw6aztngqtfh6zx83bych",
+        "experiment_tag": "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222567.3257,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx74dx23mqazhydq11t3xhp7rn83a7ey",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7b5sqg0zpmxxz627j306244s83bdcg",
+        "experiment_tag": "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222569.677,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx70nw8c2ey47nhh1nkygfwec183a6wh",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 22,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh70qz7zcgxhjj8z0bb3n40e9183b1ek",
+        "experiment_tag": "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222565.573,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7fff428mv6gyezrxk56hp95s83b7yk",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 4,
+          "total_for_latest_run": 120
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7csph5fcv9b0tna3e186br0983a8wz",
+        "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222564.6562,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx78907a7gxk5cy5wvkxzsd03x83bmdf",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 30,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7bqhrjjryygn56nmb29tb3rd83b9mc",
+        "experiment_tag": "v3_a1_gpt_4_1_abstain_true",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222563.549,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx76h8td4cefzyndxxmqmypfsh83b5me",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 28,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh798099k9tdj3dnxk747jbpm583bax8",
+        "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222565.3037,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx75hk48xs714bnfcyjcybwdy583bm0c",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 16,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7e5g6xqzcx5rkvb9gkj1max983a6xy",
+        "experiment_tag": "v3_a1_gpt_5_2_abstain_true",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119222563.4863,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7c56aftr38e4zbjx24898ekx83avm8",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh71fjxfpcdx0n0dk3dxaknch983bgz9",
+        "experiment_tag": "v3_a2_gpt_4_1_l3",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119223867.0977,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7a0hekr77eb5t1avkad5dsmh83ajpr",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 7,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7cgp38syty9j3rdr62c55psh83bkey",
+        "experiment_tag": "v3_a2_gpt_5_2_l3",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119223933.0688,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7aeajrn7t6epx6z16weqk3md83a44d",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh76qvvyj861bb5z31xqp9306x83a9h8",
+        "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119223969.3313,
+          "current_stage": "rubric_critic",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx70mm79kvn287s083f0pawkwh83att2",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 30,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh79aa6m4tpjqwhe1v5pjxw59d83b7tv",
+        "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119223979.239,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx705x4qdzp28s365m1a70cqed83b98y",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh74qam7zhvbs2kh3eske1pa1s83bvxf",
+        "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119224027.421,
+          "current_stage": "rubric_critic",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7cbqzvtgqc4m9cpvxbr9b7c183ban7",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 30,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh78gcqv2yvvq4kj90d95syycx83bjd3",
+        "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119224038.7256,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7fjrw6ce7h2fb5wqzqggsy9h83a8k3",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 7,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh70qvdrtnwvffjrgmnbf1648h83a97m",
+        "experiment_tag": "v3_d1_control_gpt_4_1",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119224558.6182,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx7dgfz91stkb8pcrwg0we092x83bs86",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      },
+      {
+        "evidence_selected_count": 20,
+        "experiment_id": "jh7c491gezspmm51kvsctb1rdd83avk6",
+        "experiment_tag": "v3_d1_control_gpt_5_2",
+        "latest_run": {
+          "completed_count": 0,
+          "created_at": 1774119224623.13,
+          "current_stage": "rubric_gen",
+          "has_failures": false,
+          "pause_after": "rubric_critic",
+          "run_id": "kx79fnvys5m7ax8tvyygtmd9ah83b2jw",
+          "stage_counts": {
+            "rubric_critic": 0,
+            "rubric_gen": 0,
+            "score_critic": 0,
+            "score_gen": 0
+          },
+          "status": "running",
+          "target_count": 30
+        },
+        "score_target_estimate": {
+          "per_sample": 20,
+          "total_for_latest_run": 600
+        },
+        "status": "running",
+        "total_count": 0,
+        "window_count": 1
+      }
+    ],
+    "launch_ready": false,
+    "missing_experiment_tags": [],
+    "scientific_validity": "scientifically_unknown",
+    "selected_experiment_count": 18,
+    "stage_distribution": [
+      {
+        "count": 14,
+        "stage": "rubric_gen"
+      },
+      {
+        "count": 4,
+        "stage": "rubric_critic"
+      },
+      {
+        "count": 0,
+        "stage": "score_gen"
+      },
+      {
+        "count": 0,
+        "stage": "score_critic"
+      }
+    ],
+    "stuck_items": [
+      {
+        "age_ms": 178606,
+        "custom_key": "run:kx7c56aftr38e4zbjx24898ekx83avm8:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx7c56aftr38e4zbjx24898ekx83avm8",
+        "entity_type": "run",
+        "process_id": "kx7c56aftr38e4zbjx24898ekx83avm8",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 199878,
+        "custom_key": "run:kx7dart5dxwm020v9jnw75kjh183b12k:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx7dart5dxwm020v9jnw75kjh183b12k",
+        "entity_type": "run",
+        "process_id": "kx7dart5dxwm020v9jnw75kjh183b12k",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 222352,
+        "custom_key": "run:kx7fff428mv6gyezrxk56hp95s83b7yk:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx7fff428mv6gyezrxk56hp95s83b7yk",
+        "entity_type": "run",
+        "process_id": "kx7fff428mv6gyezrxk56hp95s83b7yk",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 211471,
+        "custom_key": "run:kx74dx23mqazhydq11t3xhp7rn83a7ey:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx74dx23mqazhydq11t3xhp7rn83a7ey",
+        "entity_type": "run",
+        "process_id": "kx74dx23mqazhydq11t3xhp7rn83a7ey",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 162949,
+        "custom_key": "run:kx7aeajrn7t6epx6z16weqk3md83a44d:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx7aeajrn7t6epx6z16weqk3md83a44d",
+        "entity_type": "run",
+        "process_id": "kx7aeajrn7t6epx6z16weqk3md83a44d",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 146897,
+        "custom_key": "run:kx705x4qdzp28s365m1a70cqed83b98y:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx705x4qdzp28s365m1a70cqed83b98y",
+        "entity_type": "run",
+        "process_id": "kx705x4qdzp28s365m1a70cqed83b98y",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 141719,
+        "custom_key": "run:kx7dgfz91stkb8pcrwg0we092x83bs86:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx7dgfz91stkb8pcrwg0we092x83bs86",
+        "entity_type": "run",
+        "process_id": "kx7dgfz91stkb8pcrwg0we092x83bs86",
+        "process_type": "run",
+        "reason": "stale_projection"
+      },
+      {
+        "age_ms": 136271,
+        "custom_key": "run:kx79fnvys5m7ax8tvyygtmd9ah83b2jw:rubric_gen",
+        "details": "Temporal workflow is bound but no recent process projection was recorded",
+        "entity_id": "kx79fnvys5m7ax8tvyygtmd9ah83b2jw",
+        "entity_type": "run",
+        "process_id": "kx79fnvys5m7ax8tvyygtmd9ah83b2jw",
+        "process_type": "run",
+        "reason": "stale_projection"
+      }
+    ],
+    "stuck_summary": [
+      {
+        "count": 8,
+        "reason": "stale_projection"
+      }
+    ],
+    "workload_family_summary": [
+      {
+        "canceled": 0,
+        "completed": 0,
+        "error": 0,
+        "estimated_total_score_targets": 120,
+        "experiment_count": 6,
+        "paused": 0,
+        "queued": 0,
+        "running": 6,
+        "start": 0,
+        "with_failures": 0
+      },
+      {
+        "canceled": 0,
+        "completed": 0,
+        "error": 0,
+        "estimated_total_score_targets": 600,
+        "experiment_count": 12,
+        "paused": 0,
+        "queued": 0,
+        "running": 12,
+        "start": 0,
+        "with_failures": 0
+      }
+    ]
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "checked_at_ms": 1774119460457,
+    "namespace": "default",
+    "queues": [
+      {
+        "activity_poller_count": 1,
+        "activity_pollers": [
+          {
+            "identity": "1@c5e44f9b3a1c",
+            "last_access_time_ms": 1774119437929
+          }
+        ],
+        "approximate_backlog_age_ms": 0,
+        "approximate_backlog_count": 0,
+        "queue_kind": "run",
+        "ready": true,
+        "task_queue": "judge-gym.run",
+        "tasks_add_rate": 0,
+        "tasks_dispatch_rate": 0,
+        "workflow_poller_count": 1,
+        "workflow_pollers": [
+          {
+            "identity": "1@c5e44f9b3a1c",
+            "last_access_time_ms": 1774119407410
+          }
+        ]
+      },
+      {
+        "activity_poller_count": 1,
+        "activity_pollers": [
+          {
+            "identity": "1@c5e44f9b3a1c",
+            "last_access_time_ms": 1774119457085
+          }
+        ],
+        "approximate_backlog_age_ms": 0,
+        "approximate_backlog_count": 0,
+        "queue_kind": "window",
+        "ready": true,
+        "task_queue": "judge-gym.window",
+        "tasks_add_rate": 0,
+        "tasks_dispatch_rate": 0,
+        "workflow_poller_count": 1,
+        "workflow_pollers": [
+          {
+            "identity": "1@c5e44f9b3a1c",
+            "last_access_time_ms": 1774119443854
+          }
+        ]
+      }
+    ]
+  },
+  "temporal_readiness_error": null
+}

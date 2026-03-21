@@ -222,6 +222,7 @@ export const createRun = zInternalMutation({
 
         for (const [index, evidence] of bundle.entries()) {
           await ctx.db.insert("sample_score_target_items", {
+            run_id,
             score_target_id: scoreTargetId,
             evidence_id: evidence._id,
             window_id: evidence.window_id,

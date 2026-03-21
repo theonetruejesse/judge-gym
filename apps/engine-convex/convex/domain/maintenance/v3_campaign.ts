@@ -184,6 +184,17 @@ const V3_LAUNCH_MODES = {
   },
 } as const;
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0) {
+    return [items];
+  }
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 export const GetV3CampaignStatusReturnSchema = z.object({
   selected_experiment_count: z.number(),
   missing_experiment_tags: z.array(z.string()),
@@ -754,6 +765,27 @@ export const resetV3Campaign = zAction({
           action: "cancelled",
           reason: "dry_run",
         });
+      }
+    }
+
+    if (!args.dry_run) {
+      for (const run of runs) {
+        const scoreTargetIds: Id<"sample_score_targets">[] = await ctx.runQuery(
+          internal.domain.maintenance.danger.listRunScoreTargetIds,
+          {
+            run_id: run.run_id,
+          },
+        );
+        for (const batch of chunkArray(scoreTargetIds, 100)) {
+          if (batch.length === 0) continue;
+          await ctx.runMutation(
+            internal.domain.maintenance.danger.backfillRunScoreTargetItemsBatch,
+            {
+              run_id: run.run_id,
+              score_target_ids: batch,
+            },
+          );
+        }
       }
     }
 

@@ -1,6 +1,14 @@
 {
   "items": [
     {
+      "id": "v3_rubric_gate_projection_freshness_false_stall",
+      "created_at": "2026-03-21T18:56:57Z",
+      "status": "open",
+      "summary": "Rubric-gate runs can make real stage progress while packages/codex:getV3CampaignSnapshot degrades the cohort to stalled_recoverable because process_observability freshness lags behind long-running rubric stages.",
+      "needed_to_answer": "Is the rubric-gate cohort actually stalled, or are we misclassifying healthy long-running runs due to stale projection updates?",
+      "recommended_fix": "Refresh process_observability during long rubric stages and/or relax stale_projection classification when artifact counts or direct Temporal inspection show active progress."
+    },
+    {
       "id": "window_raw_semantic_split_followup",
       "created_at": "2026-03-20T00:00:00Z",
       "status": "open",

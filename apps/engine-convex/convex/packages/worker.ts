@@ -1151,6 +1151,29 @@ export const recordLlmAttemptFinish = zMutation({
   },
 });
 
+export const recordProcessHeartbeat = zMutation({
+  args: z.object({
+    process_kind: z.enum(["window", "run"]),
+    process_id: z.string(),
+    stage: z.string(),
+    event_name: z.string().default("stage_activity_heartbeat"),
+    payload_json: z.string().nullable().optional(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    await emitTraceEvent(ctx, {
+      trace_id: `${args.process_kind}:${args.process_id}`,
+      entity_type: args.process_kind,
+      entity_id: args.process_id,
+      event_name: args.event_name,
+      status: "running",
+      stage: args.stage,
+      payload_json: args.payload_json ?? null,
+    });
+    return null;
+  },
+});
+
 export const applyWindowStageResult = zMutation({
   args: z.object({
     window_run_id: zid("window_runs"),
