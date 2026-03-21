@@ -9,6 +9,7 @@ const tableNames = [
   "llm_attempt_payloads",
   "process_observability",
   "windows",
+  "window_runs",
   "evidences",
   "pools",
   "pool_evidences",
