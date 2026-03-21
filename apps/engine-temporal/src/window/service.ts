@@ -30,6 +30,8 @@ type SearchResult = {
 
 type WindowTransformStage = Exclude<WindowStageKey, "collect">;
 
+const FIRECRAWL_REQUEST_TIMEOUT_MS = 45_000;
+
 const WINDOW_STAGE_PROMPTS: Record<
   WindowTransformStage,
   {
@@ -79,8 +81,19 @@ export async function searchWindowEvidence(args: {
   end_date: string;
   limit: number;
 }): Promise<SearchResult[]> {
+  const startedAt = Date.now();
   const firecrawl = new Firecrawl({
     apiKey: requireFirecrawlKey(),
+    timeoutMs: FIRECRAWL_REQUEST_TIMEOUT_MS,
+    maxRetries: 1,
+  });
+
+  console.info("[window.collect] firecrawl search start", {
+    query: args.query,
+    country: args.country,
+    limit: args.limit,
+    start_date: args.start_date,
+    end_date: args.end_date,
   });
 
   const response = await firecrawl.search(
@@ -90,6 +103,7 @@ export async function searchWindowEvidence(args: {
       sources: ["news"],
       location: args.country,
       tbs: `cdr:1,cd_min:${toSearchDate(args.start_date)},cd_max:${toSearchDate(args.end_date)}`,
+      timeout: FIRECRAWL_REQUEST_TIMEOUT_MS,
       scrapeOptions: {
         formats: ["markdown"],
       },
@@ -97,6 +111,11 @@ export async function searchWindowEvidence(args: {
   );
 
   const items = response?.news ?? [];
+  console.info("[window.collect] firecrawl search finish", {
+    query: args.query,
+    returned: items.length,
+    elapsed_ms: Date.now() - startedAt,
+  });
   return items
     .filter(
       (item: any) =>
@@ -201,13 +220,25 @@ export async function runWindowStageActivityWithDeps(
   const window = await convex.getWindowExecutionContext(windowRunId);
 
   if (stage === "collect") {
-    const evidences = await deps.searchWindowEvidence({
-      query: window.query,
-      country: window.country,
-      start_date: window.start_date,
-      end_date: window.end_date,
-      limit: window.target_count,
-    });
+    let evidences: SearchResult[];
+    try {
+      evidences = await deps.searchWindowEvidence({
+        query: window.query,
+        country: window.country,
+        start_date: window.start_date,
+        end_date: window.end_date,
+        limit: window.target_count,
+      });
+    } catch (error) {
+      console.error("[window.collect] firecrawl search failed", {
+        window_run_id: windowRunId,
+        query: window.query,
+        country: window.country,
+        limit: window.target_count,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
     if (evidences.length === 0) {
       await convex.markWindowNoEvidence({
