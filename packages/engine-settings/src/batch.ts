@@ -13,6 +13,9 @@ export const BatchSettingsSchema = z.object({
   minBatchSize: z.number().int().min(1).default(30),
   maxBatchSize: z.number().int().min(1).default(500),
   maxConcurrentBatches: z.number().int().min(1).default(4),
+  completionWindow: z.enum(["24h"]).default("24h"),
+  pollIntervalMs: z.number().int().positive().default(5_000),
+  maxWaitMs: z.number().int().positive().default(30 * 60 * 1_000),
 });
 
 export type BatchSettings = z.infer<typeof BatchSettingsSchema>;

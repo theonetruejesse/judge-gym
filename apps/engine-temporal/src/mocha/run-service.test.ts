@@ -1,5 +1,6 @@
 import assert from "assert";
 import { describe, it } from "mocha";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import { runRunStageActivityWithDeps } from "../run/service";
 
 function buildQuota() {
@@ -180,6 +181,160 @@ describe("run stage service", function () {
       "finish",
       "mark-failure",
       "finalize",
+    ]);
+  });
+
+  it("routes eligible run work through the batch executor", async () => {
+    const calls: string[] = [];
+    let attemptCounter = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch",
+              experiment_id: "exp_batch",
+              workflow_id: "run:run_batch",
+              workflow_run_id: "workflow-run-batch",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart() {
+            attemptCounter += 1;
+            calls.push(`start:${attemptCounter}`);
+            return {
+              attempt_id: `attempt_${attemptCounter}`,
+            };
+          },
+          async recordLlmAttemptFinish({ attempt_id, status }) {
+            calls.push(`finish:${attempt_id}:${status}`);
+            return null;
+          },
+          async applyRunStageResult({ target_id }) {
+            calls.push(`apply:${target_id}`);
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat<TMetadata>() {
+          calls.push("batch");
+          return {
+            batchId: "batch_1",
+            outputFileId: "file_out",
+            errorFileId: null,
+            succeeded: [
+              {
+                customId: "attempt_1",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_1",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-1",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_1",
+                },
+                batchId: "batch_1",
+                assistant_output: "ok-1",
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+              },
+              {
+                customId: "attempt_2",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_2",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-2",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_2",
+                },
+                batchId: "batch_1",
+                assistant_output: "ok-2",
+                input_tokens: 11,
+                output_tokens: 6,
+                total_tokens: 17,
+              },
+            ],
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
+    assert.deepEqual(calls, [
+      "start:1",
+      "start:2",
+      "batch",
+      "apply:target_1",
+      "finish:attempt_1:succeeded",
+      "apply:target_2",
+      "finish:attempt_2:succeeded",
     ]);
   });
 

@@ -79,7 +79,7 @@ type AttemptStartInput = {
   stage: string;
   provider: string;
   model: string;
-  operation_type: "chat";
+  operation_type: "chat" | "batch";
   workflow_id: string;
   system_prompt: string;
   user_prompt: string;

@@ -12,3 +12,10 @@ It is the place for shared config schemas, defaults, queue names, provider-tier
 metadata, batch policy, retry budgets, Firecrawl collection policy, and env-key
 constants that both `engine-convex` and `engine-temporal` can consume without
 leaking runtime-specific code across the boundary.
+
+The developer-facing settings object lives in `src/index.ts` as
+`ENGINE_SETTINGS_CONFIG`. The intended workflow is:
+
+- change the config object there
+- let the package schemas validate it
+- keep runtime code reading from the resolved `DEFAULT_ENGINE_SETTINGS`

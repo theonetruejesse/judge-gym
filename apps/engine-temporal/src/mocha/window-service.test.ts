@@ -1,5 +1,6 @@
 import assert from "assert";
 import { describe, it } from "mocha";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import { runWindowStageActivityWithDeps } from "../window/service";
 
 function buildQuota() {
@@ -123,6 +124,124 @@ describe("window stage service", function () {
     assert.deepEqual(calls, ["start", "apply", "finish"]);
     assert.equal(result.haltProcess, undefined);
     assert.equal(result.summary, "window_stage:l1_cleaned:success=1:failed=0");
+  });
+
+  it("routes eligible window work through the batch executor", async () => {
+    const calls: string[] = [];
+    let attemptCounter = 0;
+
+    const result = await runWindowStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          getWindowExecutionContext: async () => buildWindowContext(),
+          insertWindowEvidenceBatch: async () => ({ inserted: 0, total: 0 }),
+          listWindowStageInputs: async () => [
+            {
+              evidence_id: "evidence_1",
+              title: "Evidence 1",
+              url: "https://example.com/1",
+              input: "raw article 1",
+            },
+            {
+              evidence_id: "evidence_2",
+              title: "Evidence 2",
+              url: "https://example.com/2",
+              input: "raw article 2",
+            },
+          ],
+          recordLlmAttemptStart: async () => {
+            attemptCounter += 1;
+            calls.push(`start:${attemptCounter}`);
+            return { attempt_id: `attempt_${attemptCounter}` };
+          },
+          recordLlmAttemptFinish: async ({ attempt_id, status }) => {
+            calls.push(`finish:${attempt_id}:${status}`);
+            return null;
+          },
+          applyWindowStageResult: async ({ evidence_id }) => {
+            calls.push(`apply:${evidence_id}`);
+            return null;
+          },
+          markWindowStageFailure: async () => {
+            throw new Error("markWindowStageFailure should not be called");
+          },
+          markWindowNoEvidence: async () => null,
+          markWindowProcessError: async () => null,
+        },
+        searchWindowEvidence: async () => [],
+        runOpenAiChat: async () => {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        runOpenAiBatchChat: async <TMetadata>() => ({
+          batchId: "batch_1",
+          outputFileId: "file_out",
+          errorFileId: null,
+          succeeded: [
+            {
+              customId: "attempt_1",
+              metadata: {
+                input: {
+                  evidence_id: "evidence_1",
+                  title: "Evidence 1",
+                  url: "https://example.com/1",
+                  input: "raw article 1",
+                },
+                userPrompt: "unused",
+                attemptId: "attempt_1",
+              },
+              batchId: "batch_1",
+              assistant_output: "cleaned article 1",
+              input_tokens: 10,
+              output_tokens: 4,
+              total_tokens: 14,
+            },
+            {
+              customId: "attempt_2",
+              metadata: {
+                input: {
+                  evidence_id: "evidence_2",
+                  title: "Evidence 2",
+                  url: "https://example.com/2",
+                  input: "raw article 2",
+                },
+                userPrompt: "unused",
+                attemptId: "attempt_2",
+              },
+              batchId: "batch_1",
+              assistant_output: "cleaned article 2",
+              input_tokens: 10,
+              output_tokens: 4,
+              total_tokens: 14,
+            },
+          ],
+          failed: [],
+        } as any),
+      },
+      "window_run_123",
+      "l1_cleaned",
+    );
+
+    assert.equal(result.summary, "window_stage:l1_cleaned:success=2:failed=0");
+    assert.deepEqual(calls, [
+      "start:1",
+      "start:2",
+      "apply:evidence_1",
+      "finish:attempt_1:succeeded",
+      "apply:evidence_2",
+      "finish:attempt_2:succeeded",
+    ]);
   });
 
   it("retries collection before inserting evidence", async () => {

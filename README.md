@@ -247,7 +247,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 **Provider configuration**
 
-- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, LLM retry budgets, Firecrawl collection timeouts/retries, queue names, and env-key constants.
+- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, queue names, and env-key constants.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
 - Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
@@ -257,7 +257,8 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 ## Known Gaps and Caveats
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
-- Engine settings currently resolve from code defaults in `packages/engine-settings`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, and Firecrawl collection behavior now live in one shared package instead of being hardcoded across Convex and Temporal.
+- Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, and Firecrawl collection behavior now live in one shared package instead of being hardcoded across Convex and Temporal.
+- Temporal now routes eligible run/window LLM work through the OpenAI Batch API when the centralized batch policy allows it, then falls back to direct per-item retries only for failed batch items so retry semantics stay per-target instead of per-batch.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.

@@ -60,12 +60,49 @@ export const EngineSettingsSchema = z.object({
 
 export type EngineSettings = z.infer<typeof EngineSettingsSchema>;
 
-export const DEFAULT_ENGINE_SETTINGS = EngineSettingsSchema.parse({});
+export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
+  temporal: {
+    retryDelayMs: 5_000,
+    taskQueues: {
+      run: TEMPORAL_TASK_QUEUES.run,
+      window: TEMPORAL_TASK_QUEUES.window,
+    },
+  },
+  quota: {
+    redisKeyPrefix: "judge-gym:quota",
+  },
+  providers: DEFAULT_PROVIDER_EXECUTION_SETTINGS,
+  llm: {
+    batching: {
+      mode: "auto",
+      minBatchSize: 30,
+      maxBatchSize: 500,
+      maxConcurrentBatches: 4,
+      completionWindow: "24h",
+      pollIntervalMs: 5_000,
+      maxWaitMs: 30 * 60 * 1_000,
+    },
+    retries: DEFAULT_RETRY_SETTINGS,
+  },
+  window: {
+    firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+  },
+  run: {
+    maxScoreTargetEstimatedInputTokens: 20_000,
+  },
+};
+
+export const DEFAULT_ENGINE_SETTINGS = EngineSettingsSchema.parse(
+  ENGINE_SETTINGS_CONFIG,
+);
 
 export function resolveEngineSettings(
   overrides?: Partial<EngineSettings>,
 ): EngineSettings {
-  return EngineSettingsSchema.parse(overrides ?? {});
+  return EngineSettingsSchema.parse({
+    ...ENGINE_SETTINGS_CONFIG,
+    ...(overrides ?? {}),
+  });
 }
 
 export * from "./batch";
