@@ -185,6 +185,27 @@ const V3_LAUNCH_MODES = {
   },
 } as const;
 
+const DEFAULT_V3_EXPERIMENT_TAGS = [
+  "v3_a1_gpt_4_1_abstain_false",
+  "v3_a1_gpt_4_1_abstain_true",
+  "v3_a1_gpt_5_2_abstain_false",
+  "v3_a1_gpt_5_2_abstain_true",
+  "v3_a2_gpt_4_1_l3",
+  "v3_a2_gpt_5_2_l3",
+  "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+  "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+  "v3_a5_gpt_4_1_illiberal_democracy",
+  "v3_a5_gpt_5_2_illiberal_democracy",
+  "v3_d1_control_gpt_4_1",
+  "v3_d1_control_gpt_5_2",
+  "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+  "v3_1_c1_gpt_5_2_bundle_5_random_l2",
+  "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2",
+  "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2",
+  "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2",
+  "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
+] as const;
+
 async function resetCohortRunDataViaMutation(
   ctx: {
     runMutation: (ref: any, args: unknown) => Promise<{
@@ -299,10 +320,24 @@ type RawListedExperiment = Omit<ListedExperiment, "score_target_estimate"> & {
   };
 };
 
-async function listAllExperiments(ctx: any): Promise<RawListedExperiment[]> {
+async function listAllExperiments(
+  ctx: any,
+  experimentTags?: string[],
+): Promise<RawListedExperiment[]> {
+  if (experimentTags && experimentTags.length > 0) {
+    return ctx.runQuery(
+      internal.domain.runs.experiments_service.listExperimentsByTags,
+      {
+        experiment_tags: experimentTags,
+      },
+    ) as Promise<RawListedExperiment[]>;
+  }
+
   return ctx.runQuery(
-    internal.domain.runs.experiments_service.listExperiments,
-    {},
+    internal.domain.runs.experiments_service.listExperimentsByTags,
+    {
+      experiment_tags: [...DEFAULT_V3_EXPERIMENT_TAGS],
+    },
   ) as Promise<RawListedExperiment[]>;
 }
 
@@ -319,9 +354,66 @@ function filterV3Experiments(
   }
 
   return {
-    selected: experiments.filter((experiment) => experiment.experiment_tag.startsWith("v3_")),
-    missingTags: [],
+    selected: experiments.filter((experiment) =>
+      DEFAULT_V3_EXPERIMENT_TAGS.includes(
+        experiment.experiment_tag as (typeof DEFAULT_V3_EXPERIMENT_TAGS)[number],
+      )
+    ),
+    missingTags: DEFAULT_V3_EXPERIMENT_TAGS.filter((tag) =>
+      !experiments.some((experiment) => experiment.experiment_tag === tag)
+    ),
   };
+}
+
+async function getCohortStuckItems(
+  ctx: any,
+  latestRuns: Array<NonNullable<ListedExperiment["latest_run"]>>,
+  olderThanMs: number,
+): Promise<z.infer<typeof CampaignStuckItemSchema>[]> {
+  const now = Date.now();
+  const activeStatuses = new Set<z.infer<typeof StateStatusSchema>>(["running", "paused", "queued", "start"]);
+  const items: z.infer<typeof CampaignStuckItemSchema>[] = [];
+
+  for (const run of latestRuns) {
+    if (!activeStatuses.has(run.status)) {
+      continue;
+    }
+
+    const observability = await ctx.db
+      .query("process_observability")
+      .withIndex("by_process", (q: any) => q.eq("process_type", "run").eq("process_id", String(run.run_id)))
+      .first();
+
+    if (observability == null) {
+      items.push({
+        process_type: "run",
+        process_id: String(run.run_id),
+        reason: "stale_projection",
+        entity_type: "run",
+        entity_id: String(run.run_id),
+        custom_key: `run:${run.run_id}:${run.current_stage}`,
+        age_ms: null,
+        details: "No process observability row exists for the bound run workflow",
+      });
+      continue;
+    }
+
+    const ageMs = Math.max(0, now - observability.updated_at_ms);
+    if (ageMs > olderThanMs) {
+      items.push({
+        process_type: "run",
+        process_id: String(run.run_id),
+        reason: "stale_projection",
+        entity_type: "run",
+        entity_id: String(run.run_id),
+        custom_key: `run:${run.run_id}:${run.current_stage}`,
+        age_ms: ageMs,
+        details: "Temporal workflow is bound but no recent process projection was recorded",
+      });
+    }
+  }
+
+  return items;
 }
 
 function estimateScoreTargetsPerSample(experiment: RawListedExperiment): number {
@@ -488,7 +580,7 @@ export const resetRuns = zMutation({
     totals: ResetExperimentRowSchema.shape.deleted,
   }),
   handler: async (ctx, args) => {
-    const experiments = await listAllExperiments(ctx);
+    const experiments = await listAllExperiments(ctx, args.experiment_tags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
     const cursor = args.cursor ?? 0;
     const page = filtered.selected.slice(cursor, cursor + args.max_experiments);
@@ -601,7 +693,7 @@ export const startV3Experiments = zMutation({
     rows: z.array(LaunchRowSchema),
   }),
   handler: async (ctx, args) => {
-    const experiments = await listAllExperiments(ctx);
+    const experiments = await listAllExperiments(ctx, args.experiment_tags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
     const rows = [] as z.infer<typeof LaunchRowSchema>[];
 
@@ -692,7 +784,7 @@ export const resumeV3Experiments = zMutation({
     rows: z.array(ResumeRowSchema),
   }),
   handler: async (ctx, args) => {
-    const experiments = await listAllExperiments(ctx);
+    const experiments = await listAllExperiments(ctx, args.experiment_tags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
     const rows = [] as z.infer<typeof ResumeRowSchema>[];
 
@@ -771,7 +863,7 @@ export const resetV3Campaign = zAction({
     ctx,
     args,
   ): Promise<z.infer<typeof CampaignResetResultSchema>> => {
-    const experiments = await listAllExperiments(ctx);
+    const experiments = await listAllExperiments(ctx, args.experiment_tags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
 
     const selectedExperimentIds = filtered.selected.map((experiment) => experiment.experiment_id);
@@ -909,7 +1001,7 @@ export const resetV3CampaignChunked = zAction({
     ctx,
     args,
   ): Promise<z.infer<typeof CampaignResetResultSchema>> => {
-    const experiments = await listAllExperiments(ctx);
+    const experiments = await listAllExperiments(ctx, args.experiment_tags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
 
     const selectedExperimentIds = filtered.selected.map((experiment) => experiment.experiment_id);
@@ -1082,7 +1174,11 @@ export const getV3CampaignStatus = zQuery({
   }),
   returns: GetV3CampaignStatusReturnSchema,
   handler: async (ctx, args): Promise<z.infer<typeof GetV3CampaignStatusReturnSchema>> => {
-    const experiments = await listAllExperiments(ctx);
+    const requestedTags =
+      args.experiment_tags && args.experiment_tags.length > 0
+        ? args.experiment_tags
+        : [...DEFAULT_V3_EXPERIMENT_TAGS];
+    const experiments = await listAllExperiments(ctx, requestedTags);
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
     const selectedRows = filtered.selected.map(toCampaignExperimentRow);
     const latestRunIds = new Set(
@@ -1091,16 +1187,15 @@ export const getV3CampaignStatus = zQuery({
         .filter((runId): runId is Id<"runs"> => runId != null)
         .map((runId) => String(runId)),
     );
+    const latestRuns = selectedRows
+      .map((experiment) => experiment.latest_run)
+      .filter((run): run is NonNullable<ListedExperiment["latest_run"]> => run != null);
 
-    const stuck: { items: z.infer<typeof CampaignStuckItemSchema>[] } = await ctx.runQuery(
-      api.packages.codex.getStuckWork,
-      {
-      older_than_ms: args.older_than_ms,
-      },
-    );
-    const stuckItems: z.infer<typeof CampaignStuckItemSchema>[] = stuck.items.filter((item: z.infer<typeof CampaignStuckItemSchema>) =>
-      item.process_type === "run" && latestRunIds.has(item.process_id)
-    );
+    const stuckItems = (await getCohortStuckItems(
+      ctx,
+      latestRuns,
+      args.older_than_ms,
+    )).filter((item) => latestRunIds.has(item.process_id));
 
     const stageCounts = new Map<z.infer<typeof RunStageSchema>, number>([
       ["rubric_gen", 0],

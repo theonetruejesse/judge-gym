@@ -1,0 +1,19 @@
+{
+  "challengeID": "nc_h_A_01_001",
+  "microHypothesisID": "h_A_01_001",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "The real blocker is worker readiness or queue health, not reconciliation/projection/status.",
+      "falsificationQueries": [
+        "Inspect live V3 campaign snapshot for task queue readiness and stuck items",
+        "Check whether runs are mostly unbound, paused, or errored"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_live_cohort_state.md"
+      ],
+      "falsificationAnalysis": "The live cohort snapshot showed both task queues healthy, all 18 runs active, and no current stuck items, which weakens a worker-readiness explanation.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}

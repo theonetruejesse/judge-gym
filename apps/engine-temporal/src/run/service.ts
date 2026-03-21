@@ -59,6 +59,14 @@ type RunAttemptFailureState = {
   maxAttempts: number;
 };
 
+type BatchExecutionRecord = {
+  batch_execution_id: string;
+  provider_batch_id: string | null;
+  status: string;
+  output_file_id?: string | null;
+  error_file_id?: string | null;
+};
+
 function getSettings(deps: RunStageDependencies) {
   return deps.settings ?? DEFAULT_ENGINE_SETTINGS;
 }
@@ -538,6 +546,7 @@ async function processRunStageBatchChunk(
 
   const failureStates = new Map<string, RunAttemptFailureState>();
   let successCount = 0;
+  let batchExecution: BatchExecutionRecord | null = null;
 
   const recordSharedBatchFailure = async (message: string) => {
     await Promise.all(
@@ -566,7 +575,7 @@ async function processRunStageBatchChunk(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
-      const batchExecution = deps.convex.ensureBatchExecution
+      batchExecution = deps.convex.ensureBatchExecution
         ? await deps.convex.ensureBatchExecution({
         batch_key: batchKey,
         process_kind: "run",
@@ -602,7 +611,7 @@ async function processRunStageBatchChunk(
           if (batchExecution) {
             await deps.convex.finalizeBatchExecution?.({
               batch_execution_id: batchExecution.batch_execution_id,
-              status: event.phase === "completed" ? "completed" : "submitted",
+              status: "submitted",
               provider_status: event.status,
             });
           }
@@ -637,7 +646,7 @@ async function processRunStageBatchChunk(
       if (batchExecution) {
         await deps.convex.finalizeBatchExecution?.({
           batch_execution_id: batchExecution.batch_execution_id,
-          status: "completed",
+          status: "submitted",
           provider_status: "completed",
           output_file_id: batch.outputFileId,
           error_file_id: batch.errorFileId,
@@ -748,6 +757,17 @@ async function processRunStageBatchChunk(
     } else {
       failureCount += 1;
     }
+  }
+
+  if (reservation.allowed && batchExecution) {
+    await deps.convex.finalizeBatchExecution?.({
+      batch_execution_id: batchExecution.batch_execution_id,
+      status: failureCount > 0 ? "failed" : "completed",
+      provider_status: "completed",
+      error_message: failureCount > 0
+        ? `${failureCount} target(s) still failed after reconciliation`
+        : null,
+    });
   }
 
   return { successCount, failureCount };

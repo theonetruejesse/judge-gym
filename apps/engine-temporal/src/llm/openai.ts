@@ -241,6 +241,30 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function runWithRetry<T>(args: {
+  attempts: number;
+  backoffMs: number;
+  fn: () => Promise<T>;
+}) {
+  let attempt = 0;
+  let lastError: unknown = null;
+
+  while (attempt < args.attempts) {
+    try {
+      return await args.fn();
+    } catch (error) {
+      lastError = error;
+      attempt += 1;
+      if (attempt >= args.attempts) {
+        break;
+      }
+      await sleep(args.backoffMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 function parseJsonl(text: string): Array<Record<string, unknown>> {
   return text
     .split("\n")
@@ -357,7 +381,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
     }
 
     await sleep(args.settings.pollIntervalMs);
-    lifecycle = await getBatch(batch.id, args.timeoutMs);
+    lifecycle = await runWithRetry({
+      attempts: args.settings.transportMaxAttempts,
+      backoffMs: args.settings.transportBackoffMs,
+      fn: () => getBatch(batch.id, args.timeoutMs),
+    });
     await args.onLifecycleEvent?.({
       phase: "polled",
       batchId: lifecycle.id,
@@ -375,7 +403,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
 
   if (lifecycle.output_file_id) {
     const outputLines = parseJsonl(
-      await getFileContent(lifecycle.output_file_id, args.timeoutMs),
+      await runWithRetry({
+        attempts: args.settings.transportMaxAttempts,
+        backoffMs: args.settings.transportBackoffMs,
+        fn: () => getFileContent(lifecycle.output_file_id!, args.timeoutMs),
+      }),
     );
     for (const line of outputLines) {
       const customId = line.custom_id;
@@ -429,7 +461,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
 
   if (lifecycle.error_file_id) {
     const errorLines = parseJsonl(
-      await getFileContent(lifecycle.error_file_id, args.timeoutMs),
+      await runWithRetry({
+        attempts: args.settings.transportMaxAttempts,
+        backoffMs: args.settings.transportBackoffMs,
+        fn: () => getFileContent(lifecycle.error_file_id!, args.timeoutMs),
+      }),
     );
     for (const line of errorLines) {
       const customId = line.custom_id;

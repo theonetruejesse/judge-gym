@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type Args = {
   command: "watch" | "stuck" | "heal" | "tail" | "analyze" | "inspect" | "control" | "queues" | "campaign";
@@ -22,6 +23,10 @@ type Args = {
   manifestPath: string;
 };
 
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..", "..");
+const ENGINE_CONVEX_ROOT = path.resolve(SCRIPT_DIR, "..");
+
 function parseArgs(argv: string[]): Args {
   const command = (argv[0] ?? "watch") as Args["command"];
   let processType: Args["processType"];
@@ -39,7 +44,7 @@ function parseArgs(argv: string[]): Args {
   let cursor: number | undefined;
   let maxActions: number | undefined;
   let apply = false;
-  let manifestPath = "_campaigns/v3_finish_pass/manifest.json";
+  let manifestPath = path.join(REPO_ROOT, "_campaigns", "v3_finish_pass", "manifest.json");
 
   for (let i = 1; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -180,18 +185,15 @@ function runConvex(functionName: string, payload: object) {
       functionName,
       functionName.replace("packages/codex:", "domain/maintenance/codex:"),
     ];
-  const nodeBin = process.env.NVM_BIN
-    ? path.join(process.env.NVM_BIN, "node")
-    : "node";
-  const convexCliBundle = path.join(process.cwd(), "node_modules", "convex", "dist", "cli.bundle.cjs");
+  const bunBin = process.execPath || "bun";
 
   let lastError: string | null = null;
   for (const candidate of candidates) {
-    const command = nodeBin;
-    const args = [convexCliBundle, "run", candidate, JSON.stringify(payload)];
+    const command = bunBin;
+    const args = ["x", "convex", "run", candidate, JSON.stringify(payload)];
 
     const result = spawnSync(command, args, {
-      cwd: process.cwd(),
+      cwd: ENGINE_CONVEX_ROOT,
       encoding: "utf8",
     });
 

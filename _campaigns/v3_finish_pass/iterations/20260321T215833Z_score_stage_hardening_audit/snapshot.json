@@ -1,0 +1,85 @@
+{
+  "captured_at": "2026-03-21T21:58:33Z",
+  "blocked_task_queues": [],
+  "effective_campaign_state": "healthy_progressing",
+  "launch_ready": false,
+  "status": {
+    "campaign_state": "healthy_progressing",
+    "counts": {
+      "canceled": 0,
+      "completed": 0,
+      "error": 0,
+      "latest_runs_with_failures": 0,
+      "paused": 0,
+      "queued": 0,
+      "running": 18,
+      "start": 0,
+      "total": 18,
+      "with_latest_run": 18
+    },
+    "scientific_validity": "scientifically_unknown",
+    "selected_experiment_count": 18,
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 0
+      },
+      {
+        "stage": "score_gen",
+        "count": 13
+      },
+      {
+        "stage": "score_critic",
+        "count": 5
+      }
+    ],
+    "stuck_summary": [],
+    "stuck_items": []
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "namespace": "default",
+    "queues": [
+      {
+        "task_queue": "judge-gym.run",
+        "queue_kind": "run",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1
+      },
+      {
+        "task_queue": "judge-gym.window",
+        "queue_kind": "window",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1
+      }
+    ]
+  },
+  "notable_runs": [
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+      "run_id": "kx7ektmkxy79f3vwhtf2wajwcx83afg8",
+      "current_stage": "score_gen",
+      "score_gen_count": 238
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "run_id": "kx79jwk02mqywppkv6457fqypn83araw",
+      "current_stage": "score_gen",
+      "score_gen_count": 199
+    },
+    {
+      "experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "run_id": "kx7e0hytwd91rpjvejmswde1hh83bdhm",
+      "current_stage": "score_critic",
+      "score_critic_count": 1
+    }
+  ]
+}

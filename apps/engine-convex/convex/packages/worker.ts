@@ -873,6 +873,7 @@ export const projectProcessState = zMutation({
         workflow_run_id: args.workflowRunId,
         status: mapExecutionStatus(args.executionStatus),
         current_stage: mapRunStage(args.stage),
+        pause_after: (args.pauseAfter as Doc<"runs">["pause_after"]) ?? null,
         last_error_message: args.lastErrorMessage ?? null,
       });
       await emitTraceEvent(ctx, {

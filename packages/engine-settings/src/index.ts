@@ -21,6 +21,8 @@ export const EngineSettingsSchema = z.object({
   temporal: z.object({
     retryDelayMs: z.number().int().positive().default(5_000),
     activityStartToCloseMs: z.number().int().positive().default(150 * 60 * 1_000),
+    projectionActivityStartToCloseMs: z.number().int().positive().default(5 * 60 * 1_000),
+    stageActivityMaxAttempts: z.number().int().min(1).default(3),
     taskQueues: z.object({
       run: z.string().min(1).default(TEMPORAL_TASK_QUEUES.run),
       window: z.string().min(1).default(TEMPORAL_TASK_QUEUES.window),
@@ -28,6 +30,8 @@ export const EngineSettingsSchema = z.object({
   }).default({
     retryDelayMs: 5_000,
     activityStartToCloseMs: 150 * 60 * 1_000,
+    projectionActivityStartToCloseMs: 5 * 60 * 1_000,
+    stageActivityMaxAttempts: 3,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -79,6 +83,8 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   temporal: {
     retryDelayMs: 5_000,
     activityStartToCloseMs: 150 * 60 * 1_000,
+    projectionActivityStartToCloseMs: 5 * 60 * 1_000,
+    stageActivityMaxAttempts: 3,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -96,6 +102,8 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
       maxConcurrentBatches: 4,
       completionWindow: "24h",
       requestTimeoutMs: 120_000,
+      transportMaxAttempts: 3,
+      transportBackoffMs: 2_000,
       pollIntervalMs: 5_000,
       maxWaitMs: 2 * 60 * 60 * 1_000,
     },

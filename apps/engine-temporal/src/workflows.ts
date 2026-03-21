@@ -39,7 +39,10 @@ const WINDOW_STAGES: WindowStageKey[] = [
 const {
   projectProcessState,
 } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "30 seconds",
+  startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.projectionActivityStartToCloseMs / 1000)} seconds`,
+  retry: {
+    maximumAttempts: 1,
+  },
 });
 
 const {
@@ -48,7 +51,7 @@ const {
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
   retry: {
-    maximumAttempts: 1,
+    maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
   },
 });
 

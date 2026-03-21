@@ -608,29 +608,36 @@ export const getV3CampaignSnapshot: ReturnType<typeof zAction> = zAction({
     ctx,
     args,
   ): Promise<z.infer<typeof V3CampaignSnapshotSchema>> => {
-    const status = await ctx.runQuery(api.packages.codex.getV3CampaignStatus, args);
-
-    let temporal_readiness: z.infer<typeof TemporalTaskQueueHealthSchema>;
-    let temporal_readiness_error: string | null = null;
-    try {
-      temporal_readiness = await ctx.runAction(
-        internal.domain.temporal.temporal_client.inspectTemporalTaskQueues,
-        {},
-      );
-    } catch (error) {
-      temporal_readiness_error =
-        error instanceof Error ? error.message : String(error);
-      temporal_readiness = {
-        namespace: "unknown",
-        checked_at_ms: Date.now(),
-        all_ready: false,
-        queues: [],
-      };
-    }
+    const [status, readinessResult] = await Promise.all([
+      ctx.runQuery(api.packages.codex.getV3CampaignStatus, args),
+      (async () => {
+        try {
+          const temporal_readiness = await ctx.runAction(
+            internal.domain.temporal.temporal_client.inspectTemporalTaskQueues,
+            {},
+          );
+          return {
+            temporal_readiness,
+            temporal_readiness_error: null as string | null,
+          };
+        } catch (error) {
+          return {
+            temporal_readiness: {
+              namespace: "unknown",
+              checked_at_ms: Date.now(),
+              all_ready: false,
+              queues: [],
+            } satisfies z.infer<typeof TemporalTaskQueueHealthSchema>,
+            temporal_readiness_error:
+              error instanceof Error ? error.message : String(error),
+          };
+        }
+      })(),
+    ]);
     return buildV3CampaignSnapshot({
       status,
-      temporal_readiness,
-      temporal_readiness_error,
+      temporal_readiness: readinessResult.temporal_readiness,
+      temporal_readiness_error: readinessResult.temporal_readiness_error,
     });
   },
 });

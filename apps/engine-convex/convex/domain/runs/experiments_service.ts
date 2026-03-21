@@ -125,94 +125,117 @@ async function collectWindowIdsForLinks(
   return windowIds;
 }
 
+async function buildExperimentRows(
+  ctx: QueryCtx,
+  experiments: Array<Doc<"experiments">>,
+) {
+  experiments.sort((a, b) => a.experiment_tag.localeCompare(b.experiment_tag));
+
+  const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
+  const results = [] as Array<{
+    experiment_id: Id<"experiments">;
+    experiment_tag: string;
+    bundle_plan_id?: Id<"bundle_plans">;
+    rubric_config: Doc<"experiments">["rubric_config"];
+    scoring_config: Doc<"experiments">["scoring_config"];
+    total_count: number;
+    evidence_selected_count: number;
+    window_count: number;
+    status: z.infer<typeof StateStatusSchema>;
+    latest_run?: {
+      run_id: Id<"runs">;
+      status: string;
+      current_stage: z.infer<typeof RunStageSchema>;
+      target_count: number;
+      completed_count: number;
+      pause_after: z.infer<typeof RunStageSchema> | null;
+      stage_counts: {
+        rubric_gen: number;
+        rubric_critic: number;
+        score_gen: number;
+        score_critic: number;
+      };
+      created_at: number;
+      has_failures: boolean;
+    };
+  }>;
+
+  for (const experiment of experiments) {
+    const experimentRuns = await ctx.db
+      .query("runs")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
+      .collect();
+    const links = await listEvidenceLinks(ctx, experiment.pool_id);
+    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+    const latest = latestRun(experimentRuns);
+    const totalCount = typeof experiment.total_count === "number"
+      ? experiment.total_count
+      : await getExperimentTotalCount(ctx, experiment._id);
+    let latestSamples: Array<Doc<"samples">> = [];
+    if (latest) {
+      latestSamples = await ctx.db
+        .query("samples")
+        .withIndex("by_run", (q) => q.eq("run_id", latest._id))
+        .collect();
+    }
+    const latestRunState = latest
+      ? await latestRunHasFailures(ctx, latest, latestSamples)
+      : { hasFailures: false, completedCount: 0 };
+
+    results.push({
+      experiment_id: experiment._id,
+      experiment_tag: experiment.experiment_tag,
+      bundle_plan_id: experiment.bundle_plan_id,
+      rubric_config: experiment.rubric_config,
+      scoring_config: experiment.scoring_config,
+      total_count: totalCount,
+      evidence_selected_count: links.length,
+      window_count: windowIds.size,
+      status: deriveExperimentStatus(experimentRuns),
+      latest_run: latest
+        ? {
+          run_id: latest._id,
+          status: latest.status,
+          current_stage: latest.current_stage,
+          target_count: latest.target_count,
+          completed_count: latestRunState.completedCount,
+          pause_after: latest.pause_after ?? null,
+          stage_counts: stageCountsFromArtifacts(latestSamples),
+          created_at: latest._creationTime,
+          has_failures: latestRunState.hasFailures,
+        }
+        : undefined,
+    });
+  }
+
+  return results;
+}
+
 export const listExperiments = zInternalQuery({
   args: z.object({}),
   handler: async (ctx) => {
     const experiments = await ctx.db.query("experiments").collect();
-    const runs = await ctx.db.query("runs").collect();
-    experiments.sort((a, b) => a.experiment_tag.localeCompare(b.experiment_tag));
+    return buildExperimentRows(ctx, experiments);
+  },
+});
 
-    const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
-    const runsByExperiment = new Map<Id<"experiments">, Doc<"runs">[]>();
-    for (const run of runs) {
-      const current = runsByExperiment.get(run.experiment_id) ?? [];
-      current.push(run);
-      runsByExperiment.set(run.experiment_id, current);
-    }
-    const results = [] as Array<{
-      experiment_id: Id<"experiments">;
-      experiment_tag: string;
-      bundle_plan_id?: Id<"bundle_plans">;
-      rubric_config: Doc<"experiments">["rubric_config"];
-      scoring_config: Doc<"experiments">["scoring_config"];
-      total_count: number;
-      evidence_selected_count: number;
-      window_count: number;
-      status: z.infer<typeof StateStatusSchema>;
-      latest_run?: {
-        run_id: Id<"runs">;
-        status: string;
-        current_stage: z.infer<typeof RunStageSchema>;
-        target_count: number;
-        completed_count: number;
-        pause_after: z.infer<typeof RunStageSchema> | null;
-        stage_counts: {
-          rubric_gen: number;
-          rubric_critic: number;
-          score_gen: number;
-          score_critic: number;
-        };
-        created_at: number;
-        has_failures: boolean;
-      };
-    }>;
+export const listExperimentsByTags = zInternalQuery({
+  args: z.object({
+    experiment_tags: z.array(z.string()).min(1),
+  }),
+  handler: async (ctx, args) => {
+    const experiments = (
+      await Promise.all(
+        args.experiment_tags.map((experimentTag) =>
+          ctx.db
+            .query("experiments")
+            .withIndex("by_experiment_tag", (q) => q.eq("experiment_tag", experimentTag))
+            .first()
+        ),
+      )
+    ).filter((experiment): experiment is Doc<"experiments"> => experiment != null);
 
-    for (const experiment of experiments) {
-      const experimentRuns = runsByExperiment.get(experiment._id) ?? [];
-      const links = await listEvidenceLinks(ctx, experiment.pool_id);
-      const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
-      const latest = latestRun(experimentRuns);
-      const totalCount = typeof experiment.total_count === "number"
-        ? experiment.total_count
-        : await getExperimentTotalCount(ctx, experiment._id);
-      let latestSamples: Array<Doc<"samples">> = [];
-      if (latest) {
-        latestSamples = await ctx.db
-          .query("samples")
-          .withIndex("by_run", (q) => q.eq("run_id", latest._id))
-          .collect();
-      }
-      const latestRunState = latest
-        ? await latestRunHasFailures(ctx, latest, latestSamples)
-        : { hasFailures: false, completedCount: 0 };
-
-      results.push({
-        experiment_id: experiment._id,
-        experiment_tag: experiment.experiment_tag,
-        bundle_plan_id: experiment.bundle_plan_id,
-        rubric_config: experiment.rubric_config,
-        scoring_config: experiment.scoring_config,
-        total_count: totalCount,
-        evidence_selected_count: links.length,
-        window_count: windowIds.size,
-        status: deriveExperimentStatus(experimentRuns),
-        latest_run: latest
-          ? {
-            run_id: latest._id,
-            status: latest.status,
-            current_stage: latest.current_stage,
-            target_count: latest.target_count,
-            completed_count: latestRunState.completedCount,
-            pause_after: latest.pause_after ?? null,
-            stage_counts: stageCountsFromArtifacts(latestSamples),
-            created_at: latest._creationTime,
-            has_failures: latestRunState.hasFailures,
-          }
-          : undefined,
-      });
-    }
-
-    return results;
+    return buildExperimentRows(ctx, experiments);
   },
 });
 

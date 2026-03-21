@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "originalQuestion": "What is the current health of the live V3 loop, what failures are still credible before the next reset, and what repo-side hardening should land now without wiping or relaunching the cohort?",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-loop-hardening-audit",
+    "finalPlanPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-loop-hardening-audit/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "areaID": "A_01",
+        "agentID": "019d0d60-05f7-7a12-b7c0-8a5507757bee",
+        "nickname": "Epicurus"
+      },
+      {
+        "areaID": "A_02",
+        "agentID": "019d0da9-f530-7fc1-9559-7467758fe015",
+        "nickname": "Jason"
+      },
+      {
+        "areaID": "A_03",
+        "agentID": "019d0da9-fcc6-7832-ac51-71c1dc5e21f9",
+        "nickname": "Einstein"
+      }
+    ],
+    "falsifier": {
+      "agentID": "main",
+      "nickname": "main"
+    },
+    "certaintyScorer": {
+      "agentID": "main",
+      "nickname": "main"
+    },
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_01",
+      "title": "Live cohort state",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_02",
+      "title": "Batch apply brittleness",
+      "status": "completed"
+    },
+    {
+      "areaOfAnalysisID": "A_03",
+      "title": "Projection and status path",
+      "status": "completed"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      {
+        "knowledgeID": "k_001",
+        "path": "knowledge/k_001_live_cohort_state.md",
+        "confidence": 0.87
+      },
+      {
+        "knowledgeID": "k_002",
+        "path": "knowledge/k_002_batch_apply_brittleness.md",
+        "confidence": 0.81
+      },
+      {
+        "knowledgeID": "k_003",
+        "path": "knowledge/k_003_projection_and_status_path.md",
+        "confidence": 0.84
+      }
+    ]
+  },
+  "microHypotheses": [
+    {
+      "microHypothesisID": "h_A_01_001",
+      "path": "hypotheses/hyp_A_01_v1_batch_projection_status.json",
+      "confidence": 0.81
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md"
+  }
+}

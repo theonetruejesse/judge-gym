@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_A_01_001",
+  "areaOfAnalysisID": "A_01",
+  "statement": "The remaining live-loop instability before the next reset is dominated by batch apply brittleness, projection timeout pressure, and overly broad cohort status reads rather than worker readiness or missing workflow bindings.",
+  "confidence": 0.81,
+  "rationale": "The live cohort remained healthy-progressing with no stuck items while score persistence lagged provider-complete batches. That points to reconciliation/projection/read-path weakness, not a dead worker or broken workflow start path.",
+  "keyAssumptions": [
+    "The captured campaign snapshot accurately reflects the live cohort at audit time.",
+    "The observed score lag is caused by post-provider apply/reconciliation behavior rather than a different unseen provider failure."
+  ],
+  "validationCriteria": [
+    "Cohort snapshot remains healthy-progressing during the audit window.",
+    "Repo-side fixes improve retries/timeouts/status reads without requiring another architectural change."
+  ],
+  "critiquePoints": [
+    "A future failure could still expose a missing durable reconciler after provider completion."
+  ],
+  "questions": [
+    "Should a dedicated chunk-level batch reconciliation debug surface land before the next reset?"
+  ]
+}

@@ -11,6 +11,31 @@
     "observability_blind_spot",
     "spec_or_manifest_mismatch"
   ],
-  "entries": [],
+  "entries": [
+    {
+      "id": "v3_20260321_batch_transport_apply_brittleness",
+      "status": "fixed_in_repo",
+      "taxonomy": "artifact_apply",
+      "created_at": "2026-03-21T21:58:33Z",
+      "summary": "Completed provider batches could still strand score persistence because stage activities had no retries after provider completion and batch file polling had no transport retry budget.",
+      "fix_summary": "Added bounded stage retries, explicit OpenAI batch/file transport retries, and persisted batch lifecycle ownership so completed batches can resume polling/apply instead of relying on a single fragile attempt."
+    },
+    {
+      "id": "v3_20260321_projection_activity_timeout_pressure",
+      "status": "fixed_in_repo",
+      "taxonomy": "projection_staleness",
+      "created_at": "2026-03-21T21:58:33Z",
+      "summary": "The separate projectProcessState activity timed out too aggressively under score-stage load, producing late completion warnings and stale campaign health reads.",
+      "fix_summary": "Projection timeout is now settings-driven with a higher default budget, while keeping projection retries at a single attempt to avoid duplicate projection churn."
+    },
+    {
+      "id": "v3_20260321_campaign_snapshot_global_scan",
+      "status": "fixed_in_repo",
+      "taxonomy": "observability_blind_spot",
+      "created_at": "2026-03-21T21:58:33Z",
+      "summary": "V3 cohort status still depended on broad experiment/run scans and global stuck-work reads, which timed out during large score stages.",
+      "fix_summary": "Campaign status now scopes experiment listing to the explicit manifest tag set and derives cohort stuckness from process_observability for the latest run per experiment."
+    }
+  ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."
 }

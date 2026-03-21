@@ -15,6 +15,8 @@ export const BatchSettingsSchema = z.object({
   maxConcurrentBatches: z.number().int().min(1).default(4),
   completionWindow: z.enum(["24h"]).default("24h"),
   requestTimeoutMs: z.number().int().positive().default(120_000),
+  transportMaxAttempts: z.number().int().min(1).default(3),
+  transportBackoffMs: z.number().int().min(0).default(2_000),
   pollIntervalMs: z.number().int().positive().default(5_000),
   maxWaitMs: z.number().int().positive().default(2 * 60 * 60 * 1_000),
 });

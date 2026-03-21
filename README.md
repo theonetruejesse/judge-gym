@@ -94,6 +94,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
 - The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
 - The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
+- V3 campaign status reads are now cohort-scoped by explicit manifest tags instead of global experiment/run scans, so `packages/codex:getV3CampaignSnapshot` stays usable during large score stages.
+- Temporal stage activities now use bounded retries from `packages/engine-settings`, while projection updates keep a separate longer timeout budget and single-attempt semantics to avoid duplicate projection churn.
+- OpenAI batch execution now uses explicit transport retries for batch/file polling, and batch chunks persist provider batch lifecycle through `llm_batch_executions` so batch-backed stages can resume polling instead of blindly resubmitting on every replay.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
@@ -123,7 +126,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `apps/engine-temporal` | Temporal worker app with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
 | `apps/lab` | Next.js app (UI for evidence windows + experiments) |
 | `apps/analysis` | Python client for pulling experiment data from Convex |
-| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch/retry policy, Firecrawl collection policy, Temporal activity budgets, queue names, env-key names, and workflow/quota schemas |
+| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch routing policy, retry budgets, Firecrawl collection policy, Temporal activity budgets, queue names, env-key names, and workflow/quota schemas |
 | `packages/engine-prompts` | Shared prompt/config package for run/window prompt builders, display/randomization helpers, and experiment-config schemas |
 | `paper.md` | Research framing |
 
