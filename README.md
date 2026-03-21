@@ -122,7 +122,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `apps/engine-temporal` | Temporal worker app with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
 | `apps/lab` | Next.js app (UI for evidence windows + experiments) |
 | `apps/analysis` | Python client for pulling experiment data from Convex |
-| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch/retry policy, Firecrawl collection policy, queue names, env-key names, and workflow/quota schemas |
+| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch/retry policy, Firecrawl collection policy, Temporal activity budgets, queue names, env-key names, and workflow/quota schemas |
 | `packages/engine-prompts` | Shared prompt/config package for run/window prompt builders, display/randomization helpers, and experiment-config schemas |
 | `paper.md` | Research framing |
 
@@ -247,7 +247,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 **Provider configuration**
 
-- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, queue names, and env-key constants.
+- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, Temporal activity timeout budgets, queue names, and env-key constants.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
 - Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.

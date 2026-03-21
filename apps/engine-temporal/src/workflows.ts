@@ -20,6 +20,7 @@ import type {
   WindowStageKey,
   WindowWorkflowInput,
 } from "@judge-gym/engine-settings/process";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import type * as activities from "./activities";
 
 const RUN_STAGES: RunStageKey[] = [
@@ -40,7 +41,7 @@ const {
   runRunStage,
   runWindowStage,
 } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "5 minutes",
+  startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
 });
 
 export const getProcessSnapshotQuery =

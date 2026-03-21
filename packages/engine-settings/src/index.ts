@@ -20,12 +20,14 @@ import { TEMPORAL_TASK_QUEUES } from "./temporal";
 export const EngineSettingsSchema = z.object({
   temporal: z.object({
     retryDelayMs: z.number().int().positive().default(5_000),
+    activityStartToCloseMs: z.number().int().positive().default(60 * 60 * 1_000),
     taskQueues: z.object({
       run: z.string().min(1).default(TEMPORAL_TASK_QUEUES.run),
       window: z.string().min(1).default(TEMPORAL_TASK_QUEUES.window),
     }),
   }).default({
     retryDelayMs: 5_000,
+    activityStartToCloseMs: 60 * 60 * 1_000,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -75,6 +77,7 @@ export type EngineSettings = z.infer<typeof EngineSettingsSchema>;
 export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   temporal: {
     retryDelayMs: 5_000,
+    activityStartToCloseMs: 60 * 60 * 1_000,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
