@@ -28,7 +28,7 @@ That script:
 - checks the required CLIs
 - creates `.env.local` from `.env.example` if needed
 - runs `bun install`
-- runs `uv sync` in `packages/analysis`
+- runs `uv sync` in `apps/analysis`
 
 ## 2. Fill in `.env.local`
 
@@ -158,8 +158,8 @@ bun dev
 
 This starts only:
 
-- `packages/engine-convex`
-- `packages/lab`
+- `apps/engine-convex`
+- `apps/lab`
 
 The Temporal cluster and the Temporal worker should already be running on Railway.
 

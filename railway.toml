@@ -10,7 +10,8 @@ watchPatterns = [
   "tsconfig.json",
   "bunfig.toml",
   "packages/engine-settings/**",
-  "packages/engine-temporal/**",
+  "packages/engine-prompts/**",
+  "apps/engine-temporal/**",
 ]
 
 [deploy]

@@ -1,0 +1,31 @@
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "version": "5.6.3",
+  "compilerOptions": {
+    "lib": [
+      "es2021"
+    ],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@judge-gym/engine-settings": [
+        "../../packages/engine-settings/src/index.ts"
+      ],
+      "@judge-gym/engine-settings/*": [
+        "../../packages/engine-settings/src/*.ts"
+      ],
+      "@judge-gym/engine-prompts": [
+        "../../packages/engine-prompts/src/index.ts"
+      ],
+      "@judge-gym/engine-prompts/*": [
+        "../../packages/engine-prompts/src/*.ts"
+      ]
+    },
+    "outDir": "./lib"
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

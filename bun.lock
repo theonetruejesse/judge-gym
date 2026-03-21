@@ -10,7 +10,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "packages/engine-convex": {
+    "apps/engine-convex": {
       "name": "@judge-gym/engine-convex",
       "version": "0.1.0",
       "dependencies": {
@@ -18,6 +18,7 @@
         "@ai-sdk/google": "^3.0.20",
         "@ai-sdk/openai": "^3.0.24",
         "@ai-sdk/xai": "^3.0.46",
+        "@judge-gym/engine-prompts": "workspace:*",
         "@judge-gym/engine-settings": "workspace:*",
         "@mendable/firecrawl-js": "^4.12.0",
         "@openrouter/ai-sdk-provider": "^2.1.1",
@@ -36,20 +37,11 @@
         "vitest": "^4.0.18",
       },
     },
-    "packages/engine-settings": {
-      "name": "@judge-gym/engine-settings",
-      "version": "0.1.0",
-      "dependencies": {
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/engine-temporal": {
+    "apps/engine-temporal": {
       "name": "@judge-gym/engine-temporal",
       "version": "0.1.0",
       "dependencies": {
+        "@judge-gym/engine-prompts": "workspace:*",
         "@judge-gym/engine-settings": "workspace:*",
         "@mendable/firecrawl-js": "^4.12.0",
         "@temporalio/activity": "^1.15.0",
@@ -78,7 +70,7 @@
         "typescript": "^5.6.3",
       },
     },
-    "packages/lab": {
+    "apps/lab": {
       "name": "@judge-gym/lab",
       "dependencies": {
         "@hookform/resolvers": "^5.2.2",
@@ -118,6 +110,27 @@
         "tailwindcss": "^3.4.17",
         "tailwindcss-animate": "^1.0.7",
         "typescript": "^5.7.3",
+      },
+    },
+    "packages/engine-prompts": {
+      "name": "@judge-gym/engine-prompts",
+      "version": "0.1.0",
+      "dependencies": {
+        "@judge-gym/engine-settings": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "packages/engine-settings": {
+      "name": "@judge-gym/engine-settings",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
   },
@@ -330,13 +343,15 @@
 
     "@jsonjoy.com/util": ["@jsonjoy.com/util@1.9.0", "", { "dependencies": { "@jsonjoy.com/buffers": "^1.0.0", "@jsonjoy.com/codegen": "^1.0.0" }, "peerDependencies": { "tslib": "2" } }, "sha512-pLuQo+VPRnN8hfPqUTLTHk126wuYdXVxE6aDmjSeV4NCAgyxWbiOIeNJVtID3h1Vzpoi9m4jXezf73I6LgabgQ=="],
 
-    "@judge-gym/engine-convex": ["@judge-gym/engine-convex@workspace:packages/engine-convex"],
+    "@judge-gym/engine-convex": ["@judge-gym/engine-convex@workspace:apps/engine-convex"],
+
+    "@judge-gym/engine-prompts": ["@judge-gym/engine-prompts@workspace:packages/engine-prompts"],
 
     "@judge-gym/engine-settings": ["@judge-gym/engine-settings@workspace:packages/engine-settings"],
 
-    "@judge-gym/engine-temporal": ["@judge-gym/engine-temporal@workspace:packages/engine-temporal"],
+    "@judge-gym/engine-temporal": ["@judge-gym/engine-temporal@workspace:apps/engine-temporal"],
 
-    "@judge-gym/lab": ["@judge-gym/lab@workspace:packages/lab"],
+    "@judge-gym/lab": ["@judge-gym/lab@workspace:apps/lab"],
 
     "@mendable/firecrawl-js": ["@mendable/firecrawl-js@4.13.0", "", { "dependencies": { "axios": "^1.13.5", "typescript-event-target": "^1.1.1", "zod": "^3.23.8", "zod-to-json-schema": "^3.23.0" } }, "sha512-8Y2+jjol4/ZXjxyf/5VUGCeOeGYWOOp03HZoyULWU5/adyUjnNL1DkI0/96wHs1aGL5/+JCq/hDfkXMUFBVYfQ=="],
 

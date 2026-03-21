@@ -4,14 +4,16 @@ WORKDIR /app
 
 COPY package.json bun.lock turbo.json tsconfig.json bunfig.toml ./
 COPY packages/engine-settings/package.json packages/engine-settings/package.json
-COPY packages/engine-temporal/package.json packages/engine-temporal/package.json
+COPY packages/engine-prompts/package.json packages/engine-prompts/package.json
+COPY apps/engine-temporal/package.json apps/engine-temporal/package.json
 
 RUN bun install --frozen-lockfile
 
 FROM deps AS build
 
 COPY packages/engine-settings packages/engine-settings
-COPY packages/engine-temporal packages/engine-temporal
+COPY packages/engine-prompts packages/engine-prompts
+COPY apps/engine-temporal apps/engine-temporal
 
 RUN bun run --filter @judge-gym/engine-temporal build
 
@@ -26,6 +28,7 @@ RUN apt-get update \
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/engine-settings ./packages/engine-settings
-COPY --from=build /app/packages/engine-temporal ./packages/engine-temporal
+COPY --from=build /app/packages/engine-prompts ./packages/engine-prompts
+COPY --from=build /app/apps/engine-temporal ./apps/engine-temporal
 
-CMD ["node_modules/.bin/ts-node", "packages/engine-temporal/src/worker.ts"]
+CMD ["node_modules/.bin/ts-node", "apps/engine-temporal/src/worker.ts"]

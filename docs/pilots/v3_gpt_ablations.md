@@ -5,7 +5,7 @@
 1. I treated the final V3 result as one combined pilot line: the original V3 matrix plus the corrected follow-up runs that repaired the invalid early bundle comparisons.
 2. The final analyzed slice contains `32` completed experiments with `30` matched samples each.
 3. The primary unit of comparison is the matched `sample_ordinal`, not pooled raw response averages.
-4. The analysis uses the frozen contract in [\_blueprints/v3-analysis-process/analysis_contract.json](/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-analysis-process/analysis_contract.json) and the regenerated output bundle in [investigation](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation).
+4. The analysis uses the frozen contract in [\_blueprints/v3-analysis-process/analysis_contract.json](/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-analysis-process/analysis_contract.json) and the regenerated output bundle in [investigation](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation).
 5. Four original legacy bundle experiments were explicitly excluded from scientific interpretation because their grouping policy was not comparable across models:
    - `v3_a6_gpt_4_1_bundle_5_l2`
    - `v3_a6_gpt_5_2_bundle_5_l2`
@@ -247,31 +247,31 @@ Fourth, the current evidence narrows the role of aggregation. Geometry-first sum
 
 These are the figures a collaborator should look at first:
 
-1. [hero_contrast_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png)
-2. [hero_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/curated/hero_bundle_strategy_heatmap.png)
-3. [hero_scale_probe_profile.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/curated/hero_scale_probe_profile.png)
-4. [a1_abstain_toggle_verdict_distribution.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/a1_abstain_toggle_verdict_distribution.png)
-5. [a5_concept_swap_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/a5_concept_swap_heatmap.png)
-6. [c1_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/c1_bundle_strategy_heatmap.png)
-7. [c2_bundle_5_cluster_l2_v2_tbm_belief.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/family_belief_heatmaps/c2_bundle_5_cluster_l2_v2_tbm_belief.png)
-8. [c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png)
+1. [hero_contrast_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png)
+2. [hero_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_bundle_strategy_heatmap.png)
+3. [hero_scale_probe_profile.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_scale_probe_profile.png)
+4. [a1_abstain_toggle_verdict_distribution.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/a1_abstain_toggle_verdict_distribution.png)
+5. [a5_concept_swap_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/a5_concept_swap_heatmap.png)
+6. [c1_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/c1_bundle_strategy_heatmap.png)
+7. [c2_bundle_5_cluster_l2_v2_tbm_belief.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_belief_heatmaps/c2_bundle_5_cluster_l2_v2_tbm_belief.png)
+8. [c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png)
 
 ### Canonical Tables
 
 These are the main tables backing the report:
 
-- [family_effects.csv](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/family_effects.csv)
-- [family_effects_qvalues.csv](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/family_effects_qvalues.csv)
-- [experiment_geometry.csv](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/experiment_geometry.csv)
-- [mine_v3_summary.md](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/mine_v3_summary.md)
-- [aggregation_sensitivity_report_panel.csv](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/aggregation_sensitivity_report_panel.csv)
-- [sample_instability.csv](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/tables/sample_instability.csv)
+- [family_effects.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/family_effects.csv)
+- [family_effects_qvalues.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/family_effects_qvalues.csv)
+- [experiment_geometry.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/experiment_geometry.csv)
+- [mine_v3_summary.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/mine_v3_summary.md)
+- [aggregation_sensitivity_report_panel.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/aggregation_sensitivity_report_panel.csv)
+- [sample_instability.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/sample_instability.csv)
 
 ### Main Output Bundle
 
-- [report.md](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/report.md)
-- [summary.json](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/summary.json)
-- [v3_contract_report.md](/Users/jesselee/dev/research/jg/judge-gym/packages/analysis/_outputs/v3/investigation/v3_contract_report.md)
+- [report.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/report.md)
+- [summary.json](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/summary.json)
+- [v3_contract_report.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/v3_contract_report.md)
 
 ## Limitations
 

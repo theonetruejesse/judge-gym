@@ -19,7 +19,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Validation routine**
 
 - After Convex schema or function changes, run `bun run validate:convex` from the repo root.
-- That routine runs `npx convex codegen` in `packages/engine-convex` and then the root TypeScript typecheck.
+- That routine runs `npx convex codegen` in `apps/engine-convex` and then the root TypeScript typecheck.
 
 **JavaScript install flow**
 
@@ -74,8 +74,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
 - Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving windows, pools, and the experiment config intact.
-- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `packages/engine-convex`) to run an Axiom ingest smoke test through Convex.
-- The engine now includes a codex live-debug surface (`packages/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
+- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `apps/engine-convex`) to run an Axiom ingest smoke test through Convex.
+- The engine now includes a codex live-debug surface (`apps/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
 - `getProcessHealth` now derives live health from persisted run/window state, `process_observability`, and `llm_attempts` instead of the legacy request/batch snapshot tables.
 - The codex surface now also exposes direct Temporal inspection/control actions: `inspectProcessExecution` and `controlProcessExecution`, so agents can query live workflow state and send explicit `pause_now`, `resume`, `cancel`, `set_pause_after`, or bounded repair commands without relying on queue-era heuristics.
 - Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures and including a short failed-output preview for Temporal-owned forensics.
@@ -87,11 +87,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Codex health/stuck surfaces now flag `retryable_stage_failure`, `missing_workflow_binding`, and `stale_projection` directly from Temporal bindings, artifact state, and recent process projection freshness.
 - `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
-- The engine includes Bun live-debug commands in `packages/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
+- The engine includes Bun live-debug commands in `apps/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
 - The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
-- The engine includes Bun process telemetry analysis in `packages/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
-- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `packages/engine-convex/docs/`.
+- The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
+- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
@@ -112,25 +112,27 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 ## Repo Organization
 
-**Top-level packages**
+**Top-level apps and packages**
 | Path | Role |
 | --- | --- |
-| `packages/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
+| `apps/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
+| `apps/engine-temporal` | Temporal worker app with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
+| `apps/lab` | Next.js app (UI for evidence windows + experiments) |
+| `apps/analysis` | Python client for pulling experiment data from Convex |
 | `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, queue names, env-key names, provider metadata, workflow contracts, and quota/runtime-agnostic schemas |
-| `packages/lab` | Next.js app (UI for evidence windows + experiments) |
-| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, prompt ownership for execution stages, local test harness, and Redis-backed quota enforcement |
-| `packages/analysis` | Python client for pulling experiment data from Convex |
+| `packages/engine-prompts` | Shared prompt/config package for run/window prompt builders, display/randomization helpers, and experiment-config schemas |
 | `paper.md` | Research framing |
 
 **Local development**
 
-- `bun dev` from the repo root starts the local UI and Convex development surfaces only (`packages/lab` + `packages/engine-convex`). The Temporal cluster and worker run on Railway in the primary dev path.
-- `packages/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
+- `bun dev` from the repo root starts the local UI and Convex development surfaces only (`apps/lab` + `apps/engine-convex`). The Temporal cluster and worker run on Railway in the primary dev path.
+- `apps/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
 - When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for the Temporal frontend service, while the Railway-hosted `engine-temporal` worker should use the private service alias `temporal-frontend:7233` unless the template used a different private name.
-- The Railway worker deploy path for `packages/engine-temporal` is pinned in repo via `railway.toml` plus the repo-root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `packages/engine-temporal`.
+- The Railway worker deploy path for `apps/engine-temporal` is pinned in repo via `railway.toml` plus the repo-root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `apps/engine-temporal`.
 - Quota state now assumes a standard Redis service on Railway for the worker runtime instead of Upstash.
+- Prompt ownership now lives in `packages/engine-prompts`; Convex builds prompt-ready inputs and Temporal executes them.
 
-**Engine internals (`packages/engine-convex/convex/`)**
+**Engine internals (`apps/engine-convex/convex/`)**
 | Path | Role |
 | --- | --- |
 | `domain/runs/` | Experiment creation + pool binding + run launch/reporting |
@@ -244,7 +246,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - `packages/engine-settings/src/provider.ts` defines providers and model IDs.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
-- Worker-side provider execution lives under `packages/engine-temporal/src/*`; Convex no longer owns the provider call path.
+- Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
 
 ---
 
@@ -254,7 +256,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - Engine settings currently resolve from code defaults in `packages/engine-settings`; there is no persisted operator-editable settings table yet.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
-- Temporal-window and Temporal-run quota enforcement currently lives in `packages/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
+- Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
 - For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
 - `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
 
@@ -262,15 +264,15 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 ## Key Files to Trace
 
-- Window Temporal starter: `packages/engine-convex/convex/domain/temporal/temporal_client.ts`
-- Window worker API: `packages/engine-convex/convex/packages/worker.ts`
-- Window Temporal service: `packages/engine-temporal/src/window/service.ts`
-- Window Temporal workflow: `packages/engine-temporal/src/workflows.ts`
-- Run Temporal service: `packages/engine-temporal/src/run/service.ts`
-- Run report/progress helpers: `packages/engine-convex/convex/domain/runs/run_progress.ts`, `packages/engine-convex/convex/domain/runs/experiments_service.ts`
-- Process debug surface: `packages/engine-convex/convex/domain/maintenance/process_debug.ts`
-- Destructive maintenance: `packages/engine-convex/convex/domain/maintenance/danger.ts`
-- Quota layer: `packages/engine-temporal/src/quota/*`
-- Worker window prompts: `packages/engine-temporal/src/window/prompts.ts`
+- Window Temporal starter: `apps/engine-convex/convex/domain/temporal/temporal_client.ts`
+- Window worker API: `apps/engine-convex/convex/packages/worker.ts`
+- Window Temporal service: `apps/engine-temporal/src/window/service.ts`
+- Window Temporal workflow: `apps/engine-temporal/src/workflows.ts`
+- Run Temporal service: `apps/engine-temporal/src/run/service.ts`
+- Run report/progress helpers: `apps/engine-convex/convex/domain/runs/run_progress.ts`, `apps/engine-convex/convex/domain/runs/experiments_service.ts`
+- Process debug surface: `apps/engine-convex/convex/domain/maintenance/process_debug.ts`
+- Destructive maintenance: `apps/engine-convex/convex/domain/maintenance/danger.ts`
+- Quota layer: `apps/engine-temporal/src/quota/*`
+- Prompt builders/config: `packages/engine-prompts/src/run/*`, `packages/engine-prompts/src/window/index.ts`
 - Provider metadata: `packages/engine-settings/src/provider.ts`
-- Schema and models: `packages/engine-convex/convex/schema.ts`, `packages/engine-convex/convex/models/*`
+- Schema and models: `apps/engine-convex/convex/schema.ts`, `apps/engine-convex/convex/models/*`

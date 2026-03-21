@@ -7,15 +7,16 @@
     "node": ">=22.12.0"
   },
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
     "dev": "turbo dev --filter=@judge-gym/engine-convex --filter=@judge-gym/lab",
     "build": "turbo build",
     "test": "turbo test",
-    "pilot:smoke": "cd packages/engine-convex && bun run pilot:smoke",
+    "pilot:smoke": "cd apps/engine-convex && bun run pilot:smoke",
     "typecheck": "turbo run typecheck",
-    "validate:convex": "(cd packages/engine-convex && npx convex codegen) && bun run typecheck"
+    "validate:convex": "(cd apps/engine-convex && npx convex codegen) && bun run typecheck"
   },
   "devDependencies": {
     "@types/bun": "latest",

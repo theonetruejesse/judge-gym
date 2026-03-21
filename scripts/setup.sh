@@ -61,7 +61,7 @@ bun install
 
 echo "Syncing Python dependencies..."
 (
-  cd "$ROOT_DIR/packages/analysis"
+  cd "$ROOT_DIR/apps/analysis"
   uv sync
 )
 
@@ -69,7 +69,7 @@ echo "Setup complete."
 echo
 echo "Next steps:"
 echo "  1. Fill in .env.local"
-echo "  2. Create/link a Convex dev deployment for packages/engine-convex"
+echo "  2. Create/link a Convex dev deployment for apps/engine-convex"
 echo "  3. Create a Railway Temporal project from the official template"
 echo "  4. Add a Redis service to that Railway project"
 echo "  5. Link this repo to that Railway project"
