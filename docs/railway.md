@@ -45,7 +45,7 @@ This repo treats Railway as the canonical Temporal runtime:
 The deploy script defaults to:
 
 ```bash
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporal-frontend:7233
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver:7233
 ```
 
 That matches the current official Railway Temporal template. If your project

@@ -50,7 +50,7 @@ Notes:
 
 - Local scripts use the public Temporal TCP endpoint.
 - The Railway worker does **not** use that public endpoint. It uses the private
-  Railway alias `temporal-frontend:7233` unless your template used a different
+  Railway alias `temporalserver:7233` unless your template used a different
   private service name.
 
 ## 3. Create the Railway Temporal project
@@ -74,7 +74,7 @@ If you rename the Redis service or use a different variable reference, override
 For the current official template, the private worker address is typically:
 
 ```bash
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporal-frontend:7233
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver:7233
 ```
 
 If your template uses different private service naming, override
@@ -114,11 +114,11 @@ That script:
 - creates `engine-temporal-worker` if it does not exist
 - deploys using the repo-root `railway.toml` plus the repo-root `Dockerfile`
 - syncs the worker env vars from `.env.local`
-- defaults the worker to `temporal-frontend:7233` internally
+- defaults the worker to `temporalserver:7233` internally
 
 The worker service needs:
 
-- `TEMPORAL_ADDRESS=temporal-frontend:7233`
+- `TEMPORAL_ADDRESS=temporalserver:7233`
 - `TEMPORAL_NAMESPACE=default`
 - `CONVEX_URL`
 - `OPENAI_API_KEY`

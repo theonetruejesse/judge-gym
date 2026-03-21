@@ -96,6 +96,29 @@ function chunkItems<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+async function processConcurrently<T>(
+  items: T[],
+  maxConcurrent: number,
+  handler: (item: T) => Promise<"succeeded" | "failed">,
+) {
+  const chunks = chunkItems(items, maxConcurrent);
+  let successCount = 0;
+  let failureCount = 0;
+
+  for (const chunk of chunks) {
+    const results = await Promise.all(chunk.map((item) => handler(item)));
+    for (const result of results) {
+      if (result === "succeeded") {
+        successCount += 1;
+      } else {
+        failureCount += 1;
+      }
+    }
+  }
+
+  return { successCount, failureCount };
+}
+
 async function sleep(ms: number) {
   if (ms <= 0) {
     return;
@@ -135,19 +158,18 @@ export async function runRunStageActivityWithDeps(
     });
 
     if (!useBatching) {
-      for (const input of groupInputs) {
-        const taskResult = await processRunStageInputWithRetries(deps, {
+      const directResults = await processConcurrently(
+        groupInputs,
+        resolvedSettings.llm.direct.maxConcurrentRequests,
+        async (input) => processRunStageInputWithRetries(deps, {
           runId,
           stage,
           input,
           workflowId: run.workflow_id ?? `run:${runId}`,
-        });
-        if (taskResult === "succeeded") {
-          successCount += 1;
-        } else {
-          failureCount += 1;
-        }
-      }
+        }),
+      );
+      successCount += directResults.successCount;
+      failureCount += directResults.failureCount;
       continue;
     }
 

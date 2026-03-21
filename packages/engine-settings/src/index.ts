@@ -41,10 +41,18 @@ export const EngineSettingsSchema = z.object({
   ),
   llm: z.object({
     batching: BatchSettingsSchema.default(DEFAULT_BATCH_SETTINGS),
+    direct: z.object({
+      maxConcurrentRequests: z.number().int().positive().default(4),
+    }).default({
+      maxConcurrentRequests: 4,
+    }),
     requestTimeoutMs: z.number().int().positive().default(120_000),
     retries: RetrySettingsSchema.default(DEFAULT_RETRY_SETTINGS),
   }).default({
     batching: DEFAULT_BATCH_SETTINGS,
+    direct: {
+      maxConcurrentRequests: 4,
+    },
     requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
   }),
@@ -85,6 +93,9 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
       completionWindow: "24h",
       pollIntervalMs: 5_000,
       maxWaitMs: 30 * 60 * 1_000,
+    },
+    direct: {
+      maxConcurrentRequests: 4,
     },
     requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
