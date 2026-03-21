@@ -185,15 +185,83 @@ const V3_LAUNCH_MODES = {
   },
 } as const;
 
-function chunkArray<T>(items: T[], size: number): T[][] {
-  if (size <= 0) {
-    return [items];
+async function resetCohortRunDataViaMutation(
+  ctx: {
+    runMutation: (ref: any, args: unknown) => Promise<{
+      dry_run: boolean;
+      selected_experiment_count: number;
+      processed_experiment_count: number;
+      missing_experiment_tags: string[];
+      next_cursor: number | null;
+      rows: Array<z.infer<typeof ResetExperimentRowSchema>>;
+      totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted>;
+    }>;
+  },
+  args: {
+    dry_run: boolean;
+    experiment_tags?: string[];
+    max_experiments_per_pass?: number;
+  },
+): Promise<{
+  selected_experiment_count: number;
+  processed_experiment_count: number;
+  missing_experiment_tags: string[];
+  rows: Array<z.infer<typeof ResetExperimentRowSchema>>;
+  totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted>;
+}> {
+  let cursor: number | undefined;
+  const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
+  const totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted> = {
+    runs: 0,
+    samples: 0,
+    sample_score_targets: 0,
+    sample_score_target_items: 0,
+    rubrics: 0,
+    rubric_critics: 0,
+    scores: 0,
+    score_critics: 0,
+    llm_batch_executions: 0,
+    llm_attempts: 0,
+    llm_attempt_payloads: 0,
+    process_observability: 0,
+  };
+  let selected_experiment_count = 0;
+  let processed_experiment_count = 0;
+  let missing_experiment_tags: string[] = [];
+
+  while (true) {
+    const pass = await ctx.runMutation(
+      api.packages.codex.resetRuns,
+      {
+        dry_run: args.dry_run,
+        experiment_tags: args.experiment_tags,
+        allow_active: true,
+        cursor,
+        max_experiments: args.max_experiments_per_pass ?? 4,
+      },
+    );
+
+    selected_experiment_count = pass.selected_experiment_count;
+    missing_experiment_tags = pass.missing_experiment_tags;
+    processed_experiment_count += pass.processed_experiment_count;
+    rows.push(...pass.rows);
+    for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+      totals[key] += pass.totals[key];
+    }
+
+    if (pass.next_cursor == null) {
+      break;
+    }
+    cursor = pass.next_cursor;
   }
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
+
+  return {
+    selected_experiment_count,
+    processed_experiment_count,
+    missing_experiment_tags,
+    rows,
+    totals,
+  };
 }
 
 export const GetV3CampaignStatusReturnSchema = z.object({
@@ -484,6 +552,7 @@ export const resetRuns = zMutation({
           deleted.rubric_critics += result.deleted.rubric_critics;
           deleted.scores += result.deleted.scores;
           deleted.score_critics += result.deleted.score_critics;
+          deleted.llm_batch_executions += result.deleted.llm_batch_executions;
           deleted.llm_attempts += result.deleted.llm_attempts;
           deleted.llm_attempt_payloads += result.deleted.llm_attempt_payloads;
           deleted.process_observability += result.deleted.process_observability;
@@ -811,133 +880,19 @@ export const resetV3Campaign = zAction({
       }
     }
 
-    if (!args.dry_run) {
-      for (const run of runs) {
-        const scoreTargetIds: Id<"sample_score_targets">[] = await ctx.runQuery(
-          internal.domain.maintenance.danger.listRunScoreTargetIds,
-          {
-            run_id: run.run_id,
-          },
-        );
-        for (const batch of chunkArray(scoreTargetIds, 100)) {
-          if (batch.length === 0) continue;
-          await ctx.runMutation(
-            internal.domain.maintenance.danger.backfillRunScoreTargetItemsBatch,
-            {
-              run_id: run.run_id,
-              score_target_ids: batch,
-            },
-          );
-        }
-
-        const attemptIds: Id<"llm_attempts">[] = await ctx.runQuery(
-          internal.domain.maintenance.danger.listRunAttemptIds,
-          {
-            run_id: run.run_id,
-          },
-        );
-        for (const batch of chunkArray(attemptIds, 100)) {
-          if (batch.length === 0) continue;
-          await ctx.runMutation(
-            internal.domain.maintenance.danger.backfillRunAttemptPayloadsBatch,
-            {
-              run_id: run.run_id,
-              attempt_ids: batch,
-            },
-          );
-        }
-      }
-    }
-
-    const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
-    const totals = {
-      runs: 0,
-      samples: 0,
-      sample_score_targets: 0,
-      sample_score_target_items: 0,
-      rubrics: 0,
-      rubric_critics: 0,
-      scores: 0,
-      score_critics: 0,
-      llm_batch_executions: 0,
-      llm_attempts: 0,
-      llm_attempt_payloads: 0,
-      process_observability: 0,
-    };
-    let processed_experiment_count = 0;
-
-    for (const experiment of filtered.selected) {
-      const experimentRuns = runs.filter((run) => run.experiment_id === experiment.experiment_id);
-      const deleted = {
-        runs: 0,
-        samples: 0,
-        sample_score_targets: 0,
-        sample_score_target_items: 0,
-        rubrics: 0,
-        rubric_critics: 0,
-        scores: 0,
-        score_critics: 0,
-        llm_batch_executions: 0,
-        llm_attempts: 0,
-        llm_attempt_payloads: 0,
-        process_observability: 0,
-      };
-
-      for (const run of experimentRuns) {
-        let hasMore = true;
-        while (hasMore) {
-          const pass = await ctx.runMutation(
-            internal.domain.maintenance.danger.deleteRunDataPass,
-            {
-              run_id: run.run_id,
-              limit_per_table: 250,
-              isDryRun: args.dry_run,
-              allow_active: true,
-            },
-          );
-          deleted.runs += pass.deleted.runs;
-          deleted.samples += pass.deleted.samples;
-          deleted.sample_score_targets += pass.deleted.sample_score_targets;
-          deleted.sample_score_target_items += pass.deleted.sample_score_target_items;
-          deleted.rubrics += pass.deleted.rubrics;
-          deleted.rubric_critics += pass.deleted.rubric_critics;
-          deleted.scores += pass.deleted.scores;
-          deleted.score_critics += pass.deleted.score_critics;
-          deleted.llm_batch_executions += pass.deleted.llm_batch_executions;
-          deleted.llm_attempts += pass.deleted.llm_attempts;
-          deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
-          deleted.process_observability += pass.deleted.process_observability;
-          hasMore = pass.has_more;
-        }
-      }
-
-      if (!args.dry_run) {
-        await ctx.runMutation(internal.domain.runs.experiments_repo.patchExperiment, {
-          experiment_id: experiment.experiment_id,
-          patch: { total_count: 0 },
-        });
-      }
-
-      rows.push({
-        experiment_id: experiment.experiment_id,
-        experiment_tag: experiment.experiment_tag,
-        runs_found: experimentRuns.length,
-        deleted,
-      });
-      processed_experiment_count += 1;
-      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
-        totals[key] += deleted[key];
-      }
-    }
+    const resetResult = await resetCohortRunDataViaMutation(ctx, {
+      dry_run: args.dry_run,
+      experiment_tags: args.experiment_tags,
+    });
 
     return {
       dry_run: args.dry_run,
-      selected_experiment_count: filtered.selected.length,
-      missing_experiment_tags: filtered.missingTags,
+      selected_experiment_count: resetResult.selected_experiment_count,
+      missing_experiment_tags: resetResult.missing_experiment_tags,
       cancelled_processes,
-      processed_experiment_count,
-      rows,
-      totals,
+      processed_experiment_count: resetResult.processed_experiment_count,
+      rows: resetResult.rows,
+      totals: resetResult.totals,
     };
   },
 });
@@ -1063,133 +1018,20 @@ export const resetV3CampaignChunked = zAction({
       }
     }
 
-    if (!args.dry_run) {
-      for (const run of runs) {
-        const scoreTargetIds: Id<"sample_score_targets">[] = await ctx.runQuery(
-          internal.domain.maintenance.danger.listRunScoreTargetIds,
-          {
-            run_id: run.run_id,
-          },
-        );
-        for (const batch of chunkArray(scoreTargetIds, 100)) {
-          if (batch.length === 0) continue;
-          await ctx.runMutation(
-            internal.domain.maintenance.danger.backfillRunScoreTargetItemsBatch,
-            {
-              run_id: run.run_id,
-              score_target_ids: batch,
-            },
-          );
-        }
-
-        const attemptIds: Id<"llm_attempts">[] = await ctx.runQuery(
-          internal.domain.maintenance.danger.listRunAttemptIds,
-          {
-            run_id: run.run_id,
-          },
-        );
-        for (const batch of chunkArray(attemptIds, 100)) {
-          if (batch.length === 0) continue;
-          await ctx.runMutation(
-            internal.domain.maintenance.danger.backfillRunAttemptPayloadsBatch,
-            {
-              run_id: run.run_id,
-              attempt_ids: batch,
-            },
-          );
-        }
-      }
-    }
-
-    const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
-    const totals = {
-      runs: 0,
-      samples: 0,
-      sample_score_targets: 0,
-      sample_score_target_items: 0,
-      rubrics: 0,
-      rubric_critics: 0,
-      scores: 0,
-      score_critics: 0,
-      llm_batch_executions: 0,
-      llm_attempts: 0,
-      llm_attempt_payloads: 0,
-      process_observability: 0,
-    };
-    let processed_experiment_count = 0;
-
-    for (const experiment of filtered.selected) {
-      const experimentRuns = runs.filter((run) => run.experiment_id === experiment.experiment_id);
-      const deleted = {
-        runs: 0,
-        samples: 0,
-        sample_score_targets: 0,
-        sample_score_target_items: 0,
-        rubrics: 0,
-        rubric_critics: 0,
-        scores: 0,
-        score_critics: 0,
-        llm_batch_executions: 0,
-        llm_attempts: 0,
-        llm_attempt_payloads: 0,
-        process_observability: 0,
-      };
-
-      for (const run of experimentRuns) {
-        let hasMore = true;
-        while (hasMore) {
-          const pass = await ctx.runMutation(
-            internal.domain.maintenance.danger.deleteRunDataPass,
-            {
-              run_id: run.run_id,
-              limit_per_table: 250,
-              isDryRun: args.dry_run,
-              allow_active: true,
-            },
-          );
-          deleted.runs += pass.deleted.runs;
-          deleted.samples += pass.deleted.samples;
-          deleted.sample_score_targets += pass.deleted.sample_score_targets;
-          deleted.sample_score_target_items += pass.deleted.sample_score_target_items;
-          deleted.rubrics += pass.deleted.rubrics;
-          deleted.rubric_critics += pass.deleted.rubric_critics;
-          deleted.scores += pass.deleted.scores;
-          deleted.score_critics += pass.deleted.score_critics;
-          deleted.llm_batch_executions += pass.deleted.llm_batch_executions;
-          deleted.llm_attempts += pass.deleted.llm_attempts;
-          deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
-          deleted.process_observability += pass.deleted.process_observability;
-          hasMore = pass.has_more;
-        }
-      }
-
-      if (!args.dry_run) {
-        await ctx.runMutation(internal.domain.runs.experiments_repo.patchExperiment, {
-          experiment_id: experiment.experiment_id,
-          patch: { total_count: 0 },
-        });
-      }
-
-      rows.push({
-        experiment_id: experiment.experiment_id,
-        experiment_tag: experiment.experiment_tag,
-        runs_found: experimentRuns.length,
-        deleted,
-      });
-      processed_experiment_count += 1;
-      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
-        totals[key] += deleted[key];
-      }
-    }
+    const resetResult = await resetCohortRunDataViaMutation(ctx, {
+      dry_run: args.dry_run,
+      experiment_tags: args.experiment_tags,
+      max_experiments_per_pass: 1,
+    });
 
     return {
       dry_run: args.dry_run,
-      selected_experiment_count: filtered.selected.length,
-      missing_experiment_tags: filtered.missingTags,
+      selected_experiment_count: resetResult.selected_experiment_count,
+      missing_experiment_tags: resetResult.missing_experiment_tags,
       cancelled_processes,
-      processed_experiment_count,
-      rows,
-      totals,
+      processed_experiment_count: resetResult.processed_experiment_count,
+      rows: resetResult.rows,
+      totals: resetResult.totals,
     };
   },
 });

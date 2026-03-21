@@ -57,6 +57,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
   - `packages/codex:getTemporalTaskQueueHealth`
   - `packages/codex:resetV3Campaign`
   - `packages/codex:startV3Campaign`
+- `packages/codex:resetV3Campaign` now performs run-workflow cancellation first and then delegates deletion to the paged `resetRuns` mutation path, so live cohort resets preserve windows/pools while avoiding the old monolithic cleanup bottleneck.
 - The active V3 finish-pass manifest now targets the current reduced viability cohort from `docs/pilots/v3_gpt_ablations.md`, still sourced from the corrected V3 experiment families and still excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
 - The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
   - `p1_us_contested_trial_2026_01_01`
