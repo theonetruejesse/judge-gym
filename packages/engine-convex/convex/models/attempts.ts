@@ -3,7 +3,7 @@ import z from "zod";
 import {
   modelTypeSchema,
   providerTypeSchema,
-} from "../platform/providers/provider_types";
+} from "@judge-gym/engine-settings/provider";
 
 export const LlmAttemptStatusSchema = z.enum([
   "started",

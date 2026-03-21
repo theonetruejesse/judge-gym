@@ -1,4 +1,5 @@
-import { ENGINE_ENV_KEYS } from "@judge-gym/engine-settings";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
+import { ENGINE_ENV_KEYS } from "@judge-gym/engine-settings/env";
 import type { RedisQuotaRuntimeConfig } from "./types";
 
 function buildRedisUrlFromDiscreteEnv() {
@@ -28,6 +29,7 @@ export function getRedisQuotaRuntimeConfig(): RedisQuotaRuntimeConfig {
     enabled: Boolean(url),
     url,
     keyPrefix:
-      process.env[ENGINE_ENV_KEYS.redisKeyPrefix] ?? "judge-gym:quota",
+      process.env[ENGINE_ENV_KEYS.redisKeyPrefix]
+      ?? DEFAULT_ENGINE_SETTINGS.quota.redisKeyPrefix,
   };
 }

@@ -4,7 +4,7 @@ export type { Doc, Id } from "../convex/_generated/dataModel";
 export {
   modelTypeSchema,
   type ModelType,
-} from "../convex/platform/providers/provider_types";
+} from "@judge-gym/engine-settings/provider";
 
 export {
   SemanticLevelSchema,

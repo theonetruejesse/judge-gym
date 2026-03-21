@@ -168,7 +168,7 @@ type RawListedExperiment = Omit<ListedExperiment, "score_target_estimate"> & {
 
 async function listAllExperiments(ctx: any): Promise<RawListedExperiment[]> {
   return ctx.runQuery(
-    internal.domain.runs.experiments_data.listExperiments,
+    internal.domain.runs.experiments_service.listExperiments,
     {},
   ) as Promise<RawListedExperiment[]>;
 }

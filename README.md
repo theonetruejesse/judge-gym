@@ -106,7 +106,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **What does not exist yet (in this repo)**
 
 - An implementation of `data:exportExperimentBundle` used by the analysis client.
-- A runtime override layer for `ENGINE_SETTINGS`.
+- An operator-editable runtime settings surface; engine defaults currently live in `packages/engine-settings`.
 
 ---
 
@@ -116,9 +116,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Path | Role |
 | --- | --- |
 | `packages/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
-| `packages/engine-settings` | Pure shared config/constants package for queue names, env-key names, workflow contracts, and quota/runtime-agnostic defaults |
+| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, queue names, env-key names, provider metadata, workflow contracts, and quota/runtime-agnostic schemas |
 | `packages/lab` | Next.js app (UI for evidence windows + experiments) |
-| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
+| `packages/engine-temporal` | Temporal worker package with live `WindowWorkflow` and `RunWorkflow` execution, prompt ownership for execution stages, local test harness, and Redis-backed quota enforcement |
 | `packages/analysis` | Python client for pulling experiment data from Convex |
 | `paper.md` | Research framing |
 
@@ -134,11 +134,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Path | Role |
 | --- | --- |
 | `domain/runs/` | Experiment creation + pool binding + run launch/reporting |
+| `domain/exports/` | Convex-owned export/reporting surfaces consumed by the analysis package |
 | `domain/temporal/` | Convex-side Temporal client/start helpers |
 | `domain/window/` | Evidence window setup + search |
 | `domain/maintenance/` | Debug, reset, and campaign control surfaces |
 | `models/` | Zod schemas for tables and shared enums |
-| `platform/` | Providers and shared provider metadata |
 | `packages/` | Public Convex API surfaces (e.g. `lab.ts`, `worker.ts`) |
 | `utils/` | Zod helpers, tags, and shared runtime helpers |
 | `schema.ts` | Convex table definitions + indexes |
@@ -146,17 +146,19 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Key submodules**
 | Path | What it contains |
 | --- | --- |
-| `domain/runs/experiments_services.ts` | Experiment creation + pool binding |
-| `domain/runs/experiments_repo.ts` | Experiment/pool storage + pool evidence binding |
+| `domain/runs/experiments_service.ts` | Experiment creation, summary reads, and pool binding orchestration |
+| `domain/runs/experiments_repo.ts` | Experiment storage |
+| `domain/runs/pool_repo.ts` | Pool storage and pool-evidence binding |
+| `domain/runs/bundle_plan_materializer.ts` | Bundle-plan materialization helpers |
 | `domain/runs/run_service.ts` | Run lifecycle and Temporal launch/resume path |
 | `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
 | `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start actions for windows and runs |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
 | `domain/window/evidence_search.ts` | Firecrawl-based news search |
+| `domain/exports/analysis_export.ts` | Analysis/export read surfaces for the Python package |
 | `domain/maintenance/process_debug.ts` | Temporal-aware health, stuck-work detection, and bounded repair helpers |
 | `domain/maintenance/danger.ts` | Run-scoped destructive maintenance and table-prune helpers |
 | `packages/worker.ts` | Narrow worker-facing Convex API for Temporal activities |
-| `platform/providers/*` | OpenAI batch + chat integrations |
 | `models/*` | Table schemas and shared enums |
 
 ---
@@ -237,24 +239,19 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 ## Provider Layer
 
-**Provider actions**
-
-- `submitOpenAiBatchAction` uploads a JSONL file and creates an OpenAI batch.
-- `pollOpenAiBatchAction` polls the batch status and parses both output and error JSONL files.
-- `openAiChatAction` uses the `ai` SDK to call OpenAI chat for job-mode requests.
-
 **Provider configuration**
 
-- `provider_types.ts` defines providers and model IDs.
+- `packages/engine-settings/src/provider.ts` defines providers and model IDs.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
+- Worker-side provider execution lives under `packages/engine-temporal/src/*`; Convex no longer owns the provider call path.
 
 ---
 
 ## Known Gaps and Caveats
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
-- `ENGINE_SETTINGS` are hardcoded and do not have a documented runtime override.
+- Engine settings currently resolve from code defaults in `packages/engine-settings`; there is no persisted operator-editable settings table yet.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota enforcement currently lives in `packages/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
@@ -270,9 +267,10 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - Window Temporal service: `packages/engine-temporal/src/window/service.ts`
 - Window Temporal workflow: `packages/engine-temporal/src/workflows.ts`
 - Run Temporal service: `packages/engine-temporal/src/run/service.ts`
-- Run report/progress helpers: `packages/engine-convex/convex/domain/runs/run_progress.ts`, `experiments_data.ts`
+- Run report/progress helpers: `packages/engine-convex/convex/domain/runs/run_progress.ts`, `packages/engine-convex/convex/domain/runs/experiments_service.ts`
 - Process debug surface: `packages/engine-convex/convex/domain/maintenance/process_debug.ts`
 - Destructive maintenance: `packages/engine-convex/convex/domain/maintenance/danger.ts`
 - Quota layer: `packages/engine-temporal/src/quota/*`
-- Provider calls: `packages/engine-convex/convex/platform/providers/*`
+- Worker window prompts: `packages/engine-temporal/src/window/prompts.ts`
+- Provider metadata: `packages/engine-settings/src/provider.ts`
 - Schema and models: `packages/engine-convex/convex/schema.ts`, `packages/engine-convex/convex/models/*`

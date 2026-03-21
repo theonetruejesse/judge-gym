@@ -1,7 +1,7 @@
 import type {
   RunStageKey,
   StageActivityResult,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/process";
 import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
 import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "../window/model_registry";

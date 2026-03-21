@@ -1,6 +1,6 @@
 import z from "zod";
 import { SemanticLevelSchema, StateStatusSchema } from "./_shared";
-import { modelTypeSchema } from "../platform/providers/provider_types";
+import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
 import { zid } from "convex-helpers/server/zod4";
 
 export const WindowsTableSchema = z.object({

@@ -2,7 +2,7 @@ import { TestWorkflowEnvironment } from "@temporalio/testing";
 import assert from "assert";
 import { after, before, describe, it } from "mocha";
 import { Worker } from "@temporalio/worker";
-import type { ProjectProcessStateInput } from "@judge-gym/engine-settings";
+import type { ProjectProcessStateInput } from "@judge-gym/engine-settings/process";
 import {
   acquireSharedTestWorkflowEnvironment,
   releaseSharedTestWorkflowEnvironment,

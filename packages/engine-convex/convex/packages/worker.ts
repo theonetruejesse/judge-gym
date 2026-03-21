@@ -7,11 +7,12 @@ import type { MutationCtx } from "../_generated/server";
 import { WindowsTableSchema } from "../models/window";
 import { RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
+import { ProcessSnapshotSchema } from "../domain/temporal/schemas";
 import {
   LlmAttemptPayloadKindSchema,
   LlmAttemptStatusSchema,
 } from "../models/attempts";
-import { modelTypeSchema, providerTypeSchema } from "../platform/providers/provider_types";
+import { modelTypeSchema, providerTypeSchema } from "@judge-gym/engine-settings/provider";
 import {
   buildRubricCriticPrompt,
   buildRubricGenPrompt,
@@ -36,28 +37,6 @@ import {
 import { generateLabelMapping } from "../utils/randomize";
 import { syncExperimentTotalCount } from "../domain/runs/experiment_progress";
 import { incrementSampleScoreCounter } from "../domain/runs/sample_progress";
-
-const ProcessSnapshotSchema = z.object({
-  processKind: z.enum(["run", "window"]),
-  processId: z.string(),
-  workflowId: z.string(),
-  workflowRunId: z.string(),
-  workflowType: z.string(),
-  executionStatus: z.enum([
-    "queued",
-    "running",
-    "paused",
-    "completed",
-    "failed",
-    "canceled",
-  ]),
-  stage: z.string().nullable(),
-  stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
-  pauseAfter: z.string().nullable(),
-  stageHistory: z.array(z.string()),
-  lastControlCommandId: z.string().nullable(),
-  lastErrorMessage: z.string().nullable(),
-});
 
 const StageInputSchema = z.enum(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
 const RunStageInputSchema = RunStageSchema;
@@ -159,6 +138,147 @@ function runStageFields(stage: z.infer<typeof RunStageInputSchema>) {
         errorField: "score_critic_error_message" as const,
         outputField: "score_critic_id" as const,
       };
+  }
+}
+
+function buildBlockedStageFailureMessage(args: {
+  blockedStage: z.infer<typeof RunStageInputSchema>;
+  dependencyStage: z.infer<typeof RunStageInputSchema>;
+  dependencyTargetId: string;
+}) {
+  return [
+    `Blocked ${args.blockedStage} because ${args.dependencyStage}`,
+    `failed for target ${args.dependencyTargetId}.`,
+  ].join(" ");
+}
+
+async function markSampleStageBlocked(
+  ctx: MutationCtx,
+  sampleId: Id<"samples">,
+  stage: z.infer<typeof RunStageInputSchema>,
+  errorMessage: string,
+) {
+  const sample = await ctx.db.get(sampleId);
+  if (!sample) return false;
+  const fields = runStageFields(stage);
+  if ((sample as any)[fields.outputField] || (sample as any)[fields.errorField]) {
+    return false;
+  }
+  await ctx.db.patch(sampleId, {
+    [fields.errorField]: errorMessage,
+  } as Partial<Doc<"samples">>);
+  return true;
+}
+
+async function markScoreTargetStageBlocked(
+  ctx: MutationCtx,
+  targetId: Id<"sample_score_targets">,
+  stage: z.infer<typeof RunStageInputSchema>,
+  errorMessage: string,
+) {
+  const target = await ctx.db.get(targetId);
+  if (!target) return false;
+  const fields = runStageFields(stage);
+  if ((target as any)[fields.outputField] || (target as any)[fields.errorField]) {
+    return false;
+  }
+  await ctx.db.patch(targetId, {
+    [fields.errorField]: errorMessage,
+  } as Partial<Doc<"sample_score_targets">>);
+  return true;
+}
+
+async function markDependentRunWorkBlocked(
+  ctx: MutationCtx,
+  args: {
+    run_id: Id<"runs">;
+    stage: z.infer<typeof RunStageInputSchema>;
+    target_id: string;
+  },
+) {
+  switch (args.stage) {
+    case "rubric_gen": {
+      const sampleId = args.target_id as Id<"samples">;
+      const blockedByRubricGen = buildBlockedStageFailureMessage({
+        blockedStage: "rubric_critic",
+        dependencyStage: "rubric_gen",
+        dependencyTargetId: args.target_id,
+      });
+      await markSampleStageBlocked(ctx, sampleId, "rubric_critic", blockedByRubricGen);
+
+      const sampleTargets = await ctx.db
+        .query("sample_score_targets")
+        .withIndex("by_sample", (q) => q.eq("sample_id", sampleId))
+        .collect();
+      for (const sampleTarget of sampleTargets) {
+        await markScoreTargetStageBlocked(
+          ctx,
+          sampleTarget._id,
+          "score_gen",
+          buildBlockedStageFailureMessage({
+            blockedStage: "score_gen",
+            dependencyStage: "rubric_gen",
+            dependencyTargetId: args.target_id,
+          }),
+        );
+        await markScoreTargetStageBlocked(
+          ctx,
+          sampleTarget._id,
+          "score_critic",
+          buildBlockedStageFailureMessage({
+            blockedStage: "score_critic",
+            dependencyStage: "rubric_gen",
+            dependencyTargetId: args.target_id,
+          }),
+        );
+      }
+      return;
+    }
+    case "rubric_critic": {
+      const sampleId = args.target_id as Id<"samples">;
+      const sampleTargets = await ctx.db
+        .query("sample_score_targets")
+        .withIndex("by_sample", (q) => q.eq("sample_id", sampleId))
+        .collect();
+      for (const sampleTarget of sampleTargets) {
+        await markScoreTargetStageBlocked(
+          ctx,
+          sampleTarget._id,
+          "score_gen",
+          buildBlockedStageFailureMessage({
+            blockedStage: "score_gen",
+            dependencyStage: "rubric_critic",
+            dependencyTargetId: args.target_id,
+          }),
+        );
+        await markScoreTargetStageBlocked(
+          ctx,
+          sampleTarget._id,
+          "score_critic",
+          buildBlockedStageFailureMessage({
+            blockedStage: "score_critic",
+            dependencyStage: "rubric_critic",
+            dependencyTargetId: args.target_id,
+          }),
+        );
+      }
+      return;
+    }
+    case "score_gen": {
+      await markScoreTargetStageBlocked(
+        ctx,
+        args.target_id as Id<"sample_score_targets">,
+        "score_critic",
+        buildBlockedStageFailureMessage({
+          blockedStage: "score_critic",
+          dependencyStage: "score_gen",
+          dependencyTargetId: args.target_id,
+        }),
+      );
+      return;
+    }
+    case "score_critic":
+      return;
   }
 }
 
@@ -1321,6 +1441,12 @@ export const markRunStageFailure = zMutation({
       } as Partial<Doc<"sample_score_targets">>);
     }
 
+    await markDependentRunWorkBlocked(ctx, {
+      run_id: args.run_id,
+      stage: args.stage,
+      target_id: args.target_id,
+    });
+
     await emitTraceEvent(ctx, {
       trace_id: `run:${args.run_id}`,
       entity_type: "run",
@@ -1365,7 +1491,7 @@ export const finalizeRunStage = zMutation({
       } as Partial<Doc<"runs">>);
     }
 
-    if (args.stage === "score_critic" && !progress.hasPending && progress.failed === 0) {
+    if (args.stage === "score_critic" && !progress.hasPending) {
       const samples = await ctx.db
         .query("samples")
         .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
@@ -1380,7 +1506,7 @@ export const finalizeRunStage = zMutation({
       await syncExperimentTotalCount(ctx, run.experiment_id);
     }
 
-    if (progress.failed > 0 && !progress.hasPending) {
+    if (progress.failed > 0 && progress.completed === 0 && !progress.hasPending) {
       const error_message =
         `Run ${args.run_id} failed in stage ${args.stage} with ${progress.failed} failed target(s)`;
       await ctx.db.patch(args.run_id, {

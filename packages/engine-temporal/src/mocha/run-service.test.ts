@@ -173,6 +173,90 @@ describe("run stage service", () => {
     assert.deepEqual(calls, ["start", "finish", "mark-failure", "finalize"]);
   });
 
+  it("continues when stage finalization reports partial failure but surviving work completed", async () => {
+    const calls: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_partial",
+              experiment_id: "exp_partial",
+              workflow_id: "run:run_partial",
+              workflow_run_id: "workflow-run-partial",
+              status: "running",
+              current_stage: "rubric_critic",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [{
+              target_type: "sample" as const,
+              target_id: "sample_survivor",
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            calls.push("start");
+            return {
+              attempt_id: "attempt_partial",
+            };
+          },
+          async recordLlmAttemptFinish() {
+            calls.push("finish");
+            return null;
+          },
+          async applyRunStageResult() {
+            calls.push("apply");
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            calls.push("finalize");
+            return {
+              total: 2,
+              completed: 1,
+              failed: 1,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          return {
+            assistant_output: "observability 0.8\ndiscriminability 0.7",
+            input_tokens: 10,
+            output_tokens: 20,
+            total_tokens: 30,
+          };
+        },
+      },
+      "run_partial",
+      "rubric_critic",
+    );
+
+    assert.equal(result.haltProcess, undefined);
+    assert.equal(
+      result.summary,
+      "run_stage:rubric_critic:success=1:failed=0:completed=1",
+    );
+    assert.deepEqual(calls, ["start", "finish", "apply", "finalize"]);
+  });
+
   it("marks the run failed when stage finalization still reports pending work", async () => {
     const calls: string[] = [];
 

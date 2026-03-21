@@ -4,7 +4,7 @@ import type {
   QuotaReservationInput,
   QuotaReservationResult,
   QuotaSettlementInput,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/quota";
 
 export type QuotaBucketScope = "provider" | "model" | "scope";
 

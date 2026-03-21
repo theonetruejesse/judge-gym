@@ -3,7 +3,7 @@ import type {
   RunStageKey,
   StageActivityResult,
   WindowStageKey,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/process";
 import { getConvexWorkerClient } from "./convex/client";
 import { runRunStageActivity } from "./run/service";
 import { runWindowStageActivity } from "./window/service";

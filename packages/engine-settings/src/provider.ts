@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 
 export const PROVIDERS = {
   openai: {
@@ -13,7 +13,6 @@ const PROVIDER_IDS = Object.keys(PROVIDERS) as [
 ];
 
 export const providerTypeSchema = z.enum(PROVIDER_IDS);
-
 export type ProviderType = z.infer<typeof providerTypeSchema>;
 
 export type ProviderDefinition = (typeof PROVIDERS)[ProviderType];
@@ -46,7 +45,6 @@ export const MODELS = [
 ] as const;
 
 export type ModelDefinition = (typeof MODELS)[number];
-
 export type ModelType = ModelDefinition["id"];
 
 const MODEL_IDS = MODELS.map((model) => model.id) as [
@@ -74,32 +72,4 @@ export function getProviderModel(model: ModelType): string {
 
 export function getProviderEnv(provider: ProviderType): string {
   return PROVIDERS[provider].env_var;
-}
-
-export type RateLimitScope = "job" | "batch";
-
-export type RateLimitMetric = "requests" | "input_tokens" | "output_tokens";
-
-export function rateLimitKey(
-  model: string,
-  metric: RateLimitMetric,
-  scope: RateLimitScope = "job",
-): string {
-  const prefix = scope === "batch" ? "batch_" : "";
-  return `${model}:${prefix}${metric}`;
-}
-
-export function rateLimitKeysForModel(
-  model: string,
-  scope: RateLimitScope = "job",
-): {
-  requestsKey: string;
-  inputKey: string;
-  outputKey: string;
-} {
-  return {
-    requestsKey: rateLimitKey(model, "requests", scope),
-    inputKey: rateLimitKey(model, "input_tokens", scope),
-    outputKey: rateLimitKey(model, "output_tokens", scope),
-  };
 }

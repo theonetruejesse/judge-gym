@@ -1,17 +1,19 @@
 import Firecrawl from "@mendable/firecrawl-js";
+import type {
+  StageActivityResult,
+  WindowStageKey,
+} from "@judge-gym/engine-settings/process";
+import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
+import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
+import { getModelConfig } from "./model_registry";
 import {
   abstractPrompt,
   CLEANING_INSTRUCTIONS,
   cleanPrompt,
   NEUTRALIZE_INSTRUCTIONS,
   STRUCTURAL_ABSTRACTION_INSTRUCTIONS,
-  type StageActivityResult,
-  type WindowStageKey,
   neutralizePrompt,
-} from "@judge-gym/engine-settings";
-import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
-import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
-import { getModelConfig } from "./model_registry";
+} from "./prompts";
 
 type ChatResult = {
   assistant_output: string;

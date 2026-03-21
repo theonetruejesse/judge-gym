@@ -20,13 +20,15 @@ RULES:
 
 Return ONLY cleaned markdown body. No wrapper or JSON.
 `;
-export const cleanPrompt = (rawContent: string) => `
+
+export function cleanPrompt(rawContent: string) {
+  return `
 Clean the following scraped article markdown:
 
 ARTICLE:
 ${rawContent}
 `;
-
+}
 
 export const NEUTRALIZE_INSTRUCTIONS = `
 You are L2 (fidelity-first normalizer).
@@ -71,7 +73,9 @@ ALWAYS:
 - Do NOT preserve decorative markdown/table scaffolding unless it carries
   unique factual content.
 `;
-export const neutralizePrompt = (rawContent: string) => `
+
+export function neutralizePrompt(rawContent: string) {
+  return `
 Normalize the following text while preserving factual fidelity.
 
 INPUT_TEXT:
@@ -79,7 +83,7 @@ ${rawContent}
 
 Start your response with "Neutralized Summary:".
 `;
-
+}
 
 export const STRUCTURAL_ABSTRACTION_INSTRUCTIONS = `
 You are L3 (strict structural abstractor).
@@ -114,7 +118,9 @@ RULES:
 - If substitution risks meaning loss, keep original specific term.
 - Keep list/bullet count <= input list/bullet count when input is list-form.
 `;
-export const abstractPrompt = (neutralizedContent: string) => `
+
+export function abstractPrompt(neutralizedContent: string) {
+  return `
 Abstract the following text with strict non-expansion and structural fidelity.
 
 INPUT_TEXT:
@@ -123,3 +129,4 @@ ${neutralizedContent}
 Start your response with "Abstracted Summary:".
 If input is bulletized, keep output bulletized.
 `;
+}

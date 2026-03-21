@@ -3,24 +3,17 @@ import { api, internal } from "../../_generated/api";
 import { zAction, zQuery } from "../../utils/custom_fns";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 import {
+  ControlActionSchema,
+  ProcessSnapshotSchema,
+  ProcessTypeSchema,
+  RepairBoundedOperationSchema,
+  TemporalTaskQueueKindSchema,
+  TemporalTaskQueueHealthSchema,
+} from "../temporal/schemas";
+import {
   CampaignStateSchema,
   GetV3CampaignStatusReturnSchema,
 } from "./v3_campaign";
-
-const ProcessTypeSchema = z.enum(["run", "window"]);
-const ControlActionSchema = z.enum([
-  "set_pause_after",
-  "pause_now",
-  "resume",
-  "cancel",
-  "repair_bounded",
-]);
-const RepairBoundedOperationSchema = z.enum([
-  "reproject_snapshot",
-  "resume_if_paused",
-  "clear_pause_after",
-]);
-const TemporalTaskQueueKindSchema = z.enum(["run", "window"]);
 
 const AnalyzeStageSummarySchema = z.object({
   stage: z.string(),
@@ -125,27 +118,7 @@ const TemporalProcessInspectionSchema = z.object({
     start_time_ms: z.number().nullable(),
     execution_time_ms: z.number().nullable(),
     close_time_ms: z.number().nullable(),
-    snapshot: z.object({
-      processKind: ProcessTypeSchema,
-      processId: z.string(),
-      workflowId: z.string(),
-      workflowRunId: z.string(),
-      workflowType: z.string(),
-      executionStatus: z.enum([
-        "queued",
-        "running",
-        "paused",
-        "completed",
-        "failed",
-        "canceled",
-      ]),
-      stage: z.string().nullable(),
-      stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
-      pauseAfter: z.string().nullable(),
-      stageHistory: z.array(z.string()),
-      lastControlCommandId: z.string().nullable(),
-      lastErrorMessage: z.string().nullable(),
-    }).nullable(),
+    snapshot: ProcessSnapshotSchema.nullable(),
     snapshot_query_error: z.string().nullable(),
   }),
 });
@@ -159,57 +132,13 @@ const ControlProcessExecutionResultSchema = z.object({
   reason: z.string().nullable(),
   workflow_id: z.string().nullable(),
   temporal_status: z.string().nullable(),
-  snapshot: z.object({
-    processKind: ProcessTypeSchema,
-    processId: z.string(),
-    workflowId: z.string(),
-    workflowRunId: z.string(),
-    workflowType: z.string(),
-    executionStatus: z.enum([
-      "queued",
-      "running",
-      "paused",
-      "completed",
-      "failed",
-      "canceled",
-    ]),
-    stage: z.string().nullable(),
-    stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
-    pauseAfter: z.string().nullable(),
-    stageHistory: z.array(z.string()),
-    lastControlCommandId: z.string().nullable(),
-    lastErrorMessage: z.string().nullable(),
-  }).nullable(),
+  snapshot: ProcessSnapshotSchema.nullable(),
   repair_result: z.object({
     accepted: z.boolean(),
     cmdId: z.string(),
     operation: RepairBoundedOperationSchema,
     reason: z.string().optional(),
   }).nullable(),
-});
-const TemporalTaskQueueHealthSchema = z.object({
-  namespace: z.string(),
-  checked_at_ms: z.number(),
-  all_ready: z.boolean(),
-  queues: z.array(z.object({
-    queue_kind: TemporalTaskQueueKindSchema,
-    task_queue: z.string(),
-    workflow_poller_count: z.number(),
-    activity_poller_count: z.number(),
-    workflow_pollers: z.array(z.object({
-      identity: z.string(),
-      last_access_time_ms: z.number().nullable(),
-    })),
-    activity_pollers: z.array(z.object({
-      identity: z.string(),
-      last_access_time_ms: z.number().nullable(),
-    })),
-    approximate_backlog_count: z.number().nullable(),
-    approximate_backlog_age_ms: z.number().nullable(),
-    tasks_add_rate: z.number().nullable(),
-    tasks_dispatch_rate: z.number().nullable(),
-    ready: z.boolean(),
-  })),
 });
 const V3CampaignSnapshotSchema = z.object({
   status: GetV3CampaignStatusReturnSchema,

@@ -2,12 +2,14 @@ import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import type {
   ProjectProcessStateInput,
+  RunStageKey,
+  WindowStageKey,
+} from "@judge-gym/engine-settings/process";
+import type {
   QuotaReservationInput,
   QuotaReservationResult,
   QuotaSettlementInput,
-  RunStageKey,
-  WindowStageKey,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/quota";
 
 function requireConvexUrl() {
   const url = process.env.CONVEX_URL;

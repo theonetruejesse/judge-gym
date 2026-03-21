@@ -1,8 +1,8 @@
-import type { ModelType } from "../platform/providers/provider_types";
+import type { ModelType } from "@judge-gym/engine-settings/provider";
 import {
   getProviderEnv,
   getProviderForModel,
-} from "../platform/providers/provider_types";
+} from "@judge-gym/engine-settings/provider";
 
 // still todo
 export function envPreflight(model: ModelType) {

@@ -12,6 +12,9 @@
     "paths": {
       "@judge-gym/engine-settings": [
         "../engine-settings/src/index.ts"
+      ],
+      "@judge-gym/engine-settings/*": [
+        "../engine-settings/src/*.ts"
       ]
     },
     "outDir": "./lib"

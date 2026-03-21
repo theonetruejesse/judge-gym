@@ -4,8 +4,7 @@ import { internal } from "../../_generated/api";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { zMutation, zQuery } from "../../utils/custom_fns";
 import { buildExternalTraceRef } from "../telemetry/events";
-
-const ProcessTypeSchema = z.enum(["run", "window"]);
+import { ProcessTypeSchema } from "../temporal/schemas";
 const DebugActionTypeSchema = z.enum(["repair_process_execution"]);
 const StuckReasonSchema = z.enum([
   "raw_collection_no_progress",
@@ -219,7 +218,7 @@ async function buildRunStageProgress(
   ctx: QueryCtx | MutationCtx,
   run_id: Id<"runs">,
 ) {
-  const summary = await ctx.runQuery(internal.domain.runs.experiments_data.getRunSummary, {
+  const summary = await ctx.runQuery(internal.domain.runs.experiments_service.getRunSummary, {
     run_id,
   });
   return summary.stages.map((stage) => ({

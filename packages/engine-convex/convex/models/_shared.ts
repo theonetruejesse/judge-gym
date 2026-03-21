@@ -1,7 +1,7 @@
 import z from "zod";
 import {
   modelTypeSchema,
-} from "../platform/providers/provider_types";
+} from "@judge-gym/engine-settings/provider";
 
 export const StateStatusSchema = z.enum([
   "start",

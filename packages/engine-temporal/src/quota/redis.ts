@@ -5,8 +5,8 @@ import type {
   QuotaReservationInput,
   QuotaReservationResult,
   QuotaSettlementInput,
-} from "@judge-gym/engine-settings";
-import { QUOTA_DIMENSIONS } from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/quota";
+import { QUOTA_DIMENSIONS } from "@judge-gym/engine-settings/quota";
 import { buildQuotaBucketPlans as buildQuotaPlansFromPolicy } from "./policies";
 import { getRedisQuotaRuntimeConfig } from "./runtime";
 import type {

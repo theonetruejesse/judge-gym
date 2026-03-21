@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { api, internal } from "../_generated/api";
-import { modelTypeSchema, type ModelType } from "../platform/providers/provider_types";
+import { modelTypeSchema, type ModelType } from "@judge-gym/engine-settings/provider";
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema, RunStageSchema } from "../models/experiments";
@@ -262,7 +262,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       }
     );
     const poolLinks = await ctx.runQuery(
-      internal.domain.runs.experiments_repo.listPoolEvidenceLinks,
+      internal.domain.runs.pool_repo.listPoolEvidenceLinks,
       { pool_id },
     );
     await emitTraceEvent(ctx, {
@@ -291,7 +291,7 @@ export const createPool: ReturnType<typeof zMutation> = zMutation({
   }),
   handler: async (ctx, args) => {
     const pool_id = await ctx.runMutation(
-      internal.domain.runs.experiments_repo.createPool,
+      internal.domain.runs.pool_repo.createPool,
       args,
     );
     return { pool_id };
@@ -432,7 +432,7 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
   ),
   handler: async (ctx) => {
     return ctx.runQuery(
-      internal.domain.runs.experiments_data.listExperiments,
+      internal.domain.runs.experiments_service.listExperiments,
       {},
     );
   },
@@ -478,7 +478,7 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
   }),
   handler: async (ctx, args) => {
     return ctx.runQuery(
-      internal.domain.runs.experiments_data.getExperimentSummary,
+      internal.domain.runs.experiments_service.getExperimentSummary,
       args,
     );
   },
@@ -497,7 +497,7 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
   ),
   handler: async (ctx, args) => {
     return ctx.runQuery(
-      internal.domain.runs.experiments_data.listExperimentEvidence,
+      internal.domain.runs.experiments_service.listExperimentEvidence,
       args,
     );
   },
@@ -530,7 +530,7 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
   }),
   handler: async (ctx, args) => {
     return ctx.runQuery(
-      internal.domain.runs.experiments_data.getRunSummary,
+      internal.domain.runs.experiments_service.getRunSummary,
       args,
     );
   },
@@ -606,7 +606,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       )
       .collect();
     const runSummary = await ctx.runQuery(
-      internal.domain.runs.experiments_data.getRunSummary,
+      internal.domain.runs.experiments_service.getRunSummary,
       { run_id },
     );
     const evidenceLinks = await ctx.db

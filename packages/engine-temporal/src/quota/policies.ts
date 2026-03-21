@@ -1,7 +1,7 @@
 import type {
   QuotaDimension,
   QuotaReservationInput,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/quota";
 import type {
   QuotaBucketPlan,
   QuotaBucketRef,

@@ -1,5 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import type { MutationCtx } from "../../_generated/server";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { RunsTableSchema } from "../../models/experiments";
@@ -13,7 +14,7 @@ import {
 import {
   buildWindowRoundRobinBundlesForSample,
   materializeBundlesForPlan,
-} from "./bundle_plan_logic";
+} from "./bundle_plan_materializer";
 
 const CreateRunArgsSchema = z.object({
   experiment_id: RunsTableSchema.shape.experiment_id,
@@ -22,7 +23,8 @@ const CreateRunArgsSchema = z.object({
 });
 
 type EvidenceDoc = Doc<"evidences">;
-const MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS = 20_000;
+const MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS =
+  DEFAULT_ENGINE_SETTINGS.run.maxScoreTargetEstimatedInputTokens;
 
 function estimateEvidenceTokens(text: string | null | undefined) {
   return Math.ceil((text ?? "").length / 4);

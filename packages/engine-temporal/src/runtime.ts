@@ -1,7 +1,6 @@
-import {
-  ENGINE_ENV_KEYS,
-  TEMPORAL_TASK_QUEUES,
-} from "@judge-gym/engine-settings";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
+import { ENGINE_ENV_KEYS } from "@judge-gym/engine-settings/env";
+import { TEMPORAL_TASK_QUEUES } from "@judge-gym/engine-settings/temporal";
 import { rootCertificates } from "node:tls";
 
 export type TemporalRuntimeConfig = {
@@ -43,15 +42,18 @@ export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
         }
       : undefined,
     retryDelayMs: Number(
-      process.env[ENGINE_ENV_KEYS.temporalRetryDelayMs] ?? 5000,
+      process.env[ENGINE_ENV_KEYS.temporalRetryDelayMs]
+        ?? DEFAULT_ENGINE_SETTINGS.temporal.retryDelayMs,
     ),
     taskQueues: {
       run:
-        process.env[ENGINE_ENV_KEYS.temporalRunTaskQueue] ??
-        TEMPORAL_TASK_QUEUES.run,
+        process.env[ENGINE_ENV_KEYS.temporalRunTaskQueue]
+        ?? DEFAULT_ENGINE_SETTINGS.temporal.taskQueues.run
+        ?? TEMPORAL_TASK_QUEUES.run,
       window:
-        process.env[ENGINE_ENV_KEYS.temporalWindowTaskQueue] ??
-        TEMPORAL_TASK_QUEUES.window,
+        process.env[ENGINE_ENV_KEYS.temporalWindowTaskQueue]
+        ?? DEFAULT_ENGINE_SETTINGS.temporal.taskQueues.window
+        ?? TEMPORAL_TASK_QUEUES.window,
     },
   };
 }

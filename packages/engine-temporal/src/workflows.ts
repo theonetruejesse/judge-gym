@@ -19,7 +19,7 @@ import type {
   SetPauseAfterInput,
   WindowStageKey,
   WindowWorkflowInput,
-} from "@judge-gym/engine-settings";
+} from "@judge-gym/engine-settings/process";
 import type * as activities from "./activities";
 
 const RUN_STAGES: RunStageKey[] = [

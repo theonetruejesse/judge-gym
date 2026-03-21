@@ -4,18 +4,11 @@ import schema from "../schema";
 import { buildModules } from "./test.setup";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
-const rateLimiterModules = import.meta.glob(
-  "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
-);
-
 function initTest(): ConvexTestInstance {
-  const t = convexTest(schema, buildModules());
-  t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
-  return t;
+  return convexTest(schema, buildModules());
 }
 
 async function createWindowWithEvidence(
@@ -235,7 +228,7 @@ describe("bundle score targets", () => {
     const storedWindowB = await t.query(internal.domain.window.window_repo.getWindow, {
       window_id: windowB.window_id,
     });
-    const storedPool = await t.query(internal.domain.runs.experiments_repo.getPool, {
+    const storedPool = await t.query(internal.domain.runs.pool_repo.getPool, {
       pool_id: pool.pool_id,
     });
 

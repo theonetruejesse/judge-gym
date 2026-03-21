@@ -11,7 +11,7 @@ import {
   AnalysisEvidenceRowSchema,
   AnalysisSampleRowSchema,
   analysisPageResultSchema,
-} from "../domain/analysis/export";
+} from "../domain/exports/analysis_export";
 
 const AnalysisResponsesPageSchema = analysisPageResultSchema(AnalysisResponseRowSchema);
 const AnalysisRubricsPageSchema = analysisPageResultSchema(AnalysisRubricRowSchema);
@@ -23,7 +23,7 @@ export const listAnalysisExperiments: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(AnalysisExperimentSummarySchema),
   handler: async (ctx): Promise<z.infer<typeof AnalysisExperimentSummarySchema>[]> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.listAnalysisExperiments,
+      internal.domain.exports.analysis_export.listAnalysisExperiments,
       {},
     );
   },
@@ -37,7 +37,7 @@ export const getAnalysisManifest: ReturnType<typeof zQuery> = zQuery({
   returns: AnalysisManifestSchema,
   handler: async (ctx, args): Promise<z.infer<typeof AnalysisManifestSchema>> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.getAnalysisManifest,
+      internal.domain.exports.analysis_export.getAnalysisManifest,
       args,
     );
   },
@@ -54,7 +54,7 @@ export const listAnalysisResponses: ReturnType<typeof zQuery> = zQuery({
     args,
   ): Promise<z.infer<typeof AnalysisResponsesPageSchema>> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.listAnalysisResponses,
+      internal.domain.exports.analysis_export.listAnalysisResponses,
       args,
     );
   },
@@ -71,7 +71,7 @@ export const listAnalysisRubrics: ReturnType<typeof zQuery> = zQuery({
     args,
   ): Promise<z.infer<typeof AnalysisRubricsPageSchema>> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.listAnalysisRubrics,
+      internal.domain.exports.analysis_export.listAnalysisRubrics,
       args,
     );
   },
@@ -88,7 +88,7 @@ export const listAnalysisEvidence: ReturnType<typeof zQuery> = zQuery({
     args,
   ): Promise<z.infer<typeof AnalysisEvidencePageSchema>> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.listAnalysisEvidence,
+      internal.domain.exports.analysis_export.listAnalysisEvidence,
       args,
     );
   },
@@ -105,7 +105,7 @@ export const listAnalysisSamples: ReturnType<typeof zQuery> = zQuery({
     args,
   ): Promise<z.infer<typeof AnalysisSamplesPageSchema>> => {
     return ctx.runQuery(
-      internal.domain.analysis.export.listAnalysisSamples,
+      internal.domain.exports.analysis_export.listAnalysisSamples,
       args,
     );
   },

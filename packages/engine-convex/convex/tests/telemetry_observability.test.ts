@@ -1,20 +1,13 @@
 import { describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
-import rateLimiterSchema from "../../node_modules/@convex-dev/rate-limiter/dist/component/schema.js";
 import schema from "../schema";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { buildModules } from "./test.setup";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 
-const rateLimiterModules = import.meta.glob(
-  "../../node_modules/@convex-dev/rate-limiter/dist/component/**/*.js",
-);
-
 function initTest() {
-  const t = convexTest(schema, buildModules());
-  t.registerComponent("rateLimiter", rateLimiterSchema, rateLimiterModules);
-  return t;
+  return convexTest(schema, buildModules());
 }
 
 describe("telemetry observability", () => {

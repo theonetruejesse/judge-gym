@@ -3,13 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./env": "./src/env.ts",
+    "./provider": "./src/provider.ts",
+    "./process": "./src/process.ts",
+    "./quota": "./src/quota.ts",
+    "./temporal": "./src/temporal.ts"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

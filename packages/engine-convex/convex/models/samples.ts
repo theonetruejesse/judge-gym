@@ -1,5 +1,5 @@
 import z from "zod";
-import { modelTypeSchema } from "../platform/providers/provider_types";
+import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
 import { zid } from "convex-helpers/server/zod4";
 
 export const SamplesTableSchema = z.object({

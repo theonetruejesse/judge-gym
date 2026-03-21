@@ -9,7 +9,7 @@ import {
 import {
   materializeBundleRows,
   type BundlePlanConfig,
-} from "./bundle_plan_logic";
+} from "./bundle_plan_materializer";
 
 const BundlePlanArgsSchema = z.object({
   bundle_plan_tag: BundlePlansTableSchema.shape.bundle_plan_tag.optional(),

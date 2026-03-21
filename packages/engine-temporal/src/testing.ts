@@ -1,10 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
-import {
-  ENGINE_ENV_KEYS,
-  TEMPORAL_TASK_QUEUES,
-} from "@judge-gym/engine-settings";
+import { ENGINE_ENV_KEYS } from "@judge-gym/engine-settings/env";
+import { TEMPORAL_TASK_QUEUES } from "@judge-gym/engine-settings/temporal";
 import { getTemporalRuntimeConfig } from "./runtime";
 
 const TEST_SERVER_MODES = ["local", "existing"] as const;
