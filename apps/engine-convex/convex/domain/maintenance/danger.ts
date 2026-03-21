@@ -5,6 +5,7 @@ import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 
 const tableNames = [
   "llm_prompt_templates",
+  "llm_batch_executions",
   "llm_attempts",
   "llm_attempt_payloads",
   "process_observability",
@@ -38,6 +39,7 @@ const RunDeleteSummarySchema = z.object({
   rubric_critics: z.number(),
   scores: z.number(),
   score_critics: z.number(),
+  llm_batch_executions: z.number(),
   llm_attempts: z.number(),
   llm_attempt_payloads: z.number(),
   process_observability: z.number(),
@@ -55,6 +57,7 @@ function zeroRunDeleteSummary(): RunDeleteSummary {
     rubric_critics: 0,
     scores: 0,
     score_critics: 0,
+    llm_batch_executions: 0,
     llm_attempts: 0,
     llm_attempt_payloads: 0,
     process_observability: 0,
@@ -81,6 +84,7 @@ async function listRunArtifacts(
     rubricCritics,
     scores,
     scoreCritics,
+    batchExecutions,
     attempts,
     observabilityRows,
   ] = await Promise.all([
@@ -90,6 +94,10 @@ async function listRunArtifacts(
     ctx.db.query("rubric_critics").withIndex("by_run", (q: any) => q.eq("run_id", run_id)).collect(),
     ctx.db.query("scores").withIndex("by_run", (q: any) => q.eq("run_id", run_id)).collect(),
     ctx.db.query("score_critics").withIndex("by_run", (q: any) => q.eq("run_id", run_id)).collect(),
+    ctx.db
+      .query("llm_batch_executions")
+      .withIndex("by_process_stage", (q: any) => q.eq("process_kind", "run").eq("process_id", String(run_id)))
+      .collect(),
     ctx.db
       .query("llm_attempts")
       .withIndex("by_process", (q: any) => q.eq("process_kind", "run").eq("process_id", String(run_id)))
@@ -119,6 +127,7 @@ async function listRunArtifacts(
     rubricCritics,
     scores,
     scoreCritics,
+    batchExecutions,
     attempts,
     payloads,
     observabilityRows,
@@ -174,6 +183,7 @@ async function deleteSingleRunData(
     rubric_critics: artifacts.rubricCritics.length,
     scores: artifacts.scores.length,
     score_critics: artifacts.scoreCritics.length,
+    llm_batch_executions: artifacts.batchExecutions.length,
     llm_attempts: artifacts.attempts.length,
     llm_attempt_payloads: artifacts.payloads.length,
     process_observability: artifacts.observabilityRows.length,
@@ -186,6 +196,7 @@ async function deleteSingleRunData(
     await deleteDocs(ctx, artifacts.scores);
     await deleteDocs(ctx, artifacts.rubricCritics);
     await deleteDocs(ctx, artifacts.rubrics);
+    await deleteDocs(ctx, artifacts.batchExecutions);
     await deleteDocs(ctx, artifacts.scoreTargetItems);
     await deleteDocs(ctx, artifacts.scoreTargets);
     await deleteDocs(ctx, artifacts.samples);
@@ -360,6 +371,15 @@ export const deleteRunDataPass = zInternalMutation({
     const deleted = zeroRunDeleteSummary();
     const limit = args.limit_per_table;
 
+    const batchExecutions = await ctx.db
+      .query("llm_batch_executions")
+      .withIndex("by_process_stage", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
+      .take(limit);
+    deleted.llm_batch_executions += batchExecutions.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "llm_batch_executions", batchExecutions as Array<{ _id: unknown }>);
+    }
+
     const payloads = await ctx.db
       .query("llm_attempt_payloads")
       .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
@@ -436,6 +456,7 @@ export const deleteRunDataPass = zInternalMutation({
     }
 
     let has_more = [
+      batchExecutions.length,
       payloads.length,
       observabilityRows.length,
       scoreCritics.length,
@@ -450,6 +471,7 @@ export const deleteRunDataPass = zInternalMutation({
 
     if (!has_more) {
       const remainingCounts = await Promise.all([
+        ctx.db.query("llm_batch_executions").withIndex("by_process_stage", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
         ctx.db.query("llm_attempt_payloads").withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
         ctx.db.query("process_observability").withIndex("by_process", (q) => q.eq("process_type", "run").eq("process_id", String(args.run_id))).take(1),
         ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
@@ -515,6 +537,7 @@ export const deleteExperimentRunData = zInternalMutation({
       deleted.rubric_critics += result.deleted.rubric_critics;
       deleted.scores += result.deleted.scores;
       deleted.score_critics += result.deleted.score_critics;
+      deleted.llm_batch_executions += result.deleted.llm_batch_executions;
       deleted.llm_attempts += result.deleted.llm_attempts;
       deleted.llm_attempt_payloads += result.deleted.llm_attempt_payloads;
       deleted.process_observability += result.deleted.process_observability;

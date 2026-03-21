@@ -110,6 +110,7 @@ const ResetExperimentRowSchema = z.object({
     rubric_critics: z.number(),
     scores: z.number(),
     score_critics: z.number(),
+    llm_batch_executions: z.number(),
     llm_attempts: z.number(),
     llm_attempt_payloads: z.number(),
     process_observability: z.number(),
@@ -435,6 +436,7 @@ export const resetRuns = zMutation({
       rubric_critics: 0,
       scores: 0,
       score_critics: 0,
+      llm_batch_executions: 0,
       llm_attempts: 0,
       llm_attempt_payloads: 0,
       process_observability: 0,
@@ -457,6 +459,7 @@ export const resetRuns = zMutation({
         rubric_critics: 0,
         scores: 0,
         score_critics: 0,
+        llm_batch_executions: 0,
         llm_attempts: 0,
         llm_attempt_payloads: 0,
         process_observability: 0,
@@ -856,6 +859,7 @@ export const resetV3Campaign = zAction({
       rubric_critics: 0,
       scores: 0,
       score_critics: 0,
+      llm_batch_executions: 0,
       llm_attempts: 0,
       llm_attempt_payloads: 0,
       process_observability: 0,
@@ -873,6 +877,7 @@ export const resetV3Campaign = zAction({
         rubric_critics: 0,
         scores: 0,
         score_critics: 0,
+        llm_batch_executions: 0,
         llm_attempts: 0,
         llm_attempt_payloads: 0,
         process_observability: 0,
@@ -898,6 +903,7 @@ export const resetV3Campaign = zAction({
           deleted.rubric_critics += pass.deleted.rubric_critics;
           deleted.scores += pass.deleted.scores;
           deleted.score_critics += pass.deleted.score_critics;
+          deleted.llm_batch_executions += pass.deleted.llm_batch_executions;
           deleted.llm_attempts += pass.deleted.llm_attempts;
           deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
           deleted.process_observability += pass.deleted.process_observability;
@@ -1105,6 +1111,7 @@ export const resetV3CampaignChunked = zAction({
       rubric_critics: 0,
       scores: 0,
       score_critics: 0,
+      llm_batch_executions: 0,
       llm_attempts: 0,
       llm_attempt_payloads: 0,
       process_observability: 0,
@@ -1122,6 +1129,7 @@ export const resetV3CampaignChunked = zAction({
         rubric_critics: 0,
         scores: 0,
         score_critics: 0,
+        llm_batch_executions: 0,
         llm_attempts: 0,
         llm_attempt_payloads: 0,
         process_observability: 0,
@@ -1147,6 +1155,7 @@ export const resetV3CampaignChunked = zAction({
           deleted.rubric_critics += pass.deleted.rubric_critics;
           deleted.scores += pass.deleted.scores;
           deleted.score_critics += pass.deleted.score_critics;
+          deleted.llm_batch_executions += pass.deleted.llm_batch_executions;
           deleted.llm_attempts += pass.deleted.llm_attempts;
           deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
           deleted.process_observability += pass.deleted.process_observability;
