@@ -1,4 +1,3 @@
-import Firecrawl from "@mendable/firecrawl-js";
 import type {
   StageActivityResult,
   WindowStageKey,
@@ -30,8 +29,6 @@ type SearchResult = {
 
 type WindowTransformStage = Exclude<WindowStageKey, "collect">;
 
-const FIRECRAWL_REQUEST_TIMEOUT_MS = 45_000;
-
 const WINDOW_STAGE_PROMPTS: Record<
   WindowTransformStage,
   {
@@ -53,25 +50,12 @@ const WINDOW_STAGE_PROMPTS: Record<
   },
 };
 
-function requireFirecrawlKey() {
-  const key = process.env.FIRECRAWL_API_KEY;
-  if (!key) {
-    throw new Error("FIRECRAWL_API_KEY is not set");
-  }
-  return key;
-}
-
 function requireOpenAiKey() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     throw new Error("OPENAI_API_KEY is not set");
   }
   return key;
-}
-
-function toSearchDate(iso: string): string {
-  const [year, month, day] = iso.split("-");
-  return `${month}/${day}/${year}`;
 }
 
 export async function searchWindowEvidence(args: {
@@ -82,11 +66,7 @@ export async function searchWindowEvidence(args: {
   limit: number;
 }): Promise<SearchResult[]> {
   const startedAt = Date.now();
-  const firecrawl = new Firecrawl({
-    apiKey: requireFirecrawlKey(),
-    timeoutMs: FIRECRAWL_REQUEST_TIMEOUT_MS,
-    maxRetries: 1,
-  });
+  const convex = getConvexWorkerClient();
 
   console.info("[window.collect] firecrawl search start", {
     query: args.query,
@@ -96,21 +76,7 @@ export async function searchWindowEvidence(args: {
     end_date: args.end_date,
   });
 
-  const response = await firecrawl.search(
-    `${args.query} ${args.country} news articles`,
-    {
-      limit: args.limit,
-      sources: ["news"],
-      location: args.country,
-      tbs: `cdr:1,cd_min:${toSearchDate(args.start_date)},cd_max:${toSearchDate(args.end_date)}`,
-      timeout: FIRECRAWL_REQUEST_TIMEOUT_MS,
-      scrapeOptions: {
-        formats: ["markdown"],
-      },
-    },
-  );
-
-  const items = response?.news ?? [];
+  const items = await convex.searchWindowEvidence(args);
   console.info("[window.collect] firecrawl search finish", {
     query: args.query,
     returned: items.length,

@@ -20,6 +20,8 @@ const SearchResultSchema = z.object({
     raw_content: z.string(),
 });
 
+const FIRECRAWL_REQUEST_TIMEOUT_MS = 45_000;
+
 export type SearchNewsResults = Array<z.infer<typeof SearchResultSchema>>;
 
 export const searchNews = zInternalAction({
@@ -55,12 +57,17 @@ interface SearchOptions {
 
 async function searchHeadlines(options: SearchOptions) {
     const { query, country, start_date, end_date, limit } = options;
-    const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
+    const firecrawl = new Firecrawl({
+        apiKey: process.env.FIRECRAWL_API_KEY,
+        timeoutMs: FIRECRAWL_REQUEST_TIMEOUT_MS,
+        maxRetries: 1,
+    });
     const response = await firecrawl.search(`${query} ${country} news articles`, {
         limit,
         sources: ["news"],
         location: country,
         tbs: `cdr:1,cd_min:${toSearchDate(start_date)},cd_max:${toSearchDate(end_date)}`,
+        timeout: FIRECRAWL_REQUEST_TIMEOUT_MS,
         scrapeOptions: {
             formats: ["markdown"],
         },

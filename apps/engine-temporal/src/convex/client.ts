@@ -44,6 +44,12 @@ type WindowStageInput = {
   input: string;
 };
 
+type WindowSearchResult = {
+  title: string;
+  url: string;
+  raw_content: string;
+};
+
 type RunExecutionContext = {
   run_id: string;
   experiment_id: string;
@@ -118,6 +124,9 @@ const workerApi = {
   ),
   getWindowExecutionContext: makeFunctionReference<"query">(
     "packages/worker:getWindowExecutionContext",
+  ),
+  searchWindowEvidence: makeFunctionReference<"action">(
+    "packages/worker:searchWindowEvidence",
   ),
   bindWindowWorkflow: makeFunctionReference<"mutation">(
     "packages/worker:bindWindowWorkflow",
@@ -197,6 +206,16 @@ export class ConvexWorkerClient {
     return this.client.query(workerApi.getWindowExecutionContext, {
       window_run_id,
     }) as Promise<WindowExecutionContext>;
+  }
+
+  searchWindowEvidence(args: {
+    query: string;
+    country: string;
+    start_date: string;
+    end_date: string;
+    limit: number;
+  }) {
+    return this.client.action(workerApi.searchWindowEvidence, args) as Promise<WindowSearchResult[]>;
   }
 
   bindWindowWorkflow(args: {

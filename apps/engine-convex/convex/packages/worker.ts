@@ -1,6 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zMutation, zQuery } from "../utils/custom_fns";
+import { zAction, zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -492,6 +492,34 @@ export const bindWindowWorkflow = zMutation({
       }),
     });
     return null;
+  },
+});
+
+export const searchWindowEvidence: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    query: z.string(),
+    country: z.string(),
+    start_date: z.string(),
+    end_date: z.string(),
+    limit: z.number(),
+  }),
+  returns: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    raw_content: z.string(),
+  })),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<Array<{
+    title: string;
+    url: string;
+    raw_content: string;
+  }>> => {
+    return await ctx.runAction(
+      internal.domain.window.evidence_search.searchNews,
+      args,
+    );
   },
 });
 
