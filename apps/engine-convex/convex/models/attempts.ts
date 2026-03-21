@@ -23,6 +23,7 @@ export const LlmPromptTemplatesTableSchema = z.object({
 });
 
 export const LlmAttemptsTableSchema = z.object({
+  attempt_key: z.string().nullable().optional(),
   process_kind: z.enum(["window", "run"]),
   process_id: z.string(),
   target_type: z.enum(["evidence", "sample", "sample_score_target"]),

@@ -1014,6 +1014,7 @@ export const listWindowStageInputs = zQuery({
 
 export const recordLlmAttemptStart = zMutation({
   args: z.object({
+    attempt_key: z.string().optional(),
     process_kind: z.enum(["window", "run"]),
     process_id: z.string(),
     target_type: z.enum(["evidence", "sample", "sample_score_target"]),
@@ -1031,6 +1032,16 @@ export const recordLlmAttemptStart = zMutation({
     attempt_id: zid("llm_attempts"),
   }),
   handler: async (ctx, args) => {
+    if (args.attempt_key) {
+      const existingAttempt = await ctx.db
+        .query("llm_attempts")
+        .withIndex("by_attempt_key", (q) => q.eq("attempt_key", args.attempt_key!))
+        .first();
+      if (existingAttempt) {
+        return { attempt_id: existingAttempt._id };
+      }
+    }
+
     const content_hash = stableHash(args.system_prompt);
     let promptTemplate = await ctx.db
       .query("llm_prompt_templates")
@@ -1045,6 +1056,7 @@ export const recordLlmAttemptStart = zMutation({
       }));
 
     const attempt_id = await ctx.db.insert("llm_attempts", {
+      attempt_key: args.attempt_key ?? null,
       process_kind: args.process_kind,
       process_id: args.process_id,
       target_type: args.target_type,
@@ -1114,6 +1126,10 @@ export const recordLlmAttemptFinish = zMutation({
     const attempt = await ctx.db.get(args.attempt_id);
     if (!attempt) {
       throw new Error("Attempt not found");
+    }
+
+    if (attempt.status !== "started") {
+      return null;
     }
 
     const patch: Partial<Doc<"llm_attempts">> = {
@@ -1199,6 +1215,10 @@ export const applyWindowStageResult = zMutation({
       throw new Error("Evidence not found for window run");
     }
 
+    if (evidence[fields.outputField] !== null) {
+      return null;
+    }
+
     await ctx.db.patch(args.evidence_id, {
       [fields.outputField]: args.output,
       [fields.attemptField]: args.attempt_id,
@@ -1251,6 +1271,13 @@ export const markWindowStageFailure = zMutation({
     const evidence = await ctx.db.get(args.evidence_id);
     if (!evidence || evidence.window_run_id !== args.window_run_id) {
       throw new Error("Evidence not found for window run");
+    }
+
+    if (evidence[fields.outputField] !== null) {
+      return null;
+    }
+    if (evidence[fields.errorField] === args.error_message) {
+      return null;
     }
 
     await ctx.db.patch(args.evidence_id, {
@@ -1681,6 +1708,159 @@ export const markRunProcessError = zMutation({
       payload_json: JSON.stringify({
         error_message: args.error_message,
       }),
+    });
+    return null;
+  },
+});
+
+export const getBatchExecution = zQuery({
+  args: z.object({
+    batch_key: z.string(),
+  }),
+  returns: z.object({
+    batch_execution_id: zid("llm_batch_executions"),
+    provider_batch_id: z.string().nullable(),
+    status: z.string(),
+    output_file_id: z.string().nullable().optional(),
+    error_file_id: z.string().nullable().optional(),
+  }).nullable(),
+  handler: async (ctx, args) => {
+    const execution = await ctx.db
+      .query("llm_batch_executions")
+      .withIndex("by_batch_key", (q) => q.eq("batch_key", args.batch_key))
+      .first();
+    if (!execution) {
+      return null;
+    }
+    return {
+      batch_execution_id: execution._id,
+      provider_batch_id: execution.provider_batch_id ?? null,
+      status: execution.status,
+      output_file_id: execution.output_file_id ?? null,
+      error_file_id: execution.error_file_id ?? null,
+    };
+  },
+});
+
+export const ensureBatchExecution = zMutation({
+  args: z.object({
+    batch_key: z.string(),
+    process_kind: z.enum(["window", "run"]),
+    process_id: z.string(),
+    stage: z.string(),
+    provider: z.string(),
+    model: z.string(),
+    workflow_id: z.string(),
+    item_count: z.number(),
+  }),
+  returns: z.object({
+    batch_execution_id: zid("llm_batch_executions"),
+    provider_batch_id: z.string().nullable(),
+    status: z.string(),
+    output_file_id: z.string().nullable().optional(),
+    error_file_id: z.string().nullable().optional(),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("llm_batch_executions")
+      .withIndex("by_batch_key", (q) => q.eq("batch_key", args.batch_key))
+      .first();
+    if (existing) {
+      return {
+        batch_execution_id: existing._id,
+        provider_batch_id: existing.provider_batch_id ?? null,
+        status: existing.status,
+        output_file_id: existing.output_file_id ?? null,
+        error_file_id: existing.error_file_id ?? null,
+      };
+    }
+
+    const batch_execution_id = await ctx.db.insert("llm_batch_executions", {
+      batch_key: args.batch_key,
+      process_kind: args.process_kind,
+      process_id: args.process_id,
+      stage: args.stage,
+      provider: args.provider,
+      model: args.model,
+      workflow_id: args.workflow_id,
+      item_count: args.item_count,
+      provider_batch_id: null,
+      input_file_id: null,
+      output_file_id: null,
+      error_file_id: null,
+      status: "preparing",
+      last_known_provider_status: null,
+      last_error_message: null,
+      submitted_at_ms: null,
+      completed_at_ms: null,
+    });
+
+    return {
+      batch_execution_id,
+      provider_batch_id: null,
+      status: "preparing",
+      output_file_id: null,
+      error_file_id: null,
+    };
+  },
+});
+
+export const bindBatchExecutionSubmitted = zMutation({
+  args: z.object({
+    batch_execution_id: zid("llm_batch_executions"),
+    provider_batch_id: z.string(),
+    input_file_id: z.string().nullable().optional(),
+    provider_status: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const execution = await ctx.db.get(args.batch_execution_id);
+    if (!execution) {
+      throw new Error("Batch execution not found");
+    }
+    if (
+      execution.provider_batch_id
+      && execution.provider_batch_id !== args.provider_batch_id
+    ) {
+      throw new Error("Batch execution already bound to a different provider batch id");
+    }
+    await ctx.db.patch(args.batch_execution_id, {
+      provider_batch_id: args.provider_batch_id,
+      input_file_id: args.input_file_id ?? execution.input_file_id ?? null,
+      status: "submitted",
+      last_known_provider_status: args.provider_status,
+      submitted_at_ms: execution.submitted_at_ms ?? Date.now(),
+      last_error_message: null,
+    });
+    return null;
+  },
+});
+
+export const finalizeBatchExecution = zMutation({
+  args: z.object({
+    batch_execution_id: zid("llm_batch_executions"),
+    status: z.enum(["submitted", "completed", "failed", "cancelled"]),
+    provider_status: z.string(),
+    output_file_id: z.string().nullable().optional(),
+    error_file_id: z.string().nullable().optional(),
+    error_message: z.string().nullable().optional(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const execution = await ctx.db.get(args.batch_execution_id);
+    if (!execution) {
+      throw new Error("Batch execution not found");
+    }
+    await ctx.db.patch(args.batch_execution_id, {
+      status: args.status,
+      last_known_provider_status: args.provider_status,
+      output_file_id: args.output_file_id ?? execution.output_file_id ?? null,
+      error_file_id: args.error_file_id ?? execution.error_file_id ?? null,
+      last_error_message: args.error_message ?? null,
+      completed_at_ms:
+        args.status === "completed" || args.status === "failed" || args.status === "cancelled"
+          ? (execution.completed_at_ms ?? Date.now())
+          : execution.completed_at_ms ?? null,
     });
     return null;
   },

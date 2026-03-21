@@ -50,6 +50,9 @@ type WindowStageDependencies = {
     | "markWindowProcessError"
   > & {
     recordProcessHeartbeat?: ConvexWorkerClient["recordProcessHeartbeat"];
+    ensureBatchExecution?: ConvexWorkerClient["ensureBatchExecution"];
+    bindBatchExecutionSubmitted?: ConvexWorkerClient["bindBatchExecutionSubmitted"];
+    finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
   };
   searchWindowEvidence: typeof searchWindowEvidence;
   runOpenAiChat: typeof runOpenAiChat;
@@ -184,6 +187,27 @@ function estimatePromptTokens(args: {
   userPrompt: string;
 }) {
   return estimateTextTokens(args.systemPrompt) + estimateTextTokens(args.userPrompt);
+}
+
+function stableHash(content: string): string {
+  let hash = 5381;
+  for (let index = 0; index < content.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ content.charCodeAt(index);
+  }
+  return `h_${(hash >>> 0).toString(16)}`;
+}
+
+function buildWindowBatchKey(args: {
+  windowRunId: string;
+  stage: WindowTransformStage;
+  model: string;
+  inputs: PreparedWindowStageInput[];
+}) {
+  const identity = args.inputs
+    .map((input) => input.evidence_id)
+    .sort()
+    .join("|");
+  return stableHash(`window:${args.windowRunId}:${args.stage}:${args.model}:${identity}`);
 }
 
 function chunkItems<T>(items: T[], size: number): T[][] {
@@ -429,7 +453,10 @@ async function processWindowStageInputWithRetries(
       await sleep(settings.llm.retries.backoffMs);
     }
 
-    const result = await executeWindowChatAttempt(deps, args);
+    const result = await executeWindowChatAttempt(deps, {
+      ...args,
+      attemptOrdinal: attemptCount + 1,
+    });
     if (result.status === "succeeded") {
       return "succeeded";
     }
@@ -470,6 +497,7 @@ async function executeWindowChatAttempt(
     evidenceUrl: string;
     systemPrompt: string;
     userPrompt: string;
+    attemptOrdinal: number;
   },
 ): Promise<
   | { status: "succeeded" }
@@ -483,6 +511,13 @@ async function executeWindowChatAttempt(
   const settings = getSettings(deps);
   const { provider } = getModelConfig(args.windowModel);
   const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+    attempt_key: [
+      "window",
+      args.windowRunId,
+      args.stage,
+      args.evidenceId,
+      `attempt:${args.attemptOrdinal}`,
+    ].join(":"),
     process_kind: "window",
     process_id: args.windowRunId,
     target_type: "evidence",
@@ -604,12 +639,25 @@ async function processWindowStageBatchChunk(
 ): Promise<{ successCount: number; failureCount: number }> {
   const settings = getSettings(deps);
   const { provider } = getModelConfig(args.windowModel);
+  const batchKey = buildWindowBatchKey({
+    windowRunId: args.windowRunId,
+    stage: args.stage,
+    model: args.windowModel,
+    inputs: args.inputs,
+  });
   const startedAttempts = await Promise.all(
     args.inputs.map(async (input) => {
       const userPrompt = WINDOW_STAGE_PROMPTS[args.stage].buildPrompt(
         input.normalizedInput,
       );
       const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+        attempt_key: [
+          "window",
+          args.windowRunId,
+          args.stage,
+          input.evidence_id,
+          "batch",
+        ].join(":"),
         process_kind: "window",
         process_id: args.windowRunId,
         target_type: "evidence",
@@ -689,8 +737,21 @@ async function processWindowStageBatchChunk(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
+      const batchExecution = deps.convex.ensureBatchExecution
+        ? await deps.convex.ensureBatchExecution({
+        batch_key: batchKey,
+        process_kind: "window",
+        process_id: args.windowRunId,
+        stage: args.stage,
+        provider,
+        model: args.windowModel,
+        workflow_id: args.workflowId,
+        item_count: startedAttempts.length,
+        })
+        : null;
       const batch = await getBatchExecutor(deps)({
         model: args.windowModel,
+        existingBatchId: batchExecution?.provider_batch_id ?? undefined,
         items: startedAttempts.map(({ input, userPrompt, attemptId }) => ({
           customId: attemptId,
           model: args.windowModel,
@@ -700,7 +761,22 @@ async function processWindowStageBatchChunk(
         })),
         settings: settings.llm.batching,
         timeoutMs: settings.llm.batching.requestTimeoutMs,
+        onBatchCreated: async (event) => {
+          await deps.convex.bindBatchExecutionSubmitted?.({
+            batch_execution_id: batchExecution!.batch_execution_id,
+            provider_batch_id: event.batchId,
+            input_file_id: event.inputFileId,
+            provider_status: event.status,
+          });
+        },
         onLifecycleEvent: async (event) => {
+          if (batchExecution) {
+            await deps.convex.finalizeBatchExecution?.({
+              batch_execution_id: batchExecution.batch_execution_id,
+              status: event.phase === "completed" ? "completed" : "submitted",
+              provider_status: event.status,
+            });
+          }
           await deps.convex.recordProcessHeartbeat?.({
             process_kind: "window",
             process_id: args.windowRunId,
@@ -729,6 +805,15 @@ async function processWindowStageBatchChunk(
         },
         status: "applied",
       });
+      if (batchExecution) {
+        await deps.convex.finalizeBatchExecution?.({
+          batch_execution_id: batchExecution.batch_execution_id,
+          status: "completed",
+          provider_status: "completed",
+          output_file_id: batch.outputFileId,
+          error_file_id: batch.errorFileId,
+        });
+      }
 
       for (const item of batch.succeeded) {
         try {
@@ -788,6 +873,26 @@ async function processWindowStageBatchChunk(
       });
     }
     const message = error instanceof Error ? error.message : String(error);
+    const existingBatchExecution = deps.convex.ensureBatchExecution
+      ? await deps.convex.ensureBatchExecution({
+      batch_key: batchKey,
+      process_kind: "window",
+      process_id: args.windowRunId,
+      stage: args.stage,
+      provider,
+      model: args.windowModel,
+      workflow_id: args.workflowId,
+      item_count: startedAttempts.length,
+      })
+      : null;
+    if (existingBatchExecution) {
+      await deps.convex.finalizeBatchExecution?.({
+        batch_execution_id: existingBatchExecution.batch_execution_id,
+        status: "failed",
+        provider_status: "failed",
+        error_message: message,
+      });
+    }
     await recordSharedBatchFailure(message);
   }
 

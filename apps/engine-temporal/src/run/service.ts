@@ -42,6 +42,9 @@ type RunStageDependencies = {
     | "markRunProcessError"
   > & {
     recordProcessHeartbeat?: ConvexWorkerClient["recordProcessHeartbeat"];
+    ensureBatchExecution?: ConvexWorkerClient["ensureBatchExecution"];
+    bindBatchExecutionSubmitted?: ConvexWorkerClient["bindBatchExecutionSubmitted"];
+    finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
   };
   runOpenAiChat: typeof runOpenAiChat;
   runOpenAiBatchChat?: typeof runOpenAiBatchChat;
@@ -85,6 +88,27 @@ function buildObservedDimensions(result: ChatResult) {
 
 function estimatePromptTokens(input: RunStageInput) {
   return estimateTextTokens(input.system_prompt) + estimateTextTokens(input.user_prompt);
+}
+
+function stableHash(content: string): string {
+  let hash = 5381;
+  for (let index = 0; index < content.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ content.charCodeAt(index);
+  }
+  return `h_${(hash >>> 0).toString(16)}`;
+}
+
+function buildRunBatchKey(args: {
+  runId: string;
+  stage: RunStageKey;
+  model: string;
+  inputs: RunStageInput[];
+}) {
+  const identity = args.inputs
+    .map((input) => `${input.target_type}:${input.target_id}`)
+    .sort()
+    .join("|");
+  return stableHash(`run:${args.runId}:${args.stage}:${args.model}:${identity}`);
 }
 
 function chunkItems<T>(items: T[], size: number): T[][] {
@@ -281,7 +305,10 @@ async function processRunStageInputWithRetries(
       await sleep(settings.llm.retries.backoffMs);
     }
 
-    const result = await executeRunChatAttempt(deps, args);
+    const result = await executeRunChatAttempt(deps, {
+      ...args,
+      attemptOrdinal: attemptCount + 1,
+    });
     if (result.status === "succeeded") {
       return "succeeded";
     }
@@ -317,6 +344,7 @@ async function executeRunChatAttempt(
     stage: RunStageKey;
     workflowId: string;
     input: RunStageInput;
+    attemptOrdinal: number;
   },
 ): Promise<
   | { status: "succeeded" }
@@ -330,6 +358,13 @@ async function executeRunChatAttempt(
   const settings = getSettings(deps);
   const { provider } = getModelConfig(args.input.model);
   const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+    attempt_key: [
+      "run",
+      args.runId,
+      args.stage,
+      args.input.target_id,
+      `attempt:${args.attemptOrdinal}`,
+    ].join(":"),
     process_kind: "run",
     process_id: args.runId,
     target_type: args.input.target_type,
@@ -444,9 +479,22 @@ async function processRunStageBatchChunk(
 ): Promise<{ successCount: number; failureCount: number }> {
   const settings = getSettings(deps);
   const { provider } = getModelConfig(args.model);
+  const batchKey = buildRunBatchKey({
+    runId: args.runId,
+    stage: args.stage,
+    model: args.model,
+    inputs: args.inputs,
+  });
   const startedAttempts = await Promise.all(
     args.inputs.map(async (input) => {
       const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+        attempt_key: [
+          "run",
+          args.runId,
+          args.stage,
+          input.target_id,
+          "batch",
+        ].join(":"),
         process_kind: "run",
         process_id: args.runId,
         target_type: input.target_type,
@@ -518,8 +566,21 @@ async function processRunStageBatchChunk(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
+      const batchExecution = deps.convex.ensureBatchExecution
+        ? await deps.convex.ensureBatchExecution({
+        batch_key: batchKey,
+        process_kind: "run",
+        process_id: args.runId,
+        stage: args.stage,
+        provider,
+        model: args.model,
+        workflow_id: args.workflowId,
+        item_count: startedAttempts.length,
+        })
+        : null;
       const batch = await getBatchExecutor(deps)({
         model: args.model,
+        existingBatchId: batchExecution?.provider_batch_id ?? undefined,
         items: startedAttempts.map(({ input, attemptId }) => ({
           customId: attemptId,
           model: input.model,
@@ -529,7 +590,22 @@ async function processRunStageBatchChunk(
         })),
         settings: settings.llm.batching,
         timeoutMs: settings.llm.batching.requestTimeoutMs,
+        onBatchCreated: async (event) => {
+          await deps.convex.bindBatchExecutionSubmitted?.({
+            batch_execution_id: batchExecution!.batch_execution_id,
+            provider_batch_id: event.batchId,
+            input_file_id: event.inputFileId,
+            provider_status: event.status,
+          });
+        },
         onLifecycleEvent: async (event) => {
+          if (batchExecution) {
+            await deps.convex.finalizeBatchExecution?.({
+              batch_execution_id: batchExecution.batch_execution_id,
+              status: event.phase === "completed" ? "completed" : "submitted",
+              provider_status: event.status,
+            });
+          }
           await deps.convex.recordProcessHeartbeat?.({
             process_kind: "run",
             process_id: args.runId,
@@ -558,6 +634,15 @@ async function processRunStageBatchChunk(
         },
         status: "applied",
       });
+      if (batchExecution) {
+        await deps.convex.finalizeBatchExecution?.({
+          batch_execution_id: batchExecution.batch_execution_id,
+          status: "completed",
+          provider_status: "completed",
+          output_file_id: batch.outputFileId,
+          error_file_id: batch.errorFileId,
+        });
+      }
 
       for (const item of batch.succeeded) {
         try {
@@ -618,6 +703,26 @@ async function processRunStageBatchChunk(
       });
     }
     const message = error instanceof Error ? error.message : String(error);
+    const existingBatchExecution = deps.convex.ensureBatchExecution
+      ? await deps.convex.ensureBatchExecution({
+      batch_key: batchKey,
+      process_kind: "run",
+      process_id: args.runId,
+      stage: args.stage,
+      provider,
+      model: args.model,
+      workflow_id: args.workflowId,
+      item_count: startedAttempts.length,
+      })
+      : null;
+    if (existingBatchExecution) {
+      await deps.convex.finalizeBatchExecution?.({
+        batch_execution_id: existingBatchExecution.batch_execution_id,
+        status: "failed",
+        provider_status: "failed",
+        error_message: message,
+      });
+    }
     await recordSharedBatchFailure(message);
   }
 

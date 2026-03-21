@@ -72,6 +72,7 @@ type RunStageInput = {
 };
 
 type AttemptStartInput = {
+  attempt_key?: string;
   process_kind: "window" | "run";
   process_id: string;
   target_type: "evidence" | "sample" | "sample_score_target";
@@ -84,6 +85,17 @@ type AttemptStartInput = {
   system_prompt: string;
   user_prompt: string;
   metadata_json?: string | null;
+};
+
+type BatchExecutionInput = {
+  batch_key: string;
+  process_kind: "window" | "run";
+  process_id: string;
+  stage: string;
+  provider: string;
+  model: string;
+  workflow_id: string;
+  item_count: number;
 };
 
 type AttemptFinishInput = {
@@ -183,6 +195,18 @@ const workerApi = {
   ),
   markRunProcessError: makeFunctionReference<"mutation">(
     "packages/worker:markRunProcessError",
+  ),
+  getBatchExecution: makeFunctionReference<"query">(
+    "packages/worker:getBatchExecution",
+  ),
+  ensureBatchExecution: makeFunctionReference<"mutation">(
+    "packages/worker:ensureBatchExecution",
+  ),
+  bindBatchExecutionSubmitted: makeFunctionReference<"mutation">(
+    "packages/worker:bindBatchExecutionSubmitted",
+  ),
+  finalizeBatchExecution: makeFunctionReference<"mutation">(
+    "packages/worker:finalizeBatchExecution",
   ),
   reserveQuota: makeFunctionReference<"mutation">(
     "packages/worker:reserveQuota",
@@ -350,6 +374,46 @@ export class ConvexWorkerClient {
     error_message: string;
   }) {
     return this.client.mutation(workerApi.markRunProcessError, args);
+  }
+
+  getBatchExecution(args: { batch_key: string }) {
+    return this.client.query(workerApi.getBatchExecution, args) as Promise<{
+      batch_execution_id: string;
+      provider_batch_id: string | null;
+      status: string;
+      output_file_id?: string | null;
+      error_file_id?: string | null;
+    } | null>;
+  }
+
+  ensureBatchExecution(args: BatchExecutionInput) {
+    return this.client.mutation(workerApi.ensureBatchExecution, args) as Promise<{
+      batch_execution_id: string;
+      provider_batch_id: string | null;
+      status: string;
+      output_file_id?: string | null;
+      error_file_id?: string | null;
+    }>;
+  }
+
+  bindBatchExecutionSubmitted(args: {
+    batch_execution_id: string;
+    provider_batch_id: string;
+    input_file_id?: string | null;
+    provider_status: string;
+  }) {
+    return this.client.mutation(workerApi.bindBatchExecutionSubmitted, args);
+  }
+
+  finalizeBatchExecution(args: {
+    batch_execution_id: string;
+    status: "submitted" | "completed" | "failed" | "cancelled";
+    provider_status: string;
+    output_file_id?: string | null;
+    error_file_id?: string | null;
+    error_message?: string | null;
+  }) {
+    return this.client.mutation(workerApi.finalizeBatchExecution, args);
   }
 
   reserveQuota(args: QuotaReservationInput) {

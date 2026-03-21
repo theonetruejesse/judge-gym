@@ -233,28 +233,39 @@ export const insertEvidenceBatch = zInternalMutation({
         inserted: z.number(),
         total: z.number(),
     }),
-    handler: async (ctx, args) => {
-        const windowRun = await ctx.db.get(args.window_run_id);
-        if (!windowRun) throw new Error("Window run not found");
-        for (const evidence of args.evidences) {
-            await ctx.db.insert("evidences", {
-                window_id: windowRun.window_id,
-                window_run_id: args.window_run_id,
+  handler: async (ctx, args) => {
+    const windowRun = await ctx.db.get(args.window_run_id);
+    if (!windowRun) throw new Error("Window run not found");
+    const existing = await ctx.db
+      .query("evidences")
+      .withIndex("by_window_run_id", (q) => q.eq("window_run_id", args.window_run_id))
+      .collect();
+    const existingUrls = new Set(existing.map((item) => item.url));
+    let inserted = 0;
+    for (const evidence of args.evidences) {
+      if (existingUrls.has(evidence.url)) {
+        continue;
+      }
+      await ctx.db.insert("evidences", {
+        window_id: windowRun.window_id,
+        window_run_id: args.window_run_id,
                 title: evidence.title,
                 url: evidence.url,
                 l0_raw_content: evidence.raw_content,
                 l1_cleaned_content: null,
-                l2_neutralized_content: null,
-                l3_abstracted_content: null,
-            });
-        }
+        l2_neutralized_content: null,
+        l3_abstracted_content: null,
+      });
+      existingUrls.add(evidence.url);
+      inserted += 1;
+    }
 
-        const total = await ctx.db
-            .query("evidences")
-            .withIndex("by_window_run_id", (q) => q.eq("window_run_id", args.window_run_id))
-            .collect();
-        return { inserted: args.evidences.length, total: total.length };
-    },
+    const total = await ctx.db
+      .query("evidences")
+      .withIndex("by_window_run_id", (q) => q.eq("window_run_id", args.window_run_id))
+      .collect();
+    return { inserted, total: total.length };
+  },
 });
 
 export const listEvidenceByWindow = zInternalQuery({

@@ -33,6 +33,7 @@ import type * as domain_window_evidence_search from "../domain/window/evidence_s
 import type * as domain_window_window_repo from "../domain/window/window_repo.js";
 import type * as models__shared from "../models/_shared.js";
 import type * as models_attempts from "../models/attempts.js";
+import type * as models_batches from "../models/batches.js";
 import type * as models_bundles from "../models/bundles.js";
 import type * as models_experiments from "../models/experiments.js";
 import type * as models_samples from "../models/samples.js";
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   "domain/window/window_repo": typeof domain_window_window_repo;
   "models/_shared": typeof models__shared;
   "models/attempts": typeof models_attempts;
+  "models/batches": typeof models_batches;
   "models/bundles": typeof models_bundles;
   "models/experiments": typeof models_experiments;
   "models/samples": typeof models_samples;

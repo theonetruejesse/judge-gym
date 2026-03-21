@@ -5,6 +5,7 @@ import {
   LlmAttemptPayloadsTableSchema,
   LlmAttemptsTableSchema,
 } from "./models/attempts";
+import { LlmBatchExecutionsTableSchema } from "./models/batches";
 import { EvidencesTableSchema, WindowRunsTableSchema, WindowsTableSchema } from "./models/window";
 import {
   ExperimentsTableSchema,
@@ -33,6 +34,7 @@ export default defineSchema({
   llm_prompt_templates: defineTable(zodOutputToConvex(LlmPromptTemplatesTableSchema))
     .index("by_content_hash", ["content_hash"]),
   llm_attempts: defineTable(zodOutputToConvex(LlmAttemptsTableSchema))
+    .index("by_attempt_key", ["attempt_key"])
     .index("by_process", ["process_kind", "process_id"])
     .index("by_process_stage", ["process_kind", "process_id", "stage"])
     .index("by_target", ["target_type", "target_id"])
@@ -41,6 +43,9 @@ export default defineSchema({
     .index("by_process", ["process_kind", "process_id"])
     .index("by_attempt", ["attempt_id"])
     .index("by_attempt_kind", ["attempt_id", "kind"]),
+  llm_batch_executions: defineTable(zodOutputToConvex(LlmBatchExecutionsTableSchema))
+    .index("by_batch_key", ["batch_key"])
+    .index("by_process_stage", ["process_kind", "process_id", "stage"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema))
     .index("by_window_tag", ["window_tag"]),
   window_runs: defineTable(zodOutputToConvex(WindowRunsTableSchema))
@@ -48,7 +53,8 @@ export default defineSchema({
     .index("by_window", ["window_id"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
     .index("by_window_id", ["window_id"])
-    .index("by_window_run_id", ["window_run_id"]),
+    .index("by_window_run_id", ["window_run_id"])
+    .index("by_window_run_url", ["window_run_id", "url"]),
   pools: defineTable(zodOutputToConvex(PoolsTableSchema))
     .index("by_pool_tag", ["pool_tag"]),
   pool_evidences: defineTable(zodOutputToConvex(PoolEvidencesTableSchema))

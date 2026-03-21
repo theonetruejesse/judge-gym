@@ -266,6 +266,12 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
   timeoutMs?: number;
+  existingBatchId?: string;
+  onBatchCreated?: (event: {
+    batchId: string;
+    inputFileId: string;
+    status: string;
+  }) => Promise<void> | void;
   onLifecycleEvent?: (event: {
     phase: "submitted" | "polled" | "completed";
     batchId: string;
@@ -291,25 +297,35 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   const itemByCustomId = new Map(
     args.items.map((item) => [item.customId, item] as const),
   );
-  const inputBody = args.items.map((item) => {
-    return JSON.stringify({
-      custom_id: item.customId,
-      method: "POST",
-      url: "/v1/chat/completions",
-      body: buildChatCompletionBody({
-        model: args.model,
-        systemPrompt: item.systemPrompt,
-        userPrompt: item.userPrompt,
-      }),
-    });
-  }).join("\n");
+  let batch: BatchLifecycleResponse;
+  if (args.existingBatchId) {
+    batch = await getBatch(args.existingBatchId, args.timeoutMs);
+  } else {
+    const inputBody = args.items.map((item) => {
+      return JSON.stringify({
+        custom_id: item.customId,
+        method: "POST",
+        url: "/v1/chat/completions",
+        body: buildChatCompletionBody({
+          model: args.model,
+          systemPrompt: item.systemPrompt,
+          userPrompt: item.userPrompt,
+        }),
+      });
+    }).join("\n");
 
-  const inputFile = await createBatchInputFile(inputBody, args.timeoutMs);
-  const batch = await createBatch({
-    inputFileId: inputFile.id,
-    settings: args.settings,
-    timeoutMs: args.timeoutMs,
-  });
+    const inputFile = await createBatchInputFile(inputBody, args.timeoutMs);
+    batch = await createBatch({
+      inputFileId: inputFile.id,
+      settings: args.settings,
+      timeoutMs: args.timeoutMs,
+    });
+    await args.onBatchCreated?.({
+      batchId: batch.id,
+      inputFileId: inputFile.id,
+      status: batch.status,
+    });
+  }
   await args.onLifecycleEvent?.({
     phase: "submitted",
     batchId: batch.id,
