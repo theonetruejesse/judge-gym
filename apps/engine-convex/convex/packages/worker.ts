@@ -66,6 +66,27 @@ function mapExecutionStatus(status: z.infer<typeof ProcessSnapshotSchema>["execu
   }
 }
 
+function processIdFromSnapshot(
+  snapshot: z.infer<typeof ProcessSnapshotSchema>,
+): string {
+  if (snapshot.processId) {
+    return snapshot.processId;
+  }
+
+  const [kind, ...rest] = snapshot.workflowId.split(":");
+  const inferredProcessId = rest.join(":");
+  if (
+    inferredProcessId
+    && (kind === snapshot.processKind || kind === snapshot.workflowType.toLowerCase().replace("workflow", ""))
+  ) {
+    return inferredProcessId;
+  }
+
+  throw new Error(
+    `Process snapshot is missing processId and workflowId ${snapshot.workflowId} could not be normalized.`,
+  );
+}
+
 function windowStageFields(stage: z.infer<typeof StageInputSchema>) {
   switch (stage) {
     case "l1_cleaned":
@@ -811,8 +832,9 @@ export const projectProcessState = zMutation({
   args: ProcessSnapshotSchema,
   returns: z.null(),
   handler: async (ctx, args) => {
+    const process_id = processIdFromSnapshot(args);
     if (args.processKind === "run") {
-      const run_id = args.processId as Id<"runs">;
+      const run_id = process_id as Id<"runs">;
       const run = await ctx.db.get(run_id);
       if (!run) {
         throw new Error("Run not found");
@@ -844,7 +866,7 @@ export const projectProcessState = zMutation({
       return null;
     }
 
-    const window_run_id = args.processId as Id<"window_runs">;
+    const window_run_id = process_id as Id<"window_runs">;
     const windowRun = await ctx.db.get(window_run_id);
     if (!windowRun) {
       throw new Error("Window run not found");

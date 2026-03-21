@@ -4,7 +4,7 @@ export const ProcessTypeSchema = z.enum(["run", "window"]);
 
 export const ProcessSnapshotSchema = z.object({
   processKind: ProcessTypeSchema,
-  processId: z.string(),
+  processId: z.string().optional(),
   workflowId: z.string(),
   workflowRunId: z.string(),
   workflowType: z.string(),
