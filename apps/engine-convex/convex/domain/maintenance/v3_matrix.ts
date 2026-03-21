@@ -369,10 +369,12 @@ export const initV3MatrixFromPool = zMutation({
   args: z.object({
     pool_id: zid("pools"),
     force_reconfigure: z.boolean().default(false),
+    experiment_tags: z.array(z.string()).optional(),
   }),
   returns: z.object({
     pool_id: zid("pools"),
     experiment_count: z.number(),
+    missing_experiment_tags: z.array(z.string()),
     rows: z.array(z.object({
       experiment_tag: z.string(),
       family_slug: z.string(),
@@ -383,6 +385,15 @@ export const initV3MatrixFromPool = zMutation({
     })),
   }),
   handler: async (ctx, args) => {
+    const selectedSpecs = args.experiment_tags?.length
+      ? V3_MATRIX_EXPERIMENT_SPECS.filter((spec) =>
+          args.experiment_tags?.includes(spec.experiment_tag),
+        )
+      : V3_MATRIX_EXPERIMENT_SPECS;
+    const foundTags = new Set(selectedSpecs.map((spec) => spec.experiment_tag));
+    const missingExperimentTags = (args.experiment_tags ?? []).filter(
+      (tag) => !foundTags.has(tag),
+    );
     const rows = [] as Array<{
       experiment_tag: string;
       family_slug: string;
@@ -392,7 +403,7 @@ export const initV3MatrixFromPool = zMutation({
       action: "created" | "updated" | "unchanged" | "conflict";
     }>;
 
-    for (const spec of V3_MATRIX_EXPERIMENT_SPECS) {
+    for (const spec of selectedSpecs) {
       const bundlePlan = await ctx.runMutation(
         internal.domain.runs.bundle_plan_repo.createBundlePlan,
         deriveBundlePlanArgs(args.pool_id, spec),
@@ -421,6 +432,7 @@ export const initV3MatrixFromPool = zMutation({
     return {
       pool_id: args.pool_id,
       experiment_count: rows.length,
+      missing_experiment_tags: missingExperimentTags,
       rows,
     };
   },

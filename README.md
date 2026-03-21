@@ -33,7 +33,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
 - The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
 - After the stack is configured, `bun run pilot:smoke` is the recommended first end-to-end validation path.
-- After a large evidence collection window completes, `bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>` is the supported path for creating the single pool plus the corrected 32-experiment V3 matrix contract.
+- After a large evidence collection window completes, `bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>` is the supported path for creating the single pool plus the current manifest-selected V3 matrix cohort.
 
 **Environment source of truth**
 
@@ -57,7 +57,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
   - `packages/codex:getTemporalTaskQueueHealth`
   - `packages/codex:resetV3Campaign`
   - `packages/codex:startV3Campaign`
-- The active V3 finish-pass manifest now targets the corrected 32-experiment matrix from `docs/pilots/v3_gpt_ablations.md`, explicitly excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
+- The active V3 finish-pass manifest now targets the current reduced viability cohort from `docs/pilots/v3_gpt_ablations.md`, still sourced from the corrected V3 experiment families and still excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
 - The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
   - `p1_us_contested_trial_2026_01_01`
   - `p2_no_election_reporting_control_2025_09_08`
@@ -96,7 +96,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
-- The corrected V3 matrix is now codified in-engine and can be materialized deterministically from a single pool through `packages/codex:getV3MatrixContract` and `packages/codex:initV3MatrixFromPool`.
+- The corrected V3 matrix is now codified in-engine and can be materialized deterministically from a single pool through `packages/codex:getV3MatrixContract` and `packages/codex:initV3MatrixFromPool`; the init script defaults to the manifest’s explicit experiment tags unless you pass `--all-experiments`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.

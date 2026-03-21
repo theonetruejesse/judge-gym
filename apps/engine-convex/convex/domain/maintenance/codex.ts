@@ -1,6 +1,6 @@
 import z from "zod";
 import { api, internal } from "../../_generated/api";
-import { zAction, zQuery } from "../../utils/custom_fns";
+import { zAction, zInternalQuery, zQuery } from "../../utils/custom_fns";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 import {
   ControlActionSchema,
@@ -149,6 +149,31 @@ const V3CampaignSnapshotSchema = z.object({
   blocked_task_queues: z.array(z.string()),
 });
 
+const ResettableProcessRowSchema = z.object({
+  process_type: ProcessTypeSchema,
+  process_id: z.string(),
+  workflow_id: z.string().nullable(),
+  status: z.string(),
+});
+
+const ResetProjectStateResultSchema = z.object({
+  dry_run: z.boolean(),
+  cancelled_processes: z.array(z.object({
+    process_type: ProcessTypeSchema,
+    process_id: z.string(),
+    workflow_id: z.string().nullable(),
+    action: z.enum(["cancelled", "skipped"]),
+    reason: z.string(),
+  })),
+  nuke: z.object({
+    isDryRun: z.boolean(),
+    tables: z.array(z.object({
+      name: z.string(),
+      count: z.number(),
+    })),
+  }),
+});
+
 export function buildV3CampaignSnapshot(args: {
   status: z.infer<typeof GetV3CampaignStatusReturnSchema>;
   temporal_readiness: z.infer<typeof TemporalTaskQueueHealthSchema>;
@@ -199,6 +224,146 @@ export const tailTrace = zQuery({
   returns: TailTraceReturnSchema,
   handler: async (ctx, args): Promise<TailTraceReturn> => {
     return ctx.runQuery(internal.domain.telemetry.events.listByTrace, args);
+  },
+});
+
+export const listResettableProcesses = zInternalQuery({
+  args: z.object({}),
+  returns: z.array(ResettableProcessRowSchema),
+  handler: async (ctx) => {
+    const activeStatuses = new Set(["start", "queued", "running", "paused"]);
+    const [runs, windowRuns] = await Promise.all([
+      ctx.db.query("runs").collect(),
+      ctx.db.query("window_runs").collect(),
+    ]);
+
+    return [
+      ...runs
+        .filter((run) => activeStatuses.has(run.status))
+        .map((run) => ({
+          process_type: "run" as const,
+          process_id: String(run._id),
+          workflow_id: run.workflow_id ?? null,
+          status: run.status,
+        })),
+      ...windowRuns
+        .filter((windowRun) => activeStatuses.has(windowRun.status))
+        .map((windowRun) => ({
+          process_type: "window" as const,
+          process_id: String(windowRun._id),
+          workflow_id: windowRun.workflow_id ?? null,
+          status: windowRun.status,
+        })),
+    ];
+  },
+});
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export const resetProjectState: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    dry_run: z.boolean().default(true),
+    cancel_timeout_ms: z.number().int().min(0).max(60_000).default(15_000),
+    poll_interval_ms: z.number().int().min(50).max(5_000).default(500),
+  }),
+  returns: ResetProjectStateResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof ResetProjectStateResultSchema>> => {
+    const processes: z.infer<typeof ResettableProcessRowSchema>[] = await ctx.runQuery(
+      internal.domain.maintenance.codex.listResettableProcesses,
+      {},
+    );
+
+    const cancelled_processes: Array<{
+      process_type: "run" | "window";
+      process_id: string;
+      workflow_id: string | null;
+      action: "cancelled" | "skipped";
+      reason: string;
+    }> = [];
+
+    for (const process of processes) {
+      if (!process.workflow_id) {
+        cancelled_processes.push({
+          process_type: process.process_type,
+          process_id: process.process_id,
+          workflow_id: null,
+          action: "skipped",
+          reason: "missing_workflow_binding",
+        });
+        continue;
+      }
+
+      cancelled_processes.push({
+        process_type: process.process_type,
+        process_id: process.process_id,
+        workflow_id: process.workflow_id,
+        action: "cancelled",
+        reason: process.status,
+      });
+
+      if (!args.dry_run) {
+        await ctx.runAction(internal.domain.temporal.temporal_client.controlProcessWorkflow, {
+          process_type: process.process_type,
+          process_id: process.process_id,
+          action: "cancel",
+        });
+      }
+    }
+
+    if (!args.dry_run && processes.length > 0) {
+      const deadline = Date.now() + args.cancel_timeout_ms;
+      while (true) {
+        const inspections = await Promise.all(
+          processes
+            .filter((process) => process.workflow_id)
+            .map((process) =>
+              ctx.runAction(
+                internal.domain.temporal.temporal_client.inspectProcessWorkflow,
+                {
+                  process_type: process.process_type,
+                  process_id: process.process_id,
+                },
+              ),
+            ),
+        );
+
+        const active = inspections.filter((inspection: {
+          workflow_found: boolean;
+          close_time_ms: number | null;
+          temporal_status: string | null;
+        }) => {
+          if (!inspection.workflow_found) return false;
+          if (inspection.close_time_ms != null) return false;
+          return inspection.temporal_status !== "COMPLETED";
+        });
+
+        if (active.length === 0) break;
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Timed out waiting for ${active.length} workflow(s) to stop before project reset.`,
+          );
+        }
+        await sleep(args.poll_interval_ms);
+      }
+    }
+
+    const nuke: z.infer<typeof ResetProjectStateResultSchema.shape.nuke> = await ctx.runMutation(
+      internal.domain.maintenance.danger.nukeTables,
+      {
+        isDryRun: args.dry_run,
+      },
+    );
+
+    return {
+      dry_run: args.dry_run,
+      cancelled_processes,
+      nuke,
+    };
   },
 });
 

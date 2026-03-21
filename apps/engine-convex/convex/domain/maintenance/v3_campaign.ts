@@ -652,7 +652,16 @@ export const resetV3Campaign = zAction({
     const filtered = filterV3Experiments(experiments, args.experiment_tags);
 
     const selectedExperimentIds = filtered.selected.map((experiment) => experiment.experiment_id);
-    const runs = await ctx.runQuery(
+    const runs: Array<{
+      run_id: Id<"runs">;
+      experiment_id: Id<"experiments">;
+      status: z.infer<typeof StateStatusSchema>;
+      workflow_id: string | null;
+      workflow_run_id: string | null;
+      current_stage: z.infer<typeof RunStageSchema>;
+      pause_after: z.infer<typeof RunStageSchema> | null;
+      created_at: number;
+    }> = await ctx.runQuery(
       internal.domain.runs.experiments_service.listRunsForExperiments,
       {
         experiment_ids: selectedExperimentIds,

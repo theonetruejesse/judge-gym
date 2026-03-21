@@ -2,6 +2,7 @@ export {
   analyzeProcessTelemetry,
   controlProcessExecution,
   getTemporalTaskQueueHealth,
+  resetProjectState,
   getV3CampaignSnapshot,
   inspectProcessExecution,
   tailTrace,
