@@ -21,8 +21,10 @@ export {
 } from "./lab";
 export {
   getV3CampaignStatus,
+  resetV3Campaign,
   resumeV3Experiments,
   resetRuns,
+  startV3Campaign,
   startV3Experiments,
 } from "../domain/maintenance/v3_campaign";
 export {

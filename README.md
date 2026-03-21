@@ -55,8 +55,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
   - `packages/codex:getV3CampaignSnapshot`
   - `packages/codex:getV3CampaignStatus`
   - `packages/codex:getTemporalTaskQueueHealth`
-  - `packages/codex:resetRuns`
-  - `packages/codex:startV3Experiments`
+  - `packages/codex:resetV3Campaign`
+  - `packages/codex:startV3Campaign`
 - The active V3 finish-pass manifest now targets the corrected 32-experiment matrix from `docs/pilots/v3_gpt_ablations.md`, explicitly excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
 - The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
   - `p1_us_contested_trial_2026_01_01`

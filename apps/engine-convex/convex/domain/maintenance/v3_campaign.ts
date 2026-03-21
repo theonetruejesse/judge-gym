@@ -2,12 +2,13 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import type { Id } from "../../_generated/dataModel";
 import { api, internal } from "../../_generated/api";
-import { zMutation, zQuery } from "../../utils/custom_fns";
+import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
 import { emitTraceEvent } from "../telemetry/emit";
 
 const StartPolicySchema = z.enum(["all", "incomplete_only"]);
+const V3LaunchModeSchema = z.enum(["canary", "rubric_gate", "full"]);
 export const CampaignStateSchema = z.enum([
   "preflight_clean",
   "healthy_progressing",
@@ -130,6 +131,58 @@ const ResumeRowSchema = z.object({
   reason: z.string(),
   run_id: zid("runs").nullable(),
 });
+
+const CampaignLaunchConfigSchema = z.object({
+  target_count: z.number(),
+  pause_after: RunStageSchema.nullable(),
+  start_policy: StartPolicySchema,
+});
+
+const CampaignTemporalResetRowSchema = z.object({
+  process_type: z.literal("run"),
+  process_id: z.string(),
+  experiment_id: zid("experiments"),
+  workflow_id: z.string().nullable(),
+  action: z.enum(["skipped", "cancelled"]),
+  reason: z.string(),
+});
+
+const CampaignResetResultSchema = z.object({
+  dry_run: z.boolean(),
+  selected_experiment_count: z.number(),
+  missing_experiment_tags: z.array(z.string()),
+  cancelled_processes: z.array(CampaignTemporalResetRowSchema),
+  processed_experiment_count: z.number(),
+  rows: z.array(ResetExperimentRowSchema),
+  totals: ResetExperimentRowSchema.shape.deleted,
+});
+
+const CampaignStartResultSchema = z.object({
+  mode: V3LaunchModeSchema,
+  config: CampaignLaunchConfigSchema,
+  dry_run: z.boolean(),
+  selected_experiment_count: z.number(),
+  missing_experiment_tags: z.array(z.string()),
+  rows: z.array(LaunchRowSchema),
+});
+
+const V3_LAUNCH_MODES = {
+  canary: {
+    target_count: 1,
+    pause_after: "rubric_critic" as const,
+    start_policy: "all" as const,
+  },
+  rubric_gate: {
+    target_count: 30,
+    pause_after: "rubric_critic" as const,
+    start_policy: "all" as const,
+  },
+  full: {
+    target_count: 30,
+    pause_after: null,
+    start_policy: "all" as const,
+  },
+} as const;
 
 export const GetV3CampaignStatusReturnSchema = z.object({
   selected_experiment_count: z.number(),
@@ -318,6 +371,23 @@ function classifyCampaignState(args: {
     campaign_state: "healthy_progressing" as const,
     scientific_validity: "scientifically_unknown" as const,
   };
+}
+
+const ACTIVE_RUN_STATUSES = new Set<z.infer<typeof StateStatusSchema>>([
+  "start",
+  "queued",
+  "running",
+  "paused",
+]);
+
+function isTemporalExecutionActive(temporalStatus: string | null) {
+  if (!temporalStatus) return false;
+  return temporalStatus === "RUNNING";
+}
+
+async function sleep(ms: number) {
+  if (ms <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export const resetRuns = zMutation({
@@ -562,6 +632,209 @@ export const resumeV3Experiments = zMutation({
       selected_experiment_count: filtered.selected.length,
       missing_experiment_tags: filtered.missingTags,
       rows,
+    };
+  },
+});
+
+export const resetV3Campaign = zAction({
+  args: z.object({
+    dry_run: z.boolean().default(false),
+    experiment_tags: z.array(z.string()).optional(),
+    cancel_timeout_ms: z.number().int().min(1).max(60_000).default(10_000),
+    cancel_poll_interval_ms: z.number().int().min(100).max(5_000).default(500),
+  }),
+  returns: CampaignResetResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof CampaignResetResultSchema>> => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+
+    const selectedExperimentIds = filtered.selected.map((experiment) => experiment.experiment_id);
+    const runs = await ctx.runQuery(
+      internal.domain.runs.experiments_service.listRunsForExperiments,
+      {
+        experiment_ids: selectedExperimentIds,
+      },
+    );
+
+    const activeRuns = runs.filter((run) => ACTIVE_RUN_STATUSES.has(run.status));
+    const cancelled_processes: Array<z.infer<typeof CampaignTemporalResetRowSchema>> = [];
+
+    if (!args.dry_run) {
+      for (const run of activeRuns) {
+        if (!run.workflow_id) {
+          cancelled_processes.push({
+            process_type: "run",
+            process_id: String(run.run_id),
+            experiment_id: run.experiment_id,
+            workflow_id: null,
+            action: "skipped",
+            reason: "workflow_not_bound",
+          });
+          continue;
+        }
+
+        const control = await ctx.runAction(
+          internal.domain.temporal.temporal_client.controlProcessWorkflow,
+          {
+            process_type: "run",
+            process_id: String(run.run_id),
+            action: "cancel",
+            cmd_id: `cmd:reset_v3_campaign:cancel:run:${run.run_id}`,
+          },
+        );
+        cancelled_processes.push({
+          process_type: "run",
+          process_id: String(run.run_id),
+          experiment_id: run.experiment_id,
+          workflow_id: control.workflow_id,
+          action: control.accepted ? "cancelled" : "skipped",
+          reason: control.accepted ? "cancel_requested" : (control.reason ?? "cancel_rejected"),
+        });
+      }
+
+      const deadline = Date.now() + args.cancel_timeout_ms;
+      while (Date.now() < deadline) {
+        let openCount = 0;
+        for (const run of activeRuns) {
+          const inspection = await ctx.runAction(
+            internal.domain.temporal.temporal_client.inspectProcessWorkflow,
+            {
+              process_type: "run",
+              process_id: String(run.run_id),
+            },
+          );
+          if (inspection.workflow_found && isTemporalExecutionActive(inspection.temporal_status)) {
+            openCount += 1;
+          }
+        }
+        if (openCount === 0) {
+          break;
+        }
+        await sleep(args.cancel_poll_interval_ms);
+      }
+
+      const stillActive = [] as string[];
+      for (const run of activeRuns) {
+        const inspection = await ctx.runAction(
+          internal.domain.temporal.temporal_client.inspectProcessWorkflow,
+          {
+            process_type: "run",
+            process_id: String(run.run_id),
+          },
+        );
+        if (inspection.workflow_found && isTemporalExecutionActive(inspection.temporal_status)) {
+          stillActive.push(String(run.run_id));
+        }
+      }
+
+      if (stillActive.length > 0) {
+        throw new Error(
+          `Timed out waiting for Temporal cancellation on runs: ${stillActive.join(", ")}`,
+        );
+      }
+    } else {
+      for (const run of activeRuns) {
+        cancelled_processes.push({
+          process_type: "run",
+          process_id: String(run.run_id),
+          experiment_id: run.experiment_id,
+          workflow_id: run.workflow_id ?? null,
+          action: "cancelled",
+          reason: "dry_run",
+        });
+      }
+    }
+
+    let cursor: number | undefined = 0;
+    const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
+    const totals = {
+      runs: 0,
+      samples: 0,
+      sample_score_targets: 0,
+      sample_score_target_items: 0,
+      rubrics: 0,
+      rubric_critics: 0,
+      scores: 0,
+      score_critics: 0,
+      llm_attempts: 0,
+      llm_attempt_payloads: 0,
+      process_observability: 0,
+    };
+    let processed_experiment_count = 0;
+
+    while (cursor != null) {
+      const result: {
+        dry_run: boolean;
+        selected_experiment_count: number;
+        processed_experiment_count: number;
+        missing_experiment_tags: string[];
+        next_cursor: number | null;
+        rows: Array<z.infer<typeof ResetExperimentRowSchema>>;
+        totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted>;
+      } = await ctx.runMutation(api.packages.codex.resetRuns, {
+        dry_run: args.dry_run,
+        experiment_tags: args.experiment_tags,
+        allow_active: true,
+        cursor,
+        max_experiments: 64,
+      });
+      rows.push(...result.rows);
+      processed_experiment_count += result.processed_experiment_count;
+      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+        totals[key] += result.totals[key];
+      }
+      cursor = result.next_cursor ?? undefined;
+    }
+
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
+      cancelled_processes,
+      processed_experiment_count,
+      rows,
+      totals,
+    };
+  },
+});
+
+export const startV3Campaign = zAction({
+  args: z.object({
+    mode: V3LaunchModeSchema.default("canary"),
+    experiment_tags: z.array(z.string()).optional(),
+    dry_run: z.boolean().default(false),
+    start_scheduler: z.boolean().default(true),
+  }),
+  returns: CampaignStartResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof CampaignStartResultSchema>> => {
+    const config = V3_LAUNCH_MODES[args.mode];
+    const result: {
+      dry_run: boolean;
+      selected_experiment_count: number;
+      missing_experiment_tags: string[];
+      rows: Array<z.infer<typeof LaunchRowSchema>>;
+    } = await ctx.runMutation(api.packages.codex.startV3Experiments, {
+      target_count: config.target_count,
+      pause_after: config.pause_after,
+      experiment_tags: args.experiment_tags,
+      start_policy: config.start_policy,
+      start_scheduler: args.start_scheduler,
+      dry_run: args.dry_run,
+    });
+
+    return {
+      mode: args.mode,
+      config,
+      dry_run: result.dry_run,
+      selected_experiment_count: result.selected_experiment_count,
+      missing_experiment_tags: result.missing_experiment_tags,
+      rows: result.rows,
     };
   },
 });

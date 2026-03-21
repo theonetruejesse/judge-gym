@@ -305,6 +305,43 @@ export const getExperimentSummary = zInternalQuery({
   },
 });
 
+export const listRunsForExperiments = zInternalQuery({
+  args: z.object({
+    experiment_ids: z.array(zid("experiments")),
+  }),
+  returns: z.array(z.object({
+    run_id: zid("runs"),
+    experiment_id: zid("experiments"),
+    status: StateStatusSchema,
+    workflow_id: z.string().nullable(),
+    workflow_run_id: z.string().nullable(),
+    current_stage: RunStageSchema,
+    pause_after: RunStageSchema.nullable(),
+    created_at: z.number(),
+  })),
+  handler: async (ctx, args) => {
+    const runs = await Promise.all(
+      args.experiment_ids.map((experiment_id) =>
+        ctx.db
+          .query("runs")
+          .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment_id))
+          .collect(),
+      ),
+    );
+
+    return runs.flat().map((run) => ({
+      run_id: run._id,
+      experiment_id: run.experiment_id,
+      status: run.status,
+      workflow_id: run.workflow_id ?? null,
+      workflow_run_id: run.workflow_run_id ?? null,
+      current_stage: run.current_stage,
+      pause_after: run.pause_after ?? null,
+      created_at: run._creationTime,
+    }));
+  },
+});
+
 export const listExperimentEvidence = zInternalQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   handler: async (ctx, { experiment_id }) => {

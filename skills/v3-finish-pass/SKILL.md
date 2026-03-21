@@ -39,8 +39,8 @@ Current defaults are:
 - `packages/codex:getV3CampaignSnapshot`
 - `packages/codex:getV3CampaignStatus`
 - `packages/codex:getTemporalTaskQueueHealth`
-- `packages/codex:resetRuns`
-- `packages/codex:startV3Experiments`
+- `packages/codex:resetV3Campaign`
+- `packages/codex:startV3Campaign`
 - `packages/codex:resumeV3Experiments`
 - `packages/codex:inspectProcessExecution`
 - `packages/codex:controlProcessExecution`

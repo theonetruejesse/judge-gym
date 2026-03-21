@@ -331,4 +331,71 @@ describe("v3 campaign control plane", () => {
       expect(await ctx.db.query("runs").collect()).toHaveLength(0);
     });
   });
+
+  test("startV3Campaign applies launch-mode defaults through one action", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+    await seedExperiment(t, {
+      experiment_tag: "v3_test_beta",
+      pool_id,
+    });
+
+    const start = await t.action(api.packages.codex.startV3Campaign, {
+      mode: "canary",
+      dry_run: true,
+    });
+
+    expect(start.mode).toBe("canary");
+    expect(start.config).toEqual({
+      target_count: 1,
+      pause_after: "rubric_critic",
+      start_policy: "all",
+    });
+    expect(start.selected_experiment_count).toBe(2);
+    expect(
+      start.rows.every((row: (typeof start.rows)[number]) => row.reason === "dry_run"),
+    ).toBe(true);
+  });
+
+  test("resetV3Campaign wraps cohort cleanup in one action", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const alpha = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+    const beta = await seedExperiment(t, {
+      experiment_tag: "v3_test_beta",
+      pool_id,
+    });
+    const alphaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: alpha,
+      target_count: 1,
+      pause_after: null,
+    });
+    const betaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: beta,
+      target_count: 1,
+      pause_after: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(alphaRun, { status: "completed" });
+      await ctx.db.patch(betaRun, { status: "completed" });
+    });
+
+    const reset = await t.action(api.packages.codex.resetV3Campaign, {
+      dry_run: true,
+    });
+
+    expect(reset.selected_experiment_count).toBe(2);
+    expect(reset.processed_experiment_count).toBe(2);
+    expect(reset.rows).toHaveLength(2);
+    expect(reset.totals.runs).toBe(2);
+    expect(reset.cancelled_processes).toEqual([]);
+  });
 });

@@ -89,8 +89,8 @@
     "temporal_readiness_fn": "packages/codex:getTemporalTaskQueueHealth",
     "inspect_fn": "packages/codex:inspectProcessExecution",
     "control_fn": "packages/codex:controlProcessExecution",
-    "reset_fn": "packages/codex:resetRuns",
-    "start_fn": "packages/codex:startV3Experiments",
+    "reset_fn": "packages/codex:resetV3Campaign",
+    "start_fn": "packages/codex:startV3Campaign",
     "resume_fn": "packages/codex:resumeV3Experiments"
   }
 }
