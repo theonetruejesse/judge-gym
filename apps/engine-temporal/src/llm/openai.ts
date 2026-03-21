@@ -49,9 +49,19 @@ function requireOpenAiKey() {
 async function openAiRequest(
   path: string,
   init: RequestInit,
+  timeoutMs?: number,
 ) {
+  const timeoutSignal =
+    typeof timeoutMs === "number" && timeoutMs > 0
+      ? AbortSignal.timeout(timeoutMs)
+      : undefined;
+  const signal =
+    init.signal && timeoutSignal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : (init.signal ?? timeoutSignal);
   const response = await fetch(`https://api.openai.com${path}`, {
     ...init,
+    signal,
     headers: {
       Authorization: `Bearer ${requireOpenAiKey()}`,
       ...(init.headers ?? {}),
@@ -114,6 +124,7 @@ export async function runOpenAiChat(args: {
   model: string;
   systemPrompt: string;
   userPrompt: string;
+  timeoutMs?: number;
 }): Promise<ChatResult> {
   const response = await openAiRequest("/v1/chat/completions", {
     method: "POST",
@@ -123,7 +134,7 @@ export async function runOpenAiChat(args: {
     body: JSON.stringify(
       buildChatCompletionBody(args),
     ),
-  });
+  }, args.timeoutMs);
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -141,6 +152,7 @@ export async function runOpenAiChat(args: {
 
 async function createBatchInputFile(
   body: string,
+  timeoutMs?: number,
 ): Promise<{ id: string }> {
   const form = new FormData();
   form.append("purpose", "batch");
@@ -153,7 +165,7 @@ async function createBatchInputFile(
   const response = await openAiRequest("/v1/files", {
     method: "POST",
     body: form,
-  });
+  }, timeoutMs);
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -170,6 +182,7 @@ async function createBatchInputFile(
 async function createBatch(args: {
   inputFileId: string;
   settings: BatchSettings;
+  timeoutMs?: number;
 }) {
   const response = await openAiRequest("/v1/batches", {
     method: "POST",
@@ -181,7 +194,7 @@ async function createBatch(args: {
       endpoint: "/v1/chat/completions",
       completion_window: args.settings.completionWindow,
     }),
-  });
+  }, args.timeoutMs);
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -195,10 +208,13 @@ async function createBatch(args: {
   return json as BatchLifecycleResponse;
 }
 
-async function getBatch(batchId: string): Promise<BatchLifecycleResponse> {
+async function getBatch(
+  batchId: string,
+  timeoutMs?: number,
+): Promise<BatchLifecycleResponse> {
   const response = await openAiRequest(`/v1/batches/${batchId}`, {
     method: "GET",
-  });
+  }, timeoutMs);
   const bodyText = await response.text();
   if (!response.ok) {
     throw new Error(`OpenAI batch poll error ${response.status}: ${bodyText}`);
@@ -206,10 +222,13 @@ async function getBatch(batchId: string): Promise<BatchLifecycleResponse> {
   return bodyText ? JSON.parse(bodyText) : { id: batchId, status: "unknown" };
 }
 
-async function getFileContent(fileId: string): Promise<string> {
+async function getFileContent(
+  fileId: string,
+  timeoutMs?: number,
+): Promise<string> {
   const response = await openAiRequest(`/v1/files/${fileId}/content`, {
     method: "GET",
-  });
+  }, timeoutMs);
   const bodyText = await response.text();
   if (!response.ok) {
     throw new Error(`OpenAI file content error ${response.status}: ${bodyText}`);
@@ -246,6 +265,7 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   model: string;
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
+  timeoutMs?: number;
 }): Promise<{
   batchId: string;
   outputFileId: string | null;
@@ -279,10 +299,11 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
     });
   }).join("\n");
 
-  const inputFile = await createBatchInputFile(inputBody);
+  const inputFile = await createBatchInputFile(inputBody, args.timeoutMs);
   const batch = await createBatch({
     inputFileId: inputFile.id,
     settings: args.settings,
+    timeoutMs: args.timeoutMs,
   });
 
   const startedAt = Date.now();
@@ -310,14 +331,16 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
     }
 
     await sleep(args.settings.pollIntervalMs);
-    lifecycle = await getBatch(batch.id);
+    lifecycle = await getBatch(batch.id, args.timeoutMs);
   }
 
   const succeeded: Array<BatchChatSuccess<TMetadata>> = [];
   const failed: Array<BatchChatFailure<TMetadata>> = [];
 
   if (lifecycle.output_file_id) {
-    const outputLines = parseJsonl(await getFileContent(lifecycle.output_file_id));
+    const outputLines = parseJsonl(
+      await getFileContent(lifecycle.output_file_id, args.timeoutMs),
+    );
     for (const line of outputLines) {
       const customId = line.custom_id;
       if (typeof customId !== "string") {
@@ -369,7 +392,9 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   }
 
   if (lifecycle.error_file_id) {
-    const errorLines = parseJsonl(await getFileContent(lifecycle.error_file_id));
+    const errorLines = parseJsonl(
+      await getFileContent(lifecycle.error_file_id, args.timeoutMs),
+    );
     for (const line of errorLines) {
       const customId = line.custom_id;
       if (typeof customId !== "string") {

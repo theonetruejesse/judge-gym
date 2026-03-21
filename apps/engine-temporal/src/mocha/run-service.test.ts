@@ -19,9 +19,17 @@ describe("run stage service", function () {
   this.timeout(10_000);
   it("records successful rubric generation attempts and finalizes the stage", async () => {
     const calls: string[] = [];
+    let seenTimeoutMs: number | undefined;
 
     const result = await runRunStageActivityWithDeps(
       {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            requestTimeoutMs: 37_000,
+          },
+        },
         quota: buildQuota(),
         convex: {
           async getRunExecutionContext() {
@@ -80,7 +88,8 @@ describe("run stage service", function () {
             throw new Error("markRunProcessError should not be called");
           },
         },
-        async runOpenAiChat() {
+        async runOpenAiChat(args) {
+          seenTimeoutMs = args.timeoutMs;
           return {
             assistant_output: "RUBRIC:\n1) A :: one; two; three",
             input_tokens: 10,
@@ -94,6 +103,7 @@ describe("run stage service", function () {
     );
 
     assert.equal(result.haltProcess, undefined);
+    assert.equal(seenTimeoutMs, 37_000);
     assert.equal(result.summary, "run_stage:rubric_gen:success=1:failed=0:completed=1");
     assert.deepEqual(calls, ["start", "apply", "finish", "finalize"]);
   });

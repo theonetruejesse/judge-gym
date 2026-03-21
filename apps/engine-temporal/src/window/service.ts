@@ -63,6 +63,10 @@ type WindowStageInput = {
   input: string;
 };
 
+type PreparedWindowStageInput = WindowStageInput & {
+  normalizedInput: string;
+};
+
 type WindowAttemptFailureState = {
   attemptId: string;
   message: string;
@@ -160,6 +164,19 @@ function buildObservedDimensions(result: ChatResult) {
   };
 }
 
+function normalizeWindowStageInput(
+  input: string,
+  maxChars: number,
+) {
+  const trimmed = input.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  const suffix = "\n\n[Truncated for window semantic processing]";
+  const sliceLength = Math.max(1, maxChars - suffix.length);
+  return `${trimmed.slice(0, sliceLength)}${suffix}`;
+}
+
 function estimatePromptTokens(args: {
   systemPrompt: string;
   userPrompt: string;
@@ -246,10 +263,17 @@ export async function runWindowStageActivityWithDeps(
   }
 
   const stageConfig = WINDOW_STAGE_PROMPTS[stage];
-  const inputs = await convex.listWindowStageInputs({
+  const rawInputs = await convex.listWindowStageInputs({
     window_run_id: windowRunId,
     stage,
   });
+  const inputs: PreparedWindowStageInput[] = rawInputs.map((input) => ({
+    ...input,
+    normalizedInput: normalizeWindowStageInput(
+      input.input,
+      settings.window.maxStageInputChars,
+    ),
+  }));
 
   if (inputs.length === 0) {
     return {
@@ -280,7 +304,7 @@ export async function runWindowStageActivityWithDeps(
         evidenceTitle: item.title,
         evidenceUrl: item.url,
         systemPrompt: stageConfig.systemPrompt,
-        userPrompt: stageConfig.buildPrompt(item.input),
+        userPrompt: stageConfig.buildPrompt(item.normalizedInput),
       });
 
       if (taskResult === "succeeded") {
@@ -482,6 +506,7 @@ async function executeWindowChatAttempt(
       model: args.windowModel,
       systemPrompt: args.systemPrompt,
       userPrompt: args.userPrompt,
+      timeoutMs: settings.llm.requestTimeoutMs,
     });
     await deps.convex.applyWindowStageResult({
       window_run_id: args.windowRunId,
@@ -550,7 +575,7 @@ async function processWindowStageBatchChunk(
     stage: WindowTransformStage;
     windowModel: string;
     workflowId: string;
-    inputs: WindowStageInput[];
+    inputs: PreparedWindowStageInput[];
     systemPrompt: string;
   },
 ): Promise<{ successCount: number; failureCount: number }> {
@@ -558,7 +583,9 @@ async function processWindowStageBatchChunk(
   const { provider } = getModelConfig(args.windowModel);
   const startedAttempts = await Promise.all(
     args.inputs.map(async (input) => {
-      const userPrompt = WINDOW_STAGE_PROMPTS[args.stage].buildPrompt(input.input);
+      const userPrompt = WINDOW_STAGE_PROMPTS[args.stage].buildPrompt(
+        input.normalizedInput,
+      );
       const { attempt_id } = await deps.convex.recordLlmAttemptStart({
         process_kind: "window",
         process_id: args.windowRunId,
@@ -649,6 +676,7 @@ async function processWindowStageBatchChunk(
           metadata: { input, userPrompt, attemptId },
         })),
         settings: settings.llm.batching,
+        timeoutMs: settings.llm.requestTimeoutMs,
       });
 
       await deps.quota.settle({

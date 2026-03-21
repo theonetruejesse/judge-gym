@@ -41,15 +41,19 @@ export const EngineSettingsSchema = z.object({
   ),
   llm: z.object({
     batching: BatchSettingsSchema.default(DEFAULT_BATCH_SETTINGS),
+    requestTimeoutMs: z.number().int().positive().default(120_000),
     retries: RetrySettingsSchema.default(DEFAULT_RETRY_SETTINGS),
   }).default({
     batching: DEFAULT_BATCH_SETTINGS,
+    requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
   }),
   window: z.object({
     firecrawl: FirecrawlSettingsSchema.default(DEFAULT_FIRECRAWL_SETTINGS),
+    maxStageInputChars: z.number().int().positive().default(20_000),
   }).default({
     firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+    maxStageInputChars: 20_000,
   }),
   run: z.object({
     maxScoreTargetEstimatedInputTokens: z.number().int().positive().default(20_000),
@@ -82,10 +86,12 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
       pollIntervalMs: 5_000,
       maxWaitMs: 30 * 60 * 1_000,
     },
+    requestTimeoutMs: 120_000,
     retries: DEFAULT_RETRY_SETTINGS,
   },
   window: {
     firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+    maxStageInputChars: 20_000,
   },
   run: {
     maxScoreTargetEstimatedInputTokens: 20_000,

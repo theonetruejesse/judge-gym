@@ -348,6 +348,7 @@ async function executeRunChatAttempt(
       model: args.input.model,
       systemPrompt: args.input.system_prompt,
       userPrompt: args.input.user_prompt,
+      timeoutMs: settings.llm.requestTimeoutMs,
     });
     await deps.convex.applyRunStageResult({
       run_id: args.runId,
@@ -503,6 +504,7 @@ async function processRunStageBatchChunk(
           metadata: { input, attemptId },
         })),
         settings: settings.llm.batching,
+        timeoutMs: settings.llm.requestTimeoutMs,
       });
 
       await deps.quota.settle({

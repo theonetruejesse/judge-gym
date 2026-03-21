@@ -75,9 +75,22 @@ describe("window stage service", function () {
 
   it("records successful stage attempts and applies results", async () => {
     const calls: string[] = [];
+    let seenUserPrompt = "";
+    let seenTimeoutMs: number | undefined;
 
     const result = await runWindowStageActivityWithDeps(
       {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            requestTimeoutMs: 42_000,
+          },
+          window: {
+            ...DEFAULT_ENGINE_SETTINGS.window,
+            maxStageInputChars: 12,
+          },
+        },
         quota: buildQuota(),
         convex: {
           getWindowExecutionContext: async () => buildWindowContext(),
@@ -87,7 +100,7 @@ describe("window stage service", function () {
               evidence_id: "evidence_1",
               title: "Evidence 1",
               url: "https://example.com/1",
-              input: "raw article",
+              input: "raw article body that should be truncated",
             },
           ],
           recordLlmAttemptStart: async () => {
@@ -110,18 +123,24 @@ describe("window stage service", function () {
           markWindowProcessError: async () => null,
         },
         searchWindowEvidence: async () => [],
-        runOpenAiChat: async () => ({
-          assistant_output: "cleaned article",
-          input_tokens: 10,
-          output_tokens: 4,
-          total_tokens: 14,
-        }),
+        runOpenAiChat: async (args) => {
+          seenUserPrompt = args.userPrompt;
+          seenTimeoutMs = args.timeoutMs;
+          return {
+            assistant_output: "cleaned article",
+            input_tokens: 10,
+            output_tokens: 4,
+            total_tokens: 14,
+          };
+        },
       },
       "window_run_123",
       "l1_cleaned",
     );
 
     assert.deepEqual(calls, ["start", "apply", "finish"]);
+    assert.equal(seenTimeoutMs, 42_000);
+    assert.match(seenUserPrompt, /Truncated for window semantic processing/);
     assert.equal(result.haltProcess, undefined);
     assert.equal(result.summary, "window_stage:l1_cleaned:success=1:failed=0");
   });
