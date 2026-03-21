@@ -1,4 +1,20 @@
 import { z } from "zod";
+import {
+  BatchSettingsSchema,
+  DEFAULT_BATCH_SETTINGS,
+} from "./batch";
+import {
+  DEFAULT_FIRECRAWL_SETTINGS,
+  FirecrawlSettingsSchema,
+} from "./firecrawl";
+import {
+  DEFAULT_RETRY_SETTINGS,
+  RetrySettingsSchema,
+} from "./retry";
+import {
+  DEFAULT_PROVIDER_EXECUTION_SETTINGS,
+  ProviderExecutionSettingsSchema,
+} from "./provider";
 import { TEMPORAL_TASK_QUEUES } from "./temporal";
 
 export const EngineSettingsSchema = z.object({
@@ -20,6 +36,21 @@ export const EngineSettingsSchema = z.object({
   }).default({
     redisKeyPrefix: "judge-gym:quota",
   }),
+  providers: ProviderExecutionSettingsSchema.default(
+    DEFAULT_PROVIDER_EXECUTION_SETTINGS,
+  ),
+  llm: z.object({
+    batching: BatchSettingsSchema.default(DEFAULT_BATCH_SETTINGS),
+    retries: RetrySettingsSchema.default(DEFAULT_RETRY_SETTINGS),
+  }).default({
+    batching: DEFAULT_BATCH_SETTINGS,
+    retries: DEFAULT_RETRY_SETTINGS,
+  }),
+  window: z.object({
+    firecrawl: FirecrawlSettingsSchema.default(DEFAULT_FIRECRAWL_SETTINGS),
+  }).default({
+    firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+  }),
   run: z.object({
     maxScoreTargetEstimatedInputTokens: z.number().int().positive().default(20_000),
   }).default({
@@ -36,3 +67,8 @@ export function resolveEngineSettings(
 ): EngineSettings {
   return EngineSettingsSchema.parse(overrides ?? {});
 }
+
+export * from "./batch";
+export * from "./firecrawl";
+export * from "./provider";
+export * from "./retry";

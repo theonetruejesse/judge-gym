@@ -1,39 +1,21 @@
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import type {
   QuotaDimension,
   QuotaReservationInput,
 } from "@judge-gym/engine-settings/quota";
+import {
+  MODEL_BY_ID,
+  rateLimitToTokenBucketPolicies,
+  resolveProviderRateLimit,
+  type ModelType,
+} from "@judge-gym/engine-settings/provider";
 import type {
   QuotaBucketPlan,
   QuotaBucketRef,
   TokenBucketPolicy,
 } from "./types";
 
-const MINUTE_MS = 60_000;
-
 type DimensionPolicyMap = Partial<Record<QuotaDimension, TokenBucketPolicy>>;
-
-const OPENAI_MODEL_POLICIES: Record<string, DimensionPolicyMap> = {
-  "gpt-4.1": {
-    requests: { rate: 10_000, periodMs: MINUTE_MS, capacity: 10_000 },
-    input_tokens: { rate: 30_000_000, periodMs: MINUTE_MS, capacity: 30_000_000 },
-    output_tokens: { rate: 30_000_000, periodMs: MINUTE_MS, capacity: 30_000_000 },
-  },
-  "gpt-4.1-mini": {
-    requests: { rate: 30_000, periodMs: MINUTE_MS, capacity: 30_000 },
-    input_tokens: { rate: 150_000_000, periodMs: MINUTE_MS, capacity: 150_000_000 },
-    output_tokens: { rate: 150_000_000, periodMs: MINUTE_MS, capacity: 150_000_000 },
-  },
-  "gpt-5.2": {
-    requests: { rate: 15_000, periodMs: MINUTE_MS, capacity: 15_000 },
-    input_tokens: { rate: 40_000_000, periodMs: MINUTE_MS, capacity: 40_000_000 },
-    output_tokens: { rate: 40_000_000, periodMs: MINUTE_MS, capacity: 40_000_000 },
-  },
-  "gpt-5.2-chat": {
-    requests: { rate: 15_000, periodMs: MINUTE_MS, capacity: 15_000 },
-    input_tokens: { rate: 40_000_000, periodMs: MINUTE_MS, capacity: 40_000_000 },
-    output_tokens: { rate: 40_000_000, periodMs: MINUTE_MS, capacity: 40_000_000 },
-  },
-};
 
 function sumPoliciesByDimension(
   models: Record<string, DimensionPolicyMap>,
@@ -57,8 +39,27 @@ function sumPoliciesByDimension(
   return result;
 }
 
+const MODEL_POLICIES: Record<string, DimensionPolicyMap> = Object.fromEntries(
+  Object.values(MODEL_BY_ID).map((model) => [
+    model.id,
+    rateLimitToTokenBucketPolicies(
+      resolveProviderRateLimit(
+        DEFAULT_ENGINE_SETTINGS.providers,
+        model.provider,
+        model.id as ModelType,
+      ),
+    ),
+  ]),
+);
+
 const PROVIDER_POLICIES: Record<string, DimensionPolicyMap> = {
-  openai: sumPoliciesByDimension(OPENAI_MODEL_POLICIES),
+  openai: sumPoliciesByDimension(
+    Object.fromEntries(
+      Object.values(MODEL_BY_ID)
+        .filter((model) => model.provider === "openai")
+        .map((model) => [model.id, MODEL_POLICIES[model.id] ?? {}]),
+    ),
+  ),
 };
 
 export function resolveQuotaBucketPolicy(
@@ -77,7 +78,7 @@ export function resolveQuotaBucketPolicy(
     return null;
   }
 
-  return OPENAI_MODEL_POLICIES[input.model]?.[ref.dimension] ?? null;
+  return MODEL_POLICIES[input.model]?.[ref.dimension] ?? null;
 }
 
 export function buildQuotaBucketPlans(

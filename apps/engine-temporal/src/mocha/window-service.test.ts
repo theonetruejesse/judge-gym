@@ -34,7 +34,8 @@ function buildWindowContext() {
   };
 }
 
-describe("window stage service", () => {
+describe("window stage service", function () {
+  this.timeout(10_000);
   it("halts the workflow when collection finds no evidence", async () => {
     let markedNoEvidence = 0;
 
@@ -119,9 +120,55 @@ describe("window stage service", () => {
       "l1_cleaned",
     );
 
-    assert.deepEqual(calls, ["start", "finish", "apply"]);
+    assert.deepEqual(calls, ["start", "apply", "finish"]);
     assert.equal(result.haltProcess, undefined);
     assert.equal(result.summary, "window_stage:l1_cleaned:success=1:failed=0");
+  });
+
+  it("retries collection before inserting evidence", async () => {
+    const calls: string[] = [];
+    let searchAttempts = 0;
+
+    const result = await runWindowStageActivityWithDeps(
+      {
+        convex: {
+          getWindowExecutionContext: async () => buildWindowContext(),
+          insertWindowEvidenceBatch: async ({ evidences }) => {
+            calls.push(`insert:${evidences.length}:${evidences[0]?.raw_content}`);
+            return { inserted: evidences.length, total: evidences.length };
+          },
+          listWindowStageInputs: async () => [],
+          recordLlmAttemptStart: async () => ({ attempt_id: "attempt_1" }),
+          recordLlmAttemptFinish: async () => null,
+          applyWindowStageResult: async () => null,
+          markWindowStageFailure: async () => null,
+          markWindowNoEvidence: async () => null,
+          markWindowProcessError: async () => null,
+        },
+        searchWindowEvidence: async () => {
+          searchAttempts += 1;
+          if (searchAttempts === 1) {
+            throw new Error("Firecrawl search timed out after 45000ms");
+          }
+          return [{
+            title: "Evidence 1",
+            url: "https://example.com/1",
+            raw_content: "raw markdown",
+          }];
+        },
+        runOpenAiChat: async () => {
+          throw new Error("chat should not be called in collect stage");
+        },
+        quota: buildQuota(),
+      },
+      "window_run_123",
+      "collect",
+    );
+
+    assert.equal(searchAttempts, 2);
+    assert.equal(result.haltProcess, undefined);
+    assert.equal(result.summary, "window_collect:inserted=1:total=1");
+    assert.deepEqual(calls, ["insert:1:raw markdown"]);
   });
 
   it("halts the workflow when every attempt in a stage fails", async () => {

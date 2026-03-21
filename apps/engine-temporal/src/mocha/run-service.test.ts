@@ -14,7 +14,8 @@ function buildQuota() {
   };
 }
 
-describe("run stage service", () => {
+describe("run stage service", function () {
+  this.timeout(10_000);
   it("records successful rubric generation attempts and finalizes the stage", async () => {
     const calls: string[] = [];
 
@@ -93,7 +94,7 @@ describe("run stage service", () => {
 
     assert.equal(result.haltProcess, undefined);
     assert.equal(result.summary, "run_stage:rubric_gen:success=1:failed=0:completed=1");
-    assert.deepEqual(calls, ["start", "finish", "apply", "finalize"]);
+    assert.deepEqual(calls, ["start", "apply", "finish", "finalize"]);
   });
 
   it("halts the workflow when run stage finalization reports terminal failure", async () => {
@@ -170,7 +171,16 @@ describe("run stage service", () => {
     assert.equal(result.haltProcess, true);
     assert.equal(result.terminalExecutionStatus, "failed");
     assert.equal(result.errorMessage, "score stage failed");
-    assert.deepEqual(calls, ["start", "finish", "mark-failure", "finalize"]);
+    assert.deepEqual(calls, [
+      "start",
+      "finish",
+      "start",
+      "finish",
+      "start",
+      "finish",
+      "mark-failure",
+      "finalize",
+    ]);
   });
 
   it("continues when stage finalization reports partial failure but surviving work completed", async () => {
@@ -254,7 +264,107 @@ describe("run stage service", () => {
       result.summary,
       "run_stage:rubric_critic:success=1:failed=0:completed=1",
     );
-    assert.deepEqual(calls, ["start", "finish", "apply", "finalize"]);
+    assert.deepEqual(calls, ["start", "apply", "finish", "finalize"]);
+  });
+
+  it("retries retryable parse failures before marking the target dead", async () => {
+    const calls: string[] = [];
+    let applyAttempts = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_retry",
+              experiment_id: "exp_retry",
+              workflow_id: "run:run_retry",
+              workflow_run_id: "workflow-run-retry",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 1,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [{
+              target_type: "sample_score_target" as const,
+              target_id: "target_retry",
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            calls.push("start");
+            return {
+              attempt_id: `attempt_${applyAttempts + 1}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            calls.push("finish");
+            return null;
+          },
+          async applyRunStageResult() {
+            applyAttempts += 1;
+            calls.push(`apply:${applyAttempts}`);
+            if (applyAttempts < 3) {
+              throw new Error("Failed to parse verdict token: malformed");
+            }
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            calls.push("finalize");
+            return {
+              total: 1,
+              completed: 1,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          return {
+            assistant_output: "VERDICT: A",
+            input_tokens: 10,
+            output_tokens: 10,
+            total_tokens: 20,
+          };
+        },
+      },
+      "run_retry",
+      "score_gen",
+    );
+
+    assert.equal(result.haltProcess, undefined);
+    assert.equal(
+      result.summary,
+      "run_stage:score_gen:success=1:failed=0:completed=1",
+    );
+    assert.deepEqual(calls, [
+      "start",
+      "apply:1",
+      "finish",
+      "start",
+      "apply:2",
+      "finish",
+      "start",
+      "apply:3",
+      "finish",
+      "finalize",
+    ]);
   });
 
   it("marks the run failed when stage finalization still reports pending work", async () => {

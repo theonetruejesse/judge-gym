@@ -122,7 +122,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `apps/engine-temporal` | Temporal worker app with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
 | `apps/lab` | Next.js app (UI for evidence windows + experiments) |
 | `apps/analysis` | Python client for pulling experiment data from Convex |
-| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, queue names, env-key names, provider metadata, workflow contracts, and quota/runtime-agnostic schemas |
+| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch/retry policy, Firecrawl collection policy, queue names, env-key names, and workflow/quota schemas |
 | `packages/engine-prompts` | Shared prompt/config package for run/window prompt builders, display/randomization helpers, and experiment-config schemas |
 | `paper.md` | Research framing |
 
@@ -159,7 +159,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
 | `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start actions for windows and runs |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
-| `domain/window/evidence_search.ts` | Firecrawl-based news search |
+| `domain/window/evidence_search.ts` | Firecrawl-based news search with bounded timeout/retry policy from `engine-settings` |
 | `domain/exports/analysis_export.ts` | Analysis/export read surfaces for the Python package |
 | `domain/maintenance/process_debug.ts` | Temporal-aware health, stuck-work detection, and bounded repair helpers |
 | `domain/maintenance/danger.ts` | Run-scoped destructive maintenance and table-prune helpers |
@@ -247,7 +247,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 **Provider configuration**
 
-- `packages/engine-settings/src/provider.ts` defines providers and model IDs.
+- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, LLM retry budgets, Firecrawl collection timeouts/retries, queue names, and env-key constants.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
 - Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
@@ -257,7 +257,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 ## Known Gaps and Caveats
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
-- Engine settings currently resolve from code defaults in `packages/engine-settings`; there is no persisted operator-editable settings table yet.
+- Engine settings currently resolve from code defaults in `packages/engine-settings`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, and Firecrawl collection behavior now live in one shared package instead of being hardcoded across Convex and Temporal.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
@@ -278,5 +278,5 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - Destructive maintenance: `apps/engine-convex/convex/domain/maintenance/danger.ts`
 - Quota layer: `apps/engine-temporal/src/quota/*`
 - Prompt builders/config: `packages/engine-prompts/src/run/*`, `packages/engine-prompts/src/window/index.ts`
-- Provider metadata: `packages/engine-settings/src/provider.ts`
+- Provider metadata and quota defaults: `packages/engine-settings/src/provider.ts`
 - Schema and models: `apps/engine-convex/convex/schema.ts`, `apps/engine-convex/convex/models/*`

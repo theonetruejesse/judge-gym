@@ -3,6 +3,11 @@ import type {
   WindowStageKey,
 } from "@judge-gym/engine-settings/process";
 import {
+  DEFAULT_ENGINE_SETTINGS,
+  classifyTaskFailure,
+  resolveAttemptLimitForFailureClass,
+} from "@judge-gym/engine-settings";
+import {
   abstractPrompt,
   CLEANING_INSTRUCTIONS,
   cleanPrompt,
@@ -28,6 +33,8 @@ type SearchResult = {
 };
 
 type WindowTransformStage = Exclude<WindowStageKey, "collect">;
+const FIRECRAWL_SETTINGS = DEFAULT_ENGINE_SETTINGS.window.firecrawl;
+const RETRY_SETTINGS = DEFAULT_ENGINE_SETTINGS.llm.retries;
 
 const WINDOW_STAGE_PROMPTS: Record<
   WindowTransformStage,
@@ -85,8 +92,8 @@ export async function searchWindowEvidence(args: {
   return items
     .filter(
       (item: any) =>
-        typeof item?.markdown === "string" &&
-        item.markdown.trim().length > 0 &&
+        typeof item?.raw_content === "string" &&
+        item.raw_content.trim().length > 0 &&
         typeof item?.title === "string" &&
         item.title.trim().length > 0 &&
         typeof item?.url === "string" &&
@@ -95,7 +102,7 @@ export async function searchWindowEvidence(args: {
     .map((item: any) => ({
       title: item.title as string,
       url: item.url as string,
-      raw_content: item.markdown as string,
+      raw_content: item.raw_content as string,
     }));
 }
 
@@ -188,7 +195,7 @@ export async function runWindowStageActivityWithDeps(
   if (stage === "collect") {
     let evidences: SearchResult[];
     try {
-      evidences = await deps.searchWindowEvidence({
+      evidences = await retryWindowCollectionSearch(deps.searchWindowEvidence, {
         query: window.query,
         country: window.country,
         start_date: window.start_date,
@@ -251,114 +258,21 @@ export async function runWindowStageActivityWithDeps(
   let failureCount = 0;
 
   for (const item of inputs) {
-    const systemPrompt = stageConfig.systemPrompt;
-    const userPrompt = stageConfig.buildPrompt(item.input);
-    const { provider } = getModelConfig(window.model);
-    const workflowId = window.workflow_id ?? `window:${windowRunId}`;
-
-    const { attempt_id } = await convex.recordLlmAttemptStart({
-      process_kind: "window",
-      process_id: windowRunId,
-      target_type: "evidence",
-      target_id: item.evidence_id,
+    const taskResult = await processWindowStageInputWithRetries(deps, {
+      windowRunId,
       stage,
-      provider,
-      model: window.model,
-      operation_type: "chat",
-      workflow_id: workflowId,
-      system_prompt: systemPrompt,
-      user_prompt: userPrompt,
-      metadata_json: JSON.stringify({
-        evidence_title: item.title,
-        evidence_url: item.url,
-      }),
-    });
-    const reservedDimensions = {
-      requests: 1,
-      input_tokens:
-        estimateTextTokens(systemPrompt) + estimateTextTokens(userPrompt),
-      total_tokens:
-        estimateTextTokens(systemPrompt) + estimateTextTokens(userPrompt),
-    };
-    const reservation = await deps.quota.reserve({
-      reservationId: `window:${windowRunId}:${stage}:${item.evidence_id}:${attempt_id}`,
-      provider,
-      model: window.model,
-      operationType: "chat",
-      scopeKey: `window:${windowRunId}:${stage}`,
-      dimensions: reservedDimensions,
-      processKind: "window",
-      processId: windowRunId,
-      workflowId,
+      windowModel: window.model,
+      workflowId: window.workflow_id ?? `window:${windowRunId}`,
+      evidenceId: item.evidence_id,
+      evidenceTitle: item.title,
+      evidenceUrl: item.url,
+      systemPrompt: stageConfig.systemPrompt,
+      userPrompt: stageConfig.buildPrompt(item.input),
     });
 
-    try {
-      if (!reservation.allowed) {
-        throw new Error(
-          `Quota reservation denied for ${stage}: ${reservation.reason ?? "quota_denied"}`,
-        );
-      }
-
-      const result = await deps.runOpenAiChat({
-        model: window.model,
-        systemPrompt,
-        userPrompt,
-      });
-      await convex.recordLlmAttemptFinish({
-        attempt_id,
-        status: "succeeded",
-        assistant_output: result.assistant_output,
-        input_tokens: result.input_tokens,
-        output_tokens: result.output_tokens,
-        total_tokens: result.total_tokens,
-      });
-      await deps.quota.settle({
-        reservationId: reservation.reservationId,
-          provider,
-          model: window.model,
-          operationType: "chat",
-          scopeKey: `window:${windowRunId}:${stage}`,
-          reserved: reservedDimensions,
-          observed: buildObservedDimensions(result),
-          status: "applied",
-        });
-      await convex.applyWindowStageResult({
-        window_run_id: windowRunId,
-        evidence_id: item.evidence_id,
-        stage,
-        attempt_id,
-        output: result.assistant_output,
-        input_tokens: result.input_tokens,
-        output_tokens: result.output_tokens,
-        total_tokens: result.total_tokens,
-      });
+    if (taskResult === "succeeded") {
       successCount += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (reservation.allowed) {
-        await deps.quota.settle({
-          reservationId: reservation.reservationId,
-          provider,
-          model: window.model,
-          operationType: "chat",
-          scopeKey: `window:${windowRunId}:${stage}`,
-          reserved: reservedDimensions,
-          observed: { requests: 1 },
-          status: "failed",
-        });
-      }
-      await convex.recordLlmAttemptFinish({
-        attempt_id,
-        status: "failed",
-        error_message: message,
-      });
-      await convex.markWindowStageFailure({
-        window_run_id: windowRunId,
-        evidence_id: item.evidence_id,
-        stage,
-        attempt_id,
-        error_message: message,
-      });
+    } else {
       failureCount += 1;
     }
   }
@@ -398,4 +312,193 @@ export async function runWindowStageActivity(
     windowRunId,
     stage,
   );
+}
+
+async function processWindowStageInputWithRetries(
+  deps: WindowStageDependencies,
+  args: {
+    windowRunId: string;
+    stage: WindowTransformStage;
+    windowModel: string;
+    workflowId: string;
+    evidenceId: string;
+    evidenceTitle: string;
+    evidenceUrl: string;
+    systemPrompt: string;
+    userPrompt: string;
+  },
+): Promise<"succeeded" | "failed"> {
+  const { provider } = getModelConfig(args.windowModel);
+  let maxAttempts = RETRY_SETTINGS.unexpectedFailureMaxAttempts;
+  let attempt = 0;
+  let lastFailure:
+    | {
+        attemptId: string;
+        message: string;
+      }
+    | null = null;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+      process_kind: "window",
+      process_id: args.windowRunId,
+      target_type: "evidence",
+      target_id: args.evidenceId,
+      stage: args.stage,
+      provider,
+      model: args.windowModel,
+      operation_type: "chat",
+      workflow_id: args.workflowId,
+      system_prompt: args.systemPrompt,
+      user_prompt: args.userPrompt,
+      metadata_json: JSON.stringify({
+        evidence_title: args.evidenceTitle,
+        evidence_url: args.evidenceUrl,
+      }),
+    });
+    const reservedDimensions = {
+      requests: 1,
+      input_tokens:
+        estimateTextTokens(args.systemPrompt) + estimateTextTokens(args.userPrompt),
+      total_tokens:
+        estimateTextTokens(args.systemPrompt) + estimateTextTokens(args.userPrompt),
+    };
+    const reservation = await deps.quota.reserve({
+      reservationId:
+        `window:${args.windowRunId}:${args.stage}:${args.evidenceId}:${attempt_id}`,
+      provider,
+      model: args.windowModel,
+      operationType: "chat",
+      scopeKey: `window:${args.windowRunId}:${args.stage}`,
+      dimensions: reservedDimensions,
+      processKind: "window",
+      processId: args.windowRunId,
+      workflowId: args.workflowId,
+    });
+
+    try {
+      if (!reservation.allowed) {
+        throw new Error(
+          `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`,
+        );
+      }
+
+      const result = await deps.runOpenAiChat({
+        model: args.windowModel,
+        systemPrompt: args.systemPrompt,
+        userPrompt: args.userPrompt,
+      });
+      await deps.convex.applyWindowStageResult({
+        window_run_id: args.windowRunId,
+        evidence_id: args.evidenceId,
+        stage: args.stage,
+        attempt_id,
+        output: result.assistant_output,
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_tokens: result.total_tokens,
+      });
+      await deps.convex.recordLlmAttemptFinish({
+        attempt_id,
+        status: "succeeded",
+        assistant_output: result.assistant_output,
+        input_tokens: result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_tokens: result.total_tokens,
+      });
+      await deps.quota.settle({
+        reservationId: reservation.reservationId,
+        provider,
+        model: args.windowModel,
+        operationType: "chat",
+        scopeKey: `window:${args.windowRunId}:${args.stage}`,
+        reserved: reservedDimensions,
+        observed: buildObservedDimensions(result),
+        status: "applied",
+      });
+      return "succeeded";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (reservation.allowed) {
+        await deps.quota.settle({
+          reservationId: reservation.reservationId,
+          provider,
+          model: args.windowModel,
+          operationType: "chat",
+          scopeKey: `window:${args.windowRunId}:${args.stage}`,
+          reserved: reservedDimensions,
+          observed: { requests: 1 },
+          status: "failed",
+        });
+      }
+      await deps.convex.recordLlmAttemptFinish({
+        attempt_id,
+        status: "failed",
+        error_message: message,
+      });
+      lastFailure = {
+        attemptId: attempt_id,
+        message,
+      };
+      const failureClass = classifyTaskFailure(error);
+      maxAttempts = resolveAttemptLimitForFailureClass(
+        failureClass,
+        RETRY_SETTINGS,
+      );
+      if (attempt < maxAttempts) {
+        await sleep(RETRY_SETTINGS.backoffMs);
+        continue;
+      }
+    }
+  }
+
+  if (!lastFailure) {
+    throw new Error("Window stage failed without an attempt record");
+  }
+
+  await deps.convex.markWindowStageFailure({
+    window_run_id: args.windowRunId,
+    evidence_id: args.evidenceId,
+    stage: args.stage,
+    attempt_id: lastFailure.attemptId,
+    error_message: lastFailure.message,
+  });
+  return "failed";
+}
+
+async function retryWindowCollectionSearch(
+  search: typeof searchWindowEvidence,
+  args: {
+    query: string;
+    country: string;
+    start_date: string;
+    end_date: string;
+    limit: number;
+  },
+): Promise<SearchResult[]> {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= FIRECRAWL_SETTINGS.maxAttempts; attempt += 1) {
+    try {
+      return await search(args);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= FIRECRAWL_SETTINGS.maxAttempts) {
+        break;
+      }
+      await sleep(FIRECRAWL_SETTINGS.retryBackoffMs);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(String(lastError ?? "Window collection failed"));
+}
+
+async function sleep(ms: number) {
+  if (ms <= 0) {
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

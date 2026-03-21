@@ -1,6 +1,7 @@
 "use node";
 
 import Firecrawl from "@mendable/firecrawl-js";
+import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import z from "zod";
 import { zInternalAction } from "../../utils/custom_fns";
 import { WindowsTableSchema } from "../../models/window";
@@ -20,7 +21,7 @@ const SearchResultSchema = z.object({
     raw_content: z.string(),
 });
 
-const FIRECRAWL_REQUEST_TIMEOUT_MS = 45_000;
+const FIRECRAWL_SETTINGS = DEFAULT_ENGINE_SETTINGS.window.firecrawl;
 
 export type SearchNewsResults = Array<z.infer<typeof SearchResultSchema>>;
 
@@ -59,21 +60,27 @@ async function searchHeadlines(options: SearchOptions) {
     const { query, country, start_date, end_date, limit } = options;
     const firecrawl = new Firecrawl({
         apiKey: process.env.FIRECRAWL_API_KEY,
-        timeoutMs: FIRECRAWL_REQUEST_TIMEOUT_MS,
-        maxRetries: 1,
+        timeoutMs: FIRECRAWL_SETTINGS.requestTimeoutMs,
+        maxRetries: FIRECRAWL_SETTINGS.clientMaxRetries,
     });
-    const response = await firecrawl.search(`${query} ${country} news articles`, {
-        limit,
-        sources: ["news"],
-        location: country,
-        tbs: `cdr:1,cd_min:${toSearchDate(start_date)},cd_max:${toSearchDate(end_date)}`,
-        timeout: FIRECRAWL_REQUEST_TIMEOUT_MS,
-        scrapeOptions: {
-            formats: ["markdown"],
-        },
-    });
+    const response = await withTimeout(
+        firecrawl.search(buildSearchQuery(query, country), {
+            limit,
+            sources: FIRECRAWL_SETTINGS.sources,
+            location: country,
+            tbs: `cdr:1,cd_min:${toSearchDate(start_date)},cd_max:${toSearchDate(end_date)}`,
+            timeout: FIRECRAWL_SETTINGS.searchTimeoutMs,
+            scrapeOptions: {
+                formats: ["markdown"],
+            },
+        }),
+        FIRECRAWL_SETTINGS.searchTimeoutMs,
+        `Firecrawl search timed out after ${FIRECRAWL_SETTINGS.searchTimeoutMs}ms`,
+    );
 
-    if (!response || !response.news) throw new Error("Firecrawl search failed");
+    if (!response || !response.news) {
+        throw new Error("Firecrawl search failed");
+    }
 
     return response.news;
 }
@@ -82,4 +89,33 @@ async function searchHeadlines(options: SearchOptions) {
 function toSearchDate(iso: string): string {
     const [year, month, day] = iso.split("-");
     return `${month}/${day}/${year}`;
+}
+
+function buildSearchQuery(query: string, country: string): string {
+    const parts = [
+        query,
+        FIRECRAWL_SETTINGS.includeCountryInQuery ? country : null,
+        FIRECRAWL_SETTINGS.querySuffix,
+    ].filter((value): value is string => Boolean(value && value.trim().length > 0));
+    return parts.join(" ");
+}
+
+async function withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string,
+): Promise<T> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timeoutHandle = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
 }
