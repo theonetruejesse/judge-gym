@@ -188,10 +188,46 @@ async function safeDescribe(handle: ReturnType<Client["workflow"]["getHandle"]>)
   }
 }
 
-async function safeQuerySnapshot(handle: ReturnType<Client["workflow"]["getHandle"]>) {
+function normalizeSnapshot(
+  snapshot: Partial<z.infer<typeof ProcessSnapshotSchema>>,
+  args: {
+    process_type: z.infer<typeof ProcessTypeSchema>;
+    process_id: string;
+    workflow_id: string;
+    workflow_run_id: string | null;
+    workflow_type: string | null;
+  },
+): z.infer<typeof ProcessSnapshotSchema> {
+  return {
+    processKind: snapshot.processKind ?? args.process_type,
+    processId: snapshot.processId ?? args.process_id,
+    workflowId: snapshot.workflowId ?? args.workflow_id,
+    workflowRunId: snapshot.workflowRunId ?? args.workflow_run_id ?? "",
+    workflowType: snapshot.workflowType ?? args.workflow_type ?? `${args.process_type}Workflow`,
+    executionStatus: snapshot.executionStatus ?? "queued",
+    stage: snapshot.stage ?? null,
+    stageStatus: snapshot.stageStatus ?? "pending",
+    pauseAfter: snapshot.pauseAfter ?? null,
+    stageHistory: snapshot.stageHistory ?? [],
+    lastControlCommandId: snapshot.lastControlCommandId ?? null,
+    lastErrorMessage: snapshot.lastErrorMessage ?? null,
+  };
+}
+
+async function safeQuerySnapshot(
+  handle: ReturnType<Client["workflow"]["getHandle"]>,
+  args?: {
+    process_type: z.infer<typeof ProcessTypeSchema>;
+    process_id: string;
+    workflow_id: string;
+    workflow_run_id: string | null;
+    workflow_type: string | null;
+  },
+) {
   try {
+    const queried = await handle.query("getProcessSnapshot") as Partial<z.infer<typeof ProcessSnapshotSchema>>;
     return {
-      snapshot: await handle.query("getProcessSnapshot") as z.infer<typeof ProcessSnapshotSchema>,
+      snapshot: args ? normalizeSnapshot(queried, args) : queried as z.infer<typeof ProcessSnapshotSchema>,
       snapshot_query_error: null,
     };
   } catch (error) {
@@ -203,7 +239,8 @@ async function safeQuerySnapshot(handle: ReturnType<Client["workflow"]["getHandl
 }
 
 export async function startWindowWorkflowExecution(args: {
-  window_id: string;
+  window_run_id: string;
+  target_stage?: z.infer<typeof WindowPauseAfterSchema> | null;
   pause_after?: z.infer<typeof WindowPauseAfterSchema> | null;
 }) {
   const config = getTemporalConfig();
@@ -220,11 +257,12 @@ export async function startWindowWorkflowExecution(args: {
 
     const handle = await client.workflow.start("windowWorkflow", {
       args: [{
-        windowId: args.window_id,
+        windowRunId: args.window_run_id,
+        targetStage: args.target_stage ?? "l3_abstracted",
         pauseAfter: args.pause_after ?? null,
       }],
       taskQueue: config.taskQueues.window,
-      workflowId: `window:${args.window_id}`,
+      workflowId: `window:${args.window_run_id}`,
     });
 
     return {
@@ -317,7 +355,13 @@ export async function inspectProcessWorkflowExecution(args: {
       };
     }
 
-    const queried = await safeQuerySnapshot(handle);
+    const queried = await safeQuerySnapshot(handle, {
+      process_type: args.process_type,
+      process_id: args.process_id,
+      workflow_id,
+      workflow_run_id: description.runId,
+      workflow_type: description.type,
+    });
     return {
       process_type: args.process_type,
       process_id: args.process_id,
@@ -452,7 +496,13 @@ export async function controlProcessWorkflowExecution(args: {
       }
 
       const description = await safeDescribe(handle);
-      const queried = snapshot == null ? await safeQuerySnapshot(handle) : null;
+      const queried = snapshot == null ? await safeQuerySnapshot(handle, {
+        process_type: args.process_type,
+        process_id: args.process_id,
+        workflow_id,
+        workflow_run_id: description?.runId ?? null,
+        workflow_type: description?.type ?? null,
+      }) : null;
       return {
         process_type: args.process_type,
         process_id: args.process_id,
@@ -510,17 +560,17 @@ export async function resumeRunWorkflowExecution(args: {
 }
 
 export async function resumeWindowWorkflowExecution(args: {
-  window_id: string;
+  window_run_id: string;
   pause_after?: z.infer<typeof WindowPauseAfterSchema> | null;
   cmd_id?: string;
 }) {
   return withTemporalClient(async (client) => {
-    const handle = client.workflow.getHandle(`window:${args.window_id}`);
-    const cmd_id = args.cmd_id ?? buildCmdId("resume", "window", args.window_id);
+    const handle = client.workflow.getHandle(`window:${args.window_run_id}`);
+    const cmd_id = args.cmd_id ?? buildCmdId("resume", "window", args.window_run_id);
     if (args.pause_after !== undefined) {
       await handle.executeUpdate("setPauseAfter", {
         args: [{
-          cmdId: buildCmdId("set_pause_after", "window", args.window_id),
+          cmdId: buildCmdId("set_pause_after", "window", args.window_run_id),
           pauseAfter: args.pause_after ?? null,
         }],
       });
@@ -535,7 +585,8 @@ export async function resumeWindowWorkflowExecution(args: {
 
 export const startWindowWorkflow = zInternalAction({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
+    target_stage: WindowPauseAfterSchema.nullable().optional(),
     pause_after: WindowPauseAfterSchema.nullable().optional(),
   }),
   returns: z.object({
@@ -544,7 +595,8 @@ export const startWindowWorkflow = zInternalAction({
   }),
   handler: async (_ctx, args) => {
     return startWindowWorkflowExecution({
-      window_id: String(args.window_id),
+      window_run_id: String(args.window_run_id),
+      target_stage: args.target_stage ?? "l3_abstracted",
       pause_after: args.pause_after ?? null,
     });
   },
@@ -583,14 +635,14 @@ export const resumeRunWorkflow = zInternalAction({
 
 export const resumeWindowWorkflow = zInternalAction({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     pause_after: WindowPauseAfterSchema.nullable().optional(),
     cmd_id: z.string().optional(),
   }),
   returns: z.any(),
   handler: async (_ctx, args) => {
     return resumeWindowWorkflowExecution({
-      window_id: String(args.window_id),
+      window_run_id: String(args.window_run_id),
       pause_after: args.pause_after,
       cmd_id: args.cmd_id,
     });

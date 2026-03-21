@@ -18,8 +18,9 @@ const EvidenceWindowInputSchema = WindowsTableSchema.pick({
   country: true,
   start_date: true,
   end_date: true,
-  model: true,
 });
+
+const WindowRunTargetStageSchema = SemanticLevelSchema;
 
 export const createWindowForm = zMutation({
   args: z.object({
@@ -42,7 +43,7 @@ export const createWindowForm = zMutation({
       internal.domain.window.window_repo.createWindow,
       {
         ...evidence_window,
-        target_count: evidence_limit,
+        default_target_count: evidence_limit,
       },
     );
     await emitTraceEvent(ctx, {
@@ -58,40 +59,101 @@ export const createWindowForm = zMutation({
       }),
     });
 
-    await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowFlow,
-      { window_id, evidence_limit }
-    );
-
     return { window_id };
   },
 });
 
-export const startWindowFlow = zInternalAction({
+export const startWindowRunForm: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     window_id: zid("windows"),
-    evidence_limit: z.number().int().min(1),
+    model: modelTypeSchema,
+    target_stage: WindowRunTargetStageSchema.default("l3_abstracted"),
+    evidence_limit: z.number().int().min(1).optional(),
+    pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable().optional(),
+  }),
+  returns: z.object({
+    window_run_id: zid("window_runs"),
+  }),
+  handler: async (ctx, args): Promise<{ window_run_id: Id<"window_runs"> }> => {
+    const { window_run_id }: { window_run_id: Id<"window_runs"> } = await ctx.runMutation(
+      internal.domain.window.window_repo.createWindowRun,
+      {
+        window_id: args.window_id,
+        model: args.model,
+        target_count: args.evidence_limit,
+        target_stage: args.target_stage,
+        pause_after: args.pause_after ?? null,
+      },
+    );
+    await emitTraceEvent(ctx, {
+      trace_id: `window:${window_run_id}`,
+      entity_type: "window",
+      entity_id: String(window_run_id),
+      event_name: "window_run_created",
+      status: "start",
+      stage: "l0_raw",
+      payload_json: JSON.stringify({
+        window_id: args.window_id,
+        model: args.model,
+        target_stage: args.target_stage,
+        evidence_limit: args.evidence_limit ?? null,
+      }),
+    });
+
+    await ctx.scheduler.runAfter(0, internal.packages.lab.startWindowRunFlow, {
+      window_run_id,
+    });
+
+    return { window_run_id };
+  },
+});
+
+function semanticLevelToWindowPauseStage(
+  level: z.infer<typeof WindowRunTargetStageSchema>,
+): "collect" | "l1_cleaned" | "l2_neutralized" | "l3_abstracted" {
+  switch (level) {
+    case "l0_raw":
+      return "collect";
+    case "l1_cleaned":
+      return "l1_cleaned";
+    case "l2_neutralized":
+      return "l2_neutralized";
+    case "l3_abstracted":
+      return "l3_abstracted";
+  }
+}
+
+export const startWindowRunFlow = zInternalAction({
+  args: z.object({
+    window_run_id: zid("window_runs"),
   }),
   handler: async (ctx, args) => {
-    const { window_id, evidence_limit } = args;
+    const windowRun = await ctx.runQuery(
+      internal.domain.window.window_repo.getWindowRun,
+      { window_run_id: args.window_run_id },
+    );
     await emitTraceEvent(ctx, {
-      trace_id: `window:${window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(window_id),
-      event_name: "window_flow_started",
+      entity_id: String(args.window_run_id),
+      event_name: "window_run_started",
       payload_json: JSON.stringify({
-        evidence_limit,
+        window_id: windowRun.window_id,
+        target_count: windowRun.target_count,
+        target_stage: windowRun.target_stage,
       }),
     });
 
     try {
       const { workflow_id, workflow_run_id } =
         await ctx.runAction(internal.domain.temporal.temporal_client.startWindowWorkflow, {
-          window_id,
+          window_run_id: args.window_run_id,
+          target_stage: semanticLevelToWindowPauseStage(windowRun.target_stage),
         });
       await ctx.runMutation(
         api.packages.worker.bindWindowWorkflow,
         {
-          window_id,
+          window_run_id: args.window_run_id,
           workflow_id,
           workflow_run_id,
         },
@@ -99,7 +161,7 @@ export const startWindowFlow = zInternalAction({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await ctx.runMutation(api.packages.worker.markWindowProcessError, {
-        window_id,
+        window_run_id: args.window_run_id,
         stage: "collect",
         error_message: errorMessage,
       });
@@ -109,24 +171,46 @@ export const startWindowFlow = zInternalAction({
 
 export const resumeWindowExecution = zInternalAction({
   args: z.object({
-    window_id: zid("windows"),
-    evidence_limit: z.number().int().min(1),
+    window_run_id: zid("window_runs"),
   }),
   returns: z.null(),
   handler: async (ctx, args) => {
     try {
       await ctx.runAction(internal.domain.temporal.temporal_client.resumeWindowWorkflow, {
-        window_id: args.window_id,
+        window_run_id: args.window_run_id,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await ctx.runMutation(api.packages.worker.markWindowProcessError, {
-        window_id: args.window_id,
+        window_run_id: args.window_run_id,
         stage: "collect",
         error_message: errorMessage,
       });
     }
     return null;
+  },
+});
+
+export const backfillLegacyWindowRuns: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({}),
+  returns: z.object({
+    windows_patched: z.number(),
+    runs_created: z.number(),
+    evidences_patched: z.number(),
+    skipped_windows: z.number(),
+    active_windows_restarted_as_error: z.number(),
+  }),
+  handler: async (ctx): Promise<{
+    windows_patched: number;
+    runs_created: number;
+    evidences_patched: number;
+    skipped_windows: number;
+    active_windows_restarted_as_error: number;
+  }> => {
+    return ctx.runMutation(
+      internal.domain.window.window_repo.backfillLegacyWindowRuns,
+      {},
+    );
   },
 });
 
@@ -151,7 +235,10 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       end_date: z.string(),
       country: z.string(),
       query: z.string(),
-      model: modelTypeSchema,
+      default_target_count: z.number(),
+      latest_window_run_id: zid("window_runs").nullable(),
+      model: modelTypeSchema.nullable(),
+      target_stage: SemanticLevelSchema.nullable(),
       evidence_count: z.number(),
       evidence_status: z.enum([
         "scraping",
@@ -168,6 +255,10 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       internal.domain.window.window_repo.listWindows,
       {},
     );
+    const windowRuns = await ctx.runQuery(
+      internal.domain.window.window_repo.listWindowRuns,
+      {},
+    );
     const evidenceRows = await ctx.db.query("evidences").collect();
     const evidencesByWindow = new Map<string, Array<Doc<"evidences">>>();
     for (const evidence of evidenceRows) {
@@ -176,28 +267,43 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       evidencesByWindow.set(evidence.window_id, current);
     }
 
+    const latestRunByWindow = new Map<string, Doc<"window_runs">>();
+    for (const windowRun of windowRuns as Array<Doc<"window_runs">>) {
+      const current = latestRunByWindow.get(String(windowRun.window_id));
+      if (!current || current._creationTime < windowRun._creationTime) {
+        latestRunByWindow.set(String(windowRun.window_id), windowRun);
+      }
+    }
+
     const results = [] as Array<{
       window_id: string;
       start_date: string;
       end_date: string;
       country: string;
       query: string;
-      model: ModelType;
+      default_target_count: number;
+      latest_window_run_id: string | null;
+      model: ModelType | null;
+      target_stage: z.infer<typeof SemanticLevelSchema> | null;
       evidence_count: number;
       evidence_status: EvidenceStatus;
     }>;
 
     for (const window of windows) {
       const evidences = evidencesByWindow.get(window._id) ?? [];
-      const evidence_status = deriveEvidenceStatus(window.status, evidences);
+      const latestRun = latestRunByWindow.get(String(window._id)) ?? null;
+      const evidence_status = deriveEvidenceStatus(latestRun?.status ?? "start", evidences);
       results.push({
         window_id: window._id,
         start_date: window.start_date,
         end_date: window.end_date,
         country: window.country,
         query: window.query,
-        model: window.model,
-        evidence_count: window.target_count,
+        default_target_count: window.default_target_count ?? 0,
+        latest_window_run_id: latestRun?._id ?? null,
+        model: latestRun?.model ?? null,
+        target_stage: latestRun?.target_stage ?? null,
+        evidence_count: evidences.length,
         evidence_status,
       });
     }
@@ -228,6 +334,82 @@ export const listEvidenceByWindow: ReturnType<typeof zQuery> = zQuery({
       .sort((a, b) => a._creationTime - b._creationTime)
       .map((row) => ({
         evidence_id: row._id,
+        title: row.title,
+        url: row.url,
+        created_at: row._creationTime,
+      }));
+  },
+});
+
+export const listWindowRuns: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    window_id: zid("windows").optional(),
+  }),
+  returns: z.array(z.object({
+    window_run_id: zid("window_runs"),
+    window_id: zid("windows"),
+    status: z.string(),
+    current_stage: SemanticLevelSchema,
+    pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable(),
+    target_stage: SemanticLevelSchema,
+    target_count: z.number(),
+    completed_count: z.number(),
+    model: modelTypeSchema,
+    workflow_id: z.string().nullable().optional(),
+    workflow_run_id: z.string().nullable().optional(),
+    last_error_message: z.string().nullable().optional(),
+    created_at: z.number(),
+  })),
+  handler: async (ctx, args) => {
+    const rows = (await ctx.runQuery(
+      internal.domain.window.window_repo.listWindowRuns,
+      args.window_id ? { window_id: args.window_id } : {},
+    )) as Array<Doc<"window_runs">>;
+
+    return rows
+      .slice()
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map((row) => ({
+        window_run_id: row._id,
+        window_id: row.window_id,
+        status: row.status,
+        current_stage: row.current_stage,
+        pause_after: row.pause_after ?? null,
+        target_stage: row.target_stage,
+        target_count: row.target_count,
+        completed_count: row.completed_count,
+        model: row.model,
+        workflow_id: row.workflow_id ?? null,
+        workflow_run_id: row.workflow_run_id ?? null,
+        last_error_message: row.last_error_message ?? null,
+        created_at: row._creationTime,
+      }));
+  },
+});
+
+export const listEvidenceByWindowRun: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({ window_run_id: zid("window_runs") }),
+  returns: z.array(
+    z.object({
+      evidence_id: zid("evidences"),
+      window_run_id: zid("window_runs"),
+      title: z.string(),
+      url: z.string(),
+      created_at: z.number(),
+    }),
+  ),
+  handler: async (ctx, { window_run_id }) => {
+    const rows = (await ctx.runQuery(
+      internal.domain.window.window_repo.listEvidenceByWindowRun,
+      { window_run_id },
+    )) as Array<Doc<"evidences">>;
+
+    return rows
+      .slice()
+      .sort((a, b) => a._creationTime - b._creationTime)
+      .map((row) => ({
+        evidence_id: row._id,
+        window_run_id: row.window_run_id,
         title: row.title,
         url: row.url,
         created_at: row._creationTime,
@@ -537,15 +719,15 @@ export const getRunSummary: ReturnType<typeof zQuery> = zQuery({
 });
 
 export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({ window_id: zid("windows") }),
-  handler: async (ctx, { window_id }) => {
-    const window = await ctx.runQuery(
-      internal.domain.window.window_repo.getWindow,
-      { window_id },
+  args: z.object({ window_run_id: zid("window_runs") }),
+  handler: async (ctx, { window_run_id }) => {
+    const windowRun = await ctx.runQuery(
+      internal.domain.window.window_repo.getWindowRun,
+      { window_run_id },
     );
     const evidences = (await ctx.runQuery(
-      internal.domain.window.window_repo.listEvidenceByWindow,
-      { window_id },
+      internal.domain.window.window_repo.listEvidenceByWindowRun,
+      { window_run_id },
     )) as Array<Doc<"evidences">>;
 
     let l1_completed = 0;
@@ -558,16 +740,18 @@ export const getWindowSummary: ReturnType<typeof zQuery> = zQuery({
     }
 
     return {
-      window_id: window._id,
-      status: window.status,
-      current_stage: window.current_stage,
-      target_count: window.target_count,
-      completed_count: window.completed_count,
-      evidence_total: window.target_count,
+      window_run_id: windowRun._id,
+      window_id: windowRun.window_id,
+      status: windowRun.status,
+      current_stage: windowRun.current_stage,
+      target_stage: windowRun.target_stage,
+      target_count: windowRun.target_count,
+      completed_count: windowRun.completed_count,
+      evidence_total: evidences.length,
       l1_completed,
       l2_completed,
       l3_completed,
-      trace_id: `window:${window._id}`,
+      trace_id: `window:${windowRun._id}`,
     };
   },
 });

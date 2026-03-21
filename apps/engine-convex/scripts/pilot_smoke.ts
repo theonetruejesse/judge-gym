@@ -148,21 +148,21 @@ async function waitForQueueReadiness(
 
 async function waitForWindowCompletion(
   client: ConvexHttpClient,
-  windowId: string,
+  windowRunId: string,
   args: Args,
 ): Promise<{ summary: WindowSummary; inspection: ProcessInspection }> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < args.windowTimeoutMs) {
     const [summary, inspection] = await Promise.all([
-      client.query(api.packages.lab.getWindowSummary, { window_id: windowId as never }),
+      client.query(api.packages.lab.getWindowSummary, { window_run_id: windowRunId as never }),
       client.action(api.packages.codex.inspectProcessExecution, {
         process_type: "window",
-        process_id: windowId,
+        process_id: windowRunId,
       }),
     ]);
 
     console.log(
-      `[pilot-smoke] window ${windowId} status=${summary.status} stage=${summary.current_stage} completed=${summary.completed_count}/${summary.target_count}`,
+      `[pilot-smoke] window run ${windowRunId} status=${summary.status} stage=${summary.current_stage} completed=${summary.completed_count}/${summary.target_count}`,
     );
 
     if (
@@ -182,7 +182,7 @@ async function waitForWindowCompletion(
 
     await sleep(args.pollMs);
   }
-  throw new Error(`Timed out waiting for window ${windowId} to complete`);
+  throw new Error(`Timed out waiting for window run ${windowRunId} to complete`);
 }
 
 async function waitForRunCompletion(
@@ -241,18 +241,24 @@ async function main() {
       country: args.country,
       start_date: args.startDate,
       end_date: args.endDate,
-      model: args.model,
     },
     evidence_limit: args.evidenceLimit,
   });
 
   const windowId = String(createdWindow.window_id);
-  const completedWindow = await waitForWindowCompletion(client, windowId, args);
-  const evidenceRows = await client.query(api.packages.lab.listEvidenceByWindow, {
+  const startedWindowRun = await client.mutation(api.packages.lab.startWindowRunForm, {
     window_id: createdWindow.window_id,
+    model: args.model,
+    target_stage: "l3_abstracted",
+    evidence_limit: args.evidenceLimit,
+  });
+  const windowRunId = String(startedWindowRun.window_run_id);
+  const completedWindow = await waitForWindowCompletion(client, windowRunId, args);
+  const evidenceRows = await client.query(api.packages.lab.listEvidenceByWindowRun, {
+    window_run_id: startedWindowRun.window_run_id,
   });
   if (evidenceRows.length === 0) {
-    throw new Error(`Window ${windowId} completed without evidence rows`);
+    throw new Error(`Window run ${windowRunId} completed without evidence rows`);
   }
 
   console.log("[pilot-smoke] creating pool and experiment");
@@ -305,6 +311,7 @@ async function main() {
     },
     window: {
       window_id: windowId,
+      window_run_id: windowRunId,
       status: completedWindow.summary.status,
       current_stage: completedWindow.summary.current_stage,
       completed_count: completedWindow.summary.completed_count,

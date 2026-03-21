@@ -42,7 +42,7 @@ async function run() {
         })
       : await client.workflow.start(windowWorkflow, {
           taskQueue,
-          args: [{ windowId: processId }],
+          args: [{ windowRunId: processId }],
           workflowId,
         });
 

@@ -194,11 +194,11 @@ function buildObservedDimensions(result: ChatResult) {
 
 export async function runWindowStageActivityWithDeps(
   deps: WindowStageDependencies,
-  windowId: string,
+  windowRunId: string,
   stage: WindowStageKey,
 ): Promise<StageActivityResult<WindowStageKey>> {
   const { convex } = deps;
-  const window = await convex.getWindowExecutionContext(windowId);
+  const window = await convex.getWindowExecutionContext(windowRunId);
 
   if (stage === "collect") {
     const evidences = await deps.searchWindowEvidence({
@@ -211,11 +211,11 @@ export async function runWindowStageActivityWithDeps(
 
     if (evidences.length === 0) {
       await convex.markWindowNoEvidence({
-        window_id: windowId,
+        window_run_id: windowRunId,
       });
       return {
         processKind: "window",
-        processId: windowId,
+        processId: windowRunId,
         stage,
         summary: "window_collect:no_evidence",
         haltProcess: true,
@@ -224,12 +224,12 @@ export async function runWindowStageActivityWithDeps(
     }
 
     const result = await convex.insertWindowEvidenceBatch({
-      window_id: windowId,
+      window_run_id: windowRunId,
       evidences,
     });
     return {
       processKind: "window",
-      processId: windowId,
+      processId: windowRunId,
       stage,
       summary: `window_collect:inserted=${result.inserted}:total=${result.total}`,
     };
@@ -237,17 +237,17 @@ export async function runWindowStageActivityWithDeps(
 
   const stageConfig = WINDOW_STAGE_PROMPTS[stage];
   const inputs = await convex.listWindowStageInputs({
-    window_id: windowId,
+    window_run_id: windowRunId,
     stage,
   });
 
   if (inputs.length === 0) {
-    return {
-      processKind: "window",
-      processId: windowId,
-      stage,
-      summary: `window_stage:${stage}:noop`,
-    };
+      return {
+        processKind: "window",
+        processId: windowRunId,
+        stage,
+        summary: `window_stage:${stage}:noop`,
+      };
   }
 
   let successCount = 0;
@@ -257,11 +257,11 @@ export async function runWindowStageActivityWithDeps(
     const systemPrompt = stageConfig.systemPrompt;
     const userPrompt = stageConfig.buildPrompt(item.input);
     const { provider } = getModelConfig(window.model);
-    const workflowId = window.workflow_id ?? `window:${windowId}`;
+    const workflowId = window.workflow_id ?? `window:${windowRunId}`;
 
     const { attempt_id } = await convex.recordLlmAttemptStart({
       process_kind: "window",
-      process_id: windowId,
+      process_id: windowRunId,
       target_type: "evidence",
       target_id: item.evidence_id,
       stage,
@@ -284,14 +284,14 @@ export async function runWindowStageActivityWithDeps(
         estimateTextTokens(systemPrompt) + estimateTextTokens(userPrompt),
     };
     const reservation = await deps.quota.reserve({
-      reservationId: `window:${windowId}:${stage}:${item.evidence_id}:${attempt_id}`,
+      reservationId: `window:${windowRunId}:${stage}:${item.evidence_id}:${attempt_id}`,
       provider,
       model: window.model,
       operationType: "chat",
-      scopeKey: `window:${windowId}:${stage}`,
+      scopeKey: `window:${windowRunId}:${stage}`,
       dimensions: reservedDimensions,
       processKind: "window",
-      processId: windowId,
+      processId: windowRunId,
       workflowId,
     });
 
@@ -317,16 +317,16 @@ export async function runWindowStageActivityWithDeps(
       });
       await deps.quota.settle({
         reservationId: reservation.reservationId,
-        provider,
-        model: window.model,
-        operationType: "chat",
-        scopeKey: `window:${windowId}:${stage}`,
-        reserved: reservedDimensions,
-        observed: buildObservedDimensions(result),
-        status: "applied",
-      });
+          provider,
+          model: window.model,
+          operationType: "chat",
+          scopeKey: `window:${windowRunId}:${stage}`,
+          reserved: reservedDimensions,
+          observed: buildObservedDimensions(result),
+          status: "applied",
+        });
       await convex.applyWindowStageResult({
-        window_id: windowId,
+        window_run_id: windowRunId,
         evidence_id: item.evidence_id,
         stage,
         attempt_id,
@@ -344,7 +344,7 @@ export async function runWindowStageActivityWithDeps(
           provider,
           model: window.model,
           operationType: "chat",
-          scopeKey: `window:${windowId}:${stage}`,
+          scopeKey: `window:${windowRunId}:${stage}`,
           reserved: reservedDimensions,
           observed: { requests: 1 },
           status: "failed",
@@ -356,7 +356,7 @@ export async function runWindowStageActivityWithDeps(
         error_message: message,
       });
       await convex.markWindowStageFailure({
-        window_id: windowId,
+        window_run_id: windowRunId,
         evidence_id: item.evidence_id,
         stage,
         attempt_id,
@@ -367,15 +367,15 @@ export async function runWindowStageActivityWithDeps(
   }
 
   if (successCount === 0 && failureCount > 0) {
-    const errorMessage = `All ${stage} attempts failed for window ${windowId}`;
+    const errorMessage = `All ${stage} attempts failed for window run ${windowRunId}`;
     await convex.markWindowProcessError({
-      window_id: windowId,
+      window_run_id: windowRunId,
       stage,
       error_message: errorMessage,
     });
     return {
       processKind: "window",
-      processId: windowId,
+      processId: windowRunId,
       stage,
       summary: `window_stage:${stage}:failed=${failureCount}`,
       haltProcess: true,
@@ -386,19 +386,19 @@ export async function runWindowStageActivityWithDeps(
 
   return {
     processKind: "window",
-    processId: windowId,
+    processId: windowRunId,
     stage,
     summary: `window_stage:${stage}:success=${successCount}:failed=${failureCount}`,
   };
 }
 
 export async function runWindowStageActivity(
-  windowId: string,
+  windowRunId: string,
   stage: WindowStageKey,
 ): Promise<StageActivityResult<WindowStageKey>> {
   return runWindowStageActivityWithDeps(
     getDefaultWindowStageDependencies(),
-    windowId,
+    windowRunId,
     stage,
   );
 }

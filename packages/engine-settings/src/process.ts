@@ -110,7 +110,8 @@ export interface RunWorkflowInput {
 }
 
 export interface WindowWorkflowInput {
-  windowId: string;
+  windowRunId: string;
+  targetStage?: WindowStageKey | null;
   pauseAfter?: WindowStageKey | null;
 }
 

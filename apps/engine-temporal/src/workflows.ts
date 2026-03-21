@@ -78,7 +78,7 @@ async function runStageActivity<TStage extends string>(
   }
 
   return runWindowStage({
-    windowId: snapshot.processId,
+    windowRunId: snapshot.processId,
     stage: stage as WindowStageKey,
   });
 }
@@ -276,11 +276,16 @@ export async function runWorkflow(
 export async function windowWorkflow(
   input: WindowWorkflowInput,
 ): Promise<ProcessSnapshot<WindowStageKey>> {
+  const terminalStage = input.targetStage ?? "l3_abstracted";
+  const terminalStageIndex = WINDOW_STAGES.indexOf(terminalStage);
   return executeProcessWorkflow<WindowStageKey>({
     processKind: "window",
-    processId: input.windowId,
+    processId: input.windowRunId,
     workflowType: "WindowWorkflow",
-    stages: WINDOW_STAGES,
+    stages:
+      terminalStageIndex >= 0
+        ? WINDOW_STAGES.slice(0, terminalStageIndex + 1)
+        : WINDOW_STAGES,
     pauseAfter: input.pauseAfter ?? null,
   });
 }

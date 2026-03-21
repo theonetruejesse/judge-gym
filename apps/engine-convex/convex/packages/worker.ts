@@ -4,7 +4,7 @@ import { zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { WindowsTableSchema } from "../models/window";
+import { WindowRunsTableSchema } from "../models/window";
 import { RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import { ProcessSnapshotSchema } from "../domain/temporal/schemas";
@@ -47,7 +47,7 @@ function stableHash(content: string): string {
   return `h_${(hash >>> 0).toString(16)}`;
 }
 
-function mapWindowStage(stage: string | null | undefined): Doc<"windows">["current_stage"] {
+function mapWindowStage(stage: string | null | undefined): Doc<"window_runs">["current_stage"] {
   if (!stage || stage === "collect") {
     return "l0_raw";
   }
@@ -57,7 +57,7 @@ function mapWindowStage(stage: string | null | undefined): Doc<"windows">["curre
   return "l0_raw";
 }
 
-function mapExecutionStatus(status: z.infer<typeof ProcessSnapshotSchema>["executionStatus"]): Doc<"windows">["status"] {
+function mapExecutionStatus(status: z.infer<typeof ProcessSnapshotSchema>["executionStatus"]): Doc<"window_runs">["status"] {
   switch (status) {
     case "failed":
       return "error";
@@ -391,36 +391,46 @@ async function getRunStageProgressDirect(
 
 export const getWindowExecutionContext = zQuery({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
   }),
   returns: z.object({
+    window_run_id: zid("window_runs"),
     window_id: zid("windows"),
     workflow_id: z.string().nullable(),
     workflow_run_id: z.string().nullable(),
-    status: WindowsTableSchema.shape.status,
-    current_stage: WindowsTableSchema.shape.current_stage,
-    target_count: WindowsTableSchema.shape.target_count,
-    completed_count: WindowsTableSchema.shape.completed_count,
-    model: WindowsTableSchema.shape.model,
-    start_date: WindowsTableSchema.shape.start_date,
-    end_date: WindowsTableSchema.shape.end_date,
-    country: WindowsTableSchema.shape.country,
-    query: WindowsTableSchema.shape.query,
+    status: WindowRunsTableSchema.shape.status,
+    current_stage: WindowRunsTableSchema.shape.current_stage,
+    pause_after: WindowRunsTableSchema.shape.pause_after,
+    target_stage: WindowRunsTableSchema.shape.target_stage,
+    target_count: WindowRunsTableSchema.shape.target_count,
+    completed_count: WindowRunsTableSchema.shape.completed_count,
+    model: WindowRunsTableSchema.shape.model,
+    start_date: z.string(),
+    end_date: z.string(),
+    country: z.string(),
+    query: z.string(),
   }),
-  handler: async (ctx, { window_id }) => {
-    const window = await ctx.db.get(window_id);
+  handler: async (ctx, { window_run_id }) => {
+    const windowRun = await ctx.db.get(window_run_id);
+    if (!windowRun) {
+      throw new Error("Window run not found");
+    }
+    const window = await ctx.db.get(windowRun.window_id);
     if (!window) {
       throw new Error("Window not found");
     }
     return {
-      window_id,
-      workflow_id: window.workflow_id ?? null,
-      workflow_run_id: window.workflow_run_id ?? null,
-      status: window.status,
-      current_stage: window.current_stage,
-      target_count: window.target_count,
-      completed_count: window.completed_count,
-      model: window.model,
+      window_run_id,
+      window_id: windowRun.window_id,
+      workflow_id: windowRun.workflow_id ?? null,
+      workflow_run_id: windowRun.workflow_run_id ?? null,
+      status: windowRun.status,
+      current_stage: windowRun.current_stage,
+      pause_after: windowRun.pause_after ?? null,
+      target_stage: windowRun.target_stage,
+      target_count: windowRun.target_count,
+      completed_count: windowRun.completed_count,
+      model: windowRun.model,
       start_date: window.start_date,
       end_date: window.end_date,
       country: window.country,
@@ -431,26 +441,31 @@ export const getWindowExecutionContext = zQuery({
 
 export const bindWindowWorkflow = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     workflow_id: z.string(),
     workflow_run_id: z.string(),
   }),
   returns: z.null(),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.window_id, {
+    const windowRun = await ctx.db.get(args.window_run_id);
+    if (!windowRun) {
+      throw new Error("Window run not found");
+    }
+    await ctx.db.patch(args.window_run_id, {
       workflow_id: args.workflow_id,
       workflow_run_id: args.workflow_run_id,
       status: "queued",
       last_error_message: null,
     });
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_workflow_bound",
       status: "queued",
       stage: "l0_raw",
       payload_json: JSON.stringify({
+        window_id: windowRun.window_id,
         workflow_id: args.workflow_id,
         workflow_run_id: args.workflow_run_id,
       }),
@@ -829,27 +844,29 @@ export const projectProcessState = zMutation({
       return null;
     }
 
-    const window_id = args.processId as Id<"windows">;
-    const window = await ctx.db.get(window_id);
-    if (!window) {
-      throw new Error("Window not found");
+    const window_run_id = args.processId as Id<"window_runs">;
+    const windowRun = await ctx.db.get(window_run_id);
+    if (!windowRun) {
+      throw new Error("Window run not found");
     }
 
-    await ctx.db.patch(window_id, {
+    await ctx.db.patch(window_run_id, {
       workflow_id: args.workflowId,
       workflow_run_id: args.workflowRunId,
       status: mapExecutionStatus(args.executionStatus),
       current_stage: mapWindowStage(args.stage),
+      pause_after: (args.pauseAfter as Doc<"window_runs">["pause_after"]) ?? null,
       last_error_message: args.lastErrorMessage ?? null,
     });
     await emitTraceEvent(ctx, {
-      trace_id: `window:${window_id}`,
+      trace_id: `window:${window_run_id}`,
       entity_type: "window",
-      entity_id: String(window_id),
+      entity_id: String(window_run_id),
       event_name: "window_snapshot_projected",
       status: mapExecutionStatus(args.executionStatus),
       stage: args.stage ?? "l0_raw",
       payload_json: JSON.stringify({
+        window_id: windowRun.window_id,
         stage_status: args.stageStatus,
         pause_after: args.pauseAfter,
         last_control_command_id: args.lastControlCommandId,
@@ -864,7 +881,7 @@ export const projectProcessState = zMutation({
 
 export const insertWindowEvidenceBatch = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     evidences: z.array(z.object({
       title: z.string(),
       url: z.string(),
@@ -889,14 +906,18 @@ export const insertWindowEvidenceBatch = zMutation({
       internal.domain.window.window_repo.insertEvidenceBatch,
       args,
     );
+    const windowRun = await ctx.db.get(args.window_run_id);
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_evidence_collected",
       status: "running",
       stage: "collect",
-      payload_json: JSON.stringify(result),
+      payload_json: JSON.stringify({
+        ...result,
+        window_id: windowRun?.window_id ?? null,
+      }),
     });
     return result;
   },
@@ -904,7 +925,7 @@ export const insertWindowEvidenceBatch = zMutation({
 
 export const listWindowStageInputs = zQuery({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     stage: StageInputSchema,
   }),
   returns: z.array(z.object({
@@ -917,7 +938,7 @@ export const listWindowStageInputs = zQuery({
     const fields = windowStageFields(args.stage);
     const evidences = await ctx.db
       .query("evidences")
-      .withIndex("by_window_id", (q) => q.eq("window_id", args.window_id))
+      .withIndex("by_window_run_id", (q) => q.eq("window_run_id", args.window_run_id))
       .collect();
 
     return evidences.flatMap((evidence) => {
@@ -1082,7 +1103,7 @@ export const recordLlmAttemptFinish = zMutation({
 
 export const applyWindowStageResult = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     evidence_id: zid("evidences"),
     stage: StageInputSchema,
     attempt_id: zid("llm_attempts"),
@@ -1095,8 +1116,8 @@ export const applyWindowStageResult = zMutation({
   handler: async (ctx, args) => {
     const fields = windowStageFields(args.stage);
     const evidence = await ctx.db.get(args.evidence_id);
-    if (!evidence || evidence.window_id !== args.window_id) {
-      throw new Error("Evidence not found for window");
+    if (!evidence || evidence.window_run_id !== args.window_run_id) {
+      throw new Error("Evidence not found for window run");
     }
 
     await ctx.db.patch(args.evidence_id, {
@@ -1106,25 +1127,26 @@ export const applyWindowStageResult = zMutation({
     } as Partial<Doc<"evidences">>);
 
     if (args.stage === "l3_abstracted") {
-      const window = await ctx.db.get(args.window_id);
-      if (window) {
-        await ctx.db.patch(args.window_id, {
+      const windowRun = await ctx.db.get(args.window_run_id);
+      if (windowRun) {
+        await ctx.db.patch(args.window_run_id, {
           completed_count: Math.min(
-            window.target_count,
-            (window.completed_count ?? 0) + 1,
+            windowRun.target_count,
+            (windowRun.completed_count ?? 0) + 1,
           ),
         });
       }
     }
 
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_stage_result_applied",
       status: "running",
       stage: args.stage,
       payload_json: JSON.stringify({
+        window_id: evidence.window_id,
         evidence_id: args.evidence_id,
         attempt_id: args.attempt_id,
         input_tokens: args.input_tokens ?? null,
@@ -1138,7 +1160,7 @@ export const applyWindowStageResult = zMutation({
 
 export const markWindowStageFailure = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     evidence_id: zid("evidences"),
     stage: StageInputSchema,
     attempt_id: zid("llm_attempts"),
@@ -1148,8 +1170,8 @@ export const markWindowStageFailure = zMutation({
   handler: async (ctx, args) => {
     const fields = windowStageFields(args.stage);
     const evidence = await ctx.db.get(args.evidence_id);
-    if (!evidence || evidence.window_id !== args.window_id) {
-      throw new Error("Evidence not found for window");
+    if (!evidence || evidence.window_run_id !== args.window_run_id) {
+      throw new Error("Evidence not found for window run");
     }
 
     await ctx.db.patch(args.evidence_id, {
@@ -1158,13 +1180,14 @@ export const markWindowStageFailure = zMutation({
     } as Partial<Doc<"evidences">>);
 
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_stage_attempt_failed",
       status: "error",
       stage: args.stage,
       payload_json: JSON.stringify({
+        window_id: evidence.window_id,
         evidence_id: args.evidence_id,
         attempt_id: args.attempt_id,
         error_message: args.error_message,
@@ -1176,11 +1199,15 @@ export const markWindowStageFailure = zMutation({
 
 export const markWindowNoEvidence = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
   }),
   returns: z.null(),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.window_id, {
+    const windowRun = await ctx.db.get(args.window_run_id);
+    if (!windowRun) {
+      throw new Error("Window run not found");
+    }
+    await ctx.db.patch(args.window_run_id, {
       status: "completed",
       current_stage: "l0_raw",
       target_count: 0,
@@ -1188,12 +1215,15 @@ export const markWindowNoEvidence = zMutation({
       last_error_message: null,
     });
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_completed_no_evidence",
       status: "completed",
       stage: "l0_raw",
+      payload_json: JSON.stringify({
+        window_id: windowRun.window_id,
+      }),
     });
     return null;
   },
@@ -1201,25 +1231,30 @@ export const markWindowNoEvidence = zMutation({
 
 export const markWindowProcessError = zMutation({
   args: z.object({
-    window_id: zid("windows"),
+    window_run_id: zid("window_runs"),
     stage: z.string().nullable(),
     error_message: z.string(),
   }),
   returns: z.null(),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.window_id, {
+    const windowRun = await ctx.db.get(args.window_run_id);
+    if (!windowRun) {
+      throw new Error("Window run not found");
+    }
+    await ctx.db.patch(args.window_run_id, {
       status: "error",
       current_stage: mapWindowStage(args.stage),
       last_error_message: args.error_message,
     });
     await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_id}`,
+      trace_id: `window:${args.window_run_id}`,
       entity_type: "window",
-      entity_id: String(args.window_id),
+      entity_id: String(args.window_run_id),
       event_name: "window_process_failed",
       status: "error",
       stage: args.stage ?? "l0_raw",
       payload_json: JSON.stringify({
+        window_id: windowRun.window_id,
         error_message: args.error_message,
       }),
     });

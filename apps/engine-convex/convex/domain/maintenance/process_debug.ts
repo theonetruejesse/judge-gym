@@ -134,7 +134,7 @@ const RepairProcessExecutionResultSchema = z.object({
 
 type ProcessRow =
   | { process_type: "run"; row: Doc<"runs"> }
-  | { process_type: "window"; row: Doc<"windows"> };
+  | { process_type: "window"; row: Doc<"window_runs"> };
 
 type LocalTraceEvent = {
   trace_id: string;
@@ -186,7 +186,7 @@ async function getProcessRow(
     const row = await ctx.db.get(process_id as Id<"runs">);
     return row ? { process_type, row } : null;
   }
-  const row = await ctx.db.get(process_id as Id<"windows">);
+  const row = await ctx.db.get(process_id as Id<"window_runs">);
   return row ? { process_type, row } : null;
 }
 
@@ -232,12 +232,12 @@ async function buildRunStageProgress(
 
 async function buildWindowStageProgress(
   ctx: QueryCtx | MutationCtx,
-  window_id: Id<"windows">,
+  window_run_id: Id<"window_runs">,
   targetCount: number,
 ) {
   const evidences = await ctx.db
     .query("evidences")
-    .withIndex("by_window_id", (q) => q.eq("window_id", window_id))
+    .withIndex("by_window_run_id", (q) => q.eq("window_run_id", window_run_id))
     .collect();
 
   const collectCompleted = evidences.length;
@@ -327,7 +327,7 @@ async function buildErrorSummaries(
   } else {
     const evidences = await ctx.db
       .query("evidences")
-      .withIndex("by_window_id", (q) => q.eq("window_id", process.row._id))
+      .withIndex("by_window_run_id", (q) => q.eq("window_run_id", process.row._id))
       .collect();
     for (const evidence of evidences) {
       if (evidence.l1_error_message) terminal.push("l1_cleaned");
@@ -554,10 +554,9 @@ async function repairProcessExecutionAction(
         0,
         process.row.status === "paused"
           ? internal.packages.lab.resumeWindowExecution
-          : internal.packages.lab.startWindowFlow,
+          : internal.packages.lab.startWindowRunFlow,
         {
-          window_id: process.row._id,
-          evidence_limit: process.row.target_count,
+          window_run_id: process.row._id,
         },
       );
     } else if (process.row.status === "paused") {
@@ -620,8 +619,8 @@ export const getStuckWork: ReturnType<typeof zQuery> = zQuery({
         ? ctx.db.query("runs").collect()
         : Promise.resolve([] as Doc<"runs">[]),
       !args.process_type || args.process_type === "window"
-        ? ctx.db.query("windows").collect()
-        : Promise.resolve([] as Doc<"windows">[]),
+        ? ctx.db.query("window_runs").collect()
+        : Promise.resolve([] as Doc<"window_runs">[]),
     ]);
 
     const items: Array<z.infer<typeof StuckWorkSchema>> = [];

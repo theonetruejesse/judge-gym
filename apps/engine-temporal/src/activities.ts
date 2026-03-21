@@ -28,9 +28,9 @@ export async function runRunStage(
 
 export async function runWindowStage(
   input: {
-    windowId: string;
+    windowRunId: string;
     stage: WindowStageKey;
   },
 ): Promise<StageActivityResult<WindowStageKey>> {
-  return runWindowStageActivity(input.windowId, input.stage);
+  return runWindowStageActivity(input.windowRunId, input.stage);
 }

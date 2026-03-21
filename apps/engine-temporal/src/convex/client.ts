@@ -20,11 +20,14 @@ function requireConvexUrl() {
 }
 
 type WindowExecutionContext = {
+  window_run_id: string;
   window_id: string;
   workflow_id: string | null;
   workflow_run_id: string | null;
   status: string;
   current_stage: string;
+  pause_after: string | null;
+  target_stage: string;
   target_count: number;
   completed_count: number;
   model: string;
@@ -88,7 +91,7 @@ type AttemptFinishInput = {
 };
 
 type StageResultInput = {
-  window_id: string;
+  window_run_id: string;
   evidence_id: string;
   stage: Exclude<WindowStageKey, "collect">;
   attempt_id: string;
@@ -99,7 +102,7 @@ type StageResultInput = {
 };
 
 type StageFailureInput = {
-  window_id: string;
+  window_run_id: string;
   evidence_id: string;
   stage: Exclude<WindowStageKey, "collect">;
   attempt_id: string;
@@ -190,14 +193,14 @@ export class ConvexWorkerClient {
     return this.client.mutation(workerApi.bindRunWorkflow, args);
   }
 
-  getWindowExecutionContext(window_id: string) {
+  getWindowExecutionContext(window_run_id: string) {
     return this.client.query(workerApi.getWindowExecutionContext, {
-      window_id,
+      window_run_id,
     }) as Promise<WindowExecutionContext>;
   }
 
   bindWindowWorkflow(args: {
-    window_id: string;
+    window_run_id: string;
     workflow_id: string;
     workflow_run_id: string;
   }) {
@@ -211,7 +214,7 @@ export class ConvexWorkerClient {
   }
 
   insertWindowEvidenceBatch(args: {
-    window_id: string;
+    window_run_id: string;
     evidences: Array<{
       title: string;
       url: string;
@@ -225,7 +228,7 @@ export class ConvexWorkerClient {
   }
 
   listWindowStageInputs(args: {
-    window_id: string;
+    window_run_id: string;
     stage: Exclude<WindowStageKey, "collect">;
   }) {
     return this.client.query(workerApi.listWindowStageInputs, args) as Promise<
@@ -260,12 +263,12 @@ export class ConvexWorkerClient {
     return this.client.mutation(workerApi.markWindowStageFailure, args);
   }
 
-  markWindowNoEvidence(args: { window_id: string }) {
+  markWindowNoEvidence(args: { window_run_id: string }) {
     return this.client.mutation(workerApi.markWindowNoEvidence, args);
   }
 
   markWindowProcessError(args: {
-    window_id: string;
+    window_run_id: string;
     stage: WindowStageKey | null;
     error_message: string;
   }) {

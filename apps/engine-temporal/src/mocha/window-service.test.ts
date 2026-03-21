@@ -16,11 +16,14 @@ function buildQuota() {
 
 function buildWindowContext() {
   return {
+    window_run_id: "window_run_123",
     window_id: "window_123",
-    workflow_id: "window:window_123",
+    workflow_id: "window:window_run_123",
     workflow_run_id: "run_abc",
     status: "running",
     current_stage: "l0_raw",
+    pause_after: null,
+    target_stage: "l3_abstracted",
     target_count: 2,
     completed_count: 0,
     model: "gpt-4.1-mini",
@@ -59,7 +62,7 @@ describe("window stage service", () => {
         },
         quota: buildQuota(),
       },
-      "window_123",
+      "window_run_123",
       "collect",
     );
 
@@ -112,7 +115,7 @@ describe("window stage service", () => {
           total_tokens: 14,
         }),
       },
-      "window_123",
+      "window_run_123",
       "l1_cleaned",
     );
 
@@ -153,11 +156,11 @@ describe("window stage service", () => {
           throw new Error("synthetic failure");
         },
       },
-      "window_123",
+      "window_run_123",
       "l2_neutralized",
     );
 
-    assert.equal(processError, "All l2_neutralized attempts failed for window window_123");
+    assert.equal(processError, "All l2_neutralized attempts failed for window run window_run_123");
     assert.equal(result.haltProcess, true);
     assert.equal(result.terminalExecutionStatus, "failed");
   });
@@ -209,12 +212,12 @@ describe("window stage service", () => {
           throw new Error("runOpenAiChat should not be called");
         },
       },
-      "window_123",
+      "window_run_123",
       "l1_cleaned",
     );
 
     assert.match(stageFailureMessage ?? "", /Quota reservation denied/);
-    assert.equal(processErrorMessage, "All l1_cleaned attempts failed for window window_123");
+    assert.equal(processErrorMessage, "All l1_cleaned attempts failed for window run window_run_123");
     assert.equal(result.haltProcess, true);
     assert.equal(result.terminalExecutionStatus, "failed");
   });

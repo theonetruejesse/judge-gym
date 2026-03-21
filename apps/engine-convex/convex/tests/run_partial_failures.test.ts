@@ -22,16 +22,24 @@ async function seedRun(
     internal.domain.window.window_repo.createWindow,
     {
       country: "USA",
-      model: "gpt-4.1-mini",
       start_date: "2026-03-01",
       end_date: "2026-03-02",
       query: "partial-failure-cleanup",
+      default_target_count: 2,
+    },
+  );
+  const { window_run_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindowRun,
+    {
+      window_id,
+      model: "gpt-4.1-mini",
       target_count: 2,
+      target_stage: "l3_abstracted",
     },
   );
 
   await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-    window_id,
+    window_run_id,
     evidences: [
       {
         title: "Evidence 1",

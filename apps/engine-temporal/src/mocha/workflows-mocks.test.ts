@@ -44,11 +44,11 @@ describe("window workflow controls", function () {
           });
           return input;
         },
-        runWindowStage: async ({ windowId, stage }: { windowId: string; stage: string; }) => ({
+        runWindowStage: async ({ windowRunId, stage }: { windowRunId: string; stage: string; }) => ({
           processKind: "window",
-          processId: windowId,
+          processId: windowRunId,
           stage,
-          summary: `${windowId}:${stage}`,
+          summary: `${windowRunId}:${stage}`,
         }),
         runRunStage: async () => {
           throw new Error("runRunStage should not be used in window tests");
@@ -58,7 +58,7 @@ describe("window workflow controls", function () {
 
     const result = await worker.runUntil(async () => {
       const handle = await client.workflow.start(windowWorkflow, {
-        args: [{ windowId: "window_123", pauseAfter: "collect" }],
+        args: [{ windowRunId: "window_123", pauseAfter: "collect" }],
         workflowId: "window:window_123",
         taskQueue,
       });
@@ -103,21 +103,21 @@ describe("window workflow controls", function () {
           projectedStatuses.push(input.executionStatus);
           return input;
         },
-        runWindowStage: async ({ windowId, stage }: { windowId: string; stage: string; }) => {
+        runWindowStage: async ({ windowRunId, stage }: { windowRunId: string; stage: string; }) => {
           if (stage === "collect") {
             return {
               processKind: "window",
-              processId: windowId,
+              processId: windowRunId,
               stage,
-              summary: `${windowId}:${stage}`,
+              summary: `${windowRunId}:${stage}`,
             };
           }
           await testEnv.sleep("2 seconds");
           return {
             processKind: "window",
-            processId: windowId,
+            processId: windowRunId,
             stage,
-            summary: `${windowId}:${stage}`,
+            summary: `${windowRunId}:${stage}`,
           };
         },
         runRunStage: async () => {
@@ -128,7 +128,7 @@ describe("window workflow controls", function () {
 
     await worker.runUntil(async () => {
       const handle = await client.workflow.start(windowWorkflow, {
-        args: [{ windowId: "window_456", pauseAfter: "collect" }],
+        args: [{ windowRunId: "window_456", pauseAfter: "collect" }],
         workflowId: "window:window_456",
         taskQueue,
       });

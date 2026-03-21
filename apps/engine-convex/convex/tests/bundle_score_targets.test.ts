@@ -21,16 +21,24 @@ async function createWindowWithEvidence(
     internal.domain.window.window_repo.createWindow,
     {
       country: "USA",
-      model: "gpt-4.1-mini",
       start_date: "2026-03-01",
       end_date: "2026-03-02",
       query,
+      default_target_count: evidenceCount,
+    },
+  );
+  const { window_run_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindowRun,
+    {
+      window_id,
+      model: "gpt-4.1-mini",
       target_count: evidenceCount,
+      target_stage: "l3_abstracted",
     },
   );
 
   await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-    window_id,
+    window_run_id,
     evidences: Array.from({ length: evidenceCount }, (_, index) => ({
       title: `${query} evidence ${index + 1}`,
       url: `https://example.com/${rawPrefix}/${index + 1}`,
@@ -232,10 +240,8 @@ describe("bundle score targets", () => {
       pool_id: pool.pool_id,
     });
 
-    expect(storedWindowA.target_count).toBe(2);
-    expect(storedWindowA.completed_count).toBe(0);
-    expect(storedWindowB.target_count).toBe(3);
-    expect(storedWindowB.completed_count).toBe(0);
+    expect(storedWindowA.default_target_count).toBe(2);
+    expect(storedWindowB.default_target_count).toBe(3);
     expect(storedPool.evidence_count).toBe(5);
   });
 });

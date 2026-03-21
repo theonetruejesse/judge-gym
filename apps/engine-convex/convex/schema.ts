@@ -5,7 +5,7 @@ import {
   LlmAttemptPayloadsTableSchema,
   LlmAttemptsTableSchema,
 } from "./models/attempts";
-import { EvidencesTableSchema, WindowsTableSchema } from "./models/window";
+import { EvidencesTableSchema, WindowRunsTableSchema, WindowsTableSchema } from "./models/window";
 import {
   ExperimentsTableSchema,
   RunsTableSchema,
@@ -40,9 +40,13 @@ export default defineSchema({
   llm_attempt_payloads: defineTable(zodOutputToConvex(LlmAttemptPayloadsTableSchema))
     .index("by_attempt", ["attempt_id"])
     .index("by_attempt_kind", ["attempt_id", "kind"]),
-  windows: defineTable(zodOutputToConvex(WindowsTableSchema)).index("by_status", ["status"]),
+  windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
+  window_runs: defineTable(zodOutputToConvex(WindowRunsTableSchema))
+    .index("by_status", ["status"])
+    .index("by_window", ["window_id"]),
   evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
-    .index("by_window_id", ["window_id"]),
+    .index("by_window_id", ["window_id"])
+    .index("by_window_run_id", ["window_run_id"]),
   pools: defineTable(zodOutputToConvex(PoolsTableSchema))
     .index("by_pool_tag", ["pool_tag"]),
   pool_evidences: defineTable(zodOutputToConvex(PoolEvidencesTableSchema))
