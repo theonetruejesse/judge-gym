@@ -15,6 +15,7 @@
     "build": "turbo build",
     "test": "turbo test",
     "pilot:smoke": "cd apps/engine-convex && bun run pilot:smoke",
+    "v3:init": "cd apps/engine-convex && bun run v3:init",
     "typecheck": "turbo run typecheck",
     "validate:convex": "(cd apps/engine-convex && npx convex codegen) && bun run typecheck"
   },

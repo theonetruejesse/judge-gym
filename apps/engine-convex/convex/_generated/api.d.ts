@@ -13,6 +13,7 @@ import type * as domain_maintenance_codex from "../domain/maintenance/codex.js";
 import type * as domain_maintenance_danger from "../domain/maintenance/danger.js";
 import type * as domain_maintenance_process_debug from "../domain/maintenance/process_debug.js";
 import type * as domain_maintenance_v3_campaign from "../domain/maintenance/v3_campaign.js";
+import type * as domain_maintenance_v3_matrix from "../domain/maintenance/v3_matrix.js";
 import type * as domain_runs_bundle_plan_materializer from "../domain/runs/bundle_plan_materializer.js";
 import type * as domain_runs_bundle_plan_repo from "../domain/runs/bundle_plan_repo.js";
 import type * as domain_runs_experiment_progress from "../domain/runs/experiment_progress.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "domain/maintenance/danger": typeof domain_maintenance_danger;
   "domain/maintenance/process_debug": typeof domain_maintenance_process_debug;
   "domain/maintenance/v3_campaign": typeof domain_maintenance_v3_campaign;
+  "domain/maintenance/v3_matrix": typeof domain_maintenance_v3_matrix;
   "domain/runs/bundle_plan_materializer": typeof domain_runs_bundle_plan_materializer;
   "domain/runs/bundle_plan_repo": typeof domain_runs_bundle_plan_repo;
   "domain/runs/experiment_progress": typeof domain_runs_experiment_progress;

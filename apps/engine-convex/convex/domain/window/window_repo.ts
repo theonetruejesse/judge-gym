@@ -5,20 +5,35 @@ import { zid } from "convex-helpers/server/zod4";
 import { internal } from "../../_generated/api";
 import { Doc, Id } from "../../_generated/dataModel";
 import { SearchNewsResults } from "./evidence_search";
+import { buildRandomTag } from "../../utils/tags";
 
 const CreateWindowArgsSchema = z.object({
+    window_tag: WindowsTableSchema.shape.window_tag.optional(),
+    source_provider: WindowsTableSchema.shape.source_provider.optional(),
     country: WindowsTableSchema.shape.country,
     start_date: WindowsTableSchema.shape.start_date,
     end_date: WindowsTableSchema.shape.end_date,
     query: WindowsTableSchema.shape.query,
     default_target_count: WindowsTableSchema.shape.default_target_count.optional(),
+    default_target_stage: WindowsTableSchema.shape.default_target_stage.optional(),
+});
+
+const UpsertWindowArgsSchema = WindowsTableSchema.pick({
+    window_tag: true,
+    source_provider: true,
+    country: true,
+    start_date: true,
+    end_date: true,
+    query: true,
+    default_target_count: true,
+    default_target_stage: true,
 });
 
 const CreateWindowRunArgsSchema = z.object({
     window_id: zid("windows"),
     model: WindowRunsTableSchema.shape.model,
     target_count: WindowRunsTableSchema.shape.target_count.optional(),
-    target_stage: WindowRunsTableSchema.shape.target_stage.default("l3_abstracted"),
+    target_stage: WindowRunsTableSchema.shape.target_stage.optional(),
     pause_after: WindowRunsTableSchema.shape.pause_after.optional(),
 });
 
@@ -32,10 +47,56 @@ export const createWindow = zInternalMutation({
     }),
     handler: async (ctx, args): Promise<CreateWindowResult> => {
         const window_id = await ctx.db.insert("windows", {
-            ...args,
+            window_tag: args.window_tag ?? buildRandomTag(),
+            source_provider: args.source_provider ?? "firecrawl",
+            country: args.country,
+            start_date: args.start_date,
+            end_date: args.end_date,
+            query: args.query,
             default_target_count: args.default_target_count ?? 0,
+            default_target_stage: args.default_target_stage ?? "l3_abstracted",
         });
         return { window_id };
+    },
+});
+
+export const upsertWindow = zInternalMutation({
+    args: UpsertWindowArgsSchema,
+    returns: z.object({
+        window_id: zid("windows"),
+        action: z.enum(["created", "updated", "unchanged"]),
+    }),
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("windows")
+            .withIndex("by_window_tag", (q) => q.eq("window_tag", args.window_tag))
+            .first();
+        if (!existing) {
+            const window_id = await ctx.db.insert("windows", args);
+            return { window_id, action: "created" as const };
+        }
+
+        const changed = existing.source_provider !== args.source_provider
+            || existing.country !== args.country
+            || existing.start_date !== args.start_date
+            || existing.end_date !== args.end_date
+            || existing.query !== args.query
+            || existing.default_target_count !== args.default_target_count
+            || existing.default_target_stage !== args.default_target_stage;
+        if (!changed) {
+            return { window_id: existing._id, action: "unchanged" as const };
+        }
+
+        await ctx.db.patch(existing._id, {
+            source_provider: args.source_provider,
+            country: args.country,
+            start_date: args.start_date,
+            end_date: args.end_date,
+            query: args.query,
+            default_target_count: args.default_target_count,
+            default_target_stage: args.default_target_stage,
+        });
+        return { window_id: existing._id, action: "updated" as const };
     },
 });
 
@@ -52,7 +113,7 @@ export const createWindowRun = zInternalMutation({
             window_id: args.window_id,
             model: args.model,
             target_count: args.target_count ?? window.default_target_count ?? 0,
-            target_stage: args.target_stage,
+            target_stage: args.target_stage ?? window.default_target_stage ?? "l3_abstracted",
             pause_after: args.pause_after ?? null,
             status: "start",
             current_stage: "l0_raw",
@@ -73,6 +134,18 @@ export const getWindow = zInternalQuery({
         const window = await ctx.db.get(args.window_id);
         if (!window) throw new Error("Window not found");
         return window;
+    },
+});
+
+export const getWindowByTag = zInternalQuery({
+    args: z.object({
+        window_tag: WindowsTableSchema.shape.window_tag,
+    }),
+    handler: async (ctx, args): Promise<Doc<"windows"> | null> => {
+        return ctx.db
+            .query("windows")
+            .withIndex("by_window_tag", (q) => q.eq("window_tag", args.window_tag))
+            .first();
     },
 });
 
@@ -273,10 +346,21 @@ export const backfillLegacyWindowRuns = zInternalMutation({
             const defaultTargetCount = legacyWindow.default_target_count
                 ?? legacyWindow.target_count
                 ?? 0;
+            const patch: Partial<Doc<"windows">> = {};
             if (legacyWindow.default_target_count == null) {
-                await ctx.db.patch(window._id, {
-                    default_target_count: defaultTargetCount,
-                });
+                patch.default_target_count = defaultTargetCount;
+            }
+            if (legacyWindow.window_tag == null) {
+                patch.window_tag = buildRandomTag();
+            }
+            if ((legacyWindow as Doc<"windows"> & { source_provider?: string | null }).source_provider == null) {
+                patch.source_provider = "firecrawl";
+            }
+            if ((legacyWindow as Doc<"windows"> & { default_target_stage?: string | null }).default_target_stage == null) {
+                patch.default_target_stage = "l3_abstracted";
+            }
+            if (Object.keys(patch).length > 0) {
+                await ctx.db.patch(window._id, patch);
                 windows_patched += 1;
             }
 

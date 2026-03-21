@@ -13,11 +13,14 @@ import {
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 
-const EvidenceWindowInputSchema = WindowsTableSchema.pick({
-  query: true,
-  country: true,
-  start_date: true,
-  end_date: true,
+const EvidenceWindowInputSchema = z.object({
+  window_tag: WindowsTableSchema.shape.window_tag.optional(),
+  source_provider: WindowsTableSchema.shape.source_provider.optional(),
+  query: WindowsTableSchema.shape.query,
+  country: WindowsTableSchema.shape.country,
+  start_date: WindowsTableSchema.shape.start_date,
+  end_date: WindowsTableSchema.shape.end_date,
+  default_target_stage: WindowsTableSchema.shape.default_target_stage.optional(),
 });
 
 const WindowRunTargetStageSchema = SemanticLevelSchema;
@@ -63,11 +66,37 @@ export const createWindowForm = zMutation({
   },
 });
 
+export const upsertWindowDefinition: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    evidence_window: EvidenceWindowInputSchema.extend({
+      window_tag: WindowsTableSchema.shape.window_tag,
+      source_provider: WindowsTableSchema.shape.source_provider.default("firecrawl"),
+      default_target_stage: WindowsTableSchema.shape.default_target_stage.default("l3_abstracted"),
+    }),
+    evidence_limit: z.number().int().min(1),
+  }),
+  returns: z.object({
+    window_id: zid("windows"),
+    action: z.enum(["created", "updated", "unchanged"]),
+  }),
+  handler: async (ctx, args): Promise<{ window_id: Id<"windows">; action: "created" | "updated" | "unchanged" }> => {
+    const { evidence_window, evidence_limit } = args;
+    const { window_id, action }: { window_id: Id<"windows">; action: "created" | "updated" | "unchanged" } = await ctx.runMutation(
+      internal.domain.window.window_repo.upsertWindow,
+      {
+        ...evidence_window,
+        default_target_count: evidence_limit,
+      },
+    );
+    return { window_id, action };
+  },
+});
+
 export const startWindowRunForm: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     window_id: zid("windows"),
     model: modelTypeSchema,
-    target_stage: WindowRunTargetStageSchema.default("l3_abstracted"),
+    target_stage: WindowRunTargetStageSchema.optional(),
     evidence_limit: z.number().int().min(1).optional(),
     pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable().optional(),
   }),
@@ -231,11 +260,14 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
   returns: z.array(
     z.object({
       window_id: zid("windows"),
+      window_tag: z.string(),
+      source_provider: WindowsTableSchema.shape.source_provider,
       start_date: z.string(),
       end_date: z.string(),
       country: z.string(),
       query: z.string(),
       default_target_count: z.number(),
+      default_target_stage: SemanticLevelSchema,
       latest_window_run_id: zid("window_runs").nullable(),
       model: modelTypeSchema.nullable(),
       target_stage: SemanticLevelSchema.nullable(),
@@ -277,11 +309,14 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
 
     const results = [] as Array<{
       window_id: string;
+      window_tag: string;
+      source_provider: z.infer<typeof WindowsTableSchema.shape.source_provider>;
       start_date: string;
       end_date: string;
       country: string;
       query: string;
       default_target_count: number;
+      default_target_stage: z.infer<typeof SemanticLevelSchema>;
       latest_window_run_id: string | null;
       model: ModelType | null;
       target_stage: z.infer<typeof SemanticLevelSchema> | null;
@@ -295,11 +330,14 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       const evidence_status = deriveEvidenceStatus(latestRun?.status ?? "start", evidences);
       results.push({
         window_id: window._id,
+        window_tag: window.window_tag,
+        source_provider: window.source_provider,
         start_date: window.start_date,
         end_date: window.end_date,
         country: window.country,
         query: window.query,
         default_target_count: window.default_target_count ?? 0,
+        default_target_stage: window.default_target_stage,
         latest_window_run_id: latestRun?._id ?? null,
         model: latestRun?.model ?? null,
         target_stage: latestRun?.target_stage ?? null,
@@ -308,7 +346,7 @@ export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
       });
     }
 
-    results.sort((a, b) => a.query.localeCompare(b.query));
+    results.sort((a, b) => a.window_tag.localeCompare(b.window_tag));
     return results;
   },
 });
@@ -477,6 +515,44 @@ export const createPool: ReturnType<typeof zMutation> = zMutation({
       args,
     );
     return { pool_id };
+  },
+});
+
+export const createPoolFromWindowRun: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    window_run_id: zid("window_runs"),
+    pool_tag: z.string().optional(),
+  }),
+  returns: z.object({
+    pool_id: zid("pools"),
+    evidence_count: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    const windowRun = await ctx.runQuery(
+      internal.domain.window.window_repo.getWindowRun,
+      { window_run_id: args.window_run_id },
+    );
+    if (windowRun.status !== "completed") {
+      throw new Error("Window run must be completed before creating a pool");
+    }
+    const evidences = await ctx.runQuery(
+      internal.domain.window.window_repo.listEvidenceByWindowRun,
+      { window_run_id: args.window_run_id },
+    );
+    if (evidences.length === 0) {
+      throw new Error("Window run has no evidence");
+    }
+    const pool_id = await ctx.runMutation(
+      internal.domain.runs.pool_repo.createPool,
+      {
+        evidence_ids: evidences.map((evidence: Doc<"evidences">) => evidence._id),
+        pool_tag: args.pool_tag,
+      },
+    );
+    return {
+      pool_id,
+      evidence_count: evidences.length,
+    };
   },
 });
 

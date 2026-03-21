@@ -187,6 +187,21 @@ If the smoke fails, the first follow-up checks are:
 2. `bun run debug:queues`
 3. `bun run debug:inspect --window <window_id>` or `--run <run_id>`
 
+## 9. Initialize the corrected V3 matrix from a completed window run
+
+Once you have a large evidence collection window run that finished successfully, create the shared pool plus the corrected 32-experiment V3 matrix with:
+
+```bash
+bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>
+```
+
+That command:
+
+1. validates the machine-readable V3 matrix contract in the backend
+2. creates one reusable pool from the completed `window_run`
+3. materializes all corrected V3 experiments against that pool
+4. reuses existing matching bundle plans and experiment tags on repeated runs instead of creating duplicates
+
 ## Deployment model
 
 - local dev: UI + Convex tooling

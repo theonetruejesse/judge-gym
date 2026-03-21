@@ -33,6 +33,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
 - The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
 - After the stack is configured, `bun run pilot:smoke` is the recommended first end-to-end validation path.
+- After a large evidence collection window completes, `bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>` is the supported path for creating the single pool plus the corrected 32-experiment V3 matrix contract.
 
 **Environment source of truth**
 
@@ -42,6 +43,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **What exists today**
 
 - Evidence windows are now started from the Convex engine and executed by a Temporal-owned `WindowWorkflow` with the same 3-stage LLM pipeline (clean → neutralize → abstract).
+- Window state is now split cleanly between reusable `windows` definitions and executable `window_runs`, so one search slice can be rerun with different cleaning targets or models without redefining the window itself.
 - The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
 - Experiment runs are now also started from the Convex engine and executed by a Temporal-owned `RunWorkflow` across `rubric_gen`, `rubric_critic`, `score_gen`, and `score_critic`.
 - The Temporal run path now persists workflow bindings on `runs`, per-stage attempt/error refs on `samples` and `sample_score_targets`, and writes run artifacts against the `llm_attempts` ledger instead of the legacy request queue.
@@ -94,6 +96,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
+- The corrected V3 matrix is now codified in-engine and can be materialized deterministically from a single pool through `packages/codex:getV3MatrixContract` and `packages/codex:initV3MatrixFromPool`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
@@ -167,11 +170,12 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 ## Data Model (Core Tables)
 
-**Window execution tables**
+**Window definition + execution tables**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `windows` | Evidence window state | `status`, `current_stage`, `target_count`, `completed_count`, `model`, `query`, `country`, `start_date`, `end_date`, `workflow_id`, `workflow_run_id`, `last_error_message` |
-| `evidences` | Evidence items for a window | `window_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_attempt_id`, `l1/l2/l3_error_message` |
+| `windows` | Reusable evidence collection definitions | `window_tag`, `source_provider`, `query`, `country`, `start_date`, `end_date`, `default_target_count`, `default_target_stage` |
+| `window_runs` | One executable window process over a definition | `window_id`, `status`, `current_stage`, `target_stage`, `target_count`, `completed_count`, `model`, `workflow_id`, `workflow_run_id`, `last_error_message` |
+| `evidences` | Evidence items collected by a window run | `window_id`, `window_run_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_attempt_id`, `l1/l2/l3_error_message` |
 | `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
 | `llm_attempts` | Append-only worker-side LLM attempt ledger | `process_kind`, `process_id`, `target_type`, `target_id`, `stage`, `provider`, `model`, `workflow_id`, `status`, `started_at`, `finished_at`, `input_tokens`, `output_tokens`, `total_tokens` |
 | `llm_attempt_payloads` | Prompt/output/error payload blobs for attempts | `attempt_id`, `kind`, `content_text`, `content_hash`, `byte_size`, `content_type` |
@@ -200,13 +204,13 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 **High-level path**
 
-1. A window is created via `window_repo.createWindow` with status `start` and stage `l0_raw`.
-2. `startWindowFlow` starts a Temporal `windowWorkflow` through `domain/temporal/temporal_client.ts`, then binds the returned `workflow_id` / `workflow_run_id` onto the window through `packages/worker.ts`.
+1. A reusable window definition is created via `window_repo.createWindow` / `upsertWindow`.
+2. `startWindowRunFlow` creates a `window_runs` row, starts a Temporal `windowWorkflow` through `domain/temporal/temporal_client.ts`, and binds the returned `workflow_id` / `workflow_run_id` onto the window run through `packages/worker.ts`.
 3. The Temporal worker runs the `collect` stage, calls Firecrawl search, and inserts `evidences` with `l0_raw_content` through the Convex worker API.
 4. If search returns zero results, the worker marks the window `completed` with zero counts and halts the workflow cleanly.
 5. For each transform stage (`l1_cleaned`, `l2_neutralized`, `l3_abstracted`), the worker lists pending evidence inputs, records a new `llm_attempt`, calls OpenAI chat, stores payloads, and applies the transformed content back onto the evidence row.
 6. Stage failures are tracked per evidence row (`*_attempt_id`, `*_error_message`), and a stage that exhausts every pending item marks the whole window `error`.
-7. The workflow projects snapshot state back into Convex as it advances, keeping `windows.status`, `current_stage`, and workflow bindings aligned with Temporal execution.
+7. The workflow projects snapshot state back into Convex as it advances, keeping `window_runs.status`, `current_stage`, and workflow bindings aligned with Temporal execution.
 
 **Run flow (experiment)**
 

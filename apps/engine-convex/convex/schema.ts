@@ -40,7 +40,8 @@ export default defineSchema({
   llm_attempt_payloads: defineTable(zodOutputToConvex(LlmAttemptPayloadsTableSchema))
     .index("by_attempt", ["attempt_id"])
     .index("by_attempt_kind", ["attempt_id", "kind"]),
-  windows: defineTable(zodOutputToConvex(WindowsTableSchema)),
+  windows: defineTable(zodOutputToConvex(WindowsTableSchema))
+    .index("by_window_tag", ["window_tag"]),
   window_runs: defineTable(zodOutputToConvex(WindowRunsTableSchema))
     .index("by_status", ["status"])
     .index("by_window", ["window_id"]),

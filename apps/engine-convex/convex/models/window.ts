@@ -3,12 +3,19 @@ import { SemanticLevelSchema, StateStatusSchema } from "./_shared";
 import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
 import { zid } from "convex-helpers/server/zod4";
 
+export const WindowSourceProviderSchema = z.enum([
+    "firecrawl",
+]);
+
 export const WindowsTableSchema = z.object({
+    window_tag: z.string(),
+    source_provider: WindowSourceProviderSchema,
     start_date: z.string(),
     end_date: z.string(),
     country: z.string(),
     query: z.string(),
     default_target_count: z.number(),
+    default_target_stage: SemanticLevelSchema,
 });
 
 export const WindowRunsTableSchema = z.object({
