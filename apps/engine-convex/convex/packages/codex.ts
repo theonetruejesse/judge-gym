@@ -23,6 +23,7 @@ export {
 export {
   getV3CampaignStatus,
   resetV3Campaign,
+  resetV3CampaignChunked,
   resumeV3Experiments,
   resetRuns,
   startV3Campaign,

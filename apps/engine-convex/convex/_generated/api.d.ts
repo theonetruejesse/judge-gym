@@ -41,6 +41,7 @@ import type * as models_window from "../models/window.js";
 import type * as packages_analysis from "../packages/analysis.js";
 import type * as packages_codex from "../packages/codex.js";
 import type * as packages_lab from "../packages/lab.js";
+import type * as packages_v3_campaign from "../packages/v3_campaign.js";
 import type * as packages_worker from "../packages/worker.js";
 import type * as utils_custom_fns from "../utils/custom_fns.js";
 import type * as utils_env_preflight from "../utils/env_preflight.js";
@@ -87,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   "packages/analysis": typeof packages_analysis;
   "packages/codex": typeof packages_codex;
   "packages/lab": typeof packages_lab;
+  "packages/v3_campaign": typeof packages_v3_campaign;
   "packages/worker": typeof packages_worker;
   "utils/custom_fns": typeof utils_custom_fns;
   "utils/env_preflight": typeof utils_env_preflight;

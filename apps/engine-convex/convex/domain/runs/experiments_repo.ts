@@ -103,3 +103,17 @@ export const upsertExperimentByTag = zInternalMutation({
     };
   },
 });
+
+export const patchExperiment = zInternalMutation({
+  args: z.object({
+    experiment_id: zid("experiments"),
+    patch: z.object({
+      total_count: ExperimentsTableSchema.shape.total_count.optional(),
+    }),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.experiment_id, args.patch);
+    return null;
+  },
+});

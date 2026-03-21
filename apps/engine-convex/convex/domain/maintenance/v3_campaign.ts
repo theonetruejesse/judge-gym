@@ -442,22 +442,62 @@ export const resetRuns = zMutation({
 
     const rows = [] as z.infer<typeof ResetExperimentRowSchema>[];
     for (const experiment of page) {
-      const result = await ctx.runMutation(
-        internal.domain.maintenance.danger.deleteExperimentRunData,
+      const runIds: Id<"runs">[] = await ctx.runQuery(
+        internal.domain.maintenance.danger.listExperimentRunIds,
         {
           experiment_id: experiment.experiment_id,
-          isDryRun: args.dry_run,
-          allow_active: args.allow_active,
         },
       );
+      const deleted = {
+        runs: 0,
+        samples: 0,
+        sample_score_targets: 0,
+        sample_score_target_items: 0,
+        rubrics: 0,
+        rubric_critics: 0,
+        scores: 0,
+        score_critics: 0,
+        llm_attempts: 0,
+        llm_attempt_payloads: 0,
+        process_observability: 0,
+      };
+      for (const runId of runIds) {
+        let hasMore = true;
+        while (hasMore) {
+          const result = await ctx.runMutation(
+            internal.domain.maintenance.danger.deleteRunDataPass,
+            {
+              run_id: runId,
+              limit_per_table: 250,
+              isDryRun: args.dry_run,
+              allow_active: args.allow_active,
+            },
+          );
+          deleted.runs += result.deleted.runs;
+          deleted.samples += result.deleted.samples;
+          deleted.sample_score_targets += result.deleted.sample_score_targets;
+          deleted.sample_score_target_items += result.deleted.sample_score_target_items;
+          deleted.rubrics += result.deleted.rubrics;
+          deleted.rubric_critics += result.deleted.rubric_critics;
+          deleted.scores += result.deleted.scores;
+          deleted.score_critics += result.deleted.score_critics;
+          deleted.llm_attempts += result.deleted.llm_attempts;
+          deleted.llm_attempt_payloads += result.deleted.llm_attempt_payloads;
+          deleted.process_observability += result.deleted.process_observability;
+          hasMore = result.has_more;
+        }
+      }
+      if (!args.dry_run) {
+        await ctx.db.patch(experiment.experiment_id, { total_count: 0 });
+      }
       rows.push({
         experiment_id: experiment.experiment_id,
         experiment_tag: experiment.experiment_tag,
-        runs_found: result.runs_found,
-        deleted: result.deleted,
+        runs_found: runIds.length,
+        deleted,
       });
       for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
-        totals[key] += result.deleted[key];
+        totals[key] += deleted[key];
       }
     }
 
@@ -786,10 +826,26 @@ export const resetV3Campaign = zAction({
             },
           );
         }
+
+        const attemptIds: Id<"llm_attempts">[] = await ctx.runQuery(
+          internal.domain.maintenance.danger.listRunAttemptIds,
+          {
+            run_id: run.run_id,
+          },
+        );
+        for (const batch of chunkArray(attemptIds, 100)) {
+          if (batch.length === 0) continue;
+          await ctx.runMutation(
+            internal.domain.maintenance.danger.backfillRunAttemptPayloadsBatch,
+            {
+              run_id: run.run_id,
+              attempt_ids: batch,
+            },
+          );
+        }
       }
     }
 
-    let cursor: number | undefined = 0;
     const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
     const totals = {
       runs: 0,
@@ -806,28 +862,315 @@ export const resetV3Campaign = zAction({
     };
     let processed_experiment_count = 0;
 
-    while (cursor != null) {
-      const result: {
-        dry_run: boolean;
-        selected_experiment_count: number;
-        processed_experiment_count: number;
-        missing_experiment_tags: string[];
-        next_cursor: number | null;
-        rows: Array<z.infer<typeof ResetExperimentRowSchema>>;
-        totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted>;
-      } = await ctx.runMutation(api.packages.codex.resetRuns, {
-        dry_run: args.dry_run,
-        experiment_tags: args.experiment_tags,
-        allow_active: true,
-        cursor,
-        max_experiments: 64,
-      });
-      rows.push(...result.rows);
-      processed_experiment_count += result.processed_experiment_count;
-      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
-        totals[key] += result.totals[key];
+    for (const experiment of filtered.selected) {
+      const experimentRuns = runs.filter((run) => run.experiment_id === experiment.experiment_id);
+      const deleted = {
+        runs: 0,
+        samples: 0,
+        sample_score_targets: 0,
+        sample_score_target_items: 0,
+        rubrics: 0,
+        rubric_critics: 0,
+        scores: 0,
+        score_critics: 0,
+        llm_attempts: 0,
+        llm_attempt_payloads: 0,
+        process_observability: 0,
+      };
+
+      for (const run of experimentRuns) {
+        let hasMore = true;
+        while (hasMore) {
+          const pass = await ctx.runMutation(
+            internal.domain.maintenance.danger.deleteRunDataPass,
+            {
+              run_id: run.run_id,
+              limit_per_table: 250,
+              isDryRun: args.dry_run,
+              allow_active: true,
+            },
+          );
+          deleted.runs += pass.deleted.runs;
+          deleted.samples += pass.deleted.samples;
+          deleted.sample_score_targets += pass.deleted.sample_score_targets;
+          deleted.sample_score_target_items += pass.deleted.sample_score_target_items;
+          deleted.rubrics += pass.deleted.rubrics;
+          deleted.rubric_critics += pass.deleted.rubric_critics;
+          deleted.scores += pass.deleted.scores;
+          deleted.score_critics += pass.deleted.score_critics;
+          deleted.llm_attempts += pass.deleted.llm_attempts;
+          deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
+          deleted.process_observability += pass.deleted.process_observability;
+          hasMore = pass.has_more;
+        }
       }
-      cursor = result.next_cursor ?? undefined;
+
+      if (!args.dry_run) {
+        await ctx.runMutation(internal.domain.runs.experiments_repo.patchExperiment, {
+          experiment_id: experiment.experiment_id,
+          patch: { total_count: 0 },
+        });
+      }
+
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        runs_found: experimentRuns.length,
+        deleted,
+      });
+      processed_experiment_count += 1;
+      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+        totals[key] += deleted[key];
+      }
+    }
+
+    return {
+      dry_run: args.dry_run,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
+      cancelled_processes,
+      processed_experiment_count,
+      rows,
+      totals,
+    };
+  },
+});
+
+export const resetV3CampaignChunked = zAction({
+  args: z.object({
+    dry_run: z.boolean().default(false),
+    experiment_tags: z.array(z.string()).optional(),
+    cancel_timeout_ms: z.number().int().min(1).max(60_000).default(10_000),
+    cancel_poll_interval_ms: z.number().int().min(100).max(5_000).default(500),
+  }),
+  returns: CampaignResetResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof CampaignResetResultSchema>> => {
+    const experiments = await listAllExperiments(ctx);
+    const filtered = filterV3Experiments(experiments, args.experiment_tags);
+
+    const selectedExperimentIds = filtered.selected.map((experiment) => experiment.experiment_id);
+    const runs: Array<{
+      run_id: Id<"runs">;
+      experiment_id: Id<"experiments">;
+      status: z.infer<typeof StateStatusSchema>;
+      workflow_id: string | null;
+      workflow_run_id: string | null;
+      current_stage: z.infer<typeof RunStageSchema>;
+      pause_after: z.infer<typeof RunStageSchema> | null;
+      created_at: number;
+    }> = await ctx.runQuery(
+      internal.domain.runs.experiments_service.listRunsForExperiments,
+      {
+        experiment_ids: selectedExperimentIds,
+      },
+    );
+
+    const activeRuns = runs.filter((run) => ACTIVE_RUN_STATUSES.has(run.status));
+    const cancelled_processes: Array<z.infer<typeof CampaignTemporalResetRowSchema>> = [];
+
+    if (!args.dry_run) {
+      for (const run of activeRuns) {
+        if (!run.workflow_id) {
+          cancelled_processes.push({
+            process_type: "run",
+            process_id: String(run.run_id),
+            experiment_id: run.experiment_id,
+            workflow_id: null,
+            action: "skipped",
+            reason: "workflow_not_bound",
+          });
+          continue;
+        }
+
+        const control = await ctx.runAction(
+          internal.domain.temporal.temporal_client.controlProcessWorkflow,
+          {
+            process_type: "run",
+            process_id: String(run.run_id),
+            action: "cancel",
+            cmd_id: `cmd:reset_v3_campaign_chunked:cancel:run:${run.run_id}`,
+          },
+        );
+        cancelled_processes.push({
+          process_type: "run",
+          process_id: String(run.run_id),
+          experiment_id: run.experiment_id,
+          workflow_id: control.workflow_id,
+          action: control.accepted ? "cancelled" : "skipped",
+          reason: control.accepted ? "cancel_requested" : (control.reason ?? "cancel_rejected"),
+        });
+      }
+
+      const deadline = Date.now() + args.cancel_timeout_ms;
+      while (Date.now() < deadline) {
+        let openCount = 0;
+        for (const run of activeRuns) {
+          const inspection = await ctx.runAction(
+            internal.domain.temporal.temporal_client.inspectProcessWorkflow,
+            {
+              process_type: "run",
+              process_id: String(run.run_id),
+            },
+          );
+          if (inspection.workflow_found && isTemporalExecutionActive(inspection.temporal_status)) {
+            openCount += 1;
+          }
+        }
+        if (openCount === 0) {
+          break;
+        }
+        await sleep(args.cancel_poll_interval_ms);
+      }
+
+      const stillActive = [] as string[];
+      for (const run of activeRuns) {
+        const inspection = await ctx.runAction(
+          internal.domain.temporal.temporal_client.inspectProcessWorkflow,
+          {
+            process_type: "run",
+            process_id: String(run.run_id),
+          },
+        );
+        if (inspection.workflow_found && isTemporalExecutionActive(inspection.temporal_status)) {
+          stillActive.push(String(run.run_id));
+        }
+      }
+
+      if (stillActive.length > 0) {
+        throw new Error(
+          `Timed out waiting for Temporal cancellation on runs: ${stillActive.join(", ")}`,
+        );
+      }
+    } else {
+      for (const run of activeRuns) {
+        cancelled_processes.push({
+          process_type: "run",
+          process_id: String(run.run_id),
+          experiment_id: run.experiment_id,
+          workflow_id: run.workflow_id ?? null,
+          action: "cancelled",
+          reason: "dry_run",
+        });
+      }
+    }
+
+    if (!args.dry_run) {
+      for (const run of runs) {
+        const scoreTargetIds: Id<"sample_score_targets">[] = await ctx.runQuery(
+          internal.domain.maintenance.danger.listRunScoreTargetIds,
+          {
+            run_id: run.run_id,
+          },
+        );
+        for (const batch of chunkArray(scoreTargetIds, 100)) {
+          if (batch.length === 0) continue;
+          await ctx.runMutation(
+            internal.domain.maintenance.danger.backfillRunScoreTargetItemsBatch,
+            {
+              run_id: run.run_id,
+              score_target_ids: batch,
+            },
+          );
+        }
+
+        const attemptIds: Id<"llm_attempts">[] = await ctx.runQuery(
+          internal.domain.maintenance.danger.listRunAttemptIds,
+          {
+            run_id: run.run_id,
+          },
+        );
+        for (const batch of chunkArray(attemptIds, 100)) {
+          if (batch.length === 0) continue;
+          await ctx.runMutation(
+            internal.domain.maintenance.danger.backfillRunAttemptPayloadsBatch,
+            {
+              run_id: run.run_id,
+              attempt_ids: batch,
+            },
+          );
+        }
+      }
+    }
+
+    const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
+    const totals = {
+      runs: 0,
+      samples: 0,
+      sample_score_targets: 0,
+      sample_score_target_items: 0,
+      rubrics: 0,
+      rubric_critics: 0,
+      scores: 0,
+      score_critics: 0,
+      llm_attempts: 0,
+      llm_attempt_payloads: 0,
+      process_observability: 0,
+    };
+    let processed_experiment_count = 0;
+
+    for (const experiment of filtered.selected) {
+      const experimentRuns = runs.filter((run) => run.experiment_id === experiment.experiment_id);
+      const deleted = {
+        runs: 0,
+        samples: 0,
+        sample_score_targets: 0,
+        sample_score_target_items: 0,
+        rubrics: 0,
+        rubric_critics: 0,
+        scores: 0,
+        score_critics: 0,
+        llm_attempts: 0,
+        llm_attempt_payloads: 0,
+        process_observability: 0,
+      };
+
+      for (const run of experimentRuns) {
+        let hasMore = true;
+        while (hasMore) {
+          const pass = await ctx.runMutation(
+            internal.domain.maintenance.danger.deleteRunDataPass,
+            {
+              run_id: run.run_id,
+              limit_per_table: 250,
+              isDryRun: args.dry_run,
+              allow_active: true,
+            },
+          );
+          deleted.runs += pass.deleted.runs;
+          deleted.samples += pass.deleted.samples;
+          deleted.sample_score_targets += pass.deleted.sample_score_targets;
+          deleted.sample_score_target_items += pass.deleted.sample_score_target_items;
+          deleted.rubrics += pass.deleted.rubrics;
+          deleted.rubric_critics += pass.deleted.rubric_critics;
+          deleted.scores += pass.deleted.scores;
+          deleted.score_critics += pass.deleted.score_critics;
+          deleted.llm_attempts += pass.deleted.llm_attempts;
+          deleted.llm_attempt_payloads += pass.deleted.llm_attempt_payloads;
+          deleted.process_observability += pass.deleted.process_observability;
+          hasMore = pass.has_more;
+        }
+      }
+
+      if (!args.dry_run) {
+        await ctx.runMutation(internal.domain.runs.experiments_repo.patchExperiment, {
+          experiment_id: experiment.experiment_id,
+          patch: { total_count: 0 },
+        });
+      }
+
+      rows.push({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        runs_found: experimentRuns.length,
+        deleted,
+      });
+      processed_experiment_count += 1;
+      for (const key of Object.keys(totals) as Array<keyof typeof totals>) {
+        totals[key] += deleted[key];
+      }
     }
 
     return {

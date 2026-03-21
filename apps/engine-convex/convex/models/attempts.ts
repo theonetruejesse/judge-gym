@@ -47,6 +47,8 @@ export const LlmAttemptsTableSchema = z.object({
 
 export const LlmAttemptPayloadsTableSchema = z.object({
   attempt_id: zid("llm_attempts"),
+  process_kind: z.enum(["window", "run"]),
+  process_id: z.string(),
   kind: LlmAttemptPayloadKindSchema,
   content_text: z.string(),
   content_hash: z.string(),

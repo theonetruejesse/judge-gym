@@ -38,6 +38,7 @@ export default defineSchema({
     .index("by_target", ["target_type", "target_id"])
     .index("by_status", ["status"]),
   llm_attempt_payloads: defineTable(zodOutputToConvex(LlmAttemptPayloadsTableSchema))
+    .index("by_process", ["process_kind", "process_id"])
     .index("by_attempt", ["attempt_id"])
     .index("by_attempt_kind", ["attempt_id", "kind"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema))

@@ -1066,6 +1066,8 @@ export const recordLlmAttemptStart = zMutation({
 
     const userPromptPayloadId = await ctx.db.insert("llm_attempt_payloads", {
       attempt_id,
+      process_kind: args.process_kind,
+      process_id: args.process_id,
       kind: "user_prompt",
       content_text: args.user_prompt,
       content_hash: stableHash(args.user_prompt),
@@ -1125,6 +1127,8 @@ export const recordLlmAttemptFinish = zMutation({
     if (args.status === "succeeded" && args.assistant_output) {
       const payloadId = await ctx.db.insert("llm_attempt_payloads", {
         attempt_id: args.attempt_id,
+        process_kind: attempt.process_kind,
+        process_id: attempt.process_id,
         kind: "assistant_output",
         content_text: args.assistant_output,
         content_hash: stableHash(args.assistant_output),
@@ -1137,6 +1141,8 @@ export const recordLlmAttemptFinish = zMutation({
     if (args.status === "failed" && args.error_message) {
       const payloadId = await ctx.db.insert("llm_attempt_payloads", {
         attempt_id: args.attempt_id,
+        process_kind: attempt.process_kind,
+        process_id: attempt.process_id,
         kind: "error",
         content_text: args.error_message,
         content_hash: stableHash(args.error_message),

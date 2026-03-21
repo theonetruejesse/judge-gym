@@ -70,21 +70,6 @@ async function deleteDocs(
   }
 }
 
-async function listRunPayloads(
-  ctx: any,
-  attempts: Doc<"llm_attempts">[],
-) {
-  const payloadGroups = await Promise.all(
-    attempts.map((attempt) =>
-      ctx.db
-        .query("llm_attempt_payloads")
-        .withIndex("by_attempt", (q: any) => q.eq("attempt_id", attempt._id))
-        .collect(),
-    ),
-  );
-  return payloadGroups.flat();
-}
-
 async function listRunArtifacts(
   ctx: any,
   run_id: Doc<"runs">["_id"],
@@ -120,7 +105,10 @@ async function listRunArtifacts(
       .query("sample_score_target_items")
       .withIndex("by_run", (q: any) => q.eq("run_id", run_id))
       .collect(),
-    listRunPayloads(ctx, attempts),
+    ctx.db
+      .query("llm_attempt_payloads")
+      .withIndex("by_process", (q: any) => q.eq("process_kind", "run").eq("process_id", String(run_id)))
+      .collect(),
   ]);
 
   return {
@@ -135,6 +123,15 @@ async function listRunArtifacts(
     payloads,
     observabilityRows,
   };
+}
+
+async function deleteChunk(
+  ctx: any,
+  table: keyof DataModel,
+  docs: Array<{ _id: unknown }>,
+) {
+  await deleteDocs(ctx, docs);
+  return docs.length;
 }
 
 async function deleteSingleRunData(
@@ -322,6 +319,169 @@ export const deleteRunData = zInternalMutation({
   },
 });
 
+export const deleteRunDataPass = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    limit_per_table: z.number().int().min(1).max(1000).default(250),
+    isDryRun: z.boolean().default(true),
+    allow_active: z.boolean().default(false),
+  }),
+  returns: z.object({
+    trace_id: z.string(),
+    run_exists: z.boolean(),
+    has_more: z.boolean(),
+    deleted: RunDeleteSummarySchema,
+  }),
+  handler: async (ctx, args) => {
+    const trace_id = `run:${args.run_id}`;
+    const run = await ctx.db.get(args.run_id);
+    if (!run) {
+      return {
+        trace_id,
+        run_exists: false,
+        has_more: false,
+        deleted: zeroRunDeleteSummary(),
+      };
+    }
+
+    const activeStatuses = new Set<Doc<"runs">["status"]>([
+      "start",
+      "queued",
+      "running",
+      "paused",
+    ]);
+    if (activeStatuses.has(run.status) && !args.allow_active) {
+      throw new Error(
+        `Refusing to delete active run ${args.run_id} with status=${run.status}. `
+        + "Pass allow_active=true to override.",
+      );
+    }
+
+    const deleted = zeroRunDeleteSummary();
+    const limit = args.limit_per_table;
+
+    const payloads = await ctx.db
+      .query("llm_attempt_payloads")
+      .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
+      .take(limit);
+    deleted.llm_attempt_payloads += payloads.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "llm_attempt_payloads", payloads as Array<{ _id: unknown }>);
+    }
+
+    const observabilityRows = await ctx.db
+      .query("process_observability")
+      .withIndex("by_process", (q) => q.eq("process_type", "run").eq("process_id", String(args.run_id)))
+      .take(limit);
+    deleted.process_observability += observabilityRows.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "process_observability", observabilityRows as Array<{ _id: unknown }>);
+    }
+
+    const scoreCritics = await ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    deleted.score_critics += scoreCritics.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "score_critics", scoreCritics as Array<{ _id: unknown }>);
+    }
+
+    const scores = await ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    deleted.scores += scores.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "scores", scores as Array<{ _id: unknown }>);
+    }
+
+    const rubricCritics = await ctx.db.query("rubric_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    deleted.rubric_critics += rubricCritics.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "rubric_critics", rubricCritics as Array<{ _id: unknown }>);
+    }
+
+    const rubrics = await ctx.db.query("rubrics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    deleted.rubrics += rubrics.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "rubrics", rubrics as Array<{ _id: unknown }>);
+    }
+
+    const scoreTargetItems = await ctx.db
+      .query("sample_score_target_items")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(limit);
+    deleted.sample_score_target_items += scoreTargetItems.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "sample_score_target_items", scoreTargetItems as Array<{ _id: unknown }>);
+    }
+
+    const scoreTargets = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(limit);
+    deleted.sample_score_targets += scoreTargets.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "sample_score_targets", scoreTargets as Array<{ _id: unknown }>);
+    }
+
+    const samples = await ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    deleted.samples += samples.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "samples", samples as Array<{ _id: unknown }>);
+    }
+
+    const attempts = await ctx.db
+      .query("llm_attempts")
+      .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
+      .take(limit);
+    deleted.llm_attempts += attempts.length;
+    if (!args.isDryRun) {
+      await deleteChunk(ctx, "llm_attempts", attempts as Array<{ _id: unknown }>);
+    }
+
+    let has_more = [
+      payloads.length,
+      observabilityRows.length,
+      scoreCritics.length,
+      scores.length,
+      rubricCritics.length,
+      rubrics.length,
+      scoreTargetItems.length,
+      scoreTargets.length,
+      samples.length,
+      attempts.length,
+    ].some((count) => count === limit);
+
+    if (!has_more) {
+      const remainingCounts = await Promise.all([
+        ctx.db.query("llm_attempt_payloads").withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
+        ctx.db.query("process_observability").withIndex("by_process", (q) => q.eq("process_type", "run").eq("process_id", String(args.run_id))).take(1),
+        ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("rubric_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("rubrics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("sample_score_target_items").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
+        ctx.db.query("llm_attempts").withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
+      ]);
+      has_more = remainingCounts.some((docs) => docs.length > 0);
+    }
+
+    if (!args.isDryRun && !has_more) {
+      await ctx.db.delete(args.run_id);
+      deleted.runs += 1;
+    }
+
+    if (args.isDryRun) {
+      deleted.runs = 1;
+    }
+
+    return {
+      trace_id,
+      run_exists: true,
+      has_more,
+      deleted,
+    };
+  },
+});
+
 export const deleteExperimentRunData = zInternalMutation({
   args: z.object({
     experiment_id: zid("experiments"),
@@ -373,6 +533,34 @@ export const deleteExperimentRunData = zInternalMutation({
   },
 });
 
+export const listExperimentRunIds = zInternalQuery({
+  args: z.object({
+    experiment_id: zid("experiments"),
+  }),
+  returns: z.array(zid("runs")),
+  handler: async (ctx, args) => {
+    const runs = await ctx.db
+      .query("runs")
+      .withIndex("by_experiment", (q) => q.eq("experiment_id", args.experiment_id))
+      .collect();
+    return runs.map((run) => run._id);
+  },
+});
+
+export const listRunAttemptIds = zInternalQuery({
+  args: z.object({
+    run_id: zid("runs"),
+  }),
+  returns: z.array(zid("llm_attempts")),
+  handler: async (ctx, args) => {
+    const attempts = await ctx.db
+      .query("llm_attempts")
+      .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
+      .collect();
+    return attempts.map((attempt) => attempt._id);
+  },
+});
+
 export const listRunScoreTargetIds = zInternalQuery({
   args: z.object({
     run_id: zid("runs"),
@@ -384,6 +572,36 @@ export const listRunScoreTargetIds = zInternalQuery({
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .collect();
     return targets.map((target) => target._id);
+  },
+});
+
+export const backfillRunAttemptPayloadsBatch = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    attempt_ids: z.array(zid("llm_attempts")).min(1).max(200),
+  }),
+  returns: z.object({
+    patched: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    let patched = 0;
+    for (const attemptId of args.attempt_ids) {
+      const items = await ctx.db
+        .query("llm_attempt_payloads")
+        .withIndex("by_attempt", (q) => q.eq("attempt_id", attemptId))
+        .collect();
+      for (const item of items) {
+        if (item.process_kind === "run" && item.process_id === String(args.run_id)) {
+          continue;
+        }
+        await ctx.db.patch(item._id, {
+          process_kind: "run",
+          process_id: String(args.run_id),
+        });
+        patched += 1;
+      }
+    }
+    return { patched };
   },
 });
 
