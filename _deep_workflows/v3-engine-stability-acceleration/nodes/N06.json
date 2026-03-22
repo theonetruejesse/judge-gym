@@ -1,0 +1,37 @@
+{
+  "nodeId": "N06",
+  "kind": "synthesize",
+  "role": "lead-stability-roadmap",
+  "objective": "Synthesize the evidence into a pre-relaunch stability roadmap that orders the next patch trains, defines the explicit gate for another live V3 loop, and states whether a deeper refactor is needed before any new launch.",
+  "inputs": [
+    "agents/N02/findings.json",
+    "agents/N03/findings.json",
+    "agents/N04/signals.json",
+    "agents/N05/null_challenges.json"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04",
+    "N05"
+  ],
+  "effects": [
+    "read_state",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "synthesis",
+  "requiredOutputs": [
+    "final_report.md",
+    "roadmap.json",
+    "gate_decision.json"
+  ],
+  "completionCriteria": [
+    "State whether to execute the workflow before the next relaunch.",
+    "Order the next patch families by leverage and risk reduction.",
+    "Define a concrete relaunch gate that would let the V3 pass proceed without depending on manual safe-heal intervention."
+  ]
+}

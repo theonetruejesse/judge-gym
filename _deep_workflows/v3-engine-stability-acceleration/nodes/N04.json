@@ -1,0 +1,39 @@
+{
+  "nodeId": "N04",
+  "kind": "analyze",
+  "role": "autonomy-gate-designer",
+  "objective": "Turn the current informal operator instincts into an explicit autonomy gate for the next V3 loop, covering queue identity handoff, reset cleanliness, callback noise, liveness progression, and when safe-heal is considered a failure rather than an operational tool.",
+  "inputs": [
+    "agents/N01/collected_state.json",
+    "_campaigns/v3_finish_pass/campaign_state.json",
+    "skills/v3-finish-pass/SKILL.md",
+    "AGENTS.md",
+    "README.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "read_logs",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.mcp__convex__logs",
+    "functions.mcp__railway__list_deployments"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04",
+  "requiredOutputs": [
+    "signals.json",
+    "gate_spec.md",
+    "observability_backlog.json"
+  ],
+  "completionCriteria": [
+    "Emit a crisp green/yellow/red gate for whether another live relaunch is justified.",
+    "Name the missing observability that still blocks autonomous stop/go decisions.",
+    "Prefer durable machine-checked gates over UI-only heuristics."
+  ]
+}

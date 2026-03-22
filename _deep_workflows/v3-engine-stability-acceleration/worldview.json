@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-engine-stability-acceleration",
+    "objective": "Investigate the currently surfaced V3 stability blockers across Temporal runtime, Convex cleanup semantics, reset/control-plane behavior, and observability so the next relaunch has a sharply reduced need for manual intervention.",
+    "objectiveClass": "architecture_audit_and_refactor_planning",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed",
+      "N06": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "passed"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "summary": "Use the workflow as a pre-relaunch stability program rather than launching another V3 pass immediately.",
+      "rationale": "The current surfaced blockers split into at least two families: Temporal preflight liveness and Convex cleanup/reset semantics. They should be separated and ranked before the next live loop."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

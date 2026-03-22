@@ -1,0 +1,34 @@
+[
+  {
+    "id": "cleanup-1",
+    "severity": "critical",
+    "finding": "Late workflow callbacks can legitimately arrive after destructive cleanup, but worker-side Convex mutations still treat missing rows as fatal.",
+    "evidence": [
+      "apps/engine-convex/convex/packages/worker.ts:871-907 throws if run/window rows are missing during projectProcessState",
+      "apps/engine-convex/convex/packages/worker.ts:1132-1135 throws if an attempt row is missing during recordLlmAttemptFinish",
+      "apps/engine-temporal/src/workflows.ts:283-289 performs a non-cancellable projectSnapshot on cancellation"
+    ],
+    "implication": "Destructive cleanup and late callback delivery are not currently compatible, so autonomous resets still generate hard Convex failures."
+  },
+  {
+    "id": "cleanup-2",
+    "severity": "high",
+    "finding": "The delete path is paged and can remove run-scoped artifacts or the run row itself without any callback-safe tombstone or acknowledged drain barrier.",
+    "evidence": [
+      "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts:647-759 loops resetRuns through deleteRunDataPass",
+      "apps/engine-convex/convex/domain/maintenance/danger.ts:347-499 deletes batches, payloads, observability rows, artifacts, attempts, and finally the run row",
+      "There is no corresponding worker-side grace condition or missing-row no-op in projectProcessState or recordLlmAttemptFinish"
+    ],
+    "implication": "Even a logically successful reset can still look noisy or broken if callbacks arrive during or after cleanup."
+  },
+  {
+    "id": "cleanup-3",
+    "severity": "high",
+    "finding": "The recurring local Convex dev error is specifically a window projection callback failure, which means the race is broader than V3 run reset helpers alone.",
+    "evidence": [
+      "MCP failure logs and the agent-owned bun dev session repeatedly show packages/worker:projectProcessState -> Window run not found",
+      "The error recurs roughly every 100 seconds, which is consistent with an active workflow or late callback loop still attempting projection after the row is gone"
+    ],
+    "implication": "The fix belongs at the callback/worker contract layer, not only inside the run reset helpers."
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "nodeId": "N05",
+  "kind": "falsify",
+  "role": "stability-roadmap-falsifier",
+  "objective": "Challenge the draft root causes and patch directions from the runtime, Convex, and autonomy-gate audits so the final roadmap does not overfit the latest failure logs or miss a deeper architectural cause.",
+  "inputs": [
+    "agents/N02/findings.json",
+    "agents/N03/findings.json",
+    "agents/N04/signals.json"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05",
+  "requiredOutputs": [
+    "null_challenges.json",
+    "judge_notes.md"
+  ],
+  "completionCriteria": [
+    "Surface at least three strong counterarguments or alternative explanations.",
+    "Call out where a broad refactor would be justified versus where a narrow patch is enough.",
+    "Force the final synthesis to defend any proposed execution order."
+  ]
+}

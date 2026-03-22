@@ -1,0 +1,11 @@
+{
+  "decision": "do_not_relaunch_yet",
+  "reason": "The runtime liveness patch is deployed, but the active Convex cleanup-race failures should be fixed first so the next V3 pass tests runtime behavior rather than mixing in known reset/control-plane noise.",
+  "nextAction": "Patch worker callback idempotency and reset/drain semantics.",
+  "greenConditionsForNextLoop": [
+    "No repeated missing-row Convex mutation failures during idle or reset conditions",
+    "V3 snapshot remains preflight_clean and launch_ready after cleanup validation",
+    "Temporal queues remain ready with one active worker identity",
+    "The next relaunch is explicitly treated as a validation pass for the runtime preflight guard"
+  ]
+}

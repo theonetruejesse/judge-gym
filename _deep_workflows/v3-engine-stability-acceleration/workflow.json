@@ -1,0 +1,219 @@
+{
+  "meta": {
+    "name": "V3 Engine Stability Acceleration",
+    "slug": "v3-engine-stability-acceleration",
+    "objective": "Investigate the currently surfaced V3 stability blockers across Temporal runtime, Convex cleanup semantics, reset/control-plane behavior, and observability so the next relaunch has a sharply reduced need for manual intervention.",
+    "objectiveClass": "architecture_audit_and_refactor_planning",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-engine-stability-acceleration"
+  },
+  "compile": {
+    "baseHint": "Use one bounded deep workflow to separate the autonomy blockers before the next V3 relaunch instead of continuing patch-by-patch from live failures.",
+    "taskSignals": [
+      "The last full V3 pass relapsed into score-stage stale_projection even after one bounded safe-heal.",
+      "A Railway worker patch now hardens run-stage preflight liveness, but the next loop has not yet re-proven end-to-end stability.",
+      "Local convex dev logs now show repeated cleanup-race failures such as recordLlmAttemptFinish -> Attempt not found and projectProcessState -> Window run not found.",
+      "Resets have required direct fallback cleanup more than once, which means reset/delete semantics are not yet trustworthy enough for autonomy.",
+      "The lab/query surfaces improved progress visibility, but the actual relaunch gate is still implicit rather than codified."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq",
+      "checkpoint",
+      "falsify"
+    ],
+    "notes": [
+      "Compile only in this turn. The artifact should be explicit enough that execution can start without rediscovering scope.",
+      "Bias the next execution toward narrow but high-leverage refactors: callback/deletion idempotency, reset drain invariants, and explicit autonomy gates."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_campaigns/v3_finish_pass/campaign_state.json",
+      "_campaigns/v3_finish_pass/iterations/20260322T183004Z_score_stage_projection_recurrence/",
+      "apps/engine-temporal/src/run/service.ts",
+      "apps/engine-convex/convex/packages/worker.ts",
+      "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+      "apps/engine-convex/convex/domain/maintenance/danger.ts",
+      "skills/v3-finish-pass/SKILL.md",
+      "AGENTS.md",
+      "README.md",
+      "session:agent_owned_bun_dev",
+      "deploy:railway:565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.write_stdin",
+      "functions.mcp__convex__status",
+      "functions.mcp__convex__logs",
+      "functions.mcp__convex__data",
+      "functions.mcp__convex__runOneoffQuery",
+      "functions.mcp__railway__list_deployments",
+      "functions.mcp__railway__get_logs",
+      "functions.spawn_agent",
+      "functions.wait_agent"
+    ],
+    "sharedScripts": [
+      "/Users/jesselee/.codex/skills/deep-workflow/scripts/validate_workflow.py"
+    ],
+    "connectors": [
+      "Convex ownDev deployment combative-pika-662",
+      "Railway production service engine-temporal-worker",
+      "Local streamed bun dev session owned by the agent"
+    ],
+    "env": [
+      "branch=temporal-migration",
+      "date=2026-03-22",
+      "campaign=v3_finish_pass"
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "query",
+        "role": "incident-state-harvester"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "runtime-liveness-auditor"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "convex-cleanup-race-auditor"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "analyze",
+        "role": "autonomy-gate-designer"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "falsify",
+        "role": "stability-roadmap-falsifier"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "synthesize",
+        "role": "lead-stability-roadmap"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "synthesis/roadmap.json",
+      "synthesis/gate_decision.json",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/collected_state.json",
+      "agents/N02/findings.json",
+      "agents/N03/findings.json",
+      "agents/N04/signals.json",
+      "agents/N05/null_challenges.json"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "hypothesis",
+      "patch_candidate",
+      "decision",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop after compilation if the user wants to trim scope before execution.",
+      "Do not relaunch V3 until gate_decision.json explicitly says the next loop may proceed.",
+      "Abort any execution branch that proposes broad refactors without tying them to a surfaced blocker family."
+    ],
+    "approvalRequired": [
+      "Any live reset or relaunch of the V3 cohort",
+      "Any destructive cleanup mutation against active or recently active runs or windows",
+      "Any patch that changes delete/reset semantics without a targeted validation plan"
+    ],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxSubagents": 4,
+      "targetPatchFamiliesBeforeNextLoop": 3,
+      "maxLiveRelaunchesBeforeAnotherSynthesis": 1
+    }
+  }
+}

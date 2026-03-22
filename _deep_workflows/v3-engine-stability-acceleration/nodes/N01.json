@@ -1,0 +1,48 @@
+{
+  "nodeId": "N01",
+  "kind": "query",
+  "role": "incident-state-harvester",
+  "objective": "Collect a single evidence bundle covering the current V3 state, the latest Railway deployment, local bun dev Convex failures, recent Convex ownDev failure logs, and the relevant reset/runtime code paths.",
+  "inputs": [
+    "_campaigns/v3_finish_pass/campaign_state.json",
+    "_campaigns/v3_finish_pass/iterations/20260322T183004Z_score_stage_projection_recurrence/",
+    "apps/engine-temporal/src/run/service.ts",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+    "apps/engine-convex/convex/domain/maintenance/danger.ts",
+    "session:agent_owned_bun_dev",
+    "deploy:railway:565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_logs",
+    "read_state",
+    "use_mcp",
+    "touch_live_ops",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.write_stdin",
+    "functions.mcp__convex__status",
+    "functions.mcp__convex__logs",
+    "functions.mcp__convex__data",
+    "functions.mcp__convex__runOneoffQuery",
+    "functions.mcp__railway__list_deployments",
+    "functions.mcp__railway__get_logs"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01",
+  "requiredOutputs": [
+    "manifest.json",
+    "run_log.json",
+    "collected_state.json",
+    "evidence_index.md"
+  ],
+  "completionCriteria": [
+    "Capture the current campaign, queue, deploy, and local dev-log state in one machine-readable artifact.",
+    "Separate evidence by source so downstream nodes can tell live-runtime issues from local dev/reset noise.",
+    "Record at least one concrete example for each active failure family."
+  ]
+}

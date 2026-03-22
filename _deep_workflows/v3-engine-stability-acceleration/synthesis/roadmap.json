@@ -1,0 +1,41 @@
+{
+  "status": "executed",
+  "recommendedPatchOrder": [
+    {
+      "priority": 1,
+      "name": "Convex missing-row callback idempotency",
+      "files": [
+        "apps/engine-convex/convex/packages/worker.ts"
+      ],
+      "successCondition": "Late projectProcessState and recordLlmAttemptFinish callbacks stop throwing when their rows are already gone."
+    },
+    {
+      "priority": 2,
+      "name": "Reset and drain contract hardening",
+      "files": [
+        "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+        "apps/engine-convex/convex/domain/maintenance/danger.ts"
+      ],
+      "successCondition": "Reset cleanup no longer depends on ad hoc fallback semantics to become trustworthy."
+    },
+    {
+      "priority": 3,
+      "name": "Machine-readable relaunch gate",
+      "files": [
+        "skills/v3-finish-pass/SKILL.md",
+        "_campaigns/v3_finish_pass/campaign_state.json",
+        "README.md"
+      ],
+      "successCondition": "Another relaunch can be justified from explicit gate signals rather than operator intuition."
+    }
+  ],
+  "runtimePosture": {
+    "currentStatus": "patch_deployed_unproven",
+    "nextRelaunchRole": "validation_pass"
+  },
+  "avoidForNow": [
+    "Broad batching redesign",
+    "Prompt or lab UI refactors unrelated to autonomy blockers",
+    "Large storage-model rewrites before testing narrow callback idempotency"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "convex-cleanup-race-auditor",
+  "objective": "Localize and explain the missing-row Convex mutation failures during reset and late workflow callbacks, then define the smallest safe refactor that makes delete/reset semantics idempotent enough for autonomous operation.",
+  "inputs": [
+    "agents/N01/collected_state.json",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+    "apps/engine-convex/convex/domain/maintenance/danger.ts"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "read_logs",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.mcp__convex__logs",
+    "functions.mcp__convex__data"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03",
+  "requiredOutputs": [
+    "findings.json",
+    "invariants.md",
+    "patch_candidates.md"
+  ],
+  "completionCriteria": [
+    "Explain why recordLlmAttemptFinish and projectProcessState are still seeing deleted rows.",
+    "Define the reset/drain invariant that must hold before destructive deletion is legal.",
+    "Recommend whether the fix belongs in control-plane sequencing, worker-side no-op handling, or both."
+  ]
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "runtime-1",
+    "severity": "high",
+    "finding": "The March 22 preflight hardening patch is correctly aimed at the specific stale_projection recurrence captured in iteration 20260322T183004Z.",
+    "evidence": [
+      "apps/engine-temporal/src/run/service.ts:265-307 adds withTimeout + withPreflightGuard before provider dispatch",
+      "apps/engine-temporal/src/run/service.ts:515-540 and 694-742 wrap direct and batch quota reserve in that guard",
+      "apps/engine-temporal/src/run/service.ts:744-790 wraps ensureBatchExecution in the same guarded preamble",
+      "packages/engine-settings/src/index.ts:48-67 and 99-118 adds llm.preflightTimeoutMs=60000"
+    ],
+    "implication": "The prior score-stage liveness gap should no longer silently age out before the first request or batch wait begins."
+  },
+  {
+    "id": "runtime-2",
+    "severity": "medium",
+    "finding": "The runtime patch is still only partially proven because the cohort has not yet been relaunched through a full loop on top of the deployed worker.",
+    "evidence": [
+      "Railway deployment 565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1 is live and queue health is green",
+      "The manifest-scoped campaign snapshot remains preflight_clean with no active runs, so no new score-stage evidence exists yet"
+    ],
+    "implication": "The next relaunch should be treated as a validation pass for the runtime patch, not as evidence that all autonomy blockers are solved."
+  },
+  {
+    "id": "runtime-3",
+    "severity": "medium",
+    "finding": "The runtime-side signals for the next loop are now well-defined enough to gate on explicitly.",
+    "evidence": [
+      "Queues converged to a single worker identity 1@8ca2e1f3c6ee",
+      "The prior dominant runtime failure was stale_projection after llm_attempt_started but before batch_wait/direct_request heartbeats",
+      "The new patch introduces distinct direct_preamble and batch_preamble heartbeat sources"
+    ],
+    "implication": "The next relaunch should be monitored for preamble timeout events, stale_projection recurrence, and whether traces advance from llm_attempt_started into preamble and then request/batch-wait heartbeats."
+  }
+]

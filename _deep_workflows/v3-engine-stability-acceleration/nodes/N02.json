@@ -1,0 +1,37 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "runtime-liveness-auditor",
+  "objective": "Audit the Temporal/runtime side for remaining autonomy blockers after the preflight hardening patch, including stale_projection recurrence, preflight timeout semantics, batch/direct transition points, and what signals must stay green in the next loop.",
+  "inputs": [
+    "agents/N01/collected_state.json",
+    "apps/engine-temporal/src/run/service.ts",
+    "_campaigns/v3_finish_pass/iterations/20260322T183004Z_score_stage_projection_recurrence/report.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "read_logs",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.mcp__convex__logs",
+    "functions.mcp__railway__get_logs"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02",
+  "requiredOutputs": [
+    "findings.json",
+    "hypotheses.json",
+    "patch_candidates.md"
+  ],
+  "completionCriteria": [
+    "State whether the current runtime patch is likely sufficient, partial, or mis-aimed for the next live loop.",
+    "List the minimum runtime-side signals that should be monitored in the next relaunch.",
+    "Produce only blocker-linked patch candidates, not speculative cleanup."
+  ]
+}

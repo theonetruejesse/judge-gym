@@ -1,0 +1,12 @@
+[
+  {
+    "id": "runtime-h1",
+    "claim": "The preflight liveness patch is probably sufficient for the previously observed score-stage freshness failure, provided no deeper provider/quota stall exists beyond the guarded preamble.",
+    "confidence": "medium"
+  },
+  {
+    "id": "runtime-h2",
+    "claim": "The next runtime-side manual intervention should only be needed if the system now fails in a different stage or after the guarded preamble begins.",
+    "confidence": "medium"
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "id": "obs-1",
+    "title": "Ignored late callback telemetry",
+    "why": "If missing-row callback mutations become safe no-ops, operators still need to know that cleanup races happened and how often."
+  },
+  {
+    "id": "obs-2",
+    "title": "Reset drain completion signal",
+    "why": "The control plane needs an explicit condition that destructive deletion is safe, rather than inferring it indirectly from queue or snapshot state."
+  },
+  {
+    "id": "obs-3",
+    "title": "Autonomy gate summary surface",
+    "why": "The agent currently assembles relaunch readiness from multiple separate surfaces instead of reading one explicit gate result."
+  }
+]

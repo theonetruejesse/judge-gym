@@ -1,0 +1,26 @@
+{
+  "relaunchGate": {
+    "currentDecision": "red",
+    "reason": "Runtime preflight hardening is deployed, but cleanup-race Convex failures are still actively visible and the reset contract is not yet autonomy-safe."
+  },
+  "greenSignals": [
+    "Manifest-scoped V3 snapshot is preflight_clean and launch_ready",
+    "Temporal queue health shows one active worker identity with zero backlog",
+    "No recurring missing-row Convex callback failures during normal idle/reset periods",
+    "No manual safe-heal is required to keep a relaunch healthy"
+  ],
+  "yellowSignals": [
+    "A newly deployed worker is still overlapping the prior worker identity but backlog remains zero",
+    "Runtime patch is deployed but has not yet been proven end-to-end by a fresh full V3 pass"
+  ],
+  "redSignals": [
+    "Repeated packages/worker:projectProcessState or recordLlmAttemptFinish missing-row failures continue",
+    "Reset requires ad hoc destructive fallbacks to become fully clean",
+    "A new relaunch hits stale_projection again without a new differentiated root cause"
+  ],
+  "missingObservability": [
+    "A first-class counter or trace event for ignored late callbacks after cleanup",
+    "A machine-readable reset drain completion signal that says destructive deletion is now legal",
+    "A codex/lab surface that summarizes autonomy gate status directly instead of requiring operator assembly"
+  ]
+}

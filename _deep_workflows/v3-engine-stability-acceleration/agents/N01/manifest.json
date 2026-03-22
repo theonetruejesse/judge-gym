@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "nodeId": "N01",
+  "kind": "query",
+  "createdAt": "2026-03-22T19:22:23Z",
+  "inputs": [
+    "_campaigns/v3_finish_pass/campaign_state.json",
+    "_campaigns/v3_finish_pass/iterations/20260322T183004Z_score_stage_projection_recurrence/",
+    "apps/engine-temporal/src/run/service.ts",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts",
+    "apps/engine-convex/convex/domain/maintenance/danger.ts",
+    "session:agent_owned_bun_dev",
+    "deploy:railway:565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1"
+  ],
+  "outputs": [
+    "manifest.json",
+    "run_log.json",
+    "collected_state.json",
+    "evidence_index.md"
+  ],
+  "toolVersions": [
+    "bun 1.1.27",
+    "turbo 2.8.10",
+    "convex ownDev combative-pika-662",
+    "railway deployment 565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1"
+  ]
+}

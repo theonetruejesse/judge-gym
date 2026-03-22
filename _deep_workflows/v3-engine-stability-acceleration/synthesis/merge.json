@@ -1,0 +1,14 @@
+{
+  "status": "compiled",
+  "plannedMergeInputs": [
+    "agents/N02/findings.json",
+    "agents/N03/findings.json",
+    "agents/N04/signals.json",
+    "agents/N05/null_challenges.json"
+  ],
+  "plannedOutputs": [
+    "synthesis/final_report.md",
+    "synthesis/roadmap.json",
+    "synthesis/gate_decision.json"
+  ]
+}

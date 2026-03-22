@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "nodeId": "N01",
+  "kind": "query",
+  "entries": [
+    {
+      "ts": "2026-03-22T19:20:00Z",
+      "action": "query_campaign_snapshot",
+      "surface": "bun run debug:campaign",
+      "result": "effective_campaign_state=preflight_clean, launch_ready=true, 18 experiments in start, 0 latest runs, no stuck items"
+    },
+    {
+      "ts": "2026-03-22T19:20:00Z",
+      "action": "query_queue_health",
+      "surface": "bun run debug:queues",
+      "result": "run and window queues ready with zero backlog; active worker identity converged to 1@8ca2e1f3c6ee only"
+    },
+    {
+      "ts": "2026-03-22T19:20:00Z",
+      "action": "tail_agent_owned_bun_dev",
+      "surface": "functions.write_stdin session 48304",
+      "result": "local convex dev continued to emit packages/worker:projectProcessState -> Window run not found roughly every 100 seconds"
+    },
+    {
+      "ts": "2026-03-22T19:20:00Z",
+      "action": "query_convex_failures",
+      "surface": "mcp__convex__logs failure",
+      "result": "failure burst at 14:02 for recordLlmAttemptFinish -> Attempt not found, then recurring projectProcessState -> Window run not found through 14:19"
+    },
+    {
+      "ts": "2026-03-22T19:20:00Z",
+      "action": "query_railway_deploy",
+      "surface": "mcp__railway__list_deployments and get_logs",
+      "result": "deployment 565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1 succeeded; worker bundles for judge-gym.run and judge-gym.window started successfully"
+    },
+    {
+      "ts": "2026-03-22T19:21:00Z",
+      "action": "read_code_paths",
+      "surface": "worker.ts, v3_campaign.ts, danger.ts",
+      "result": "worker callback mutations still throw on missing rows while reset cleanup can delete run rows and artifacts in paged passes"
+    }
+  ]
+}

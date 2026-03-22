@@ -1,0 +1,137 @@
+{
+  "capturedAt": "2026-03-22T19:22:23Z",
+  "campaign": {
+    "effectiveCampaignState": "preflight_clean",
+    "launchReady": true,
+    "selectedExperimentCount": 18,
+    "counts": {
+      "start": 18,
+      "running": 0,
+      "queued": 0,
+      "paused": 0,
+      "completed": 0,
+      "canceled": 0,
+      "error": 0,
+      "withLatestRun": 0
+    },
+    "scientificValidity": "scientifically_unknown",
+    "stuckItems": []
+  },
+  "queueHealth": {
+    "allReady": true,
+    "namespace": "default",
+    "queues": [
+      {
+        "queueKind": "run",
+        "taskQueue": "judge-gym.run",
+        "ready": true,
+        "approximateBacklogCount": 0,
+        "workflowPollerCount": 1,
+        "activityPollerCount": 1,
+        "identities": [
+          "1@8ca2e1f3c6ee"
+        ]
+      },
+      {
+        "queueKind": "window",
+        "taskQueue": "judge-gym.window",
+        "ready": true,
+        "approximateBacklogCount": 0,
+        "workflowPollerCount": 1,
+        "activityPollerCount": 1,
+        "identities": [
+          "1@8ca2e1f3c6ee"
+        ]
+      }
+    ]
+  },
+  "railway": {
+    "service": "engine-temporal-worker",
+    "environment": "production",
+    "latestDeployment": {
+      "id": "565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1",
+      "status": "SUCCESS",
+      "createdAt": "2026-03-22T19:01:02.659Z",
+      "imageDigest": "sha256:ba4da060c998439f8950c5123fef2cc672f4c4297efd463d661763445c15f43f"
+    },
+    "deployEvidence": [
+      "Workflow bundle created for judge-gym.run",
+      "Worker state changed to RUNNING for judge-gym.run",
+      "Workflow bundle created for judge-gym.window",
+      "Worker state changed to RUNNING for judge-gym.window"
+    ]
+  },
+  "convexFailures": {
+    "burstAttemptErrors": {
+      "windowStart": "2026-03-22T14:02:49-05:00",
+      "windowEnd": "2026-03-22T14:02:52-05:00",
+      "mutation": "packages/worker:recordLlmAttemptFinish",
+      "message": "Attempt not found"
+    },
+    "recurringWindowProjectionErrors": {
+      "firstSeen": "2026-03-22T14:03:06-05:00",
+      "latestSeen": "2026-03-22T14:19:49-05:00",
+      "mutation": "packages/worker:projectProcessState",
+      "message": "Window run not found",
+      "pattern": "roughly every 100 seconds in both MCP failure logs and the agent-owned bun dev stream"
+    }
+  },
+  "localDevStream": {
+    "owner": "agent",
+    "sessionId": 48304,
+    "observedErrors": [
+      {
+        "ts": "2026-03-22T19:09:47Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:11:27Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:13:07Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:14:48Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:16:28Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:18:08Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      },
+      {
+        "ts": "2026-03-22T19:19:49Z",
+        "mutation": "packages/worker:projectProcessState",
+        "message": "Window run not found"
+      }
+    ]
+  },
+  "relevantCodePaths": {
+    "worker": {
+      "projectProcessState": "apps/engine-convex/convex/packages/worker.ts:864",
+      "recordLlmAttemptStart": "apps/engine-convex/convex/packages/worker.ts:1021",
+      "recordLlmAttemptFinish": "apps/engine-convex/convex/packages/worker.ts:1120"
+    },
+    "controlPlane": {
+      "resetRuns": "apps/engine-convex/convex/domain/maintenance/v3_campaign.ts:647",
+      "deleteRunDataPass": "apps/engine-convex/convex/domain/maintenance/danger.ts:333",
+      "deleteExperimentRunData": "apps/engine-convex/convex/domain/maintenance/danger.ts:501"
+    }
+  },
+  "initialHypotheses": [
+    "The preflight liveness patch likely addresses one runtime blocker family, but it has not yet been re-proven by a full V3 relaunch.",
+    "The missing-row Convex failures are consistent with late callbacks landing after destructive deletion, not with an active queue or worker-readiness problem.",
+    "The reset/delete contract is still weak enough that autonomous operation could succeed at runtime but fail operationally during cleanup."
+  ]
+}

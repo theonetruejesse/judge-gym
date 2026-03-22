@@ -1,0 +1,17 @@
+[
+  {
+    "id": "challenge-1",
+    "challenge": "The recurring window projection errors may come from local dev/test workflows rather than production V3 reset behavior, so a cleanup-race patch could improve operator noise without materially changing the live V3 loop.",
+    "impactIfTrue": "The patch is still worthwhile, but it should be framed as a prerequisite for trustworthy local/autonomous debugging rather than as the sole blocker for live V3 stability."
+  },
+  {
+    "id": "challenge-2",
+    "challenge": "Turning missing-row callback failures into no-ops could hide a deeper sequencing bug if the system still deletes active rows too early.",
+    "impactIfTrue": "The fix should pair worker-side idempotency with a tighter reset drain check so we gain both resilience and accountability."
+  },
+  {
+    "id": "challenge-3",
+    "challenge": "The runtime preflight patch might still be insufficient if the next stale_projection occurs after provider dispatch begins rather than before it.",
+    "impactIfTrue": "The next relaunch still needs explicit runtime monitoring and should be treated as a validation pass, not as proof of full automation."
+  }
+]
