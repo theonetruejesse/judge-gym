@@ -1,0 +1,136 @@
+{
+  "captured_at": "2026-03-22T04:37:54Z",
+  "manifest_version": 2,
+  "launch_mode": "full",
+  "commit_at_observation": "d38860a",
+  "expected_counts": {
+    "experiments": 18,
+    "target_count_per_experiment": 30,
+    "pause_after": null
+  },
+  "launched_runs": [
+    { "experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2", "run_id": "kx78g7rf9ppge3tqn5bpqqfmc183cb5r" },
+    { "experiment_tag": "v3_1_c1_gpt_5_2_bundle_5_random_l2", "run_id": "kx74qcwzy40tyzfvsx5s3g8ph183ccsm" },
+    { "experiment_tag": "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2", "run_id": "kx7b07h32k0td6xvsye63t2wbd83d85w" },
+    { "experiment_tag": "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2", "run_id": "kx7bp3vsbdtz6s3mm95jxqs4yh83crz1" },
+    { "experiment_tag": "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2", "run_id": "kx74xwzaj0pa7cgv5h4y7xk4c983dqmr" },
+    { "experiment_tag": "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2", "run_id": "kx7as7af41fq5da907s63qg02h83cg4j" },
+    { "experiment_tag": "v3_a1_gpt_4_1_abstain_false", "run_id": "kx735zam7xndvknt1vxymak84s83dbxa" },
+    { "experiment_tag": "v3_a1_gpt_4_1_abstain_true", "run_id": "kx719bjedsxgpzjep22btczmv983cdac" },
+    { "experiment_tag": "v3_a1_gpt_5_2_abstain_false", "run_id": "kx7f72mrj80f2be77qr723qvp983cp5m" },
+    { "experiment_tag": "v3_a1_gpt_5_2_abstain_true", "run_id": "kx732c9ye0z42a4j0qd4mvapm183cj6d" },
+    { "experiment_tag": "v3_a2_gpt_4_1_l3", "run_id": "kx767xjkzsyqxdx7v9fz9pxems83dmms" },
+    { "experiment_tag": "v3_a2_gpt_5_2_l3", "run_id": "kx75pe1h8bxe7gch9g1twdmj1583cxj8" },
+    { "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2", "run_id": "kx7387a157b29a88pv8r9dwy6d83cv31" },
+    { "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1", "run_id": "kx798jqqss83pkvrptwwb0hcsx83c6av" },
+    { "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy", "run_id": "kx76ksp7vtsjc96rnee8a8xcb183cbwb" },
+    { "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy", "run_id": "kx7dtd2evyn3vh053epccyc9b183cj6a" },
+    { "experiment_tag": "v3_d1_control_gpt_4_1", "run_id": "kx7efxtfy4b94p3nnvkgfvkft983dma8" },
+    { "experiment_tag": "v3_d1_control_gpt_5_2", "run_id": "kx7f87ewwxd0xyaxsxhff94w1h83cybh" }
+  ],
+  "cohort_status": {
+    "effective_campaign_state": "stalled_recoverable",
+    "launch_ready": false,
+    "scientific_validity": "scientifically_unknown",
+    "counts": {
+      "running": 18,
+      "paused": 0,
+      "completed": 0,
+      "error": 0,
+      "queued": 0,
+      "start": 0
+    },
+    "stage_distribution": [
+      { "stage": "rubric_gen", "count": 8 },
+      { "stage": "rubric_critic", "count": 9 },
+      { "stage": "score_gen", "count": 1 },
+      { "stage": "score_critic", "count": 0 }
+    ],
+    "stuck_summary": [
+      { "reason": "stale_projection", "count": 1 }
+    ],
+    "stuck_items": [
+      {
+        "process_id": "kx732c9ye0z42a4j0qd4mvapm183cj6d",
+        "process_type": "run",
+        "reason": "stale_projection",
+        "age_ms": 120012,
+        "details": "Temporal workflow is bound but no recent process projection was recorded"
+      }
+    ]
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "blocked_task_queues": [],
+    "queues": [
+      {
+        "task_queue": "judge-gym.run",
+        "queue_kind": "run",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1
+      },
+      {
+        "task_queue": "judge-gym.window",
+        "queue_kind": "window",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1
+      }
+    ]
+  },
+  "dominant_failure_domain": "projection_staleness",
+  "safe_heal": {
+    "attempted": true,
+    "operation": "reproject_snapshot",
+    "attempted_at": "2026-03-22T04:38:44Z",
+    "result": {
+      "accepted": true,
+      "cmd_id": "cmd:repair_bounded:run:kx732c9ye0z42a4j0qd4mvapm183cj6d:1774154321363",
+      "post_heal_effective_campaign_state": "healthy_progressing",
+      "post_heal_stuck_summary": []
+    }
+  },
+  "policy_audit": {
+    "expected_min_batch_size": 35,
+    "repo_commit_with_policy": "d38860a",
+    "live_worker_deployment_created_at": "2026-03-22T01:16:06.814Z",
+    "deployment_predates_repo_policy_commit": true,
+    "observed_under_threshold_batches": [
+      {
+        "process_id": "kx735zam7xndvknt1vxymak84s83dbxa",
+        "stage": "rubric_gen",
+        "model": "gpt-4.1",
+        "item_count": 30,
+        "batch_count": 1
+      },
+      {
+        "process_id": "kx767xjkzsyqxdx7v9fz9pxems83dmms",
+        "stage": "rubric_critic",
+        "model": "gpt-4.1",
+        "item_count": 30,
+        "batch_count": 1
+      }
+    ]
+  },
+  "notable_process_inspection": {
+    "process_id": "kx732c9ye0z42a4j0qd4mvapm183cj6d",
+    "stage": "rubric_critic",
+    "temporal_status": "RUNNING",
+    "workflow_found": true,
+    "history_length": 35,
+    "batch_reconciliation": {
+      "batch_count": 1,
+      "batch_status": "submitted",
+      "provider_status": "completed",
+      "attempt_counts": {
+        "started": 27,
+        "succeeded": 3,
+        "failed": 0
+      }
+    }
+  },
+  "chosen_patch_hypothesis": "The unhealthy state is projection lag that can be safely reprojected once, but the deeper policy mismatch comes from the live Railway worker still running the pre-d38860a minBatchSize=30 deployment instead of the repo's minBatchSize=35 code."
+}

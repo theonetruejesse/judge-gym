@@ -1,0 +1,245 @@
+{
+  "iteration_id": "20260322T051929Z_projection_freshness_gap_corrected_runtime",
+  "captured_at_utc": "2026-03-22T05:19:29Z",
+  "manifest_version": 2,
+  "launch_mode": "full",
+  "repo_head": "d38860ae9841c239bf3caefbd278d864f3ed5d23",
+  "expected_counts": {
+    "experiments": 18
+  },
+  "observed_counts": {
+    "selected_experiment_count": 18,
+    "running": 18,
+    "completed": 0,
+    "error": 0,
+    "paused": 0,
+    "queued": 0,
+    "with_latest_run": 18
+  },
+  "launched_runs": [
+    {
+      "experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "run_id": "kx77p605g5ybya44jgjnjfctds83djqj"
+    },
+    {
+      "experiment_tag": "v3_1_c1_gpt_5_2_bundle_5_random_l2",
+      "run_id": "kx7a42ndkhr2b265ap8rs0etcn83cz31"
+    },
+    {
+      "experiment_tag": "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2",
+      "run_id": "kx70zyg23f3c5zeq0q4kw2jzm983c301"
+    },
+    {
+      "experiment_tag": "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2",
+      "run_id": "kx7abddhrha4ave4e92x5jnmdd83czhe"
+    },
+    {
+      "experiment_tag": "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2",
+      "run_id": "kx710zj6e4vzeqaqqtyb0665f583c6hj"
+    },
+    {
+      "experiment_tag": "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
+      "run_id": "kx77abxwbqjsj3fxpggn318b0183cvhc"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+      "run_id": "kx7att5fwyfwyd1jsf0xhk48x983d50k"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_true",
+      "run_id": "kx70bjn9fdr2yjcteaafdd8vxh83d83q"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_false",
+      "run_id": "kx74ndxe4b2kr57mbwh109pbe183cfvn"
+    },
+    {
+      "experiment_tag": "v3_a1_gpt_5_2_abstain_true",
+      "run_id": "kx7587261taj450p6nsew8y1bs83dvy7"
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_4_1_l3",
+      "run_id": "kx783xtk0em9dz4dbxt0a52j7x83d19p"
+    },
+    {
+      "experiment_tag": "v3_a2_gpt_5_2_l3",
+      "run_id": "kx7cwnw9zry4fjvty1pakcymzx83cwpt"
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "run_id": "kx7a6b6m189ck0z20fgkh4g3m983dczp"
+    },
+    {
+      "experiment_tag": "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "run_id": "kx77f8btf10hhqvqx0hy9najks83dr56"
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+      "run_id": "kx7fgye5qcy3jpg73etfd31yb183c8ar"
+    },
+    {
+      "experiment_tag": "v3_a5_gpt_5_2_illiberal_democracy",
+      "run_id": "kx77aqycmgrx8bmsqgmrs2g73x83d94p"
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_4_1",
+      "run_id": "kx712b0kdcd5xs2zm7eexmphz983dwdw"
+    },
+    {
+      "experiment_tag": "v3_d1_control_gpt_5_2",
+      "run_id": "kx78wjz7608j52p8c66mtg0ye583dwqk"
+    }
+  ],
+  "cohort_status": {
+    "effective_campaign_state": "stalled_recoverable",
+    "launch_ready": false,
+    "scientific_validity": "scientifically_unknown",
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 2
+      },
+      {
+        "stage": "score_gen",
+        "count": 16
+      },
+      {
+        "stage": "score_critic",
+        "count": 0
+      }
+    ],
+    "stuck_summary": [
+      {
+        "reason": "stale_projection",
+        "count": 11
+      }
+    ],
+    "stuck_process_ids": [
+      "kx77p605g5ybya44jgjnjfctds83djqj",
+      "kx70zyg23f3c5zeq0q4kw2jzm983c301",
+      "kx7abddhrha4ave4e92x5jnmdd83czhe",
+      "kx77abxwbqjsj3fxpggn318b0183cvhc",
+      "kx7att5fwyfwyd1jsf0xhk48x983d50k",
+      "kx70bjn9fdr2yjcteaafdd8vxh83d83q",
+      "kx7587261taj450p6nsew8y1bs83dvy7",
+      "kx7cwnw9zry4fjvty1pakcymzx83cwpt",
+      "kx7a6b6m189ck0z20fgkh4g3m983dczp",
+      "kx7fgye5qcy3jpg73etfd31yb183c8ar",
+      "kx77aqycmgrx8bmsqgmrs2g73x83d94p"
+    ]
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "run_queue_ready": true,
+    "window_queue_ready": true,
+    "blocked_task_queues": []
+  },
+  "representative_diagnostics": {
+    "direct_run": {
+      "process_id": "kx7587261taj450p6nsew8y1bs83dvy7",
+      "stage": "rubric_critic",
+      "temporal_status": "RUNNING",
+      "workflow_bound": true,
+      "observability": {
+        "updated_at_ms": 1774156514357,
+        "last_event_name": "run_stage_result_applied",
+        "last_stage": "rubric_critic",
+        "recent_event_count": 32
+      }
+    },
+    "batch_run": {
+      "process_id": "kx7att5fwyfwyd1jsf0xhk48x983d50k",
+      "stage": "score_gen",
+      "temporal_status": "RUNNING",
+      "workflow_bound": true,
+      "observability": {
+        "updated_at_ms": 1774156517049,
+        "last_event_name": "batch_polled",
+        "last_stage": "score_gen",
+        "recent_event_count": 32
+      },
+      "batch_reconciliation": {
+        "batch_count": 2,
+        "total_items": 600,
+        "status_counts": {
+          "preparing": 0,
+          "submitted": 2,
+          "completed": 0,
+          "failed": 0,
+          "cancelled": 0
+        },
+        "target_counts": {
+          "pending": 600,
+          "completed": 0,
+          "failed": 0
+        }
+      }
+    },
+    "small_batch_run": {
+      "process_id": "kx77p605g5ybya44jgjnjfctds83djqj",
+      "stage": "score_gen",
+      "batch_reconciliation": {
+        "batch_count": 1,
+        "total_items": 120,
+        "status_counts": {
+          "preparing": 0,
+          "submitted": 1,
+          "completed": 0,
+          "failed": 0,
+          "cancelled": 0
+        },
+        "target_counts": {
+          "pending": 120,
+          "completed": 0,
+          "failed": 0
+        },
+        "provider_status": "completed",
+        "output_file_id": null
+      }
+    }
+  },
+  "dominant_failure_domain": "projection_staleness",
+  "scientific_validity_judgment": "scientifically_unknown",
+  "safe_heal": {
+    "attempted": true,
+    "action": {
+      "process_id": "kx7att5fwyfwyd1jsf0xhk48x983d50k",
+      "command": "repair_bounded",
+      "operation": "reproject_snapshot",
+      "accepted": true
+    },
+    "changed": {
+      "stuck_summary_before": [
+        {
+          "reason": "stale_projection",
+          "count": 11
+        }
+      ],
+      "stuck_summary_after": [
+        {
+          "reason": "stale_projection",
+          "count": 1
+        }
+      ],
+      "representative_observability_after": {
+        "process_id": "kx7att5fwyfwyd1jsf0xhk48x983d50k",
+        "updated_at_ms": 1774156963819,
+        "last_event_name": "batch_completed",
+        "last_stage": "score_gen"
+      }
+    }
+  },
+  "chosen_patch_hypothesis": "Long-running run-stage work is not emitting durable enough progress heartbeats across direct-request waits and some batch-completion/apply waits, so process_observability ages out before the workflow finishes. Add explicit liveness heartbeats around long in-flight work and validate that the cohort snapshot stays fresh through score-stage completion.",
+  "validation_outcome": {
+    "status": "passed_local",
+    "checks": [
+      "cd apps/engine-temporal && bun run test",
+      "bun run typecheck"
+    ]
+  },
+  "commit_hash": null
+}

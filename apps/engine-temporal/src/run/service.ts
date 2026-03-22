@@ -50,6 +50,7 @@ type RunStageDependencies = {
   runOpenAiBatchChat?: typeof runOpenAiBatchChat;
   quota: QuotaStore;
   settings?: EngineSettings;
+  processHeartbeatIntervalMs?: number;
 };
 
 type RunAttemptFailureState = {
@@ -67,12 +68,18 @@ type BatchExecutionRecord = {
   error_file_id?: string | null;
 };
 
+const DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS = 30_000;
+
 function getSettings(deps: RunStageDependencies) {
   return deps.settings ?? DEFAULT_ENGINE_SETTINGS;
 }
 
 function getBatchExecutor(deps: RunStageDependencies) {
   return deps.runOpenAiBatchChat ?? runOpenAiBatchChat;
+}
+
+function getProcessHeartbeatIntervalMs(deps: RunStageDependencies) {
+  return deps.processHeartbeatIntervalMs ?? DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS;
 }
 
 function getDefaultRunStageDependencies(): RunStageDependencies {
@@ -217,6 +224,38 @@ async function sleep(ms: number) {
     return;
   }
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withPeriodicHeartbeat<T>(args: {
+  intervalMs: number;
+  onHeartbeat?: (() => Promise<void> | void) | undefined;
+  task: () => Promise<T>;
+}) {
+  if (!args.onHeartbeat || args.intervalMs <= 0) {
+    return args.task();
+  }
+
+  let heartbeatInFlight: Promise<void> | null = null;
+  const timer = setInterval(() => {
+    if (heartbeatInFlight) {
+      return;
+    }
+    heartbeatInFlight = Promise.resolve(args.onHeartbeat?.())
+      .catch((error) => {
+        console.warn("[run.stage] process heartbeat failed", String(error));
+      })
+      .finally(() => {
+        heartbeatInFlight = null;
+      });
+  }, args.intervalMs);
+  timer.unref?.();
+
+  try {
+    return await args.task();
+  } finally {
+    clearInterval(timer);
+    await heartbeatInFlight;
+  }
 }
 
 export async function runRunStageActivityWithDeps(
@@ -477,11 +516,27 @@ async function executeRunChatAttempt(
       );
     }
 
-    const result = await deps.runOpenAiChat({
-      model: args.input.model,
-      systemPrompt: args.input.system_prompt,
-      userPrompt: args.input.user_prompt,
-      timeoutMs: settings.llm.direct.requestTimeoutMs,
+    const result = await withPeriodicHeartbeat({
+      intervalMs: getProcessHeartbeatIntervalMs(deps),
+      onHeartbeat: async () => {
+        await deps.convex.recordProcessHeartbeat?.({
+          process_kind: "run",
+          process_id: args.runId,
+          stage: args.stage,
+          payload_json: JSON.stringify({
+            source: "direct_request",
+            attempt_id,
+            target_id: args.input.target_id,
+            model: args.input.model,
+          }),
+        });
+      },
+      task: () => deps.runOpenAiChat({
+        model: args.input.model,
+        systemPrompt: args.input.system_prompt,
+        userPrompt: args.input.user_prompt,
+        timeoutMs: settings.llm.direct.requestTimeoutMs,
+      }),
     });
     await deps.convex.applyRunStageResult({
       run_id: args.runId,
@@ -653,47 +708,63 @@ async function processRunStageBatchChunk(
         item_count: startedAttempts.length,
         })
         : null;
-      const batch = await getBatchExecutor(deps)({
-        model: args.model,
-        existingBatchId: batchExecution?.provider_batch_id ?? undefined,
-        items: startedAttempts.map(({ input, attemptId }) => ({
-          customId: attemptId,
-          model: input.model,
-          systemPrompt: input.system_prompt,
-          userPrompt: input.user_prompt,
-          metadata: { input, attemptId },
-        })),
-        settings: settings.llm.batching,
-        timeoutMs: settings.llm.batching.requestTimeoutMs,
-        onBatchCreated: async (event) => {
-          await deps.convex.bindBatchExecutionSubmitted?.({
-            batch_execution_id: batchExecution!.batch_execution_id,
-            provider_batch_id: event.batchId,
-            input_file_id: event.inputFileId,
-            provider_status: event.status,
-          });
-        },
-        onLifecycleEvent: async (event) => {
-          if (batchExecution) {
-            await deps.convex.finalizeBatchExecution?.({
-              batch_execution_id: batchExecution.batch_execution_id,
-              status: "submitted",
-              provider_status: event.status,
-            });
-          }
+      const batch = await withPeriodicHeartbeat({
+        intervalMs: getProcessHeartbeatIntervalMs(deps),
+        onHeartbeat: async () => {
           await deps.convex.recordProcessHeartbeat?.({
             process_kind: "run",
             process_id: args.runId,
             stage: args.stage,
-            event_name: `batch_${event.phase}`,
             payload_json: JSON.stringify({
-              batch_id: event.batchId,
-              status: event.status,
+              source: "batch_wait",
               model: args.model,
               item_count: startedAttempts.length,
+              batch_key: batchKey,
             }),
           });
         },
+        task: () => getBatchExecutor(deps)({
+          model: args.model,
+          existingBatchId: batchExecution?.provider_batch_id ?? undefined,
+          items: startedAttempts.map(({ input, attemptId }) => ({
+            customId: attemptId,
+            model: input.model,
+            systemPrompt: input.system_prompt,
+            userPrompt: input.user_prompt,
+            metadata: { input, attemptId },
+          })),
+          settings: settings.llm.batching,
+          timeoutMs: settings.llm.batching.requestTimeoutMs,
+          onBatchCreated: async (event) => {
+            await deps.convex.bindBatchExecutionSubmitted?.({
+              batch_execution_id: batchExecution!.batch_execution_id,
+              provider_batch_id: event.batchId,
+              input_file_id: event.inputFileId,
+              provider_status: event.status,
+            });
+          },
+          onLifecycleEvent: async (event) => {
+            if (batchExecution) {
+              await deps.convex.finalizeBatchExecution?.({
+                batch_execution_id: batchExecution.batch_execution_id,
+                status: "submitted",
+                provider_status: event.status,
+              });
+            }
+            await deps.convex.recordProcessHeartbeat?.({
+              process_kind: "run",
+              process_id: args.runId,
+              stage: args.stage,
+              event_name: `batch_${event.phase}`,
+              payload_json: JSON.stringify({
+                batch_id: event.batchId,
+                status: event.status,
+                model: args.model,
+                item_count: startedAttempts.length,
+              }),
+            });
+          },
+        }),
       });
 
       await deps.quota.settle({

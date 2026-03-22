@@ -1,0 +1,91 @@
+{
+  "captured_at": "2026-03-22T05:09:23Z",
+  "manifest_version": 2,
+  "launch_mode": "full",
+  "commit_at_observation": "d38860a",
+  "expected_counts": {
+    "experiments": 18,
+    "target_count_per_experiment": 30,
+    "pause_after": null
+  },
+  "cohort_status": {
+    "effective_campaign_state": "stalled_recoverable",
+    "launch_ready": false,
+    "scientific_validity": "scientifically_unknown",
+    "counts": {
+      "running": 18,
+      "paused": 0,
+      "completed": 0,
+      "error": 0,
+      "queued": 0,
+      "start": 0
+    },
+    "stage_distribution": [
+      { "stage": "rubric_gen", "count": 0 },
+      { "stage": "rubric_critic", "count": 10 },
+      { "stage": "score_gen", "count": 8 },
+      { "stage": "score_critic", "count": 0 }
+    ],
+    "stuck_summary": [
+      { "reason": "stale_projection", "count": 16 }
+    ]
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "blocked_task_queues": [],
+    "queues": [
+      {
+        "task_queue": "judge-gym.run",
+        "queue_kind": "run",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1,
+        "identity": "1@5ac3bb478b64"
+      },
+      {
+        "task_queue": "judge-gym.window",
+        "queue_kind": "window",
+        "ready": true,
+        "approximate_backlog_count": 0,
+        "workflow_poller_count": 1,
+        "activity_poller_count": 1,
+        "identity": "1@5ac3bb478b64"
+      }
+    ]
+  },
+  "dominant_failure_domain": "projection_staleness",
+  "safe_heal": {
+    "attempted": false,
+    "operation": null,
+    "result": null
+  },
+  "notable_process_inspection": {
+    "process_id": "kx77p605g5ybya44jgjnjfctds83djqj",
+    "health_current_stage": "score_gen",
+    "temporal_status": "RUNNING",
+    "workflow_found": true,
+    "workflow_snapshot": {
+      "stage": "score_gen",
+      "stageStatus": "running",
+      "stageHistory": ["rubric_gen", "rubric_critic"]
+    },
+    "score_gen_batch": {
+      "batch_count": 1,
+      "status": "preparing",
+      "provider_status": null,
+      "item_count": 120,
+      "attempt_counts": {
+        "started": 120,
+        "succeeded": 0,
+        "failed": 0
+      },
+      "target_counts": {
+        "pending": 120,
+        "completed": 0,
+        "failed": 0
+      }
+    }
+  },
+  "chosen_patch_hypothesis": "Batch-backed run stages still allow process_observability to go stale during long provider waits because heartbeats only fire on batch lifecycle transitions. Add periodic batch-poll heartbeats so healthy long-running score stages remain observable without relying on status changes."
+}
