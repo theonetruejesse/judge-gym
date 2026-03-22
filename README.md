@@ -20,6 +20,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 - After Convex schema or function changes, run `bun run validate:convex` from the repo root.
 - That routine runs `npx convex codegen` in `apps/engine-convex` and then the root TypeScript typecheck.
+- After runtime-affecting worker changes, deploy the Railway worker and verify live queue readiness before resuming a real V3 pass.
 
 **JavaScript install flow**
 
@@ -32,6 +33,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Railway-specific deployment details live in `docs/railway.md`.
 - Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
 - The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
+- Use `./scripts/deploy_railway_worker.sh` for the current manual worker deploy flow when `apps/engine-temporal`, `packages/engine-settings`, `packages/engine-prompts`, `Dockerfile`, or `railway.toml` change.
 - After the stack is configured, `bun run pilot:smoke` is the recommended first end-to-end validation path.
 - After a large evidence collection window completes, `bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>` is the supported path for creating the single pool plus the current manifest-selected V3 matrix cohort.
 
@@ -94,6 +96,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - The engine includes Bun live-debug commands in `apps/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
+- For raw live Convex function calls that do not already have a dedicated debug wrapper, use `./scripts/run_convex.sh <functionName> '<jsonArgs>'`; it resolves the local Convex CLI through the repo's supported Node 22 runtime instead of relying on ad hoc `nvm` shell prefixes.
 - `packages/codex:listBatchReconciliationStatus` plus `bun run debug:batches -- --run <run_id> [--stage <stage>]` expose per-stage `llm_batch_executions`, showing if each provider batch chunk is submitted, polling, completed, failed, or still applying before the next stage runs.
 - The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
 - The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
@@ -105,6 +108,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
 - The corrected V3 matrix is now codified in-engine and can be materialized deterministically from a single pool through `packages/codex:getV3MatrixContract` and `packages/codex:initV3MatrixFromPool`; the init script defaults to the manifest’s explicit experiment tags unless you pass `--all-experiments`.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
+- The lab experiment surfaces now expose `latest_run.current_stage_progress`, so the runs table shows partial current-stage progress instead of only coarse finalized run counters.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
 - Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.

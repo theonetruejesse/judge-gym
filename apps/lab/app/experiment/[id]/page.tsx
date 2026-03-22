@@ -51,6 +51,13 @@ type ExperimentSummary = {
     current_stage: string;
     target_count: number;
     completed_count: number;
+    current_stage_progress: {
+      completed: number;
+      failed: number;
+      pending: number;
+      total: number;
+      status: string;
+    };
     created_at: number;
     has_failures: boolean;
   };
@@ -395,6 +402,10 @@ function RunsPanel({
     );
   }
 
+  const currentStageProgress = runSummary.stages.find(
+    (stage) => stage.stage === runSummary.current_stage,
+  );
+
   return (
     <div className="space-y-4">
       <Card className="border-border bg-card/80">
@@ -408,8 +419,35 @@ function RunsPanel({
               {runSummary.current_stage ?? "no stage"}
             </span>
             <span className="text-[10px] uppercase tracking-wider opacity-40">
-              done {runSummary.completed_count}/{runSummary.target_count}
+              stage{" "}
+              {currentStageProgress
+                ? `${currentStageProgress.completed}/${currentStageProgress.total}`
+                : "0/0"}
             </span>
+            <span className="text-[10px] uppercase tracking-wider opacity-40">
+              samples {runSummary.completed_count}/{runSummary.target_count}
+            </span>
+            {currentStageProgress && currentStageProgress.status === "running" && (
+              <span className="text-[10px] uppercase tracking-wider opacity-40">
+                pending{" "}
+                {Math.max(
+                  currentStageProgress.total -
+                    currentStageProgress.completed -
+                    currentStageProgress.failed,
+                  0,
+                )}
+              </span>
+            )}
+            {currentStageProgress && currentStageProgress.failed > 0 && (
+              <span className="text-[10px] uppercase tracking-wider text-amber-600">
+                failed {currentStageProgress.failed}
+              </span>
+            )}
+            {runSummary.has_failures && (
+              <span className="text-[10px] uppercase tracking-wider text-amber-600">
+                stage failures {runSummary.failed_stage_count}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="w-32">

@@ -59,7 +59,11 @@ async function latestRunHasFailures(
   ctx: QueryCtx,
   run: Doc<"runs">,
   samples: Array<Doc<"samples">>,
-): Promise<{ hasFailures: boolean; completedCount: number }> {
+): Promise<{
+  hasFailures: boolean;
+  completedCount: number;
+  snapshot: Awaited<ReturnType<typeof getRunProgressSnapshot>> | null;
+}> {
   const scoreTargets = await ctx.db
     .query("sample_score_targets")
     .withIndex("by_run", (q) => q.eq("run_id", run._id))
@@ -70,6 +74,7 @@ async function latestRunHasFailures(
   return {
     hasFailures: snapshot?.hasFailures ?? false,
     completedCount,
+    snapshot,
   };
 }
 
@@ -92,6 +97,38 @@ function stageCountsFromSnapshot(
     rubric_critic: snapshot?.byStage.rubric_critic.completed ?? 0,
     score_gen: snapshot?.byStage.score_gen.completed ?? 0,
     score_critic: snapshot?.byStage.score_critic.completed ?? 0,
+  };
+}
+
+function currentStageProgressFromSnapshot(
+  snapshot: Awaited<ReturnType<typeof getRunProgressSnapshot>> | null,
+  stage: z.infer<typeof RunStageSchema>,
+  fallbackTotal: number,
+) {
+  const progress = snapshot?.byStage[stage];
+  if (!progress) {
+    return {
+      completed: 0,
+      failed: 0,
+      pending: fallbackTotal,
+      total: fallbackTotal,
+      status: fallbackTotal > 0 ? "running" : "queued",
+    };
+  }
+
+  const pending = Math.max(progress.total - progress.completed - progress.failed, 0);
+  const status = progress.hasPending
+    ? "running"
+    : progress.completed > 0 || progress.failed > 0
+      ? "completed"
+      : "queued";
+
+  return {
+    completed: progress.completed,
+    failed: progress.failed,
+    pending,
+    total: progress.total,
+    status,
   };
 }
 
@@ -149,6 +186,13 @@ async function buildExperimentRows(
       target_count: number;
       completed_count: number;
       pause_after: z.infer<typeof RunStageSchema> | null;
+      current_stage_progress: {
+        completed: number;
+        failed: number;
+        pending: number;
+        total: number;
+        status: string;
+      };
       stage_counts: {
         rubric_gen: number;
         rubric_critic: number;
@@ -180,7 +224,7 @@ async function buildExperimentRows(
     }
     const latestRunState = latest
       ? await latestRunHasFailures(ctx, latest, latestSamples)
-      : { hasFailures: false, completedCount: 0 };
+      : { hasFailures: false, completedCount: 0, snapshot: null };
 
     results.push({
       experiment_id: experiment._id,
@@ -200,7 +244,14 @@ async function buildExperimentRows(
           target_count: latest.target_count,
           completed_count: latestRunState.completedCount,
           pause_after: latest.pause_after ?? null,
-          stage_counts: stageCountsFromArtifacts(latestSamples),
+          current_stage_progress: currentStageProgressFromSnapshot(
+            latestRunState.snapshot,
+            latest.current_stage,
+            latest.target_count,
+          ),
+          stage_counts: latestRunState.snapshot
+            ? stageCountsFromSnapshot(latestRunState.snapshot)
+            : stageCountsFromArtifacts(latestSamples),
           created_at: latest._creationTime,
           has_failures: latestRunState.hasFailures,
         }
@@ -296,7 +347,7 @@ export const getExperimentSummary = zInternalQuery({
     }
     const latestRunState = latest
       ? await latestRunHasFailures(ctx, latest, latestSamples)
-      : { hasFailures: false, completedCount: 0 };
+      : { hasFailures: false, completedCount: 0, snapshot: null };
 
     return {
       experiment_id: experiment._id,
@@ -318,7 +369,14 @@ export const getExperimentSummary = zInternalQuery({
           target_count: latest.target_count,
           completed_count: latestRunState.completedCount,
           pause_after: latest.pause_after ?? null,
-          stage_counts: stageCountsFromArtifacts(latestSamples),
+          current_stage_progress: currentStageProgressFromSnapshot(
+            latestRunState.snapshot,
+            latest.current_stage,
+            latest.target_count,
+          ),
+          stage_counts: latestRunState.snapshot
+            ? stageCountsFromSnapshot(latestRunState.snapshot)
+            : stageCountsFromArtifacts(latestSamples),
           created_at: latest._creationTime,
           has_failures: latestRunState.hasFailures,
         }

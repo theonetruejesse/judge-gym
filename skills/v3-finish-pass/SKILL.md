@@ -46,6 +46,7 @@ Current defaults are:
 - `packages/codex:controlProcessExecution`
 
 Do not reconstruct the cohort by prefix search. Always use the manifest’s explicit tags.
+For raw live control-plane calls that do not already have a dedicated Bun wrapper, use `scripts/run_convex.sh` so the repo resolves the local Convex CLI through the supported Node runtime instead of relying on ad hoc `nvm`-prefixed shell calls.
 
 ## Campaign states
 
@@ -87,11 +88,13 @@ Read them from `manifest.json`.
 2. Read the cohort using `control_plane.snapshot_fn` with the manifest’s explicit tags.
 3. If the pass is unhealthy, write an iteration snapshot **before any reset**.
 4. Reset with `control_plane.reset_fn`.
+   - Poll `control_plane.snapshot_fn` until the cohort is truly back to `preflight_clean`.
+   - If the action-level reset returns but only a small set of non-active leftover runs remain, use a bounded targeted `packages/codex:resetRuns` fallback for the remaining experiment tags and record that in campaign bookkeeping.
 5. Launch with `control_plane.start_fn`, passing the manifest’s explicit tags and launch-mode values.
 6. Monitor with repeated `control_plane.snapshot_fn`.
 7. If snapshot state becomes `stalled_recoverable`, do at most **one** bounded safe-heal pass.
 8. If still unhealthy, or if state becomes `scientifically_invalid` or `stalled_unknown`, capture forensics and stop the pass.
-9. Diagnose, patch the smallest blocking bug, validate, commit, and start the next iteration.
+9. Diagnose, patch the smallest blocking bug, validate, deploy any runtime-affecting worker changes to Railway, verify live worker identity/queue readiness on the intended deployment, commit, and start the next iteration.
 
 Safe-heal is diagnostic evidence, not steady-state operating procedure. The objective is an engine that no longer requires agentic monitoring.
 
@@ -187,3 +190,4 @@ then add an item to `_campaigns/v3_finish_pass/observability_backlog.json`.
 - Follow repo rules in `AGENTS.md`.
 - Update `README.md` when behavior or operator surfaces change.
 - Keep campaign semantics out of `AGENTS.md`; this skill owns them.
+- Treat Railway deploy verification as part of the loop, not an optional postscript: do not relaunch the live V3 cohort on stale worker code.

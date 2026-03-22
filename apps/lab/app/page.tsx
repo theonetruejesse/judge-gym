@@ -53,6 +53,13 @@ type ExperimentListItem = {
     current_stage: string;
     target_count: number;
     completed_count: number;
+    current_stage_progress: {
+      completed: number;
+      failed: number;
+      pending: number;
+      total: number;
+      status: string;
+    };
     created_at: number;
     has_failures: boolean;
   };
@@ -144,6 +151,31 @@ export default function EvidenceHomePage() {
     }
   };
 
+  const renderRunSummary = (run?: ExperimentListItem["latest_run"]) => {
+    if (!run) {
+      return <span className="text-xs opacity-40">No run</span>;
+    }
+
+    const stageProgress = run.current_stage_progress;
+    return (
+      <div className="space-y-0.5">
+        <div className="text-[10px] uppercase tracking-wider opacity-60">
+          {run.current_stage}
+        </div>
+        <div className="text-xs opacity-75">
+          {stageProgress.completed}/{stageProgress.total} {stageProgress.status}
+        </div>
+        <div className="text-[10px] opacity-45">
+          pending {stageProgress.pending}
+          {stageProgress.failed > 0 ? ` · failed ${stageProgress.failed}` : ""}
+          {run.completed_count > 0
+            ? ` · samples ${run.completed_count}/${run.target_count}`
+            : ""}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <LabNavbar />
@@ -210,6 +242,7 @@ export default function EvidenceHomePage() {
                 <TableRow>
                   <TableHead className="w-20 text-center">Status</TableHead>
                   <TableHead>Tag</TableHead>
+                  <TableHead>Latest Run</TableHead>
                   <TableHead>Rubric</TableHead>
                   <TableHead>Scoring</TableHead>
                   <TableHead>Concept</TableHead>
@@ -221,14 +254,14 @@ export default function EvidenceHomePage() {
               <TableBody>
                 {experimentsLoading && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-xs opacity-50">
+                    <TableCell colSpan={9} className="text-xs opacity-50">
                       Loading experiments...
                     </TableCell>
                   </TableRow>
                 )}
                 {!experimentsLoading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-xs opacity-50">
+                    <TableCell colSpan={9} className="text-xs opacity-50">
                       No experiments found.
                     </TableCell>
                   </TableRow>
@@ -259,6 +292,9 @@ export default function EvidenceHomePage() {
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       {exp.experiment_tag ?? exp.experiment_id}
+                    </TableCell>
+                    <TableCell className="opacity-70">
+                      {renderRunSummary(exp.latest_run)}
                     </TableCell>
                     <TableCell className="opacity-70">
                       {exp.rubric_config.model}

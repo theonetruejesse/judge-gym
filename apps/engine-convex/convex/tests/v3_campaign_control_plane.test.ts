@@ -485,6 +485,68 @@ describe("v3 campaign control plane", () => {
     ).toBe(true);
   });
 
+  test("lab experiment surfaces expose in-progress current stage counts", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const alpha = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+    const runId = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: alpha,
+      target_count: 2,
+      pause_after: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, {
+        status: "running",
+        current_stage: "rubric_critic",
+      });
+
+      const samples = (await ctx.db.query("samples").collect()).filter(
+        (sample) => sample.run_id === runId,
+      );
+
+      const rubricCriticId = await ctx.db.insert("rubric_critics", {
+        run_id: runId,
+        sample_id: samples[0]._id,
+        model: "gpt-4.1-mini",
+        justification: "partial progress",
+        expert_agreement_prob: {
+          observability_score: 0.8,
+          discriminability_score: 0.7,
+        },
+      });
+
+      await ctx.db.patch(samples[0]._id, {
+        rubric_critic_id: rubricCriticId,
+      });
+    });
+
+    const experiments = await t.query(api.packages.lab.listExperiments, {});
+    const experiment = experiments.find((row: (typeof experiments)[number]) => row.experiment_id === alpha);
+    expect(experiment?.latest_run?.current_stage).toBe("rubric_critic");
+    expect(experiment?.latest_run?.current_stage_progress).toEqual({
+      completed: 1,
+      failed: 0,
+      pending: 1,
+      total: 2,
+      status: "running",
+    });
+
+    const summary = await t.query(api.packages.lab.getExperimentSummary, {
+      experiment_id: alpha,
+    });
+    expect(summary.latest_run?.current_stage_progress).toEqual({
+      completed: 1,
+      failed: 0,
+      pending: 1,
+      total: 2,
+      status: "running",
+    });
+  });
+
   test("resetV3Campaign wraps cohort cleanup in one action", async () => {
     const t = initTest();
     const { pool_id } = await seedWindowAndEvidence(t);

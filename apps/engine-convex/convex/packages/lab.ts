@@ -677,6 +677,13 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
           target_count: z.number(),
           completed_count: z.number(),
           pause_after: RunStageSchema.nullable(),
+          current_stage_progress: z.object({
+            completed: z.number(),
+            failed: z.number(),
+            pending: z.number(),
+            total: z.number(),
+            status: z.string(),
+          }),
           stage_counts: z.object({
             rubric_gen: z.number(),
             rubric_critic: z.number(),
@@ -718,6 +725,13 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
       target_count: z.number(),
       completed_count: z.number(),
       pause_after: RunStageSchema.nullable(),
+      current_stage_progress: z.object({
+        completed: z.number(),
+        failed: z.number(),
+        pending: z.number(),
+        total: z.number(),
+        status: z.string(),
+      }),
       stage_counts: z.object({
         rubric_gen: z.number(),
         rubric_critic: z.number(),

@@ -25,7 +25,7 @@ type Args = {
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..", "..");
-const ENGINE_CONVEX_ROOT = path.resolve(SCRIPT_DIR, "..");
+const CONVEX_RUNNER = path.join(REPO_ROOT, "scripts", "run_convex.sh");
 
 function parseArgs(argv: string[]): Args {
   const command = (argv[0] ?? "watch") as Args["command"];
@@ -185,15 +185,13 @@ function runConvex(functionName: string, payload: object) {
       functionName,
       functionName.replace("packages/codex:", "domain/maintenance/codex:"),
     ];
-  const bunBin = process.execPath || "bun";
-
   let lastError: string | null = null;
   for (const candidate of candidates) {
-    const command = bunBin;
-    const args = ["x", "convex", "run", candidate, JSON.stringify(payload)];
+    const command = "bash";
+    const args = [CONVEX_RUNNER, candidate, JSON.stringify(payload)];
 
     const result = spawnSync(command, args, {
-      cwd: ENGINE_CONVEX_ROOT,
+      cwd: REPO_ROOT,
       encoding: "utf8",
     });
 
