@@ -23,4 +23,14 @@ describe("temporal migration activities", () => {
     assert.equal(TEST_TASK_QUEUES.run, "judge-gym.run.test");
     assert.equal(TEST_TASK_QUEUES.window, "judge-gym.window.test");
   });
+
+  it("fails fast before querying Convex when a window stage input omits windowRunId", async () => {
+    await assert.rejects(
+      () => activities.runWindowStage({
+        windowRunId: undefined as unknown as string,
+        stage: "collect",
+      }),
+      /windowRunId is required/,
+    );
+  });
 });

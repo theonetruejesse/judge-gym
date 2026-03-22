@@ -438,7 +438,7 @@ async function getRunStageProgressDirect(
 
 export const getWindowExecutionContext = zQuery({
   args: z.object({
-    window_run_id: zid("window_runs"),
+    window_run_id: z.string().optional(),
   }),
   returns: z.object({
     window_run_id: zid("window_runs"),
@@ -456,28 +456,45 @@ export const getWindowExecutionContext = zQuery({
     end_date: z.string(),
     country: z.string(),
     query: z.string(),
-  }),
+  }).nullable(),
   handler: async (ctx, { window_run_id }) => {
-    const windowRun = await ctx.db.get(window_run_id);
-    if (!windowRun) {
-      throw new Error("Window run not found");
+    if (typeof window_run_id !== "string" || window_run_id.trim().length === 0) {
+      return null;
     }
-    const window = await ctx.db.get(windowRun.window_id);
+
+    let windowRun:
+      | Doc<"window_runs">
+      | null;
+    try {
+      windowRun = await ctx.db.get(window_run_id as Id<"window_runs">);
+    } catch {
+      return null;
+    }
+    if (!windowRun) {
+      return null;
+    }
+    const parsedWindowRun = WindowRunsTableSchema.safeParse(windowRun);
+    if (!parsedWindowRun.success) {
+      return null;
+    }
+    const normalizedWindowRun = parsedWindowRun.data;
+    const normalizedWindowRunId = windowRun._id as Id<"window_runs">;
+    const window = await ctx.db.get(normalizedWindowRun.window_id);
     if (!window) {
-      throw new Error("Window not found");
+      return null;
     }
     return {
-      window_run_id,
-      window_id: windowRun.window_id,
-      workflow_id: windowRun.workflow_id ?? null,
-      workflow_run_id: windowRun.workflow_run_id ?? null,
-      status: windowRun.status,
-      current_stage: windowRun.current_stage,
-      pause_after: windowRun.pause_after ?? null,
-      target_stage: windowRun.target_stage,
-      target_count: windowRun.target_count,
-      completed_count: windowRun.completed_count,
-      model: windowRun.model,
+      window_run_id: normalizedWindowRunId,
+      window_id: normalizedWindowRun.window_id,
+      workflow_id: normalizedWindowRun.workflow_id ?? null,
+      workflow_run_id: normalizedWindowRun.workflow_run_id ?? null,
+      status: normalizedWindowRun.status,
+      current_stage: normalizedWindowRun.current_stage,
+      pause_after: normalizedWindowRun.pause_after ?? null,
+      target_stage: normalizedWindowRun.target_stage,
+      target_count: normalizedWindowRun.target_count,
+      completed_count: normalizedWindowRun.completed_count,
+      model: normalizedWindowRun.model,
       start_date: window.start_date,
       end_date: window.end_date,
       country: window.country,

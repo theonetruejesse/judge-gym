@@ -19,6 +19,15 @@ function requireConvexUrl() {
   return url;
 }
 
+function assertRequiredProcessId(
+  value: unknown,
+  field: string,
+) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${field} is required`);
+  }
+}
+
 type WindowExecutionContext = {
   window_run_id: string;
   window_id: string;
@@ -224,6 +233,7 @@ export class ConvexWorkerClient {
   }
 
   getRunExecutionContext(run_id: string) {
+    assertRequiredProcessId(run_id, "run_id");
     return this.client.query(workerApi.getRunExecutionContext, {
       run_id,
     }) as Promise<RunExecutionContext>;
@@ -238,9 +248,15 @@ export class ConvexWorkerClient {
   }
 
   getWindowExecutionContext(window_run_id: string) {
+    assertRequiredProcessId(window_run_id, "window_run_id");
     return this.client.query(workerApi.getWindowExecutionContext, {
       window_run_id,
-    }) as Promise<WindowExecutionContext>;
+    }).then((context) => {
+      if (!context) {
+        throw new Error(`window execution context not found for ${window_run_id}`);
+      }
+      return context as WindowExecutionContext;
+    });
   }
 
   searchWindowEvidence(args: {
@@ -264,6 +280,7 @@ export class ConvexWorkerClient {
   projectProcessState<TStage extends string>(
     input: ProjectProcessStateInput<TStage>,
   ) {
+    assertRequiredProcessId(input.processId, "processId");
     return this.client.mutation(workerApi.projectProcessState, input);
   }
 

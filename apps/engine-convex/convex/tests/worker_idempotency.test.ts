@@ -192,6 +192,22 @@ describe("worker mutation idempotency", () => {
     expect(second.total).toBe(1);
   });
 
+  test("returns null instead of throwing for malformed window execution context queries", async () => {
+    const t = initTest();
+    const { window_id, window_run_id } = await seedWindow(t);
+
+    await expect(t.query(api.packages.worker.getWindowExecutionContext, {} as never)).resolves.toBeNull();
+    await expect(t.query(api.packages.worker.getWindowExecutionContext, {
+      window_run_id: String(window_id) as never,
+    })).resolves.toBeNull();
+    await expect(t.query(api.packages.worker.getWindowExecutionContext, {
+      window_run_id: String(window_run_id) as never,
+    })).resolves.toMatchObject({
+      window_run_id,
+      window_id,
+    });
+  });
+
   test("applying l3 twice is a no-op and does not double-increment completed_count", async () => {
     const t = initTest();
     const { window_run_id } = await seedWindow(t);
