@@ -22,7 +22,7 @@ export const EngineSettingsSchema = z.object({
     retryDelayMs: z.number().int().positive().default(5_000),
     activityStartToCloseMs: z.number().int().positive().default(150 * 60 * 1_000),
     projectionActivityStartToCloseMs: z.number().int().positive().default(5 * 60 * 1_000),
-    stageActivityMaxAttempts: z.number().int().min(1).default(3),
+    stageActivityMaxAttempts: z.number().int().min(1).default(1),
     taskQueues: z.object({
       run: z.string().min(1).default(TEMPORAL_TASK_QUEUES.run),
       window: z.string().min(1).default(TEMPORAL_TASK_QUEUES.window),
@@ -31,7 +31,7 @@ export const EngineSettingsSchema = z.object({
     retryDelayMs: 5_000,
     activityStartToCloseMs: 150 * 60 * 1_000,
     projectionActivityStartToCloseMs: 5 * 60 * 1_000,
-    stageActivityMaxAttempts: 3,
+    stageActivityMaxAttempts: 1,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -84,7 +84,7 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
     retryDelayMs: 5_000,
     activityStartToCloseMs: 150 * 60 * 1_000,
     projectionActivityStartToCloseMs: 5 * 60 * 1_000,
-    stageActivityMaxAttempts: 3,
+    stageActivityMaxAttempts: 1,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
       window: TEMPORAL_TASK_QUEUES.window,
@@ -97,8 +97,9 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   llm: {
     batching: {
       mode: "auto",
-      minBatchSize: 30,
+      minBatchSize: 35,
       maxBatchSize: 500,
+      maxBatchRequestBytes: 4_000_000,
       maxConcurrentBatches: 4,
       completionWindow: "24h",
       requestTimeoutMs: 120_000,

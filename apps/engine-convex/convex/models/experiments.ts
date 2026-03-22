@@ -1,6 +1,7 @@
 import z from "zod";
 import { RubricStageConfigSchema, ScoringStageConfigSchema, StateStatusSchema } from "./_shared";
 import { zid } from "convex-helpers/server/zod4";
+import { RunStageKeySchema } from "@judge-gym/engine-settings/process";
 
 
 export const ExperimentsTableSchema = z.object({
@@ -11,13 +12,7 @@ export const ExperimentsTableSchema = z.object({
     scoring_config: ScoringStageConfigSchema,
     total_count: z.number(),
 });
-
-export const RunStageSchema = z.enum([
-    "rubric_gen",
-    "rubric_critic",
-    "score_gen",
-    "score_critic",
-]);
+export const RunStageSchema = RunStageKeySchema;
 export type RunStage = z.infer<typeof RunStageSchema>;
 
 export const RunsTableSchema = z.object({

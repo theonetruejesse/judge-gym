@@ -3,6 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { api, internal } from "../_generated/api";
 import { modelTypeSchema, type ModelType } from "@judge-gym/engine-settings/provider";
+import { WindowStageKeySchema } from "@judge-gym/engine-settings/process";
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema, RunStageSchema } from "../models/experiments";
@@ -98,7 +99,7 @@ export const startWindowRunForm: ReturnType<typeof zMutation> = zMutation({
     model: modelTypeSchema,
     target_stage: WindowRunTargetStageSchema.optional(),
     evidence_limit: z.number().int().min(1).optional(),
-    pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable().optional(),
+    pause_after: WindowStageKeySchema.nullable().optional(),
   }),
   returns: z.object({
     window_run_id: zid("window_runs"),
@@ -388,7 +389,7 @@ export const listWindowRuns: ReturnType<typeof zQuery> = zQuery({
     window_id: zid("windows"),
     status: z.string(),
     current_stage: SemanticLevelSchema,
-    pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable(),
+    pause_after: WindowStageKeySchema.nullable(),
     target_stage: SemanticLevelSchema,
     target_count: z.number(),
     completed_count: z.number(),

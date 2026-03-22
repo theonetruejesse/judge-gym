@@ -125,6 +125,16 @@ const LaunchRowSchema = z.object({
   run_id: zid("runs").nullable(),
 });
 
+const ContinueRunResetResultSchema = z.object({
+  run_id: zid("runs"),
+  experiment_id: zid("experiments"),
+  run_exists: z.boolean(),
+  has_more: z.boolean(),
+  deleted: ResetExperimentRowSchema.shape.deleted,
+});
+
+type ContinueRunResetResult = z.infer<typeof ContinueRunResetResultSchema>;
+
 const ResumeRowSchema = z.object({
   experiment_id: zid("experiments"),
   experiment_tag: z.string(),
@@ -297,14 +307,8 @@ export const continueRunReset = zInternalMutation({
     experiment_id: zid("experiments"),
     limit_per_table: z.number().int().min(1).max(1000).default(RESET_RUN_LIMIT_PER_TABLE),
   }),
-  returns: z.object({
-    run_id: zid("runs"),
-    experiment_id: zid("experiments"),
-    run_exists: z.boolean(),
-    has_more: z.boolean(),
-    deleted: ResetExperimentRowSchema.shape.deleted,
-  }),
-  handler: async (ctx, args) => {
+  returns: ContinueRunResetResultSchema,
+  handler: async (ctx, args): Promise<ContinueRunResetResult> => {
     const result = await ctx.runMutation(
       internal.domain.maintenance.danger.deleteRunDataPass,
       {
@@ -318,7 +322,7 @@ export const continueRunReset = zInternalMutation({
     if (result.has_more) {
       await ctx.scheduler.runAfter(
         0,
-        internal.domain.maintenance.v3_campaign.continueRunReset,
+        internal.domain.maintenance.v3_campaign.continueRunReset as any,
         args,
       );
     } else {
@@ -1244,7 +1248,7 @@ export const resetV3CampaignChunked = zAction({
     }
 
     return ctx.runAction(
-      internal.domain.maintenance.v3_campaign.resetV3Campaign,
+      api.packages.codex.resetV3Campaign,
       args,
     );
   },

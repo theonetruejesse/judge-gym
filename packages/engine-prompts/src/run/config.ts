@@ -19,6 +19,12 @@ export const BundleStrategySchema = z.enum([
 
 export type BundleStrategy = z.infer<typeof BundleStrategySchema>;
 
+export const RandomizationModeSchema = z.enum([
+  "anonymize_stages",
+  "shuffle_rubric_order",
+  "hide_label_text",
+]);
+
 export const RubricStageConfigSchema = z.object({
   model: modelTypeSchema,
   scale_size: z.number(),
@@ -30,9 +36,7 @@ export const ScoringStageConfigSchema = z.object({
   method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
   evidence_view: SemanticLevelSchema,
-  randomizations: z.array(
-    z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
-  ),
+  randomizations: z.array(RandomizationModeSchema),
   evidence_bundle_size: z.number().int().min(1),
   bundle_strategy: BundleStrategySchema.optional(),
   bundle_strategy_version: z.string().optional(),
@@ -83,9 +87,7 @@ export function normalizeExperimentConfig<T extends {
 }
 
 export type RandomizationMode =
-  | "anonymize_stages"
-  | "shuffle_rubric_order"
-  | "hide_label_text";
+  z.infer<typeof RandomizationModeSchema>;
 
 export interface RandomizationStrategy {
   anonLabel: boolean;

@@ -355,6 +355,279 @@ describe("run stage service", function () {
     ]);
   });
 
+  it("reuses an existing provider batch instead of resubmitting batch work", async () => {
+    let seenExistingBatchId: string | undefined;
+    let bindSubmittedCalls = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_reuse_batch",
+              experiment_id: "exp_reuse_batch",
+              workflow_id: "run:run_reuse_batch",
+              workflow_run_id: "workflow-run-reuse-batch",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            return {
+              attempt_id: `attempt_${target_id}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_1",
+              provider_batch_id: "batch_existing",
+              status: "submitted",
+              output_file_id: null,
+              error_file_id: null,
+            };
+          },
+          async bindBatchExecutionSubmitted() {
+            bindSubmittedCalls += 1;
+            return null;
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat(args: { existingBatchId?: string }) {
+          seenExistingBatchId = args.existingBatchId;
+          return {
+            batchId: "batch_existing",
+            outputFileId: "file_out",
+            errorFileId: null,
+            succeeded: [
+              {
+                customId: "attempt_target_1",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_1",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-1",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_target_1",
+                },
+                batchId: "batch_existing",
+                assistant_output: "ok-1",
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+              },
+              {
+                customId: "attempt_target_2",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_2",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-2",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_target_2",
+                },
+                batchId: "batch_existing",
+                assistant_output: "ok-2",
+                input_tokens: 11,
+                output_tokens: 6,
+                total_tokens: 17,
+              },
+            ],
+            failed: [],
+          } as any;
+        },
+      },
+      "run_reuse_batch",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
+    assert.equal(seenExistingBatchId, "batch_existing");
+    assert.equal(bindSubmittedCalls, 0);
+  });
+
+  it("splits batch work by serialized request budget, not just item count", async () => {
+    let batchCallCount = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+              maxBatchRequestBytes: 500,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_budget",
+              experiment_id: "exp_batch_budget",
+              workflow_id: "run:run_batch_budget",
+              workflow_run_id: "workflow-run-batch-budget",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "x".repeat(800),
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "y".repeat(800),
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            return {
+              attempt_id: `attempt_${target_id}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat(args: any) {
+          batchCallCount += 1;
+          return {
+            batchId: `batch_${batchCallCount}`,
+            outputFileId: `file_out_${batchCallCount}`,
+            errorFileId: null,
+            succeeded: args.items.map((item: any) => ({
+              customId: `attempt_${item.metadata.input.target_id}`,
+              metadata: {
+                input: item.metadata.input,
+                attemptId: `attempt_${item.metadata.input.target_id}`,
+              },
+              batchId: `batch_${batchCallCount}`,
+              assistant_output: `ok-${item.metadata.input.target_id}`,
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            })),
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_budget",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
+    assert.equal(batchCallCount, 2);
+  });
+
   it("continues when stage finalization reports partial failure but surviving work completed", async () => {
     const calls: string[] = [];
 

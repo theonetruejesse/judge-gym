@@ -86,6 +86,10 @@ function main() {
     console.log("No batch executions found.");
     return;
   }
+  console.log(
+    JSON.stringify(response.summary, null, 2),
+  );
+  console.log("");
   response.batches.forEach((batch: any, index: number) => {
     console.log(`${index + 1}. ${describeBatch(batch)}`);
   });

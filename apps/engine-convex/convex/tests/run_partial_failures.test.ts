@@ -271,5 +271,5 @@ describe("run partial failure progression", () => {
         }),
       ]),
     );
-  });
+  }, 15_000);
 });

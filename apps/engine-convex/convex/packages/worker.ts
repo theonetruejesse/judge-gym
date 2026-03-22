@@ -694,12 +694,15 @@ export const listRunStageInputs = zQuery({
         .filter((sample) => sample.rubric_id != null)
         .map((sample) => ctx.db.get(sample.rubric_id!)),
     );
+    const rubricById = new Map(
+      rubrics
+        .filter((rubric): rubric is NonNullable<typeof rubrics[number]> => rubric != null)
+        .map((rubric) => [String(rubric._id), rubric] as const),
+    );
     const rubricBySampleId = new Map<string, NonNullable<typeof rubrics[number]>>();
     for (const sample of samples) {
-      if (!sample.rubric_id) {
-        continue;
-      }
-      const rubric = rubrics.find((candidate) => candidate?._id === sample.rubric_id);
+      if (!sample.rubric_id) continue;
+      const rubric = rubricById.get(String(sample.rubric_id));
       if (rubric) {
         rubricBySampleId.set(String(sample._id), rubric);
       }
@@ -709,17 +712,10 @@ export const listRunStageInputs = zQuery({
       .query("sample_score_targets")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .collect();
-    const targetIds = scoreTargets.map((target) => target._id);
-    const itemRows = (
-      await Promise.all(
-        targetIds.map((score_target_id) =>
-          ctx.db
-            .query("sample_score_target_items")
-            .withIndex("by_score_target", (q) => q.eq("score_target_id", score_target_id))
-            .collect(),
-        ),
-      )
-    ).flat();
+    const itemRows = await ctx.db
+      .query("sample_score_target_items")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .collect();
     const evidenceIds = Array.from(new Set(itemRows.map((item) => String(item.evidence_id))));
     const evidences = await Promise.all(
       evidenceIds.map((evidenceId) => ctx.db.get(evidenceId as Id<"evidences">)),
@@ -741,6 +737,14 @@ export const listRunStageInputs = zQuery({
       });
       itemsByTargetId.set(String(item.score_target_id), current);
     }
+    const scoresByTargetId = new Map(
+      (
+        await ctx.db
+          .query("scores")
+          .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+          .collect()
+      ).map((score) => [String(score.score_target_id), score] as const),
+    );
 
     const results: Array<{
       target_type: "sample_score_target";
@@ -807,11 +811,12 @@ export const listRunStageInputs = zQuery({
       }
 
       const score = target.score_id
-        ? await ctx.db.get(target.score_id)
-        : await ctx.db
-          .query("scores")
-          .withIndex("by_score_target", (q) => q.eq("score_target_id", target._id))
-          .first();
+        ? scoresByTargetId.get(String(target._id)) ?? await ctx.db.get(target.score_id)
+        : scoresByTargetId.get(String(target._id))
+          ?? await ctx.db
+            .query("scores")
+            .withIndex("by_score_target", (q) => q.eq("score_target_id", target._id))
+            .first();
       if (!score || target.score_critic_id || target.score_critic_error_message) {
         continue;
       }

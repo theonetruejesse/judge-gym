@@ -2,6 +2,7 @@ import {
   CancellationScope,
   condition,
   defineQuery,
+  defineSignal,
   defineUpdate,
   isCancellation,
   proxyActivities,
@@ -59,10 +60,16 @@ export const getProcessSnapshotQuery =
   defineQuery<ProcessSnapshot>("getProcessSnapshot");
 export const setPauseAfterUpdate =
   defineUpdate<ProcessSnapshot, [SetPauseAfterInput]>("setPauseAfter");
+export const setPauseAfterSignal =
+  defineSignal<[SetPauseAfterInput]>("setPauseAfterAsync");
 export const pauseNowUpdate =
   defineUpdate<ProcessSnapshot, [PauseNowInput]>("pauseNow");
+export const pauseNowSignal =
+  defineSignal<[PauseNowInput]>("pauseNowAsync");
 export const resumeUpdate =
   defineUpdate<ProcessSnapshot, [ResumeInput]>("resume");
+export const resumeSignal =
+  defineSignal<[ResumeInput]>("resumeAsync");
 export const repairBoundedUpdate =
   defineUpdate<RepairBoundedResult, [RepairBoundedInput]>("repairBounded");
 
@@ -141,23 +148,17 @@ async function executeProcessWorkflow<TStage extends string>(args: {
 
   setHandler(getProcessSnapshotQuery, () => snapshot);
 
-  setHandler(setPauseAfterUpdate, async (input: SetPauseAfterInput) => {
+  const applyPauseAfter = (input: SetPauseAfterInput) => {
     snapshot.pauseAfter = input.pauseAfter as TStage | null;
     snapshot.lastControlCommandId = input.cmdId;
-    await projectSnapshot(snapshot);
-    return snapshot;
-  });
-
-  setHandler(pauseNowUpdate, async (input: PauseNowInput) => {
+  };
+  const applyPauseNow = (input: PauseNowInput) => {
     paused = true;
     snapshot.executionStatus = "paused";
     snapshot.stageStatus = "paused";
     snapshot.lastControlCommandId = input.cmdId;
-    await projectSnapshot(snapshot);
-    return snapshot;
-  });
-
-  setHandler(resumeUpdate, async (input: ResumeInput) => {
+  };
+  const applyResume = (input: ResumeInput) => {
     paused = false;
     snapshot.lastControlCommandId = input.cmdId;
     if (snapshot.executionStatus === "paused") {
@@ -166,7 +167,30 @@ async function executeProcessWorkflow<TStage extends string>(args: {
         snapshot.stageStatus = "running";
       }
     }
-    await projectSnapshot(snapshot);
+  };
+
+  setHandler(setPauseAfterSignal, (input: SetPauseAfterInput) => {
+    applyPauseAfter(input);
+  });
+  setHandler(pauseNowSignal, (input: PauseNowInput) => {
+    applyPauseNow(input);
+  });
+  setHandler(resumeSignal, (input: ResumeInput) => {
+    applyResume(input);
+  });
+
+  setHandler(setPauseAfterUpdate, async (input: SetPauseAfterInput) => {
+    applyPauseAfter(input);
+    return snapshot;
+  });
+
+  setHandler(pauseNowUpdate, async (input: PauseNowInput) => {
+    applyPauseNow(input);
+    return snapshot;
+  });
+
+  setHandler(resumeUpdate, async (input: ResumeInput) => {
+    applyResume(input);
     return snapshot;
   });
 

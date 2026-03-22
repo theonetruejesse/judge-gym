@@ -130,6 +130,65 @@ function chunkItems<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function chunkItemsByBudget<T>(args: {
+  items: T[];
+  maxItems: number;
+  maxBytes: number;
+  estimateBytes: (item: T) => number;
+}): T[][] {
+  if (args.items.length === 0) {
+    return [];
+  }
+  const maxItems = args.maxItems > 0 ? args.maxItems : args.items.length;
+  const maxBytes = args.maxBytes > 0 ? args.maxBytes : Number.POSITIVE_INFINITY;
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  let currentBytes = 0;
+
+  for (const item of args.items) {
+    const estimatedBytes = Math.max(1, args.estimateBytes(item));
+    const wouldOverflowItems = current.length >= maxItems;
+    const wouldOverflowBytes =
+      current.length > 0 && currentBytes + estimatedBytes > maxBytes;
+    if (wouldOverflowItems || wouldOverflowBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(item);
+    currentBytes += estimatedBytes;
+  }
+
+  if (current.length > 0) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
+function estimateBatchRequestBytes(args: {
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  metadataJson: string | null;
+}) {
+  return new TextEncoder().encode(
+    JSON.stringify({
+      custom_id: "estimate",
+      method: "POST",
+      url: "/v1/chat/completions",
+      body: {
+        model: args.model,
+        messages: [
+          { role: "system", content: args.systemPrompt },
+          { role: "user", content: args.userPrompt },
+        ],
+      },
+      metadata_json: args.metadataJson,
+    }),
+  ).length;
+}
+
 async function processConcurrently<T>(
   items: T[],
   maxConcurrent: number,
@@ -207,10 +266,17 @@ export async function runRunStageActivityWithDeps(
       continue;
     }
 
-    const chunks = chunkItems(
-      groupInputs,
-      resolvedSettings.llm.batching.maxBatchSize,
-    );
+    const chunks = chunkItemsByBudget({
+      items: groupInputs,
+      maxItems: resolvedSettings.llm.batching.maxBatchSize,
+      maxBytes: resolvedSettings.llm.batching.maxBatchRequestBytes,
+      estimateBytes: (input) => estimateBatchRequestBytes({
+        model,
+        systemPrompt: input.system_prompt,
+        userPrompt: input.user_prompt,
+        metadataJson: input.metadata_json,
+      }),
+    });
     for (
       let index = 0;
       index < chunks.length;

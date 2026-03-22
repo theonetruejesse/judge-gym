@@ -10,6 +10,8 @@ import {
   getProcessSnapshotQuery,
   repairBoundedUpdate,
   resumeUpdate,
+  resumeSignal,
+  setPauseAfterSignal,
   windowWorkflow,
 } from "../workflows";
 import { TEST_TASK_QUEUES } from "../testing";
@@ -156,5 +158,64 @@ describe("window workflow controls", function () {
     });
 
     assert.ok(projectedStatuses.includes("canceled"));
+  });
+
+  it("accepts async control signals without waiting for snapshot projection", async () => {
+    const { client, nativeConnection } = testEnv;
+    const taskQueue = TEST_TASK_QUEUES.window;
+    const projectedStatuses: string[] = [];
+
+    const worker = await Worker.create({
+      connection: nativeConnection,
+      taskQueue,
+      workflowsPath: require.resolve("../workflows"),
+      activities: {
+        projectProcessState: async (input: any) => {
+          projectedStatuses.push(input.executionStatus);
+          await testEnv.sleep("2 seconds");
+          return input;
+        },
+        runWindowStage: async ({ windowRunId, stage }: { windowRunId: string; stage: string; }) => ({
+          processKind: "window",
+          processId: windowRunId,
+          stage,
+          summary: `${windowRunId}:${stage}`,
+        }),
+        runRunStage: async () => {
+          throw new Error("runRunStage should not be used in window tests");
+        },
+      },
+    });
+
+    await worker.runUntil(async () => {
+      const handle = await client.workflow.start(windowWorkflow, {
+        args: [{ windowRunId: "window_async", pauseAfter: "collect" }],
+        workflowId: "window:window_async",
+        taskQueue,
+      });
+
+      let pausedSnapshot = await handle.query(getProcessSnapshotQuery);
+      for (let attempt = 0; attempt < 30 && pausedSnapshot.executionStatus !== "paused"; attempt += 1) {
+        await testEnv.sleep("250 milliseconds");
+        pausedSnapshot = await handle.query(getProcessSnapshotQuery);
+      }
+      assert.equal(pausedSnapshot.executionStatus, "paused");
+
+      const signalStartedAt = Date.now();
+      await handle.signal(setPauseAfterSignal, {
+        cmdId: "cmd_async_pause_after",
+        pauseAfter: null,
+      });
+      await handle.signal(resumeSignal, {
+        cmdId: "cmd_async_resume",
+      });
+      const signalElapsedMs = Date.now() - signalStartedAt;
+      assert.ok(signalElapsedMs < 1_000, `expected async control signals to return quickly, saw ${signalElapsedMs}ms`);
+
+      const result = await handle.result();
+      assert.equal(result.executionStatus, "completed");
+    });
+
+    assert.ok(projectedStatuses.includes("paused"));
   });
 });

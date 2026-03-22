@@ -1,6 +1,7 @@
 import z from "zod";
 import { SemanticLevelSchema, StateStatusSchema } from "./_shared";
 import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
+import { WindowStageKeySchema } from "@judge-gym/engine-settings/process";
 import { zid } from "convex-helpers/server/zod4";
 
 export const WindowSourceProviderSchema = z.enum([
@@ -22,7 +23,7 @@ export const WindowRunsTableSchema = z.object({
     window_id: zid("windows"),
     status: StateStatusSchema,
     current_stage: SemanticLevelSchema,
-    pause_after: z.enum(["collect", "l1_cleaned", "l2_neutralized", "l3_abstracted"]).nullable(),
+    pause_after: WindowStageKeySchema.nullable(),
     target_stage: SemanticLevelSchema,
     target_count: z.number(),
     completed_count: z.number(),

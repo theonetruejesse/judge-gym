@@ -1,5 +1,14 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import {
+  BundleStrategySchema,
+  RandomizationModeSchema,
+  SemanticLevelSchema,
+} from "@judge-gym/engine-prompts/run";
+import {
+  ProcessExecutionStatusSchema,
+  RunStageKeySchema,
+} from "@judge-gym/engine-settings/process";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { zInternalQuery } from "../../utils/custom_fns";
@@ -20,20 +29,10 @@ const NormalizedExperimentSchema = z.object({
   pool_tag: z.string().nullable(),
   bundle_plan_id: zid("bundle_plans").nullable(),
   bundle_plan_tag: z.string().nullable(),
-  bundle_strategy: z.enum([
-    "window_round_robin",
-    "random_bundle",
-    "semantic_cluster",
-    "semantic_cluster_projected",
-  ]),
+  bundle_strategy: BundleStrategySchema,
   bundle_strategy_version: z.string().nullable(),
   clustering_seed: z.number().nullable(),
-  bundle_source_view: z.enum([
-    "l0_raw",
-    "l1_cleaned",
-    "l2_neutralized",
-    "l3_abstracted",
-  ]).nullable(),
+  bundle_source_view: SemanticLevelSchema.nullable(),
   evidence_count: z.number().int().nonnegative(),
   model_id: z.string(),
   rubric_model: z.string(),
@@ -42,26 +41,19 @@ const NormalizedExperimentSchema = z.object({
   scale_size: z.number().int().positive(),
   scoring_method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
-  evidence_view: z.enum([
-    "l0_raw",
-    "l1_cleaned",
-    "l2_neutralized",
-    "l3_abstracted",
-  ]),
+  evidence_view: SemanticLevelSchema,
   evidence_bundle_size: z.number().int().positive(),
-  randomizations: z.array(
-    z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
-  ),
+  randomizations: z.array(RandomizationModeSchema),
 });
 
 const AnalysisRunSummarySchema = z.object({
   run_id: zid("runs"),
-  status: z.enum(["start", "queued", "running", "paused", "completed", "error", "canceled"]),
+  status: ProcessExecutionStatusSchema.or(z.literal("start")).or(z.literal("error")),
   created_at: z.number(),
   target_count: z.number().int().nonnegative(),
   completed_count: z.number().int().nonnegative(),
-  current_stage: z.enum(["rubric_gen", "rubric_critic", "score_gen", "score_critic"]),
-  pause_after: z.enum(["rubric_gen", "rubric_critic", "score_gen", "score_critic"]).nullable(),
+  current_stage: RunStageKeySchema,
+  pause_after: RunStageKeySchema.nullable(),
 });
 
 export const AnalysisExperimentSummarySchema = NormalizedExperimentSchema.extend({
@@ -98,27 +90,15 @@ export const AnalysisResponseRowSchema = z.object({
   scale_size: z.number().int().positive(),
   scoring_method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
-  evidence_view: z.enum([
-    "l0_raw",
-    "l1_cleaned",
-    "l2_neutralized",
-    "l3_abstracted",
-  ]),
+  evidence_view: SemanticLevelSchema,
   evidence_bundle_size: z.number().int().positive(),
   bundle_plan_tag: z.string().nullable(),
-  bundle_strategy: z.enum([
-    "window_round_robin",
-    "random_bundle",
-    "semantic_cluster",
-    "semantic_cluster_projected",
-  ]),
+  bundle_strategy: BundleStrategySchema,
   bundle_strategy_version: z.string().nullable(),
   clustering_seed: z.number().nullable(),
   bundle_signature: z.string(),
   cluster_id: z.string().nullable(),
-  randomizations: z.array(
-    z.enum(["anonymize_stages", "hide_label_text", "shuffle_rubric_order"]),
-  ),
+  randomizations: z.array(RandomizationModeSchema),
   decoded_scores: z.array(z.number().int()),
   abstained: z.boolean(),
   subset_size: z.number().int().nonnegative(),

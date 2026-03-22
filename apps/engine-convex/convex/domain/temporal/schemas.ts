@@ -1,42 +1,18 @@
 import z from "zod";
+import {
+  ControlActionSchema,
+  ProcessKindSchema,
+  ProcessSnapshotSchema,
+  RepairBoundedOperationSchema,
+} from "@judge-gym/engine-settings/process";
 
-export const ProcessTypeSchema = z.enum(["run", "window"]);
+export {
+  ControlActionSchema,
+  ProcessSnapshotSchema,
+  RepairBoundedOperationSchema,
+};
 
-export const ProcessSnapshotSchema = z.object({
-  processKind: ProcessTypeSchema,
-  processId: z.string().optional(),
-  workflowId: z.string(),
-  workflowRunId: z.string(),
-  workflowType: z.string(),
-  executionStatus: z.enum([
-    "queued",
-    "running",
-    "paused",
-    "completed",
-    "failed",
-    "canceled",
-  ]),
-  stage: z.string().nullable(),
-  stageStatus: z.enum(["pending", "running", "paused", "done", "failed"]),
-  pauseAfter: z.string().nullable(),
-  stageHistory: z.array(z.string()),
-  lastControlCommandId: z.string().nullable(),
-  lastErrorMessage: z.string().nullable(),
-});
-
-export const ControlActionSchema = z.enum([
-  "set_pause_after",
-  "pause_now",
-  "resume",
-  "cancel",
-  "repair_bounded",
-]);
-
-export const RepairBoundedOperationSchema = z.enum([
-  "reproject_snapshot",
-  "resume_if_paused",
-  "clear_pause_after",
-]);
+export const ProcessTypeSchema = ProcessKindSchema;
 
 export const TemporalTaskQueueKindSchema = z.enum(["run", "window"]);
 

@@ -452,6 +452,7 @@ export async function controlProcessWorkflowExecution(args: {
   pause_after?: string | null;
   operation?: z.infer<typeof RepairBoundedOperationSchema>;
   note?: string;
+  wait_for_observation?: boolean;
 }) {
   return withTemporalClient(async (client) => {
     const workflow_id = workflowIdForProcess(args.process_type, args.process_id);
@@ -464,22 +465,37 @@ export async function controlProcessWorkflowExecution(args: {
 
       switch (args.action) {
         case "set_pause_after":
-          snapshot = await handle.executeUpdate("setPauseAfter", {
-            args: [{
+          if (args.wait_for_observation) {
+            snapshot = await handle.executeUpdate("setPauseAfter", {
+              args: [{
+                cmdId: cmd_id,
+                pauseAfter: args.pause_after ?? null,
+              }],
+            }) as z.infer<typeof ProcessSnapshotSchema>;
+          } else {
+            await handle.signal("setPauseAfterAsync", {
               cmdId: cmd_id,
               pauseAfter: args.pause_after ?? null,
-            }],
-          }) as z.infer<typeof ProcessSnapshotSchema>;
+            });
+          }
           break;
         case "pause_now":
-          snapshot = await handle.executeUpdate("pauseNow", {
-            args: [{ cmdId: cmd_id }],
-          }) as z.infer<typeof ProcessSnapshotSchema>;
+          if (args.wait_for_observation) {
+            snapshot = await handle.executeUpdate("pauseNow", {
+              args: [{ cmdId: cmd_id }],
+            }) as z.infer<typeof ProcessSnapshotSchema>;
+          } else {
+            await handle.signal("pauseNowAsync", { cmdId: cmd_id });
+          }
           break;
         case "resume":
-          snapshot = await handle.executeUpdate("resume", {
-            args: [{ cmdId: cmd_id }],
-          }) as z.infer<typeof ProcessSnapshotSchema>;
+          if (args.wait_for_observation) {
+            snapshot = await handle.executeUpdate("resume", {
+              args: [{ cmdId: cmd_id }],
+            }) as z.infer<typeof ProcessSnapshotSchema>;
+          } else {
+            await handle.signal("resumeAsync", { cmdId: cmd_id });
+          }
           break;
         case "cancel":
           await handle.cancel();
@@ -496,20 +512,28 @@ export async function controlProcessWorkflowExecution(args: {
       }
 
       const description = await safeDescribe(handle);
-      const queried = snapshot == null ? await safeQuerySnapshot(handle, {
-        process_type: args.process_type,
-        process_id: args.process_id,
-        workflow_id,
-        workflow_run_id: description?.runId ?? null,
-        workflow_type: description?.type ?? null,
-      }) : null;
+      const shouldQuerySnapshot = args.wait_for_observation || args.action === "repair_bounded";
+      const queried = snapshot == null && shouldQuerySnapshot
+        ? await safeQuerySnapshot(handle, {
+          process_type: args.process_type,
+          process_id: args.process_id,
+          workflow_id,
+          workflow_run_id: description?.runId ?? null,
+          workflow_type: description?.type ?? null,
+        })
+        : null;
       return {
         process_type: args.process_type,
         process_id: args.process_id,
         action: args.action,
         cmd_id,
         accepted: repair_result?.accepted ?? true,
-        reason: repair_result?.reason ?? queried?.snapshot_query_error ?? null,
+        reason:
+          repair_result?.reason
+          ?? queried?.snapshot_query_error
+          ?? (args.wait_for_observation || args.action === "repair_bounded"
+            ? null
+            : "command_accepted_async"),
         workflow_id,
         temporal_status: description?.status.name ?? null,
         snapshot: snapshot ?? queried?.snapshot ?? null,
@@ -544,18 +568,15 @@ export async function resumeRunWorkflowExecution(args: {
     const handle = client.workflow.getHandle(`run:${args.run_id}`);
     const cmd_id = args.cmd_id ?? buildCmdId("resume", "run", args.run_id);
     if (args.pause_after !== undefined) {
-      await handle.executeUpdate("setPauseAfter", {
-        args: [{
-          cmdId: buildCmdId("set_pause_after", "run", args.run_id),
-          pauseAfter: args.pause_after ?? null,
-        }],
+      await handle.signal("setPauseAfterAsync", {
+        cmdId: buildCmdId("set_pause_after", "run", args.run_id),
+        pauseAfter: args.pause_after ?? null,
       });
     }
-    return handle.executeUpdate("resume", {
-      args: [{
-        cmdId: cmd_id,
-      }],
+    await handle.signal("resumeAsync", {
+      cmdId: cmd_id,
     });
+    return { accepted: true, cmd_id };
   });
 }
 
@@ -568,18 +589,15 @@ export async function resumeWindowWorkflowExecution(args: {
     const handle = client.workflow.getHandle(`window:${args.window_run_id}`);
     const cmd_id = args.cmd_id ?? buildCmdId("resume", "window", args.window_run_id);
     if (args.pause_after !== undefined) {
-      await handle.executeUpdate("setPauseAfter", {
-        args: [{
-          cmdId: buildCmdId("set_pause_after", "window", args.window_run_id),
-          pauseAfter: args.pause_after ?? null,
-        }],
+      await handle.signal("setPauseAfterAsync", {
+        cmdId: buildCmdId("set_pause_after", "window", args.window_run_id),
+        pauseAfter: args.pause_after ?? null,
       });
     }
-    return handle.executeUpdate("resume", {
-      args: [{
-        cmdId: cmd_id,
-      }],
+    await handle.signal("resumeAsync", {
+      cmdId: cmd_id,
     });
+    return { accepted: true, cmd_id };
   });
 }
 
@@ -679,6 +697,7 @@ export const controlProcessWorkflow = zInternalAction({
     pause_after: z.string().nullable().optional(),
     operation: RepairBoundedOperationSchema.optional(),
     note: z.string().optional(),
+    wait_for_observation: z.boolean().optional(),
   }),
   returns: ControlProcessWorkflowResultSchema,
   handler: async (_ctx, args) => {

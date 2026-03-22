@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { internal } from "../_generated/api";
+import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { buildModules } from "./test.setup";
 import { emitTraceEvent } from "../domain/telemetry/emit";
@@ -106,5 +107,107 @@ describe("telemetry observability", () => {
         process.env.AXIOM_DATASET = originalDataset;
       }
     }
+  });
+
+  test("summarizes batch reconciliation state for a process", async () => {
+    const t = initTest();
+
+    const attemptOne = await t.run(async (ctx) => ctx.db.insert("llm_attempts", {
+      attempt_key: "batch_summary:1",
+      process_kind: "window",
+      process_id: "window_run_1",
+      target_type: "evidence",
+      target_id: "evidence_1",
+      stage: "l1_cleaned",
+      provider: "openai",
+      model: "gpt-4.1",
+      operation_type: "batch",
+      workflow_id: "window:window_run_1",
+      prompt_template_id: null,
+      user_prompt_payload_id: null,
+      assistant_output_payload_id: null,
+      error_payload_id: null,
+      status: "started",
+      started_at_ms: 1,
+      finished_at_ms: null,
+      metadata_json: null,
+    }));
+    const attemptTwo = await t.run(async (ctx) => ctx.db.insert("llm_attempts", {
+      attempt_key: "batch_summary:2",
+      process_kind: "window",
+      process_id: "window_run_1",
+      target_type: "evidence",
+      target_id: "evidence_2",
+      stage: "l1_cleaned",
+      provider: "openai",
+      model: "gpt-4.1",
+      operation_type: "batch",
+      workflow_id: "window:window_run_1",
+      prompt_template_id: null,
+      user_prompt_payload_id: null,
+      assistant_output_payload_id: null,
+      error_payload_id: null,
+      status: "failed",
+      started_at_ms: 2,
+      finished_at_ms: 3,
+      metadata_json: null,
+    }));
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("llm_batch_executions", {
+        batch_key: "batch_key_1",
+        process_kind: "window",
+        process_id: "window_run_1",
+        stage: "l1_cleaned",
+        provider: "openai",
+        model: "gpt-4.1",
+        workflow_id: "window:window_run_1",
+        item_count: 20,
+        provider_batch_id: "batch_1",
+        input_file_id: null,
+        output_file_id: null,
+        error_file_id: null,
+        status: "submitted",
+        last_known_provider_status: "validating",
+        last_error_message: null,
+        submitted_at_ms: 10,
+        completed_at_ms: null,
+      });
+      await ctx.db.insert("llm_batch_executions", {
+        batch_key: "batch_key_2",
+        process_kind: "window",
+        process_id: "window_run_1",
+        stage: "l1_cleaned",
+        provider: "openai",
+        model: "gpt-4.1",
+        workflow_id: "window:window_run_1",
+        item_count: 15,
+        provider_batch_id: "batch_2",
+        input_file_id: null,
+        output_file_id: null,
+        error_file_id: null,
+        status: "completed",
+        last_known_provider_status: "completed",
+        last_error_message: null,
+        submitted_at_ms: 20,
+        completed_at_ms: 30,
+      });
+      await ctx.db.patch(attemptOne, { status: "succeeded", finished_at_ms: 4 });
+      await ctx.db.patch(attemptTwo, { error_payload_id: null });
+    });
+
+    const status = await t.query(api.packages.codex.listBatchReconciliationStatus, {
+      process_kind: "window",
+      process_id: "window_run_1",
+      stage: "l1_cleaned",
+    });
+
+    expect(status.summary.batch_count).toBe(2);
+    expect(status.summary.total_items).toBe(35);
+    expect(status.summary.status_counts.submitted).toBe(1);
+    expect(status.summary.status_counts.completed).toBe(1);
+    expect(status.summary.attempt_counts.succeeded).toBe(1);
+    expect(status.summary.attempt_counts.failed).toBe(1);
+    expect(status.summary.target_counts).toBeNull();
   });
 });

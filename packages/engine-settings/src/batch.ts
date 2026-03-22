@@ -10,8 +10,9 @@ export type BatchMode = z.infer<typeof BatchModeSchema>;
 
 export const BatchSettingsSchema = z.object({
   mode: BatchModeSchema.default("auto"),
-  minBatchSize: z.number().int().min(1).default(30),
+  minBatchSize: z.number().int().min(1).default(35),
   maxBatchSize: z.number().int().min(1).default(500),
+  maxBatchRequestBytes: z.number().int().positive().default(4_000_000),
   maxConcurrentBatches: z.number().int().min(1).default(4),
   completionWindow: z.enum(["24h"]).default("24h"),
   requestTimeoutMs: z.number().int().positive().default(120_000),

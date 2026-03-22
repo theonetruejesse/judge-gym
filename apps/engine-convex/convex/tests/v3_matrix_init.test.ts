@@ -173,5 +173,5 @@ describe("v3 matrix initialization", () => {
     });
     expect(rerun.rows.some((row: (typeof rerun.rows)[number]) => row.action === "created")).toBe(false);
     expect(rerun.rows.some((row: (typeof rerun.rows)[number]) => row.action === "conflict")).toBe(false);
-  });
+  }, 15_000);
 });

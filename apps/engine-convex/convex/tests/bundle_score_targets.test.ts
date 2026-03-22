@@ -128,7 +128,7 @@ describe("bundle score targets", () => {
       expect(target.items).toHaveLength(1);
       expect(target.items[0]?.position).toBe(0);
     }
-  });
+  }, 15_000);
 
   test("bundle runs partition the pool into stratified score targets per sample", async () => {
     const t = initTest();

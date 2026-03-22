@@ -102,6 +102,101 @@ async function seedExperiment(
   return created.experiment_id;
 }
 
+async function seedHeavyRunArtifacts(
+  t: ConvexTestInstance,
+  args: {
+    run_id: Id<"runs">;
+    attemptCount: number;
+    batchCount: number;
+  },
+) {
+  await t.run(async (ctx) => {
+    for (let index = 0; index < args.attemptCount; index += 1) {
+      const attemptId = await ctx.db.insert("llm_attempts", {
+        attempt_key: `reset_test:${args.run_id}:attempt:${index}`,
+        process_kind: "run",
+        process_id: String(args.run_id),
+        target_type: "sample_score_target",
+        target_id: `target_${index}`,
+        stage: "score_gen",
+        provider: "openai",
+        model: "gpt-4.1",
+        operation_type: "batch",
+        workflow_id: `run:${args.run_id}`,
+        prompt_template_id: null,
+        user_prompt_payload_id: null,
+        assistant_output_payload_id: null,
+        error_payload_id: null,
+        status: "succeeded",
+        started_at_ms: Date.now(),
+        finished_at_ms: Date.now(),
+        metadata_json: null,
+      });
+      const userPromptPayloadId = await ctx.db.insert("llm_attempt_payloads", {
+        attempt_id: attemptId,
+        process_kind: "run",
+        process_id: String(args.run_id),
+        kind: "user_prompt",
+        content_text: `user prompt ${index}`,
+        content_hash: `hp_${index}`,
+        byte_size: 16,
+        content_type: "text/plain",
+      });
+      const assistantPayloadId = await ctx.db.insert("llm_attempt_payloads", {
+        attempt_id: attemptId,
+        process_kind: "run",
+        process_id: String(args.run_id),
+        kind: "assistant_output",
+        content_text: `assistant output ${index}`,
+        content_hash: `ha_${index}`,
+        byte_size: 20,
+        content_type: "text/plain",
+      });
+      await ctx.db.patch(attemptId, {
+        user_prompt_payload_id: userPromptPayloadId,
+        assistant_output_payload_id: assistantPayloadId,
+      });
+    }
+
+    for (let index = 0; index < args.batchCount; index += 1) {
+      await ctx.db.insert("llm_batch_executions", {
+        batch_key: `reset_test:${args.run_id}:batch:${index}`,
+        process_kind: "run",
+        process_id: String(args.run_id),
+        stage: "score_gen",
+        provider: "openai",
+        model: "gpt-4.1",
+        workflow_id: `run:${args.run_id}`,
+        item_count: 25,
+        provider_batch_id: `batch_${index}`,
+        input_file_id: null,
+        output_file_id: null,
+        error_file_id: null,
+        status: "completed",
+        last_known_provider_status: "completed",
+        last_error_message: null,
+        submitted_at_ms: Date.now(),
+        completed_at_ms: Date.now(),
+      });
+    }
+
+    await ctx.db.insert("process_observability", {
+      process_type: "run",
+      process_id: String(args.run_id),
+      trace_id: `run:${args.run_id}`,
+      telemetry_backend: "axiom",
+      external_trace_ref: null,
+      last_milestone_at_ms: Date.now(),
+      last_event_name: "run_snapshot_projected",
+      last_stage: "score_gen",
+      last_status: "completed",
+      recent_events: [],
+      last_error_summary: null,
+      updated_at_ms: Date.now(),
+    });
+  });
+}
+
 describe("v3 campaign control plane", () => {
   const originalDataset = process.env.AXIOM_DATASET;
   const originalToken = process.env.AXIOM_TOKEN;
@@ -474,6 +569,63 @@ describe("v3 campaign control plane", () => {
     await t.run(async (ctx) => {
       expect(await ctx.db.query("runs").collect()).toHaveLength(0);
       expect(await ctx.db.query("llm_attempts").collect()).toHaveLength(0);
+      const experiments = await ctx.db.query("experiments").collect();
+      expect(experiments.every((experiment) => experiment.total_count === 0)).toBe(true);
+    });
+  });
+
+  test("resetV3Campaign drains large scheduled cleanup and removes heavy artifacts", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const alpha = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+    const beta = await seedExperiment(t, {
+      experiment_tag: "v3_test_beta",
+      pool_id,
+    });
+    const alphaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: alpha,
+      target_count: 1,
+      pause_after: null,
+    });
+    const betaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: beta,
+      target_count: 1,
+      pause_after: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(alphaRun, { status: "completed" });
+      await ctx.db.patch(betaRun, { status: "completed" });
+    });
+
+    await seedHeavyRunArtifacts(t, {
+      run_id: alphaRun,
+      attemptCount: 80,
+      batchCount: 8,
+    });
+    await seedHeavyRunArtifacts(t, {
+      run_id: betaRun,
+      attemptCount: 80,
+      batchCount: 8,
+    });
+
+    const reset = await t.action(api.packages.codex.resetV3Campaign, {
+      dry_run: false,
+      experiment_tags: TEST_V3_TAGS,
+    });
+    expect(reset.selected_experiment_count).toBe(2);
+
+    await t.finishAllScheduledFunctions(() => {});
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("runs").collect()).toHaveLength(0);
+      expect(await ctx.db.query("llm_attempts").collect()).toHaveLength(0);
+      expect(await ctx.db.query("llm_attempt_payloads").collect()).toHaveLength(0);
+      expect(await ctx.db.query("llm_batch_executions").collect()).toHaveLength(0);
+      expect(await ctx.db.query("process_observability").collect()).toHaveLength(0);
       const experiments = await ctx.db.query("experiments").collect();
       expect(experiments.every((experiment) => experiment.total_count === 0)).toBe(true);
     });

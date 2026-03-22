@@ -1,5 +1,8 @@
+import { z } from "zod";
+
 export const PROCESS_KINDS = ["run", "window"] as const;
 export type ProcessKind = (typeof PROCESS_KINDS)[number];
+export const ProcessKindSchema = z.enum(PROCESS_KINDS);
 
 export const RUN_STAGE_KEYS = [
   "rubric_gen",
@@ -8,6 +11,7 @@ export const RUN_STAGE_KEYS = [
   "score_critic",
 ] as const;
 export type RunStageKey = (typeof RUN_STAGE_KEYS)[number];
+export const RunStageKeySchema = z.enum(RUN_STAGE_KEYS);
 
 export const WINDOW_STAGE_KEYS = [
   "collect",
@@ -16,6 +20,7 @@ export const WINDOW_STAGE_KEYS = [
   "l3_abstracted",
 ] as const;
 export type WindowStageKey = (typeof WINDOW_STAGE_KEYS)[number];
+export const WindowStageKeySchema = z.enum(WINDOW_STAGE_KEYS);
 
 export type ProcessStageKey = RunStageKey | WindowStageKey;
 
@@ -27,6 +32,7 @@ export const PROCESS_STAGE_STATUSES = [
   "failed",
 ] as const;
 export type ProcessStageStatus = (typeof PROCESS_STAGE_STATUSES)[number];
+export const ProcessStageStatusSchema = z.enum(PROCESS_STAGE_STATUSES);
 
 export const PROCESS_EXECUTION_STATUSES = [
   "queued",
@@ -38,6 +44,7 @@ export const PROCESS_EXECUTION_STATUSES = [
 ] as const;
 export type ProcessExecutionStatus =
   (typeof PROCESS_EXECUTION_STATUSES)[number];
+export const ProcessExecutionStatusSchema = z.enum(PROCESS_EXECUTION_STATUSES);
 
 export const CONTROL_ACTIONS = [
   "set_pause_after",
@@ -47,9 +54,11 @@ export const CONTROL_ACTIONS = [
   "repair_bounded",
 ] as const;
 export type ControlAction = (typeof CONTROL_ACTIONS)[number];
+export const ControlActionSchema = z.enum(CONTROL_ACTIONS);
 
 export const CONTROL_ISSUERS = ["user", "agent", "system"] as const;
 export type ControlIssuer = (typeof CONTROL_ISSUERS)[number];
+export const ControlIssuerSchema = z.enum(CONTROL_ISSUERS);
 
 export const REPAIR_BOUNDED_OPERATIONS = [
   "reproject_snapshot",
@@ -58,6 +67,7 @@ export const REPAIR_BOUNDED_OPERATIONS = [
 ] as const;
 export type RepairBoundedOperation =
   (typeof REPAIR_BOUNDED_OPERATIONS)[number];
+export const RepairBoundedOperationSchema = z.enum(REPAIR_BOUNDED_OPERATIONS);
 
 export interface ControlCommand<
   TAction extends ControlAction = ControlAction,
@@ -87,6 +97,21 @@ export interface ProcessSnapshot<TStage extends string = string> {
   lastControlCommandId: string | null;
   lastErrorMessage: string | null;
 }
+
+export const ProcessSnapshotSchema = z.object({
+  processKind: ProcessKindSchema,
+  processId: z.string(),
+  workflowId: z.string(),
+  workflowRunId: z.string(),
+  workflowType: z.string(),
+  executionStatus: ProcessExecutionStatusSchema,
+  stage: z.string().nullable(),
+  stageStatus: ProcessStageStatusSchema,
+  pauseAfter: z.string().nullable(),
+  stageHistory: z.array(z.string()),
+  lastControlCommandId: z.string().nullable(),
+  lastErrorMessage: z.string().nullable(),
+});
 
 export interface StageActivityResult<TStage extends string = string> {
   processKind: ProcessKind;

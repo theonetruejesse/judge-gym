@@ -1,5 +1,6 @@
 import z from "zod";
 import { api, internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
 import { zAction, zInternalQuery, zQuery } from "../../utils/custom_fns";
 import { buildAxiomEventEnvelope, buildExternalTraceRef } from "../telemetry/events";
 import {
@@ -10,7 +11,7 @@ import {
   TemporalTaskQueueKindSchema,
   TemporalTaskQueueHealthSchema,
 } from "../temporal/schemas";
-import { LlmBatchExecutionStatusSchema } from "../../models/batches.ts";
+import { LlmBatchExecutionStatusSchema } from "../../models/batches";
 import {
   CampaignStateSchema,
   GetV3CampaignStatusReturnSchema,
@@ -141,10 +142,35 @@ const LlmBatchExecutionRowSchema = z.object({
   completed_at_ms: z.number().nullable(),
 });
 
+const BatchExecutionStatusCountsSchema = z.object({
+  preparing: z.number(),
+  submitted: z.number(),
+  completed: z.number(),
+  failed: z.number(),
+  cancelled: z.number(),
+});
+
+const BatchReconciliationSummarySchema = z.object({
+  batch_count: z.number(),
+  total_items: z.number(),
+  status_counts: BatchExecutionStatusCountsSchema,
+  attempt_counts: z.object({
+    started: z.number(),
+    succeeded: z.number(),
+    failed: z.number(),
+  }),
+  target_counts: z.object({
+    pending: z.number(),
+    completed: z.number(),
+    failed: z.number(),
+  }).nullable(),
+});
+
 const BatchReconciliationStatusSchema = z.object({
   process_kind: ProcessTypeSchema,
   process_id: z.string(),
   stage: z.string().nullable(),
+  summary: BatchReconciliationSummarySchema,
   batches: z.array(LlmBatchExecutionRowSchema),
 });
 
@@ -260,18 +286,119 @@ export const listBatchReconciliationStatus = zQuery({
   }),
   returns: BatchReconciliationStatusSchema,
   handler: async (ctx, args) => {
-    const batchQuery = ctx.db
-      .query("llm_batch_executions")
-      .withIndex("by_process_stage", (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id));
-    if (args.stage) {
-      batchQuery.eq("stage", args.stage);
+    const batches = args.stage
+      ? await ctx.db
+        .query("llm_batch_executions")
+        .withIndex(
+          "by_process_stage",
+          (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id).eq("stage", args.stage!),
+        )
+        .collect()
+      : await ctx.db
+        .query("llm_batch_executions")
+        .withIndex(
+          "by_process_stage",
+          (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id),
+        )
+        .collect();
+    const attempts = args.stage
+      ? await ctx.db
+        .query("llm_attempts")
+        .withIndex(
+          "by_process_stage",
+          (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id).eq("stage", args.stage!),
+        )
+        .collect()
+      : await ctx.db
+        .query("llm_attempts")
+        .withIndex("by_process", (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id))
+        .collect();
+    let target_counts: z.infer<typeof BatchReconciliationSummarySchema.shape.target_counts> = null;
+    if (args.process_kind === "run") {
+      const scoreTargets = await ctx.db
+        .query("sample_score_targets")
+        .withIndex("by_run", (q) => q.eq("run_id", args.process_id as Id<"runs">))
+        .collect();
+      if (args.stage === "score_gen") {
+        target_counts = scoreTargets.reduce(
+          (acc, target) => {
+            if (target.score_id) {
+              acc.completed += 1;
+            } else if (target.score_gen_error_message) {
+              acc.failed += 1;
+            } else {
+              acc.pending += 1;
+            }
+            return acc;
+          },
+          { pending: 0, completed: 0, failed: 0 },
+        );
+      } else if (args.stage === "score_critic") {
+        target_counts = scoreTargets.reduce(
+          (acc, target) => {
+            if (target.score_critic_id) {
+              acc.completed += 1;
+            } else if (target.score_critic_error_message) {
+              acc.failed += 1;
+            } else {
+              acc.pending += 1;
+            }
+            return acc;
+          },
+          { pending: 0, completed: 0, failed: 0 },
+        );
+      }
     }
-    const batches = await batchQuery.collect();
+
     return {
       process_kind: args.process_kind,
       process_id: args.process_id,
       stage: args.stage ?? null,
-      batches,
+      summary: {
+        batch_count: batches.length,
+        total_items: batches.reduce((sum, row) => sum + row.item_count, 0),
+        status_counts: batches.reduce(
+          (acc, row) => {
+            acc[row.status] += 1;
+            return acc;
+          },
+          {
+            preparing: 0,
+            submitted: 0,
+            completed: 0,
+            failed: 0,
+            cancelled: 0,
+          },
+        ),
+        attempt_counts: attempts.reduce(
+          (acc, attempt) => {
+            acc[attempt.status] += 1;
+            return acc;
+          },
+          {
+            started: 0,
+            succeeded: 0,
+            failed: 0,
+          },
+        ),
+        target_counts,
+      },
+      batches: batches.map((row) => ({
+        batch_key: row.batch_key,
+        stage: row.stage,
+        provider: row.provider,
+        model: row.model,
+        status: row.status,
+        last_known_provider_status: row.last_known_provider_status ?? null,
+        last_error_message: row.last_error_message ?? null,
+        provider_batch_id: row.provider_batch_id ?? null,
+        input_file_id: row.input_file_id ?? null,
+        output_file_id: row.output_file_id ?? null,
+        error_file_id: row.error_file_id ?? null,
+        item_count: row.item_count,
+        submitted_at_ms: row.submitted_at_ms ?? null,
+        completed_at_ms: row.completed_at_ms ?? null,
+      })),
     };
   },
 });
@@ -700,6 +827,7 @@ export const controlProcessExecution: ReturnType<typeof zAction> = zAction({
     pause_after: z.string().nullable().optional(),
     operation: RepairBoundedOperationSchema.optional(),
     note: z.string().optional(),
+    wait_for_observation: z.boolean().optional(),
   }),
   returns: ControlProcessExecutionResultSchema,
   handler: async (

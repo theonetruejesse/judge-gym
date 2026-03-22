@@ -255,6 +255,7 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 **Provider configuration**
 
 - `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, Temporal activity timeout budgets, queue names, and env-key constants.
+- The current default batch policy is intentionally conservative: work stays on direct jobs below `llm.batching.minBatchSize = 35`, then batches are chunked by both `maxBatchSize` and `maxBatchRequestBytes` so provider batch size is bounded by payload size as well as item count.
 - The timeout split is intentional: direct chat requests use `llm.direct.requestTimeoutMs`, batch transport calls use `llm.batching.requestTimeoutMs`, batch poll/wait uses `llm.batching.maxWaitMs`, and Temporal stage activities use the larger `temporal.activityStartToCloseMs` budget.
 - `OPENAI_API_KEY` is required for OpenAI calls.
 - `FIRECRAWL_API_KEY` is required for evidence search.
@@ -267,8 +268,10 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, Firecrawl collection behavior, and Temporal activity budgets now live in one shared package instead of being hardcoded across Convex and Temporal.
 - Temporal now routes eligible run/window LLM work through the OpenAI Batch API when the centralized batch policy allows it, then falls back to direct per-item retries only for failed batch items so retry semantics stay per-target instead of per-batch.
+- Control-plane actions are split by weight: `repair_bounded` still uses acknowledged Temporal updates, while routine operator actions like `resume`, `pause_now`, and `set_pause_after` now default to async command sends instead of waiting on full snapshot projection before returning.
 - Batch-backed stage execution now uses deterministic attempt keys plus a durable `llm_batch_executions` registry in Convex so activity replay can resume/poll an existing batch instead of blindly submitting a second one.
 - Batch-backed run/window stages now emit process heartbeats during batch submit/poll/completion so long rubric stages do not get misclassified as stalled purely because stage-boundary projections are sparse.
+- `packages/codex:listBatchReconciliationStatus` now returns stage-level batch, attempt, and target summary counts so the operator/debug layer can see where completed provider batches are still waiting on apply/reconciliation.
 - V3 campaign reset now backfills run ownership onto `sample_score_target_items` before deletion so large rubric-gate cohorts can be reset without hitting Convex read limits from per-target cleanup queries.
 - Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
 - Window evidence collection and `l3` application are replay-safe: repeated inserts dedupe by URL within a run, and repeated result application no-ops once the evidence output is already present.

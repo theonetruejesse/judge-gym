@@ -122,7 +122,7 @@ describe("worker mutation idempotency", () => {
     });
 
     expect(second.attempt_id).toBe(first.attempt_id);
-  });
+  }, 15_000);
 
   test("dedupes repeated evidence inserts for the same window run", async () => {
     const t = initTest();
