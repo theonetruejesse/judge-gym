@@ -103,4 +103,32 @@ describe("run parsers", () => {
     expect(parsed.rawVerdict).toBe("3ClBYt,Tdqasf");
     expect(parsed.decodedScores).toEqual([2, 4]);
   });
+
+  test("accepts markdown-emphasized subset verdict lines", () => {
+    const parsed = parseSubsetVerdict(
+      [
+        "Reasoning goes here.",
+        "**VERDICT: ThKMhJ, vcPIJZ**",
+      ].join("\n"),
+      { ThKMhJ: 3, vcPIJZ: 2 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("ThKMhJ, vcPIJZ");
+    expect(parsed.decodedScores).toEqual([3, 2]);
+  });
+
+  test("extracts known subset labels even when the verdict line has extra punctuation", () => {
+    const parsed = parseSubsetVerdict(
+      [
+        "Reasoning goes here.",
+        "VERDICT: VcGZj, dqqCdj.",
+      ].join("\n"),
+      { VcGZj: 4, dqqCdj: 6 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("VcGZj, dqqCdj");
+    expect(parsed.decodedScores).toEqual([4, 6]);
+  });
 });

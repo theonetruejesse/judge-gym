@@ -74,6 +74,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Window and run execution now both launch through Temporal workflows; the legacy Convex scheduler/batch/job engine has been removed from the live schema and active code paths.
 - The engine now exports Temporal-owned process and worker telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
 - Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
+- Subset score parsing now tolerates markdown-decorated and comma-separated multi-label verdict lines (for example `**VERDICT: X, Y**`) instead of requiring one extremely brittle verdict-line shape.
 - Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
 - Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
 - Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving windows, pools, and the experiment config intact.

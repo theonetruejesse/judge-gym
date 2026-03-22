@@ -178,12 +178,13 @@ export function extractReasoningBeforeQuality(raw: string): string {
   return reasoning;
 }
 
-const VERDICT_REGEX = /(?:^|\n)\s*(?:[-*]\s*)?VERDICT:\s*([^\n\r]*)/gim;
-
 function normalizeVerdictLine(line: string): string {
   let normalized = line.trim();
   normalized = normalized.replace(/^[-*]\s*/, "");
+  normalized = normalized.replace(/^\*\*+/, "");
+  normalized = normalized.replace(/\*\*+$/g, "");
   normalized = normalized.replace(/^`+|`+$/g, "");
+  normalized = normalized.replace(/^[:\s-]+/, "");
   normalized = normalized.replace(/^VERDICT:\s*/i, "");
   normalized = normalized.replace(/^VERDICT:\s*/i, "");
   normalized = normalized.replace(/^["']|["']$/g, "");
@@ -195,6 +196,8 @@ function normalizeVerdictToken(token: string): string {
   return token
     .trim()
     .replace(/^[-*]\s*/, "")
+    .replace(/^\*\*+/, "")
+    .replace(/\*\*+$/g, "")
     .replace(/^`+|`+$/g, "")
     .replace(/^VERDICT:\s*/i, "")
     .replace(/^["']|["']$/g, "")
@@ -202,18 +205,31 @@ function normalizeVerdictToken(token: string): string {
     .trim();
 }
 
+function getVerdictLineCandidate(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(
+    /^(?:[-*]\s*)?(?:\*\*+|`+|["'])*VERDICT(?:\*\*+|`+|["'])*\s*:\s*(.+)$/i,
+  );
+  return match?.[1] ?? null;
+}
+
 function getLastVerdictMatch(raw: string): { line: string; index: number } {
-  let match: RegExpExecArray | null;
-  let lastMatch: RegExpExecArray | null = null;
-  VERDICT_REGEX.lastIndex = 0;
-  while ((match = VERDICT_REGEX.exec(raw)) !== null) {
-    lastMatch = match;
+  const lines = raw.split(/\r?\n/);
+  let offset = raw.length;
+
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i] ?? "";
+    offset -= line.length;
+    const candidate = getVerdictLineCandidate(line);
+    if (candidate != null) {
+      const normalized = normalizeVerdictLine(candidate);
+      return { line: normalized, index: offset };
+    }
+    offset -= 1;
   }
-  if (!lastMatch) {
-    throw new Error(`Failed to parse verdict line: ${raw}`);
-  }
-  const line = normalizeVerdictLine(lastMatch[1].split("\n")[0] ?? "");
-  return { line, index: lastMatch.index };
+
+  throw new Error(`Failed to parse verdict line: ${raw}`);
 }
 
 export function extractReasoningBeforeVerdict(raw: string): string {
@@ -269,6 +285,30 @@ export function parseSubsetVerdict(
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
 
   const cleaned = normalizeVerdictLine(verdictLine).replace(/[\[\]]/g, "");
+  const loweredMapping = labelMapping
+    ? Object.fromEntries(
+      Object.entries(labelMapping).map(([label, value]) => [label.toLowerCase(), value]),
+    )
+    : null;
+
+  if (loweredMapping) {
+    const matches = [...cleaned.matchAll(/[A-Za-z0-9]+/g)]
+      .map((match) => match[0] ?? "")
+      .map((token) => normalizeVerdictToken(token))
+      .filter((token) => token.length > 0);
+    const decoded = matches
+      .map((token) => loweredMapping[token.toLowerCase()])
+      .filter((value): value is number => value !== undefined);
+
+    if (decoded.length > 0) {
+      return {
+        rawVerdict: verdictLine,
+        decodedScores: Array.from(new Set(decoded)),
+        abstained: false,
+      };
+    }
+  }
+
   const tokens = cleaned
     .split(/[,\s/]+/)
     .map((t) => normalizeVerdictToken(t))
