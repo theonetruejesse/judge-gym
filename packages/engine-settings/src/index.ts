@@ -46,6 +46,7 @@ export const EngineSettingsSchema = z.object({
     DEFAULT_PROVIDER_EXECUTION_SETTINGS,
   ),
   llm: z.object({
+    preflightTimeoutMs: z.number().int().positive().default(60_000),
     batching: BatchSettingsSchema.default(DEFAULT_BATCH_SETTINGS),
     direct: z.object({
       maxConcurrentRequests: z.number().int().positive().default(4),
@@ -56,6 +57,7 @@ export const EngineSettingsSchema = z.object({
     }),
     retries: RetrySettingsSchema.default(DEFAULT_RETRY_SETTINGS),
   }).default({
+    preflightTimeoutMs: 60_000,
     batching: DEFAULT_BATCH_SETTINGS,
     direct: {
       maxConcurrentRequests: 4,
@@ -95,6 +97,7 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   },
   providers: DEFAULT_PROVIDER_EXECUTION_SETTINGS,
   llm: {
+    preflightTimeoutMs: 60_000,
     batching: {
       mode: "auto",
       minBatchSize: 35,

@@ -82,6 +82,10 @@ function getProcessHeartbeatIntervalMs(deps: RunStageDependencies) {
   return deps.processHeartbeatIntervalMs ?? DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS;
 }
 
+function getLlmPreflightTimeoutMs(deps: RunStageDependencies) {
+  return getSettings(deps).llm.preflightTimeoutMs;
+}
+
 function getDefaultRunStageDependencies(): RunStageDependencies {
   return {
     convex: getConvexWorkerClient(),
@@ -256,6 +260,50 @@ async function withPeriodicHeartbeat<T>(args: {
     clearInterval(timer);
     await heartbeatInFlight;
   }
+}
+
+async function withTimeout<T>(args: {
+  timeoutMs: number;
+  timeoutMessage: string;
+  task: () => Promise<T>;
+}) {
+  if (args.timeoutMs <= 0) {
+    return args.task();
+  }
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(args.timeoutMessage));
+    }, args.timeoutMs);
+    timeoutHandle.unref?.();
+  });
+
+  try {
+    return await Promise.race([args.task(), timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+async function withPreflightGuard<T>(args: {
+  intervalMs: number;
+  timeoutMs: number;
+  timeoutMessage: string;
+  onHeartbeat?: (() => Promise<void> | void) | undefined;
+  task: () => Promise<T>;
+}) {
+  return withPeriodicHeartbeat({
+    intervalMs: args.intervalMs,
+    onHeartbeat: args.onHeartbeat,
+    task: () => withTimeout({
+      timeoutMs: args.timeoutMs,
+      timeoutMessage: args.timeoutMessage,
+      task: args.task,
+    }),
+  });
 }
 
 export async function runRunStageActivityWithDeps(
@@ -497,19 +545,40 @@ async function executeRunChatAttempt(
     input_tokens: estimatePromptTokens(args.input),
     total_tokens: estimatePromptTokens(args.input),
   };
-  const reservation = await deps.quota.reserve({
-    reservationId: `run:${args.runId}:${args.stage}:${args.input.target_id}:${attempt_id}`,
-    provider,
-    model: args.input.model,
-    operationType: "chat",
-    scopeKey: `run:${args.runId}:${args.stage}`,
-    dimensions: reservedDimensions,
-    processKind: "run",
-    processId: args.runId,
-    workflowId: args.workflowId,
-  });
+  let reservation: Awaited<ReturnType<QuotaStore["reserve"]>> | null = null;
 
   try {
+    reservation = await withPreflightGuard({
+      intervalMs: getProcessHeartbeatIntervalMs(deps),
+      timeoutMs: getLlmPreflightTimeoutMs(deps),
+      timeoutMessage:
+        `Timed out reserving direct-request quota for ${args.stage} target ${args.input.target_id}`,
+      onHeartbeat: async () => {
+        await deps.convex.recordProcessHeartbeat?.({
+          process_kind: "run",
+          process_id: args.runId,
+          stage: args.stage,
+          payload_json: JSON.stringify({
+            source: "direct_preamble",
+            step: "quota_reserve",
+            attempt_id,
+            target_id: args.input.target_id,
+            model: args.input.model,
+          }),
+        });
+      },
+      task: () => deps.quota.reserve({
+        reservationId: `run:${args.runId}:${args.stage}:${args.input.target_id}:${attempt_id}`,
+        provider,
+        model: args.input.model,
+        operationType: "chat",
+        scopeKey: `run:${args.runId}:${args.stage}`,
+        dimensions: reservedDimensions,
+        processKind: "run",
+        processId: args.runId,
+        workflowId: args.workflowId,
+      }),
+    });
     if (!reservation.allowed) {
       throw new Error(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`,
@@ -566,7 +635,7 @@ async function executeRunChatAttempt(
     return { status: "succeeded" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (reservation.allowed) {
+    if (reservation?.allowed) {
       await deps.quota.settle({
         reservationId: reservation.reservationId,
         provider,
@@ -652,18 +721,7 @@ async function processRunStageBatchChunk(
       0,
     ),
   };
-
-  const reservation = await deps.quota.reserve({
-    reservationId: `run:${args.runId}:${args.stage}:batch:${startedAttempts.map((item) => item.attemptId).join(":")}`,
-    provider,
-    model: args.model,
-    operationType: "batch",
-    scopeKey: `run:${args.runId}:${args.stage}`,
-    dimensions: reservedDimensions,
-    processKind: "run",
-    processId: args.runId,
-    workflowId: args.workflowId,
-  });
+  let reservation: Awaited<ReturnType<QuotaStore["reserve"]>> | null = null;
 
   const failureStates = new Map<string, RunAttemptFailureState>();
   let successCount = 0;
@@ -691,21 +749,72 @@ async function processRunStageBatchChunk(
   };
 
   try {
+    reservation = await withPreflightGuard({
+      intervalMs: getProcessHeartbeatIntervalMs(deps),
+      timeoutMs: getLlmPreflightTimeoutMs(deps),
+      timeoutMessage:
+        `Timed out reserving batch quota for ${args.stage} run ${args.runId}`,
+      onHeartbeat: async () => {
+        await deps.convex.recordProcessHeartbeat?.({
+          process_kind: "run",
+          process_id: args.runId,
+          stage: args.stage,
+          payload_json: JSON.stringify({
+            source: "batch_preamble",
+            step: "quota_reserve",
+            model: args.model,
+            item_count: startedAttempts.length,
+            batch_key: batchKey,
+          }),
+        });
+      },
+      task: () => deps.quota.reserve({
+        reservationId: `run:${args.runId}:${args.stage}:batch:${startedAttempts.map((item) => item.attemptId).join(":")}`,
+        provider,
+        model: args.model,
+        operationType: "batch",
+        scopeKey: `run:${args.runId}:${args.stage}`,
+        dimensions: reservedDimensions,
+        processKind: "run",
+        processId: args.runId,
+        workflowId: args.workflowId,
+      }),
+    });
     if (!reservation.allowed) {
       const message =
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
       batchExecution = deps.convex.ensureBatchExecution
-        ? await deps.convex.ensureBatchExecution({
-        batch_key: batchKey,
-        process_kind: "run",
-        process_id: args.runId,
-        stage: args.stage,
-        provider,
-        model: args.model,
-        workflow_id: args.workflowId,
-        item_count: startedAttempts.length,
+        ? await withPreflightGuard({
+          intervalMs: getProcessHeartbeatIntervalMs(deps),
+          timeoutMs: getLlmPreflightTimeoutMs(deps),
+          timeoutMessage:
+            `Timed out preparing batch execution for ${args.stage} run ${args.runId}`,
+          onHeartbeat: async () => {
+            await deps.convex.recordProcessHeartbeat?.({
+              process_kind: "run",
+              process_id: args.runId,
+              stage: args.stage,
+              payload_json: JSON.stringify({
+                source: "batch_preamble",
+                step: "ensure_batch_execution",
+                model: args.model,
+                item_count: startedAttempts.length,
+                batch_key: batchKey,
+              }),
+            });
+          },
+          task: () => deps.convex.ensureBatchExecution!({
+            batch_key: batchKey,
+            process_kind: "run",
+            process_id: args.runId,
+            stage: args.stage,
+            provider,
+            model: args.model,
+            workflow_id: args.workflowId,
+            item_count: startedAttempts.length,
+          }),
         })
         : null;
       const batch = await withPeriodicHeartbeat({
@@ -836,7 +945,7 @@ async function processRunStageBatchChunk(
       }
     }
   } catch (error) {
-    if (reservation.allowed) {
+    if (reservation?.allowed) {
       await deps.quota.settle({
         reservationId: reservation.reservationId,
         provider,
@@ -849,18 +958,46 @@ async function processRunStageBatchChunk(
       });
     }
     const message = error instanceof Error ? error.message : String(error);
-    const existingBatchExecution = deps.convex.ensureBatchExecution
-      ? await deps.convex.ensureBatchExecution({
-      batch_key: batchKey,
-      process_kind: "run",
-      process_id: args.runId,
-      stage: args.stage,
-      provider,
-      model: args.model,
-      workflow_id: args.workflowId,
-      item_count: startedAttempts.length,
-      })
-      : null;
+    let existingBatchExecution = batchExecution;
+    if (!existingBatchExecution && deps.convex.ensureBatchExecution) {
+      try {
+        existingBatchExecution = await withPreflightGuard({
+          intervalMs: getProcessHeartbeatIntervalMs(deps),
+          timeoutMs: getLlmPreflightTimeoutMs(deps),
+          timeoutMessage:
+            `Timed out recovering batch execution for ${args.stage} run ${args.runId}`,
+          onHeartbeat: async () => {
+            await deps.convex.recordProcessHeartbeat?.({
+              process_kind: "run",
+              process_id: args.runId,
+              stage: args.stage,
+              payload_json: JSON.stringify({
+                source: "batch_preamble",
+                step: "recover_batch_execution",
+                model: args.model,
+                item_count: startedAttempts.length,
+                batch_key: batchKey,
+              }),
+            });
+          },
+          task: () => deps.convex.ensureBatchExecution!({
+            batch_key: batchKey,
+            process_kind: "run",
+            process_id: args.runId,
+            stage: args.stage,
+            provider,
+            model: args.model,
+            workflow_id: args.workflowId,
+            item_count: startedAttempts.length,
+          }),
+        });
+      } catch (recoveryError) {
+        console.warn(
+          "[run.stage] failed to recover batch execution after batch preamble error",
+          String(recoveryError),
+        );
+      }
+    }
     if (existingBatchExecution) {
       await deps.convex.finalizeBatchExecution?.({
         batch_execution_id: existingBatchExecution.batch_execution_id,
@@ -872,7 +1009,7 @@ async function processRunStageBatchChunk(
     await recordSharedBatchFailure(message);
   }
 
-  if (!reservation.allowed) {
+  if (!reservation?.allowed) {
     // no-op; handled by shared failure path
   }
 
@@ -896,7 +1033,7 @@ async function processRunStageBatchChunk(
     }
   }
 
-  if (reservation.allowed && batchExecution) {
+  if (reservation?.allowed && batchExecution) {
     await deps.convex.finalizeBatchExecution?.({
       batch_execution_id: batchExecution.batch_execution_id,
       status: failureCount > 0 ? "failed" : "completed",

@@ -1,9 +1,11 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "preflight_clean",
-  "latest_iteration_id": "20260322T051929Z_projection_freshness_gap_corrected_runtime",
+  "latest_iteration_id": "20260322T183004Z_score_stage_projection_recurrence",
   "last_successful_gate": "canary",
-  "current_blockers": [],
+  "current_blockers": [
+    "convex_cleanup_race_logs_pending"
+  ],
   "reset_allowed": true,
   "notes": [
     "The active V3 finish pass now targets the corrected 32-experiment matrix described in docs/pilots/v3_gpt_ablations.md.",
@@ -32,6 +34,13 @@
     "2026-03-22T05:29Z relaunched the full 18-experiment cohort on the heartbeat-hardened worker. Immediate live verification showed `healthy_progressing`, all 18 latest runs bound in `rubric_gen`, and a fresh 30-target `rubric_gen` run (`kx72cebwc0rdv8g4y3vdvjrhy983dwj1`) still using direct requests with `batch_count=0`.",
     "2026-03-22 later the relaunched cohort was intentionally canceled mid-pass so the next loop could start from a clean save state before additional QoL/operator-surface fixes.",
     "2026-03-22 the action-level reset returned 17/18 experiments to `start`, and a direct `packages/codex:resetRuns` cleanup removed the final canceled run (`kx70gpx8j3ypqej7qva2v2n2th83cdhz`) for `v3_a2_gpt_4_1_l3`.",
-    "2026-03-22 final live verification confirmed the manifest-scoped cohort is back to `preflight_clean` with `launch_ready=true`, all 18 experiments in `start`, preserved window/pool setup, and Temporal run/window queues ready."
+    "2026-03-22 final live verification confirmed the manifest-scoped cohort is back to `preflight_clean` with `launch_ready=true`, all 18 experiments in `start`, preserved window/pool setup, and Temporal run/window queues ready.",
+    "2026-03-22T18:30:04Z captured unhealthy iteration `20260322T183004Z_score_stage_projection_recurrence` after the full cohort relapsed from a bounded safe-heal back into `stalled_recoverable` with score-stage `stale_projection` despite healthy Temporal queues.",
+    "Post-relapse diagnosis narrowed the real choke point to the run-stage preflight path between `recordLlmAttemptStart` and the existing request/batch-wait heartbeat wrappers: stale score runs had already created batch attempts, but never reached `batch_submitted`, `batch_polled`, or `stage_activity_heartbeat` events.",
+    "2026-03-22 local validation for the run-stage preflight hardening patch passed with `cd apps/engine-temporal && bun run test` and `bun run typecheck`.",
+    "2026-03-22T19:01:02.659Z deployed the patched Railway worker under deployment `565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1`; live verification kept the V3 cohort at `preflight_clean` with `launch_ready=true`, zero backlog, and new worker identity `1@8ca2e1f3c6ee` polling both Temporal queues.",
+    "A stale prior worker identity (`1@cef77b7ce4be`) remained visible in queue metadata immediately after rollout with no fresh poll activity, so relaunch is paused until Convex-side cleanup-race errors are reviewed.",
+    "2026-03-22 local Convex dev logs also showed repeated cleanup-race failures after destructive resets (`packages/worker:recordLlmAttemptFinish -> Attempt not found`, `packages/worker:projectProcessState -> Window run not found`), which should be triaged before the next V3 loop.",
+    "2026-03-22 repo procedure was updated so Turbo defaults to streamed logs and the agent owns the root `bun dev` session whenever local Convex log monitoring is needed."
   ]
 }

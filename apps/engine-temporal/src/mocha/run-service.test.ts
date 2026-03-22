@@ -1186,4 +1186,244 @@ describe("run stage service", function () {
     assert.ok(heartbeatSources.length >= 1);
     assert.ok(heartbeatSources.every((source) => source === "batch_wait"));
   });
+
+  it("times out a stalled direct preflight while emitting heartbeats", async () => {
+    const heartbeatSteps: string[] = [];
+    const finishedErrors: string[] = [];
+    let markFailureCalls = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            preflightTimeoutMs: 15,
+            retries: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.retries,
+              providerFailureMaxAttempts: 1,
+              unexpectedFailureMaxAttempts: 1,
+            },
+          },
+        },
+        quota: {
+          reserve: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            return {
+              allowed: true,
+              reservationId: "reservation_direct_stall",
+              bucketKeys: ["quota:test"],
+              dimensions: { requests: 1 },
+            };
+          },
+          settle: async () => undefined,
+        },
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_direct_preflight_timeout",
+              experiment_id: "exp_direct_preflight_timeout",
+              workflow_id: "run:run_direct_preflight_timeout",
+              workflow_run_id: "workflow-run-direct-preflight-timeout",
+              status: "running",
+              current_stage: "rubric_critic",
+              target_count: 1,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [{
+              target_type: "sample" as const,
+              target_id: "sample_1",
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            return { attempt_id: "attempt_direct_preflight_timeout" };
+          },
+          async recordLlmAttemptFinish({ error_message }) {
+            if (error_message) {
+              finishedErrors.push(error_message);
+            }
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSteps.push(`${payload?.source ?? "unknown"}:${payload?.step ?? "unknown"}`);
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            markFailureCalls += 1;
+            return null;
+          },
+          async finalizeRunStage() {
+            return {
+              total: 1,
+              completed: 0,
+              failed: 1,
+              has_pending: false,
+              halt_process: true,
+              terminal_execution_status: "failed" as const,
+              error_message: "direct preflight failed",
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+      },
+      "run_direct_preflight_timeout",
+      "rubric_critic",
+    );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(markFailureCalls, 1);
+    assert.ok(heartbeatSteps.length >= 1);
+    assert.ok(heartbeatSteps.every((step) => step === "direct_preamble:quota_reserve"));
+    assert.equal(finishedErrors.length, 1);
+    assert.match(finishedErrors[0] ?? "", /Timed out reserving direct-request quota/);
+  });
+
+  it("times out a stalled batch preflight while emitting heartbeats", async () => {
+    const heartbeatSteps: string[] = [];
+    const finishedErrors: string[] = [];
+    let markFailureCalls = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            preflightTimeoutMs: 15,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+            },
+            retries: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.retries,
+              providerFailureMaxAttempts: 1,
+              unexpectedFailureMaxAttempts: 1,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_preflight_timeout",
+              experiment_id: "exp_batch_preflight_timeout",
+              workflow_id: "run:run_batch_preflight_timeout",
+              workflow_run_id: "workflow-run-batch-preflight-timeout",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            return { attempt_id: `attempt_${target_id}` };
+          },
+          async recordLlmAttemptFinish({ error_message }) {
+            if (error_message) {
+              finishedErrors.push(error_message);
+            }
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSteps.push(`${payload?.source ?? "unknown"}:${payload?.step ?? "unknown"}`);
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            markFailureCalls += 1;
+            return null;
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 0,
+              failed: 2,
+              has_pending: false,
+              halt_process: true,
+              terminal_execution_status: "failed" as const,
+              error_message: "batch preflight failed",
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            return {
+              batch_execution_id: "batch_execution_stalled",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+            };
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat() {
+          throw new Error("runOpenAiBatchChat should not be called");
+        },
+      },
+      "run_batch_preflight_timeout",
+      "score_gen",
+    );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(markFailureCalls, 2);
+    assert.ok(heartbeatSteps.length >= 1);
+    assert.ok(
+      heartbeatSteps.every((step) => step.startsWith("batch_preamble:")),
+    );
+    assert.ok(heartbeatSteps.includes("batch_preamble:ensure_batch_execution"));
+    assert.equal(finishedErrors.length, 2);
+    assert.ok(
+      finishedErrors.every((message) => /Timed out preparing batch execution/.test(message)),
+    );
+  });
 });

@@ -26,6 +26,9 @@ The developer-facing settings object lives in `src/index.ts` as
 
 Important timeout split:
 
+- `llm.preflightTimeoutMs` bounds quota reservation and batch-registration work before
+  provider dispatch so stalled local preamble calls fail fast instead of leaving
+  active runs/window stages looking stale
 - `llm.direct.requestTimeoutMs` is the per-request timeout for normal chat calls
 - `llm.batching.requestTimeoutMs` is the transport timeout for each Batch API
   request
