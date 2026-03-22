@@ -384,6 +384,7 @@ export const deleteRunDataPass = zInternalMutation({
       }
       return {
         trace_id,
+        run_exists: true,
         deleted,
         has_more: true,
       };
