@@ -1,0 +1,35 @@
+{
+  "nodeId": "N01",
+  "kind": "agent",
+  "role": "forensic-baseline",
+  "objective": "Consolidate the current V3 failure pass into one supported baseline: exact cohort state, representative run evidence, worker-log cause, and the minimum claims downstream nodes may rely on.",
+  "inputs": [
+    "_campaigns/v3_finish_pass/campaign_state.json",
+    "_campaigns/v3_finish_pass/bug_ledger.json",
+    "_campaigns/v3_finish_pass/observability_backlog.json",
+    "_campaigns/v3_finish_pass/iterations/20260322T215646Z_score_gen_batch_attempt_timeout_recurrence/snapshot.json",
+    "_campaigns/v3_finish_pass/iterations/20260322T215646Z_score_gen_batch_attempt_timeout_recurrence/report.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "read_logs",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "exec_command",
+    "mcp__railway__get_logs",
+    "mcp__convex__logs"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "findings.json",
+    "baseline.md"
+  ],
+  "completionCriteria": [
+    "Emit the terminal cohort counts and scientific-validity judgment.",
+    "Name at least one representative 120-target run and one representative 600-target run with the same failure shape.",
+    "State the concrete worker-side timeout string that dominates the pass."
+  ]
+}

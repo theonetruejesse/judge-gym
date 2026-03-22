@@ -1,0 +1,11 @@
+{
+  "status": "done",
+  "preflight_guard": {
+    "location": "apps/engine-temporal/src/run/service.ts#L714-L766",
+    "timeout_ms": 60000,
+    "guard_name": "withPreflightGuard record_attempt_starts for score_gen",
+    "payload": "mapConcurrently -> recordLlmAttemptStart fanout with attemptStartConcurrency ~ (direct maxConcurrentRequests * up to 4)"
+  },
+  "persistence_boundary": "The code writes attempt_start rows via `recordLlmAttemptStart` before any Convex `llm_batch_executions` rows or provider batch_is are created; no intermediate cursor is stored.",
+  "resume_potential": "Chunk the `args.inputs` array into fixed-size batches (e.g., 50 targets), persist a batch_preamble checkpoint key inside Convex (run_id + stage + batch_index) as soon as each chunk succeeds, and resume at the next chunk instead of re-running all attempts when the guard times out."
+}

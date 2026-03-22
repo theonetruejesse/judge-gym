@@ -1,0 +1,13 @@
+{
+  "pending": false,
+  "decision": "go",
+  "sources": [
+    "agents/N01/findings.json",
+    "agents/N02/findings.json",
+    "agents/N03/null_challenges.json",
+    "agents/N04/patch_summary.md",
+    "agents/N05/validation_result.json",
+    "agents/N05/live_gate.json",
+    "agents/N06/relaunch_gate.md"
+  ]
+}

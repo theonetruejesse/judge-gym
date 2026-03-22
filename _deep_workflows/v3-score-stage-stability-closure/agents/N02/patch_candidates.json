@@ -1,0 +1,19 @@
+{
+  "candidates": [
+    {
+      "name": "Chunked attempt recordings with persisted checkpoint",
+      "status": "preferred",
+      "reason": "Break the inputs into manageable pages, record each page's completion in a lightweight Convex checkpoint row before issuing the next page, then let `recordLlmAttemptStart` resume from the latest checkpoint instead of replaying an entire run when the 60s guard fires.",
+      "benefits": [
+        "Keeps the `withPreflightGuard` segment short per page",
+        "Makes the pre-batch work resumable without inflating the global timeout",
+        "Provides a durable batch key for later observability/diagnosis"
+      ]
+    },
+    {
+      "name": "Increase `llm.preflightTimeoutMs` above 60s",
+      "status": "rejected",
+      "reason": "This only masks the symptoms: the command still runs a massive single fanout, so the worker will eventually time out again and the queue will still record `batch_count=0` when the guard finally fires."
+    }
+  ]
+}

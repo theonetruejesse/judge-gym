@@ -1,0 +1,43 @@
+{
+  "status": "done",
+  "campaign": {
+    "state": "scientifically_invalid",
+    "launch_ready": false,
+    "error_count": 18,
+    "stage_distribution": {
+      "rubric_gen": 0,
+      "rubric_critic": 0,
+      "score_gen": 18,
+      "score_critic": 0
+    },
+    "temporal_queues": {
+      "run_queue_ready": true,
+      "window_queue_ready": true,
+      "worker_identity": "1@57c4e8d4aaeb"
+    }
+  },
+  "representatives": [
+    {
+      "run_id": "kx74z0v86fw8mmty27q44h3zpd83djhf",
+      "experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "targets": 120,
+      "status": "error",
+      "stage": "score_gen"
+    },
+    {
+      "run_id": "kx79rnmhjxzdxejhbvns174fm983d6gf",
+      "experiment_tag": "v3_a1_gpt_4_1_abstain_false",
+      "targets": 600,
+      "status": "error",
+      "stage": "score_gen"
+    }
+  ],
+  "dominant_failure": {
+    "message": "Timed out recording batch attempts for score_gen run ...",
+    "source": "Railway worker deploy a41e6ac2-f67e-4f58-be84-2216fa2330d6 logs",
+    "stage": "score_gen",
+    "batch_count": 0,
+    "llm_attempts_started": "many",
+    "workflow_outcome": "failed (Activity task failed)"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "status": "done",
+  "decision": "go",
+  "accepted_patch_shape": {
+    "name": "page-bounded batch attempt recording with caught preamble failures",
+    "requirements": [
+      "Do not rely on increasing llm.preflightTimeoutMs.",
+      "Break the score_gen attempt-start fanout into bounded pages so each preflight guard covers one page, not the full batch chunk.",
+      "Keep the preamble failure path inside processRunStageBatchChunk's catch boundary so it no longer escapes as a raw activity failure.",
+      "Preserve enough telemetry to diagnose pre-batch failure cause from process surfaces."
+    ]
+  },
+  "rejected_patch_shapes": [
+    {
+      "name": "increase llm.preflightTimeoutMs",
+      "reason": "Masks the symptom but keeps one large fanout and weakens the fast-fail guard globally."
+    },
+    {
+      "name": "leave attempt recording monolithic and only improve logging",
+      "reason": "Improves diagnosis but does not remove the score_gen blocker."
+    }
+  ],
+  "notes": [
+    "The discovered control-flow bug is that the record-attempt preflight guard lived outside the batch chunk try/catch.",
+    "The patch is acceptable without a brand-new Convex checkpoint table because recordLlmAttemptStart is already idempotent on attempt_key and the immediate blocker is the monolithic 60s preflight segment."
+  ]
+}

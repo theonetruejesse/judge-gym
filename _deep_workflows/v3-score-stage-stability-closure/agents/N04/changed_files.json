@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "path": "apps/engine-temporal/src/run/service.ts",
+      "role": "Implements page-bounded attempt recording, checkpoint restoration, and process-error surfacing for score-stage batch preamble."
+    },
+    {
+      "path": "apps/engine-temporal/src/mocha/run-service.test.ts",
+      "role": "Adds regression coverage for paged attempt recording, checkpoint reuse, and concrete process-error surfacing."
+    },
+    {
+      "path": "apps/engine-temporal/src/convex/client.ts",
+      "role": "Adds client support for batch-preparation progress persistence."
+    },
+    {
+      "path": "apps/engine-convex/convex/models/batches.ts",
+      "role": "Adds durable batch-preparation checkpoint fields to llm_batch_executions."
+    },
+    {
+      "path": "apps/engine-convex/convex/packages/worker.ts",
+      "role": "Exposes persisted batch-preparation progress mutation/query fields."
+    },
+    {
+      "path": "apps/engine-convex/convex/tests/worker_idempotency.test.ts",
+      "role": "Adds a regression test covering persisted batch-preparation checkpoints on reused batch executions."
+    },
+    {
+      "path": "README.md",
+      "role": "Documents the new score-stage batch-preamble semantics for operators."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "local_validation": [
+    {
+      "command": "bun run validate:convex",
+      "result": "passed"
+    },
+    {
+      "command": "cd apps/engine-temporal && bun run test -- src/mocha/run-service.test.ts",
+      "result": "passed"
+    },
+    {
+      "command": "cd apps/engine-convex && bun run test -- convex/tests/worker_idempotency.test.ts",
+      "result": "passed"
+    },
+    {
+      "command": "bun run typecheck",
+      "result": "passed"
+    }
+  ],
+  "runtime_deploy": {
+    "service": "engine-temporal-worker",
+    "deployment_id": "1ac971f7-7102-4b28-989b-3f807fa9078c",
+    "status": "SUCCESS"
+  },
+  "notes": [
+    "Convex code/schema changed as part of the persisted batch-preparation checkpoint, so the full validate:convex routine was rerun.",
+    "The Temporal mocha invocation still exercises the broader src/mocha/*.test.ts set before the targeted file, which is expected in this repo."
+  ]
+}

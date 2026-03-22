@@ -1,0 +1,22 @@
+{
+  "status": "ready_for_relaunch",
+  "campaign_snapshot": {
+    "effective_campaign_state": "preflight_clean",
+    "launch_ready": true,
+    "selected_experiment_count": 18,
+    "start_count": 18,
+    "with_latest_run": 0
+  },
+  "queue_health": {
+    "all_ready": true,
+    "active_worker_identity": "1@3da3f2b1f874",
+    "stale_worker_identity": "1@57c4e8d4aaeb",
+    "approximate_backlog_count": 0,
+    "note": "The old poller remained visible in queue metadata after rollout but its last_access_time_ms stopped advancing; only the new worker identity was still polling."
+  },
+  "reset_path": {
+    "method": "packages/codex:resetRuns",
+    "paging": "max_experiments=1",
+    "result": "cohort returned to preflight_clean"
+  }
+}

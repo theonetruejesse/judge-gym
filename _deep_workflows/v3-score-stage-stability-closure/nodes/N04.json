@@ -1,0 +1,36 @@
+{
+  "nodeId": "N04",
+  "kind": "patch",
+  "role": "score-stage-closure-implementer",
+  "objective": "Implement the smallest durable code change that removes the remaining score_gen batch-attempt-record timeout family and improves stage-activity failure surfacing enough for future V3 forensics.",
+  "inputs": [
+    "agents/N03/null_challenges.json",
+    "apps/engine-temporal/src/run/service.ts",
+    "apps/engine-temporal/src/mocha/run-service.test.ts",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "README.md"
+  ],
+  "dependencies": [
+    "N03"
+  ],
+  "effects": [
+    "read_code",
+    "write_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "exec_command",
+    "apply_patch"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "patch_summary.md",
+    "changed_files.json"
+  ],
+  "completionCriteria": [
+    "Implement resumable or page-based continuation for the score_gen attempt-recording segment instead of a pure timeout increase.",
+    "Add regression coverage for the new continuation or timeout-prevention behavior.",
+    "Update README.md if behavior or operator surfaces change."
+  ]
+}

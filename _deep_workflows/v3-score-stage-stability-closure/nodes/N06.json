@@ -1,0 +1,36 @@
+{
+  "nodeId": "N06",
+  "kind": "synthesize",
+  "role": "relaunch-gate-synthesizer",
+  "objective": "Merge workflow outputs into a final decision on whether v3-finish-pass may resume with the next full relaunch, and record the exact signals the next monitoring loop must watch.",
+  "inputs": [
+    "agents/N01/findings.json",
+    "agents/N02/findings.json",
+    "agents/N03/null_challenges.json",
+    "agents/N04/patch_summary.md",
+    "agents/N05/validation_result.json",
+    "agents/N05/live_gate.json"
+  ],
+  "dependencies": [
+    "N05"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "exec_command",
+    "apply_patch"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N06/",
+  "requiredOutputs": [
+    "relaunch_gate.md"
+  ],
+  "completionCriteria": [
+    "Emit a go/no-go decision for the next v3-finish-pass relaunch.",
+    "State the expected post-patch behavior and the first stop-and-patch signals for the next loop.",
+    "Update shared deep-workflow synthesis outputs to reflect the final decision."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "nodeId": "N05",
+  "kind": "validate",
+  "role": "validation-and-live-gate",
+  "objective": "Run local validation for touched Temporal and Convex code, deploy runtime-affecting changes to Railway, verify live worker identity and queue readiness, then reset the V3 cohort back to manifest-scoped preflight_clean.",
+  "inputs": [
+    "agents/N04/patch_summary.md",
+    "_campaigns/v3_finish_pass/manifest.json"
+  ],
+  "dependencies": [
+    "N04"
+  ],
+  "effects": [
+    "read_code",
+    "read_state",
+    "run_local_scripts",
+    "run_mutating_scripts",
+    "touch_live_ops",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "exec_command",
+    "mcp__railway__deploy",
+    "mcp__railway__get_logs",
+    "mcp__railway__list_deployments",
+    "mcp__convex__status",
+    "mcp__convex__logs"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05/",
+  "requiredOutputs": [
+    "validation_result.json",
+    "live_gate.json"
+  ],
+  "completionCriteria": [
+    "Run all required local validation for touched code paths.",
+    "If runtime-affecting code changed, deploy to Railway and confirm the expected worker identity is polling healthy queues.",
+    "Return the live manifest-scoped cohort to preflight_clean with launch_ready=true before handoff."
+  ]
+}

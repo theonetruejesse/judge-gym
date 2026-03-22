@@ -1,12 +1,9 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "preflight_clean",
-  "latest_iteration_id": "20260322T210544Z_projection_staleness_recurrence",
+  "latest_iteration_id": "20260322T215646Z_score_gen_batch_attempt_timeout_recurrence",
   "last_successful_gate": "canary",
-  "current_blockers": [
-    "run_stage_batch_preamble_live_validation_pending",
-    "active_reset_callback_race_live_validation_pending"
-  ],
+  "current_blockers": [],
   "reset_allowed": true,
   "notes": [
     "The active V3 finish pass now targets the corrected 32-experiment matrix described in docs/pilots/v3_gpt_ablations.md.",
@@ -48,6 +45,12 @@
     "2026-03-22 the cohort was parked back at `preflight_clean` using single-experiment `packages/codex:resetRuns` fallbacks with `allow_active=true` after `resetV3Campaign` timed out waiting for Temporal cancellation and multi-experiment `resetRuns` pages exceeded Convex read limits.",
     "2026-03-22T21:18Z deployed a runtime patch to Railway that bounds score-stage batch attempt-start fanout and emits `batch_preamble:record_attempt_starts` heartbeats before batch registration. Live validation of that fix is still pending the next relaunch.",
     "Late callbacks from the forcibly reset cohort still produced Convex cleanup-race noise (`packages/worker:applyRunStageResult -> Run not found`, `packages/worker:markRunStageFailure -> Score target not found for run`), so reset-path idempotency remains an autonomy blocker even though the cohort is clean again.",
-    "2026-03-22T22:33Z patched Convex run-stage worker mutations so late apply/failure callbacks against deleted run/sample/score-target/rubric rows emit trace breadcrumbs and return `null` instead of throwing. `bun run validate:convex` and `convex/tests/worker_idempotency.test.ts` passed, live ownDev snapshot stayed `preflight_clean`, queue health converged to a single worker identity (`1@57c4e8d4aaeb`), and recent Convex failure logs were empty after the push. The next active reset should still be treated as live validation for this cleanup-race fix."
+    "2026-03-22T22:33Z patched Convex run-stage worker mutations so late apply/failure callbacks against deleted run/sample/score-target/rubric rows emit trace breadcrumbs and return `null` instead of throwing. `bun run validate:convex` and `convex/tests/worker_idempotency.test.ts` passed, live ownDev snapshot stayed `preflight_clean`, queue health converged to a single worker identity (`1@57c4e8d4aaeb`), and recent Convex failure logs were empty after the push. The next active reset should still be treated as live validation for this cleanup-race fix.",
+    "2026-03-22T21:56:46Z captured unhealthy iteration `20260322T215646Z_score_gen_batch_attempt_timeout_recurrence` after the full-loop relaunch converged to `scientifically_invalid`: all 18 latest runs reached `score_gen` and failed there while Temporal queues remained healthy.",
+    "Representative 120-target and 600-target runs both showed the same terminal shape: many `llm_attempt_started` events in `score_gen`, `batch_count=0`, no succeeded or failed score attempts, and Temporal workflow snapshots closed with `lastErrorMessage=\"Activity task failed\"`.",
+    "Railway worker logs on deployment `a41e6ac2-f67e-4f58-be84-2216fa2330d6` localized the hidden cause: `Timed out recording batch attempts for score_gen run ...`. The prior bounded-concurrency hardening was insufficient; the remaining blocker is the attempt-recording segment itself, which still needs resumable paging/continuation semantics before batch registration.",
+    "2026-03-22T22:28Z deployed the score-stage stability-closure patch to Railway under deployment `1ac971f7-7102-4b28-989b-3f807fa9078c`. The patch persists batch-preparation checkpoints on `llm_batch_executions`, restores them on replay, pages fresh `recordLlmAttemptStart` work, and records concrete run-process errors if batch preparation still fails.",
+    "2026-03-22 local validation for the score-stage stability-closure patch passed with `bun run validate:convex`, `cd apps/engine-temporal && bun run test -- src/mocha/run-service.test.ts`, and `bun run typecheck`.",
+    "2026-03-22T22:33Z-22:38Z returned the manifest-scoped cohort to `preflight_clean` via paged `packages/codex:resetRuns` (`max_experiments=1`) after the failed score-stage pass. Live snapshot now shows `launch_ready=true`, all 18 experiments in `start`, and healthy Temporal queues on the new worker identity `1@3da3f2b1f874`."
   ]
 }

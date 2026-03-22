@@ -1,0 +1,191 @@
+{
+  "meta": {
+    "name": "V3 Score Stage Stability Closure",
+    "slug": "v3-score-stage-stability-closure",
+    "objective": "Patch the remaining score_gen batch-attempt timeout and observability gaps, validate, deploy, reset the V3 cohort to preflight_clean, then hand control back to the v3-finish-pass relaunch gate.",
+    "objectiveClass": "finish_pass",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "compiled",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-score-stage-stability-closure"
+  },
+  "compile": {
+    "baseHint": "Use the current failed V3 full-loop pass as the forensic baseline. The objective is not a broad refactor; it is to remove the remaining score_gen pre-batch timeout family, improve failure surfacing enough to diagnose future stage-activity failures from codex/Convex surfaces, validate and deploy the smallest durable fix, then return the cohort to preflight_clean for the next v3-finish-pass relaunch.",
+    "taskSignals": [
+      "Current live V3 cohort is scientifically_invalid, with all 18 latest runs failed in score_gen.",
+      "Representative 120-target and 600-target runs both show many llm_attempt_started events, batch_count=0, and Temporal Activity task failed.",
+      "Railway worker logs localize the hidden cause to Timed out recording batch attempts for score_gen run ...",
+      "Under-35 batching policy is already fixed and live.",
+      "Reset cleanup-race hardening is in repo and still needs another destructive live proving pass."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq",
+      "checkpoint",
+      "falsify",
+      "patch",
+      "validate",
+      "synthesize"
+    ],
+    "notes": [
+      "Compile-time macro shape: baseline + localization in parallel, then falsify/judge the patch shape before implementation.",
+      "Do not resume v3-finish-pass until local validation, Railway deploy verification, and a clean manifest-scoped preflight state all hold.",
+      "The preferred patch is resumable/page-based score_gen attempt recording, not a blind timeout bump."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/manifest.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/campaign_state.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/bug_ledger.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/observability_backlog.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/iterations/20260322T215646Z_score_gen_batch_attempt_timeout_recurrence/snapshot.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/iterations/20260322T215646Z_score_gen_batch_attempt_timeout_recurrence/report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/run/service.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/workflows.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/activities.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/packages/worker.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-settings/src/index.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-settings/src/process.ts"
+    ],
+    "sharedTools": [
+      "exec_command",
+      "apply_patch",
+      "mcp__railway__deploy",
+      "mcp__railway__get_logs",
+      "mcp__railway__list_deployments",
+      "mcp__convex__logs",
+      "mcp__convex__status"
+    ],
+    "sharedScripts": [],
+    "connectors": [
+      "railway",
+      "convex"
+    ],
+    "env": [
+      "branch=temporal-migration",
+      "service=engine-temporal-worker",
+      "manifest=v3_finish_pass"
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01",
+      "N02"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "agent",
+        "role": "forensic-baseline"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "code-localizer"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "falsify",
+        "role": "patch-shape-challenger"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "patch",
+        "role": "score-stage-closure-implementer"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "validate",
+        "role": "validation-and-live-gate"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "synthesize",
+        "role": "relaunch-gate-synthesizer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "synthesis/gate_decision.json"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/findings.json",
+      "agents/N02/findings.json",
+      "agents/N03/null_challenges.json",
+      "agents/N04/patch_summary.md",
+      "agents/N05/validation_result.json",
+      "agents/N06/relaunch_gate.md"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "hypothesis",
+      "patch_candidate",
+      "validation_result",
+      "decision",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Abort implementation if falsifier concludes the proposed change is just a timeout bump without resumable continuation semantics.",
+      "Abort relaunch handoff if local validation fails, Railway deploy is stale, queue health is not single-worker and ready, or the manifest-scoped cohort is not preflight_clean.",
+      "Do not wipe the current failed cohort until the forensic checkpoint is preserved in the existing V3 iteration artifacts."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxPatchTrainsBeforeRelaunch": 1,
+      "maxLiveDeploysBeforeRelaunch": 1,
+      "maxSafeHealsInWorkflow": 0
+    }
+  }
+}

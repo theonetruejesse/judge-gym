@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-score-stage-stability-closure",
+    "objective": "Patch the remaining score_gen batch-attempt timeout and observability gaps, validate, deploy, reset the V3 cohort to preflight_clean, then hand control back to the v3-finish-pass relaunch gate.",
+    "objectiveClass": "finish_pass",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "executed",
+    "nodes": {
+      "N01": "complete",
+      "N02": "complete",
+      "N03": "complete",
+      "N04": "complete",
+      "N05": "complete",
+      "N06": "complete"
+    },
+    "synthesis": "complete",
+    "validation": "complete"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "status": "locked",
+      "decision": "Treat the current failed full-loop pass as the forensic baseline for the workflow.",
+      "reason": "The cohort is already scientifically_invalid and fully explained enough to patch without another live probe."
+    },
+    {
+      "id": "D02",
+      "status": "locked",
+      "decision": "Do not accept a pure timeout increase as the primary fix.",
+      "reason": "The score-stage preamble needs resumable continuation semantics rather than a larger single activity segment."
+    },
+    {
+      "id": "D03",
+      "status": "locked",
+      "decision": "Persist batch-preparation checkpoints on llm_batch_executions and resume from them on replay.",
+      "reason": "This creates a durable continuation boundary before provider batch submission without introducing a new coordination table."
+    },
+    {
+      "id": "D04",
+      "status": "locked",
+      "decision": "Return the failed cohort to preflight_clean immediately after deploy and validation instead of relaunching inside this workflow.",
+      "reason": "The goal of this deep workflow is closure of the active blocker and a clean relaunch gate for the next v3-finish-pass loop."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}
