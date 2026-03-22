@@ -127,6 +127,32 @@ function mapRunStage(
   return "rubric_gen";
 }
 
+async function emitSkippedProcessProjection(
+  ctx: MutationCtx,
+  args: z.infer<typeof ProcessSnapshotSchema>,
+  process_id: string,
+  reason: "run_missing" | "window_run_missing",
+) {
+  await emitTraceEvent(ctx, {
+    trace_id: `${args.processKind}:${process_id}`,
+    entity_type: args.processKind,
+    entity_id: process_id,
+    event_name: "process_projection_skipped_missing_target",
+    status: "error",
+    stage: args.stage ?? (args.processKind === "run" ? "rubric_gen" : "l0_raw"),
+    payload_json: JSON.stringify({
+      reason,
+      execution_status: args.executionStatus,
+      stage_status: args.stageStatus,
+      pause_after: args.pauseAfter,
+      last_control_command_id: args.lastControlCommandId,
+      workflow_id: args.workflowId,
+      workflow_run_id: args.workflowRunId,
+      last_error_message: args.lastErrorMessage ?? null,
+    }),
+  });
+}
+
 function runStageFields(stage: z.infer<typeof RunStageInputSchema>) {
   switch (stage) {
     case "rubric_gen":
@@ -870,7 +896,8 @@ export const projectProcessState = zMutation({
       const run_id = process_id as Id<"runs">;
       const run = await ctx.db.get(run_id);
       if (!run) {
-        throw new Error("Run not found");
+        await emitSkippedProcessProjection(ctx, args, process_id, "run_missing");
+        return null;
       }
 
       await ctx.db.patch(run_id, {
@@ -903,7 +930,8 @@ export const projectProcessState = zMutation({
     const window_run_id = process_id as Id<"window_runs">;
     const windowRun = await ctx.db.get(window_run_id);
     if (!windowRun) {
-      throw new Error("Window run not found");
+      await emitSkippedProcessProjection(ctx, args, process_id, "window_run_missing");
+      return null;
     }
 
     await ctx.db.patch(window_run_id, {
@@ -1131,7 +1159,11 @@ export const recordLlmAttemptFinish = zMutation({
   handler: async (ctx, args) => {
     const attempt = await ctx.db.get(args.attempt_id);
     if (!attempt) {
-      throw new Error("Attempt not found");
+      console.warn("worker_record_llm_attempt_finish_missing_attempt", JSON.stringify({
+        attempt_id: args.attempt_id,
+        status: args.status,
+      }));
+      return null;
     }
 
     if (attempt.status !== "started") {

@@ -100,7 +100,7 @@ export interface ProcessSnapshot<TStage extends string = string> {
 
 export const ProcessSnapshotSchema = z.object({
   processKind: ProcessKindSchema,
-  processId: z.string(),
+  processId: z.string().optional(),
   workflowId: z.string(),
   workflowRunId: z.string(),
   workflowType: z.string(),

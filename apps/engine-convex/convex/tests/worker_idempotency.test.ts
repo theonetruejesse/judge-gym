@@ -64,6 +64,7 @@ describe("worker mutation idempotency", () => {
     } else {
       process.env.JUDGE_GYM_SKIP_TELEMETRY_EXPORT = originalSkipExport;
     }
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -123,6 +124,47 @@ describe("worker mutation idempotency", () => {
 
     expect(second.attempt_id).toBe(first.attempt_id);
   }, 15_000);
+
+  test("drops late attempt finish callbacks after reset cleanup removes the attempt row", async () => {
+    const t = initTest();
+    const { window_run_id } = await seedWindow(t);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const attempt = await t.mutation(api.packages.worker.recordLlmAttemptStart, {
+      attempt_key: "window:test:l1:evidence_1:late_finish",
+      process_kind: "window",
+      process_id: String(window_run_id),
+      target_type: "evidence",
+      target_id: "evidence_1",
+      stage: "l1_cleaned",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      operation_type: "chat",
+      workflow_id: `window:${window_run_id}`,
+      system_prompt: "system",
+      user_prompt: "user",
+      metadata_json: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(attempt.attempt_id);
+    });
+
+    await expect(t.mutation(api.packages.worker.recordLlmAttemptFinish, {
+      attempt_id: attempt.attempt_id,
+      status: "succeeded",
+      assistant_output: "ok",
+      input_tokens: 1,
+      output_tokens: 2,
+      total_tokens: 3,
+    })).resolves.toBeNull();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "worker_record_llm_attempt_finish_missing_attempt",
+      expect.stringContaining(String(attempt.attempt_id)),
+    );
+    warnSpy.mockRestore();
+  });
 
   test("dedupes repeated evidence inserts for the same window run", async () => {
     const t = initTest();
@@ -227,5 +269,66 @@ describe("worker mutation idempotency", () => {
     });
 
     expect(second.batch_execution_id).toBe(first.batch_execution_id);
+  });
+
+  test("infers process ids from workflow ids when snapshots omit processId", async () => {
+    const t = initTest();
+    const { window_run_id } = await seedWindow(t);
+
+    await expect(t.mutation(api.packages.worker.projectProcessState, {
+      processKind: "window",
+      workflowId: `window:${window_run_id}`,
+      workflowRunId: "inferred-process-id-test",
+      workflowType: "WindowWorkflow",
+      executionStatus: "running",
+      stage: "l1_cleaned",
+      stageStatus: "running",
+      pauseAfter: null,
+      stageHistory: ["collect", "l1_cleaned"],
+      lastControlCommandId: null,
+      lastErrorMessage: null,
+    })).resolves.toBeNull();
+
+    const windowRun = await t.query(internal.domain.window.window_repo.getWindowRun, {
+      window_run_id,
+    });
+
+    expect(windowRun.status).toBe("running");
+    expect(windowRun.current_stage).toBe("l1_cleaned");
+  });
+
+  test("drops late process projection callbacks after reset cleanup removes the window run row", async () => {
+    const t = initTest();
+    const { window_run_id } = await seedWindow(t);
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(window_run_id);
+    });
+
+    await expect(t.mutation(api.packages.worker.projectProcessState, {
+      processKind: "window",
+      workflowId: `window:${window_run_id}`,
+      workflowRunId: "late-callback-test",
+      workflowType: "WindowWorkflow",
+      executionStatus: "running",
+      stage: "l1_cleaned",
+      stageStatus: "running",
+      pauseAfter: null,
+      stageHistory: ["collect", "l1_cleaned"],
+      lastControlCommandId: null,
+      lastErrorMessage: null,
+    })).resolves.toBeNull();
+
+    const observability = await t.query(
+      internal.domain.telemetry.events.getProcessObservability,
+      {
+        process_type: "window",
+        process_id: String(window_run_id),
+      },
+    );
+
+    expect(observability?.last_event_name).toBe("process_projection_skipped_missing_target");
+    expect(observability?.last_status).toBe("error");
+    expect(observability?.recent_events.at(-1)?.payload_json).toContain("\"reason\":\"window_run_missing\"");
   });
 });
