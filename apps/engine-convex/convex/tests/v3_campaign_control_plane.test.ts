@@ -8,6 +8,8 @@ import { buildV3CampaignSnapshot } from "../domain/maintenance/codex";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
+const TEST_V3_TAGS = ["v3_test_alpha", "v3_test_beta"];
+
 const activeTests: ConvexTestInstance[] = [];
 
 function initTest(): ConvexTestInstance {
@@ -155,7 +157,9 @@ describe("v3 campaign control plane", () => {
       pool_id,
     });
 
-    const status = await t.query(api.packages.codex.getV3CampaignStatus, {});
+    const status = await t.query(api.packages.codex.getV3CampaignStatus, {
+      experiment_tags: TEST_V3_TAGS,
+    });
     expect(status.selected_experiment_count).toBe(2);
     expect(status.missing_experiment_tags).toEqual([]);
     expect(status.campaign_state).toBe("preflight_clean");
@@ -276,6 +280,7 @@ describe("v3 campaign control plane", () => {
 
     const reset = await t.mutation(api.packages.codex.resetRuns, {
       dry_run: false,
+      experiment_tags: TEST_V3_TAGS,
     });
     expect(reset.selected_experiment_count).toBe(2);
     expect(reset.processed_experiment_count).toBe(2);
@@ -315,12 +320,14 @@ describe("v3 campaign control plane", () => {
     await expect(
       t.mutation(api.packages.codex.resetRuns, {
         dry_run: false,
+        experiment_tags: ["v3_test_alpha"],
       }),
     ).rejects.toThrow(/Refusing to delete active run/);
 
     const reset = await t.mutation(api.packages.codex.resetRuns, {
       dry_run: false,
       allow_active: true,
+      experiment_tags: ["v3_test_alpha"],
     });
     expect(reset.selected_experiment_count).toBe(1);
     expect(reset.processed_experiment_count).toBe(1);
@@ -347,6 +354,7 @@ describe("v3 campaign control plane", () => {
     const start = await t.action(api.packages.codex.startV3Campaign, {
       mode: "canary",
       dry_run: true,
+      experiment_tags: TEST_V3_TAGS,
     });
 
     expect(start.mode).toBe("canary");
@@ -390,6 +398,7 @@ describe("v3 campaign control plane", () => {
 
     const reset = await t.action(api.packages.codex.resetV3Campaign, {
       dry_run: true,
+      experiment_tags: TEST_V3_TAGS,
     });
 
     expect(reset.selected_experiment_count).toBe(2);

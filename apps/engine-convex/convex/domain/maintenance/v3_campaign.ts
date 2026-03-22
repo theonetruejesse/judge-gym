@@ -206,6 +206,8 @@ const DEFAULT_V3_EXPERIMENT_TAGS = [
   "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
 ] as const;
 
+const RESET_RUN_LIMIT_PER_TABLE = 50;
+
 async function resetCohortRunDataViaMutation(
   ctx: {
     runMutation: (ref: any, args: unknown) => Promise<{
@@ -631,7 +633,7 @@ export const resetRuns = zMutation({
             internal.domain.maintenance.danger.deleteRunDataPass,
             {
               run_id: runId,
-              limit_per_table: 250,
+              limit_per_table: RESET_RUN_LIMIT_PER_TABLE,
               isDryRun: args.dry_run,
               allow_active: args.allow_active,
             },

@@ -370,6 +370,8 @@ export const deleteRunDataPass = zInternalMutation({
 
     const deleted = zeroRunDeleteSummary();
     const limit = args.limit_per_table;
+    const payloadLimit = Math.max(1, Math.min(limit, 10));
+    const attemptLimit = Math.max(1, Math.min(limit, 50));
 
     const batchExecutions = await ctx.db
       .query("llm_batch_executions")
@@ -383,7 +385,7 @@ export const deleteRunDataPass = zInternalMutation({
     const payloads = await ctx.db
       .query("llm_attempt_payloads")
       .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
-      .take(limit);
+      .take(payloadLimit);
     deleted.llm_attempt_payloads += payloads.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "llm_attempt_payloads", payloads as Array<{ _id: unknown }>);
@@ -449,7 +451,7 @@ export const deleteRunDataPass = zInternalMutation({
     const attempts = await ctx.db
       .query("llm_attempts")
       .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
-      .take(limit);
+      .take(attemptLimit);
     deleted.llm_attempts += attempts.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "llm_attempts", attempts as Array<{ _id: unknown }>);
@@ -467,7 +469,9 @@ export const deleteRunDataPass = zInternalMutation({
       scoreTargets.length,
       samples.length,
       attempts.length,
-    ].some((count) => count === limit);
+    ].some((count) => count === limit)
+      || payloads.length === payloadLimit
+      || attempts.length === attemptLimit;
 
     if (!has_more) {
       const remainingCounts = await Promise.all([
