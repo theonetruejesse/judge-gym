@@ -43,6 +43,7 @@ type RunStageDependencies = {
   > & {
     recordProcessHeartbeat?: ConvexWorkerClient["recordProcessHeartbeat"];
     ensureBatchExecution?: ConvexWorkerClient["ensureBatchExecution"];
+    recordBatchExecutionPreparationProgress?: ConvexWorkerClient["recordBatchExecutionPreparationProgress"];
     bindBatchExecutionSubmitted?: ConvexWorkerClient["bindBatchExecutionSubmitted"];
     finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
   };
@@ -66,6 +67,14 @@ type BatchExecutionRecord = {
   status: string;
   output_file_id?: string | null;
   error_file_id?: string | null;
+  attempt_recorded_count?: number | null;
+  attempt_records_json?: string | null;
+};
+
+type StartedRunBatchAttempt = {
+  input: RunStageInput;
+  attemptId: string;
+  estimatedInputTokens: number;
 };
 
 const DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -91,6 +100,11 @@ function getBatchAttemptStartConcurrency(settings: EngineSettings) {
     settings.llm.direct.maxConcurrentRequests,
     Math.min(16, settings.llm.direct.maxConcurrentRequests * 4),
   );
+}
+
+function getBatchAttemptStartPageSize(settings: EngineSettings) {
+  const concurrency = getBatchAttemptStartConcurrency(settings);
+  return Math.max(concurrency, Math.min(64, concurrency * 4));
 }
 
 function getDefaultRunStageDependencies(): RunStageDependencies {
@@ -256,6 +270,155 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function serializeAttemptRecords(
+  attemptsByTargetId: Map<string, StartedRunBatchAttempt>,
+) {
+  return JSON.stringify(
+    Array.from(attemptsByTargetId.values())
+      .map(({ input, attemptId }) => [input.target_id, attemptId] as const)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function restoreAttemptRecords(args: {
+  inputs: RunStageInput[];
+  attemptRecordsJson: string | null | undefined;
+}) {
+  if (!args.attemptRecordsJson) {
+    return new Map<string, StartedRunBatchAttempt>();
+  }
+
+  const parsed = JSON.parse(args.attemptRecordsJson) as Array<[string, string]>;
+  const inputByTargetId = new Map(
+    args.inputs.map((input) => [input.target_id, input] as const),
+  );
+  const restored = new Map<string, StartedRunBatchAttempt>();
+
+  for (const entry of parsed) {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      continue;
+    }
+    const [targetId, attemptId] = entry;
+    const input = inputByTargetId.get(targetId);
+    if (!input || typeof attemptId !== "string" || attemptId.length === 0) {
+      continue;
+    }
+    restored.set(targetId, {
+      input,
+      attemptId,
+      estimatedInputTokens: estimatePromptTokens(input),
+    });
+  }
+
+  return restored;
+}
+
+async function recordRunBatchAttemptStarts(args: {
+  deps: RunStageDependencies;
+  runId: string;
+  stage: RunStageKey;
+  workflowId: string;
+  provider: string;
+  model: string;
+  batchKey: string;
+  batchExecutionId: string | null;
+  attemptRecordsJson: string | null | undefined;
+  inputs: RunStageInput[];
+}): Promise<StartedRunBatchAttempt[]> {
+  const settings = getSettings(args.deps);
+  const attemptStartConcurrency = getBatchAttemptStartConcurrency(settings);
+  const attemptStartPageSize = getBatchAttemptStartPageSize(settings);
+  const startedAttemptsByTargetId = restoreAttemptRecords({
+    inputs: args.inputs,
+    attemptRecordsJson: args.attemptRecordsJson,
+  });
+
+  const pendingInputs = args.inputs.filter(
+    (input) => !startedAttemptsByTargetId.has(input.target_id),
+  );
+  const pages = chunkItems(pendingInputs, attemptStartPageSize);
+
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+    const page = pages[pageIndex]!;
+    const pageResults = await withPeriodicHeartbeat({
+      intervalMs: getProcessHeartbeatIntervalMs(args.deps),
+      onHeartbeat: async () => {
+        await args.deps.convex.recordProcessHeartbeat?.({
+          process_kind: "run",
+          process_id: args.runId,
+          stage: args.stage,
+          payload_json: JSON.stringify({
+            source: "batch_preamble",
+            step: "record_attempt_starts",
+            model: args.model,
+            item_count: args.inputs.length,
+            page_index: pageIndex + 1,
+            page_count: pages.length,
+            page_item_count: page.length,
+            started_count: startedAttemptsByTargetId.size,
+            batch_key: args.batchKey,
+            batch_execution_id: args.batchExecutionId,
+            attempt_start_concurrency: attemptStartConcurrency,
+            attempt_start_page_size: attemptStartPageSize,
+          }),
+        });
+      },
+      task: () => mapConcurrently(
+        page,
+        attemptStartConcurrency,
+        async (input) => {
+          const { attempt_id } = await args.deps.convex.recordLlmAttemptStart({
+            attempt_key: [
+              "run",
+              args.runId,
+              args.stage,
+              input.target_id,
+              "batch",
+            ].join(":"),
+            process_kind: "run",
+            process_id: args.runId,
+            target_type: input.target_type,
+            target_id: input.target_id,
+            stage: args.stage,
+            provider: args.provider,
+            model: input.model,
+            operation_type: "batch",
+            workflow_id: args.workflowId,
+            system_prompt: input.system_prompt,
+            user_prompt: input.user_prompt,
+            metadata_json: input.metadata_json,
+          });
+          return {
+            input,
+            attemptId: attempt_id,
+            estimatedInputTokens: estimatePromptTokens(input),
+          };
+        },
+      ),
+    });
+    for (const started of pageResults) {
+      startedAttemptsByTargetId.set(started.input.target_id, started);
+    }
+    if (args.batchExecutionId && args.deps.convex.recordBatchExecutionPreparationProgress) {
+      await args.deps.convex.recordBatchExecutionPreparationProgress({
+        batch_execution_id: args.batchExecutionId,
+        attempt_recorded_count: startedAttemptsByTargetId.size,
+        attempt_records_json: serializeAttemptRecords(startedAttemptsByTargetId),
+      });
+    }
+  }
+
+  return args.inputs.map((input) => {
+    const existing = startedAttemptsByTargetId.get(input.target_id);
+    if (!existing) {
+      throw new Error(
+        `Missing batch attempt checkpoint for ${args.stage} target ${input.target_id}`,
+      );
+    }
+    return existing;
+  });
+}
+
 async function withPeriodicHeartbeat<T>(args: {
   intervalMs: number;
   onHeartbeat?: (() => Promise<void> | void) | undefined;
@@ -357,63 +520,81 @@ export async function runRunStageActivityWithDeps(
     groups.set(key, group);
   }
 
-  for (const [model, groupInputs] of groups.entries()) {
-    const useBatching = shouldUseBatching({
-      batchable: isBatchableModel(model as any),
-      itemCount: groupInputs.length,
-      settings: resolvedSettings.llm.batching,
-    });
+  try {
+    for (const [model, groupInputs] of groups.entries()) {
+      const useBatching = shouldUseBatching({
+        batchable: isBatchableModel(model as any),
+        itemCount: groupInputs.length,
+        settings: resolvedSettings.llm.batching,
+      });
 
-    if (!useBatching) {
-      const directResults = await processConcurrently(
-        groupInputs,
-        resolvedSettings.llm.direct.maxConcurrentRequests,
-        async (input) => processRunStageInputWithRetries(deps, {
-          runId,
-          stage,
-          input,
-          workflowId: run.workflow_id ?? `run:${runId}`,
-        }),
-      );
-      successCount += directResults.successCount;
-      failureCount += directResults.failureCount;
-      continue;
-    }
+      if (!useBatching) {
+        const directResults = await processConcurrently(
+          groupInputs,
+          resolvedSettings.llm.direct.maxConcurrentRequests,
+          async (input) => processRunStageInputWithRetries(deps, {
+            runId,
+            stage,
+            input,
+            workflowId: run.workflow_id ?? `run:${runId}`,
+          }),
+        );
+        successCount += directResults.successCount;
+        failureCount += directResults.failureCount;
+        continue;
+      }
 
-    const chunks = chunkItemsByBudget({
-      items: groupInputs,
-      maxItems: resolvedSettings.llm.batching.maxBatchSize,
-      maxBytes: resolvedSettings.llm.batching.maxBatchRequestBytes,
-      estimateBytes: (input) => estimateBatchRequestBytes({
-        model,
-        systemPrompt: input.system_prompt,
-        userPrompt: input.user_prompt,
-        metadataJson: input.metadata_json,
-      }),
-    });
-    for (
-      let index = 0;
-      index < chunks.length;
-      index += resolvedSettings.llm.batching.maxConcurrentBatches
-    ) {
-      const slice = chunks.slice(
-        index,
-        index + resolvedSettings.llm.batching.maxConcurrentBatches,
-      );
-      const results = await Promise.all(
-        slice.map((chunk) => processRunStageBatchChunk(deps, {
-          runId,
-          stage,
-          workflowId: run.workflow_id ?? `run:${runId}`,
+      const chunks = chunkItemsByBudget({
+        items: groupInputs,
+        maxItems: resolvedSettings.llm.batching.maxBatchSize,
+        maxBytes: resolvedSettings.llm.batching.maxBatchRequestBytes,
+        estimateBytes: (input) => estimateBatchRequestBytes({
           model,
-          inputs: chunk,
-        })),
-      );
-      for (const result of results) {
-        successCount += result.successCount;
-        failureCount += result.failureCount;
+          systemPrompt: input.system_prompt,
+          userPrompt: input.user_prompt,
+          metadataJson: input.metadata_json,
+        }),
+      });
+      for (
+        let index = 0;
+        index < chunks.length;
+        index += resolvedSettings.llm.batching.maxConcurrentBatches
+      ) {
+        const slice = chunks.slice(
+          index,
+          index + resolvedSettings.llm.batching.maxConcurrentBatches,
+        );
+        const results = await Promise.all(
+          slice.map((chunk) => processRunStageBatchChunk(deps, {
+            runId,
+            stage,
+            workflowId: run.workflow_id ?? `run:${runId}`,
+            model,
+            inputs: chunk,
+          })),
+        );
+        for (const result of results) {
+          successCount += result.successCount;
+          failureCount += result.failureCount;
+        }
       }
     }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await convex.markRunProcessError({
+      run_id: runId,
+      stage,
+      error_message: errorMessage,
+    });
+    return {
+      processKind: "run",
+      processId: runId,
+      stage,
+      summary: `run_stage:${stage}:process_error`,
+      haltProcess: true,
+      terminalExecutionStatus: "failed",
+      errorMessage,
+    };
   }
 
   const finalized = await convex.finalizeRunStage({
@@ -710,68 +891,7 @@ async function processRunStageBatchChunk(
     model: args.model,
     inputs: args.inputs,
   });
-  const attemptStartConcurrency = getBatchAttemptStartConcurrency(settings);
-  const startedAttempts = await withPreflightGuard({
-    intervalMs: getProcessHeartbeatIntervalMs(deps),
-    timeoutMs: getLlmPreflightTimeoutMs(deps),
-    timeoutMessage:
-      `Timed out recording batch attempts for ${args.stage} run ${args.runId}`,
-    onHeartbeat: async () => {
-      await deps.convex.recordProcessHeartbeat?.({
-        process_kind: "run",
-        process_id: args.runId,
-        stage: args.stage,
-        payload_json: JSON.stringify({
-          source: "batch_preamble",
-          step: "record_attempt_starts",
-          model: args.model,
-          item_count: args.inputs.length,
-          batch_key: batchKey,
-          attempt_start_concurrency: attemptStartConcurrency,
-        }),
-      });
-    },
-    task: () => mapConcurrently(
-      args.inputs,
-      attemptStartConcurrency,
-      async (input) => {
-        const { attempt_id } = await deps.convex.recordLlmAttemptStart({
-          attempt_key: [
-            "run",
-            args.runId,
-            args.stage,
-            input.target_id,
-            "batch",
-          ].join(":"),
-          process_kind: "run",
-          process_id: args.runId,
-          target_type: input.target_type,
-          target_id: input.target_id,
-          stage: args.stage,
-          provider,
-          model: input.model,
-          operation_type: "batch",
-          workflow_id: args.workflowId,
-          system_prompt: input.system_prompt,
-          user_prompt: input.user_prompt,
-          metadata_json: input.metadata_json,
-        });
-        return {
-          input,
-          attemptId: attempt_id,
-          estimatedInputTokens: estimatePromptTokens(input),
-        };
-      },
-    ),
-  });
-
-  const reservedDimensions = {
-    requests: 1,
-    batch_enqueued_input_tokens: startedAttempts.reduce(
-      (sum, item) => sum + item.estimatedInputTokens,
-      0,
-    ),
-  };
+  let startedAttempts: StartedRunBatchAttempt[] = [];
   let reservation: Awaited<ReturnType<QuotaStore["reserve"]>> | null = null;
 
   const failureStates = new Map<string, RunAttemptFailureState>();
@@ -800,6 +920,60 @@ async function processRunStageBatchChunk(
   };
 
   try {
+    batchExecution = deps.convex.ensureBatchExecution
+      ? await withPreflightGuard({
+        intervalMs: getProcessHeartbeatIntervalMs(deps),
+        timeoutMs: getLlmPreflightTimeoutMs(deps),
+        timeoutMessage:
+          `Timed out preparing batch execution for ${args.stage} run ${args.runId}`,
+        onHeartbeat: async () => {
+          await deps.convex.recordProcessHeartbeat?.({
+            process_kind: "run",
+            process_id: args.runId,
+            stage: args.stage,
+            payload_json: JSON.stringify({
+              source: "batch_preamble",
+              step: "ensure_batch_execution",
+              model: args.model,
+              item_count: args.inputs.length,
+              batch_key: batchKey,
+            }),
+          });
+        },
+        task: () => deps.convex.ensureBatchExecution!({
+          batch_key: batchKey,
+          process_kind: "run",
+          process_id: args.runId,
+          stage: args.stage,
+          provider,
+          model: args.model,
+          workflow_id: args.workflowId,
+          item_count: args.inputs.length,
+        }),
+      })
+      : null;
+
+    startedAttempts = await recordRunBatchAttemptStarts({
+      deps,
+      runId: args.runId,
+      stage: args.stage,
+      workflowId: args.workflowId,
+      provider,
+      model: args.model,
+      batchKey,
+      batchExecutionId: batchExecution?.batch_execution_id ?? null,
+      attemptRecordsJson: batchExecution?.attempt_records_json,
+      inputs: args.inputs,
+    });
+
+    const reservedDimensions = {
+      requests: 1,
+      batch_enqueued_input_tokens: startedAttempts.reduce(
+        (sum, item) => sum + item.estimatedInputTokens,
+        0,
+      ),
+    };
+
     reservation = await withPreflightGuard({
       intervalMs: getProcessHeartbeatIntervalMs(deps),
       timeoutMs: getLlmPreflightTimeoutMs(deps),
@@ -836,38 +1010,6 @@ async function processRunStageBatchChunk(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
-      batchExecution = deps.convex.ensureBatchExecution
-        ? await withPreflightGuard({
-          intervalMs: getProcessHeartbeatIntervalMs(deps),
-          timeoutMs: getLlmPreflightTimeoutMs(deps),
-          timeoutMessage:
-            `Timed out preparing batch execution for ${args.stage} run ${args.runId}`,
-          onHeartbeat: async () => {
-            await deps.convex.recordProcessHeartbeat?.({
-              process_kind: "run",
-              process_id: args.runId,
-              stage: args.stage,
-              payload_json: JSON.stringify({
-                source: "batch_preamble",
-                step: "ensure_batch_execution",
-                model: args.model,
-                item_count: startedAttempts.length,
-                batch_key: batchKey,
-              }),
-            });
-          },
-          task: () => deps.convex.ensureBatchExecution!({
-            batch_key: batchKey,
-            process_kind: "run",
-            process_id: args.runId,
-            stage: args.stage,
-            provider,
-            model: args.model,
-            workflow_id: args.workflowId,
-            item_count: startedAttempts.length,
-          }),
-        })
-        : null;
       const batch = await withPeriodicHeartbeat({
         intervalMs: getProcessHeartbeatIntervalMs(deps),
         onHeartbeat: async () => {
@@ -996,6 +1138,13 @@ async function processRunStageBatchChunk(
       }
     }
   } catch (error) {
+    const reservedDimensions = {
+      requests: 1,
+      batch_enqueued_input_tokens: startedAttempts.reduce(
+        (sum, item) => sum + item.estimatedInputTokens,
+        0,
+      ),
+    };
     if (reservation?.allowed) {
       await deps.quota.settle({
         reservationId: reservation.reservationId,
@@ -1009,6 +1158,20 @@ async function processRunStageBatchChunk(
       });
     }
     const message = error instanceof Error ? error.message : String(error);
+    await deps.convex.recordProcessHeartbeat?.({
+      process_kind: "run",
+      process_id: args.runId,
+      stage: args.stage,
+      payload_json: JSON.stringify({
+        source: "batch_preamble",
+        step: "failed",
+        model: args.model,
+        item_count: args.inputs.length,
+        started_count: startedAttempts.length,
+        batch_key: batchKey,
+        error_message: message,
+      }),
+    });
     let existingBatchExecution = batchExecution;
     if (!existingBatchExecution && deps.convex.ensureBatchExecution) {
       try {
@@ -1058,6 +1221,7 @@ async function processRunStageBatchChunk(
       });
     }
     await recordSharedBatchFailure(message);
+    throw error;
   }
 
   if (!reservation?.allowed) {

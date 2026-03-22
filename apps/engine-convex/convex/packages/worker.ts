@@ -1896,6 +1896,8 @@ export const getBatchExecution = zQuery({
     status: z.string(),
     output_file_id: z.string().nullable().optional(),
     error_file_id: z.string().nullable().optional(),
+    attempt_recorded_count: z.number().nullable().optional(),
+    attempt_records_json: z.string().nullable().optional(),
   }).nullable(),
   handler: async (ctx, args) => {
     const execution = await ctx.db
@@ -1911,6 +1913,8 @@ export const getBatchExecution = zQuery({
       status: execution.status,
       output_file_id: execution.output_file_id ?? null,
       error_file_id: execution.error_file_id ?? null,
+      attempt_recorded_count: execution.attempt_recorded_count ?? null,
+      attempt_records_json: execution.attempt_records_json ?? null,
     };
   },
 });
@@ -1932,6 +1936,8 @@ export const ensureBatchExecution = zMutation({
     status: z.string(),
     output_file_id: z.string().nullable().optional(),
     error_file_id: z.string().nullable().optional(),
+    attempt_recorded_count: z.number().nullable().optional(),
+    attempt_records_json: z.string().nullable().optional(),
   }),
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -1945,6 +1951,8 @@ export const ensureBatchExecution = zMutation({
         status: existing.status,
         output_file_id: existing.output_file_id ?? null,
         error_file_id: existing.error_file_id ?? null,
+        attempt_recorded_count: existing.attempt_recorded_count ?? null,
+        attempt_records_json: existing.attempt_records_json ?? null,
       };
     }
 
@@ -1964,6 +1972,8 @@ export const ensureBatchExecution = zMutation({
       status: "preparing",
       last_known_provider_status: null,
       last_error_message: null,
+      attempt_recorded_count: 0,
+      attempt_records_json: null,
       submitted_at_ms: null,
       completed_at_ms: null,
     });
@@ -1974,7 +1984,34 @@ export const ensureBatchExecution = zMutation({
       status: "preparing",
       output_file_id: null,
       error_file_id: null,
+      attempt_recorded_count: 0,
+      attempt_records_json: null,
     };
+  },
+});
+
+export const recordBatchExecutionPreparationProgress = zMutation({
+  args: z.object({
+    batch_execution_id: zid("llm_batch_executions"),
+    attempt_recorded_count: z.number().int().min(0),
+    attempt_records_json: z.string(),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const execution = await ctx.db.get(args.batch_execution_id);
+    if (!execution) {
+      throw new Error("Batch execution not found");
+    }
+    const currentCount = execution.attempt_recorded_count ?? 0;
+    if (args.attempt_recorded_count < currentCount) {
+      return null;
+    }
+    await ctx.db.patch(args.batch_execution_id, {
+      attempt_recorded_count: args.attempt_recorded_count,
+      attempt_records_json: args.attempt_records_json,
+      last_error_message: null,
+    });
+    return null;
   },
 });
 

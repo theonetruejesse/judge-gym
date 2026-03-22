@@ -211,6 +211,9 @@ const workerApi = {
   ensureBatchExecution: makeFunctionReference<"mutation">(
     "packages/worker:ensureBatchExecution",
   ),
+  recordBatchExecutionPreparationProgress: makeFunctionReference<"mutation">(
+    "packages/worker:recordBatchExecutionPreparationProgress",
+  ),
   bindBatchExecutionSubmitted: makeFunctionReference<"mutation">(
     "packages/worker:bindBatchExecutionSubmitted",
   ),
@@ -400,6 +403,8 @@ export class ConvexWorkerClient {
       status: string;
       output_file_id?: string | null;
       error_file_id?: string | null;
+      attempt_recorded_count?: number | null;
+      attempt_records_json?: string | null;
     } | null>;
   }
 
@@ -410,7 +415,17 @@ export class ConvexWorkerClient {
       status: string;
       output_file_id?: string | null;
       error_file_id?: string | null;
+      attempt_recorded_count?: number | null;
+      attempt_records_json?: string | null;
     }>;
+  }
+
+  recordBatchExecutionPreparationProgress(args: {
+    batch_execution_id: string;
+    attempt_recorded_count: number;
+    attempt_records_json: string;
+  }) {
+    return this.client.mutation(workerApi.recordBatchExecutionPreparationProgress, args);
   }
 
   bindBatchExecutionSubmitted(args: {

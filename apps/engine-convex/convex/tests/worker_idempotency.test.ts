@@ -385,6 +385,58 @@ describe("worker mutation idempotency", () => {
     expect(second.batch_execution_id).toBe(first.batch_execution_id);
   });
 
+  test("persists batch preparation checkpoints on the existing batch execution row", async () => {
+    const t = initTest();
+    const created = await t.mutation(api.packages.worker.ensureBatchExecution, {
+      batch_key: "batch:key:checkpoint",
+      process_kind: "run",
+      process_id: "run_checkpoint",
+      stage: "score_gen",
+      provider: "openai",
+      model: "gpt-4.1",
+      workflow_id: "run:run_checkpoint",
+      item_count: 17,
+    });
+
+    await t.mutation(api.packages.worker.recordBatchExecutionPreparationProgress, {
+      batch_execution_id: created.batch_execution_id,
+      attempt_recorded_count: 16,
+      attempt_records_json: JSON.stringify([
+        ["target_1", "attempt_target_1"],
+        ["target_2", "attempt_target_2"],
+      ]),
+    });
+
+    const existing = await t.mutation(api.packages.worker.ensureBatchExecution, {
+      batch_key: "batch:key:checkpoint",
+      process_kind: "run",
+      process_id: "run_checkpoint",
+      stage: "score_gen",
+      provider: "openai",
+      model: "gpt-4.1",
+      workflow_id: "run:run_checkpoint",
+      item_count: 17,
+    });
+    const queried = await t.query(api.packages.worker.getBatchExecution, {
+      batch_key: "batch:key:checkpoint",
+    });
+
+    expect(existing.batch_execution_id).toBe(created.batch_execution_id);
+    expect(existing.attempt_recorded_count).toBe(16);
+    expect(existing.attempt_records_json).toBe(JSON.stringify([
+      ["target_1", "attempt_target_1"],
+      ["target_2", "attempt_target_2"],
+    ]));
+    expect(queried).toMatchObject({
+      batch_execution_id: created.batch_execution_id,
+      attempt_recorded_count: 16,
+      attempt_records_json: JSON.stringify([
+        ["target_1", "attempt_target_1"],
+        ["target_2", "attempt_target_2"],
+      ]),
+    });
+  });
+
   test("infers process ids from workflow ids when snapshots omit processId", async () => {
     const t = initTest();
     const { window_run_id } = await seedWindow(t);

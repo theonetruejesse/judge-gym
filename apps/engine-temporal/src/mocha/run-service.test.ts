@@ -704,7 +704,7 @@ describe("run stage service", function () {
               workflow_run_id: "workflow-run-batch-attempt-start-heartbeat",
               status: "running",
               current_stage: "score_gen",
-              target_count: 5,
+              target_count: 17,
               completed_count: 0,
               pause_after: null,
             };
@@ -806,6 +806,291 @@ describe("run stage service", function () {
     assert.equal(result.summary, "run_stage:score_gen:success=5:failed=0:completed=5");
     assert.equal(maxAttemptStartsInFlight <= 4, true);
     assert.ok(heartbeatSteps.includes("batch_preamble:record_attempt_starts"));
+  });
+
+  it("pages batch attempt recording so aggregate staging can exceed one preflight window", async () => {
+    let maxAttemptStartsInFlight = 0;
+    let attemptStartsInFlight = 0;
+    const checkpointCounts: number[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            preflightTimeoutMs: 25,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 20,
+            },
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              maxConcurrentRequests: 1,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_attempt_start_paged",
+              experiment_id: "exp_batch_attempt_start_paged",
+              workflow_id: "run:run_batch_attempt_start_paged",
+              workflow_run_id: "workflow-run-batch-attempt-start-paged",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 17,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return Array.from({ length: 17 }, (_, index) => ({
+              target_type: "sample_score_target" as const,
+              target_id: `target_${index + 1}`,
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: `user-${index + 1}`,
+              metadata_json: null,
+            }));
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            attemptStartsInFlight += 1;
+            maxAttemptStartsInFlight = Math.max(
+              maxAttemptStartsInFlight,
+              attemptStartsInFlight,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            attemptStartsInFlight -= 1;
+            return {
+              attempt_id: `attempt_${target_id}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 17,
+              completed: 17,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_paged",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+              attempt_recorded_count: 0,
+              attempt_records_json: null,
+            };
+          },
+          async recordBatchExecutionPreparationProgress({ attempt_recorded_count }) {
+            checkpointCounts.push(attempt_recorded_count);
+            return null;
+          },
+          async bindBatchExecutionSubmitted() {
+            return null;
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat(args: any) {
+          return {
+            batchId: "batch_paged",
+            outputFileId: "file_out_paged",
+            errorFileId: null,
+            succeeded: args.items.map((item: any) => ({
+              customId: `attempt_${item.metadata.input.target_id}`,
+              metadata: {
+                input: item.metadata.input,
+                attemptId: `attempt_${item.metadata.input.target_id}`,
+              },
+              batchId: "batch_paged",
+              assistant_output: `ok-${item.metadata.input.target_id}`,
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            })),
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_attempt_start_paged",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=17:failed=0:completed=17");
+    assert.ok(checkpointCounts.length >= 2);
+    assert.equal(checkpointCounts.at(-1), 17);
+    assert.ok(checkpointCounts.every((count, index) => (
+      index === 0 || count > checkpointCounts[index - 1]!
+    )));
+  });
+
+  it("reuses persisted batch attempt checkpoints without replaying earlier targets", async () => {
+    const attemptStartTargets: string[] = [];
+    const checkpointCounts: number[] = [];
+    const restoredAttempts = JSON.stringify(
+      Array.from({ length: 16 }, (_, index) => [
+        `target_${index + 1}`,
+        `attempt_target_${index + 1}`,
+      ]),
+    );
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 20,
+            },
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              maxConcurrentRequests: 1,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_attempt_resume",
+              experiment_id: "exp_batch_attempt_resume",
+              workflow_id: "run:run_batch_attempt_resume",
+              workflow_run_id: "workflow-run-batch-attempt-resume",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 17,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return Array.from({ length: 17 }, (_, index) => ({
+              target_type: "sample_score_target" as const,
+              target_id: `target_${index + 1}`,
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: `user-${index + 1}`,
+              metadata_json: null,
+            }));
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            attemptStartTargets.push(target_id);
+            return {
+              attempt_id: `attempt_${target_id}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 17,
+              completed: 17,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_resume",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+              attempt_recorded_count: 16,
+              attempt_records_json: restoredAttempts,
+            };
+          },
+          async recordBatchExecutionPreparationProgress({ attempt_recorded_count }) {
+            checkpointCounts.push(attempt_recorded_count);
+            return null;
+          },
+          async bindBatchExecutionSubmitted() {
+            return null;
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat(args: any) {
+          assert.equal(args.items.length, 17);
+          assert.equal(args.items[0].customId, "attempt_target_1");
+          assert.equal(args.items[15].customId, "attempt_target_16");
+          assert.equal(args.items[16].customId, "attempt_target_17");
+          return {
+            batchId: "batch_resume",
+            outputFileId: "file_out_resume",
+            errorFileId: null,
+            succeeded: args.items.map((item: any) => ({
+              customId: item.customId,
+              metadata: item.metadata,
+              batchId: "batch_resume",
+              assistant_output: `ok-${item.metadata.input.target_id}`,
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            })),
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_attempt_resume",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=17:failed=0:completed=17");
+    assert.deepEqual(attemptStartTargets, ["target_17"]);
+    assert.deepEqual(checkpointCounts, [17]);
   });
 
   it("continues when stage finalization reports partial failure but surviving work completed", async () => {
@@ -1475,10 +1760,10 @@ describe("run stage service", function () {
     assert.match(finishedErrors[0] ?? "", /Timed out reserving direct-request quota/);
   });
 
-  it("times out a stalled batch preflight while emitting heartbeats", async () => {
+  it("surfaces stalled batch preparation as a run process error with the concrete cause", async () => {
     const heartbeatSteps: string[] = [];
     const finishedErrors: string[] = [];
-    let markFailureCalls = 0;
+    const processErrors: string[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
@@ -1552,22 +1837,14 @@ describe("run stage service", function () {
             throw new Error("applyRunStageResult should not be called");
           },
           async markRunStageFailure() {
-            markFailureCalls += 1;
-            return null;
+            throw new Error("markRunStageFailure should not be called");
           },
           async finalizeRunStage() {
-            return {
-              total: 2,
-              completed: 0,
-              failed: 2,
-              has_pending: false,
-              halt_process: true,
-              terminal_execution_status: "failed" as const,
-              error_message: "batch preflight failed",
-            };
+            throw new Error("finalizeRunStage should not be called");
           },
-          async markRunProcessError() {
-            throw new Error("markRunProcessError should not be called");
+          async markRunProcessError({ error_message }) {
+            processErrors.push(error_message);
+            return null;
           },
           async ensureBatchExecution() {
             await new Promise((resolve) => setTimeout(resolve, 30));
@@ -1577,6 +1854,8 @@ describe("run stage service", function () {
               status: "preparing",
               output_file_id: null,
               error_file_id: null,
+              attempt_recorded_count: 0,
+              attempt_records_json: null,
             };
           },
           async finalizeBatchExecution() {
@@ -1595,15 +1874,137 @@ describe("run stage service", function () {
     );
 
     assert.equal(result.haltProcess, true);
-    assert.equal(markFailureCalls, 2);
+    assert.equal(result.terminalExecutionStatus, "failed");
+    assert.match(result.errorMessage ?? "", /Timed out preparing batch execution/);
     assert.ok(heartbeatSteps.length >= 1);
     assert.ok(
       heartbeatSteps.every((step) => step.startsWith("batch_preamble:")),
     );
     assert.ok(heartbeatSteps.includes("batch_preamble:ensure_batch_execution"));
-    assert.equal(finishedErrors.length, 2);
-    assert.ok(
-      finishedErrors.every((message) => /Timed out preparing batch execution/.test(message)),
+    assert.deepEqual(finishedErrors, []);
+    assert.equal(processErrors.length, 1);
+    assert.match(processErrors[0] ?? "", /Timed out preparing batch execution/);
+  });
+
+  it("does not leak batch executor crashes as raw activity failures", async () => {
+    let markProcessErrorCalls = 0;
+    const finishedErrors: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            preflightTimeoutMs: 15,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_attempt_timeout_caught",
+              experiment_id: "exp_batch_attempt_timeout_caught",
+              workflow_id: "run:run_batch_attempt_timeout_caught",
+              workflow_run_id: "workflow-run-batch-attempt-timeout-caught",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart() {
+            return { attempt_id: "attempt_timeout" };
+          },
+          async recordLlmAttemptFinish({ error_message }) {
+            if (error_message) {
+              finishedErrors.push(error_message);
+            }
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 0,
+              failed: 0,
+              has_pending: true,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            markProcessErrorCalls += 1;
+            return null;
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_timeout_caught",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+              attempt_recorded_count: 0,
+              attempt_records_json: null,
+            };
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat() {
+          throw new Error("batch executor unavailable");
+        },
+      },
+      "run_batch_attempt_timeout_caught",
+      "score_gen",
     );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(result.terminalExecutionStatus, "failed");
+    assert.match(result.errorMessage ?? "", /batch executor unavailable/);
+    assert.equal(markProcessErrorCalls, 1);
+    assert.deepEqual(finishedErrors, [
+      "batch executor unavailable",
+      "batch executor unavailable",
+    ]);
   });
 });
