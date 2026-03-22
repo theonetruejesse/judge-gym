@@ -7,6 +7,7 @@ export {
   inspectProcessExecution,
   tailTrace,
   testAxiomIngest,
+  listBatchReconciliationStatus,
 } from "../domain/maintenance/codex";
 export {
   autoHealProcess,

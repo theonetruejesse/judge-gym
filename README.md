@@ -58,6 +58,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
   - `packages/codex:resetV3Campaign`
   - `packages/codex:startV3Campaign`
 - `packages/codex:resetV3Campaign` now performs run-workflow cancellation first and then delegates deletion to the paged `resetRuns` mutation path, so live cohort resets preserve windows/pools while avoiding the old monolithic cleanup bottleneck.
+- Added `apps/engine-convex/convex/tests/v3_campaign_control_plane.test.ts` coverage to ensure `resetRuns` reports deleted counts and handles chunked cleanup per-experiment, keeping the control plane honest when the cohort spans many artifacts.
 - The active V3 finish-pass manifest now targets the current reduced viability cohort from `docs/pilots/v3_gpt_ablations.md`, still sourced from the corrected V3 experiment families and still excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
 - The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
   - `p1_us_contested_trial_2026_01_01`
@@ -93,6 +94,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
 - The engine includes Bun live-debug commands in `apps/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
+- `packages/codex:listBatchReconciliationStatus` plus `bun run debug:batches -- --run <run_id> [--stage <stage>]` expose per-stage `llm_batch_executions`, showing if each provider batch chunk is submitted, polling, completed, failed, or still applying before the next stage runs.
 - The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
 - The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - V3 campaign status reads are now cohort-scoped by explicit manifest tags instead of global experiment/run scans, so `packages/codex:getV3CampaignSnapshot` stays usable during large score stages.

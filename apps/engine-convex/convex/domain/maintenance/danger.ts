@@ -370,9 +370,9 @@ export const deleteRunDataPass = zInternalMutation({
 
     const deleted = zeroRunDeleteSummary();
     const limit = args.limit_per_table;
-    const heavyArtifactLimit = Math.max(1, Math.min(limit, 2));
-    const payloadLimit = Math.max(1, Math.min(limit, 5));
-    const attemptLimit = Math.max(1, Math.min(limit, 5));
+    const heavyArtifactLimit = Math.max(1, Math.min(limit, 100));
+    const payloadLimit = Math.max(1, Math.min(limit, 50));
+    const attemptLimit = Math.max(1, Math.min(limit, 50));
     const deleteIfAny = async (
       table: keyof DataModel,
       docs: Array<{ _id: unknown }>,

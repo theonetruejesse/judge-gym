@@ -10,6 +10,7 @@ import {
   TemporalTaskQueueKindSchema,
   TemporalTaskQueueHealthSchema,
 } from "../temporal/schemas";
+import { LlmBatchExecutionStatusSchema } from "../../models/batches.ts";
 import {
   CampaignStateSchema,
   GetV3CampaignStatusReturnSchema,
@@ -119,8 +120,32 @@ const TemporalProcessInspectionSchema = z.object({
     execution_time_ms: z.number().nullable(),
     close_time_ms: z.number().nullable(),
     snapshot: ProcessSnapshotSchema.nullable(),
-    snapshot_query_error: z.string().nullable(),
+  snapshot_query_error: z.string().nullable(),
   }),
+});
+
+const LlmBatchExecutionRowSchema = z.object({
+  batch_key: z.string(),
+  stage: z.string(),
+  provider: z.string(),
+  model: z.string(),
+  status: LlmBatchExecutionStatusSchema,
+  last_known_provider_status: z.string().nullable(),
+  last_error_message: z.string().nullable(),
+  provider_batch_id: z.string().nullable(),
+  input_file_id: z.string().nullable(),
+  output_file_id: z.string().nullable(),
+  error_file_id: z.string().nullable(),
+  item_count: z.number(),
+  submitted_at_ms: z.number().nullable(),
+  completed_at_ms: z.number().nullable(),
+});
+
+const BatchReconciliationStatusSchema = z.object({
+  process_kind: ProcessTypeSchema,
+  process_id: z.string(),
+  stage: z.string().nullable(),
+  batches: z.array(LlmBatchExecutionRowSchema),
 });
 
 const ControlProcessExecutionResultSchema = z.object({
@@ -224,6 +249,30 @@ export const tailTrace = zQuery({
   returns: TailTraceReturnSchema,
   handler: async (ctx, args): Promise<TailTraceReturn> => {
     return ctx.runQuery(internal.domain.telemetry.events.listByTrace, args);
+  },
+});
+
+export const listBatchReconciliationStatus = zQuery({
+  args: z.object({
+    process_kind: ProcessTypeSchema,
+    process_id: z.string(),
+    stage: z.string().optional(),
+  }),
+  returns: BatchReconciliationStatusSchema,
+  handler: async (ctx, args) => {
+    const batchQuery = ctx.db
+      .query("llm_batch_executions")
+      .withIndex("by_process_stage", (q) => q.eq("process_kind", args.process_kind).eq("process_id", args.process_id));
+    if (args.stage) {
+      batchQuery.eq("stage", args.stage);
+    }
+    const batches = await batchQuery.collect();
+    return {
+      process_kind: args.process_kind,
+      process_id: args.process_id,
+      stage: args.stage ?? null,
+      batches,
+    };
   },
 });
 

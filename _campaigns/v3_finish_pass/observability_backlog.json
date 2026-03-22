@@ -11,7 +11,7 @@
     {
       "id": "v3_score_stage_batch_reconciliation_visibility",
       "created_at": "2026-03-21T21:58:33Z",
-      "status": "open",
+      "status": "fixed_in_repo",
       "summary": "During batch-heavy score stages, provider completion can get ahead of persisted score artifacts, and the current operator surfaces still do not show chunk-level batch reconciliation status directly.",
       "needed_to_answer": "When score counts lag completed OpenAI batches, can the agent quickly tell whether the system is still applying outputs, polling file content, or has stranded a completed batch chunk?",
       "recommended_fix": "Add a compact batch reconciliation debug surface keyed by run/stage/chunk using llm_batch_executions so agent loops can distinguish healthy apply lag from stranded provider-complete work."
@@ -23,6 +23,15 @@
       "summary": "Window collection and semantic transforms still share one process/data model, which limits future model-specific cleaning and collection-vs-transform gating.",
       "needed_to_answer": "Do we need a separate raw evidence process before the next scientific-surface expansion beyond the corrected V3 matrix?",
       "recommended_fix": "After the first Temporal-native pilot loop is stable, split raw collection from semantic view generation and make pipeline identity first-class."
+    }
+,
+    {
+      "id": "v3_cohort_reset_timeout",
+      "created_at": "2026-03-22T15:45:00Z",
+      "status": "fixed_in_repo",
+      "summary": "`resetV3Campaign` now times out when cleaning the full cohort even though the underlying delete budget is chunked.",
+      "needed_to_answer": "How do we reshape the reset control flow so a single MPC call does not exceed Convex's invocation limits while still deleting every run artifact?",
+      "recommended_fix": "Make the action incremental/paged (e.g., loop over experiments with a cursor or delegate to a background job that calls `resetRuns` repeatedly)."
     }
   ]
 }

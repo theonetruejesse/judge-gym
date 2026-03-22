@@ -296,6 +296,27 @@ describe("v3 campaign control plane", () => {
     });
   });
 
+  test("resetRuns handles chunked cleanup for a single experiment", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const experimentId = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+      evidence_bundle_size: 3,
+    });
+
+    const reset = await t.mutation(api.packages.codex.resetRuns, {
+      dry_run: false,
+      experiment_tags: ["v3_test_alpha"],
+    });
+
+    expect(reset.selected_experiment_count).toBe(1);
+    expect(reset.processed_experiment_count).toBe(1);
+    expect(reset.rows[0].experiment_id).toBe(experimentId);
+    expect(reset.rows[0].deleted.runs).toBe(1);
+    expect(reset.rows[0].deleted.llm_attempts).toBeGreaterThan(0);
+  });
+
   test("resetRuns can wipe paused cohort runs when allow_active is true", async () => {
     const t = initTest();
     const { pool_id } = await seedWindowAndEvidence(t);
@@ -406,5 +427,55 @@ describe("v3 campaign control plane", () => {
     expect(reset.rows).toHaveLength(2);
     expect(reset.totals.runs).toBe(2);
     expect(reset.cancelled_processes).toEqual([]);
+  });
+
+  test("continueRunReset drains completed cohort runs incrementally", async () => {
+    const t = initTest();
+    const { pool_id } = await seedWindowAndEvidence(t);
+    const alpha = await seedExperiment(t, {
+      experiment_tag: "v3_test_alpha",
+      pool_id,
+    });
+    const beta = await seedExperiment(t, {
+      experiment_tag: "v3_test_beta",
+      pool_id,
+    });
+    const alphaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: alpha,
+      target_count: 1,
+      pause_after: null,
+    });
+    const betaRun = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id: beta,
+      target_count: 1,
+      pause_after: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(alphaRun, { status: "completed" });
+      await ctx.db.patch(betaRun, { status: "completed" });
+    });
+
+    for (const runId of [alphaRun, betaRun]) {
+      let hasMore = true;
+      while (hasMore) {
+        const result = await t.mutation(
+          internal.domain.maintenance.v3_campaign.continueRunReset,
+          {
+            run_id: runId,
+            experiment_id: runId === alphaRun ? alpha : beta,
+            limit_per_table: 100,
+          },
+        );
+        hasMore = result.has_more;
+      }
+    }
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("runs").collect()).toHaveLength(0);
+      expect(await ctx.db.query("llm_attempts").collect()).toHaveLength(0);
+      const experiments = await ctx.db.query("experiments").collect();
+      expect(experiments.every((experiment) => experiment.total_count === 0)).toBe(true);
+    });
   });
 });

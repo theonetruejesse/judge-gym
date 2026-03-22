@@ -2,7 +2,7 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import type { Id } from "../../_generated/dataModel";
 import { api, internal } from "../../_generated/api";
-import { zAction, zMutation, zQuery } from "../../utils/custom_fns";
+import { zAction, zInternalMutation, zMutation, zQuery } from "../../utils/custom_fns";
 import { RunStageSchema } from "../../models/experiments";
 import { StateStatusSchema } from "../../models/_shared";
 import { emitTraceEvent } from "../telemetry/emit";
@@ -158,6 +158,21 @@ const CampaignResetResultSchema = z.object({
   totals: ResetExperimentRowSchema.shape.deleted,
 });
 
+const ZeroResetTotals = {
+  runs: 0,
+  samples: 0,
+  sample_score_targets: 0,
+  sample_score_target_items: 0,
+  rubrics: 0,
+  rubric_critics: 0,
+  scores: 0,
+  score_critics: 0,
+  llm_batch_executions: 0,
+  llm_attempts: 0,
+  llm_attempt_payloads: 0,
+  process_observability: 0,
+} as const satisfies z.infer<typeof ResetExperimentRowSchema.shape.deleted>;
+
 const CampaignStartResultSchema = z.object({
   mode: V3LaunchModeSchema,
   config: CampaignLaunchConfigSchema,
@@ -206,7 +221,7 @@ const DEFAULT_V3_EXPERIMENT_TAGS = [
   "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
 ] as const;
 
-const RESET_RUN_LIMIT_PER_TABLE = 5;
+const RESET_RUN_LIMIT_PER_TABLE = 100;
 
 async function resetCohortRunDataViaMutation(
   ctx: {
@@ -235,18 +250,7 @@ async function resetCohortRunDataViaMutation(
   let cursor: number | undefined;
   const rows: Array<z.infer<typeof ResetExperimentRowSchema>> = [];
   const totals: z.infer<typeof ResetExperimentRowSchema.shape.deleted> = {
-    runs: 0,
-    samples: 0,
-    sample_score_targets: 0,
-    sample_score_target_items: 0,
-    rubrics: 0,
-    rubric_critics: 0,
-    scores: 0,
-    score_critics: 0,
-    llm_batch_executions: 0,
-    llm_attempts: 0,
-    llm_attempt_payloads: 0,
-    process_observability: 0,
+    ...ZeroResetTotals,
   };
   let selected_experiment_count = 0;
   let processed_experiment_count = 0;
@@ -286,6 +290,78 @@ async function resetCohortRunDataViaMutation(
     totals,
   };
 }
+
+export const continueRunReset = zInternalMutation({
+  args: z.object({
+    run_id: zid("runs"),
+    experiment_id: zid("experiments"),
+    limit_per_table: z.number().int().min(1).max(1000).default(RESET_RUN_LIMIT_PER_TABLE),
+  }),
+  returns: z.object({
+    run_id: zid("runs"),
+    experiment_id: zid("experiments"),
+    run_exists: z.boolean(),
+    has_more: z.boolean(),
+    deleted: ResetExperimentRowSchema.shape.deleted,
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(
+      internal.domain.maintenance.danger.deleteRunDataPass,
+      {
+        run_id: args.run_id,
+        limit_per_table: args.limit_per_table,
+        isDryRun: false,
+        allow_active: true,
+      },
+    );
+
+    if (result.has_more) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.domain.maintenance.v3_campaign.continueRunReset,
+        args,
+      );
+    } else {
+      const remainingRun = await ctx.db
+        .query("runs")
+        .withIndex("by_experiment", (q) => q.eq("experiment_id", args.experiment_id))
+        .first();
+      if (remainingRun == null) {
+        await ctx.runMutation(
+          internal.domain.maintenance.v3_campaign.markExperimentResetComplete,
+          {
+            experiment_id: args.experiment_id,
+          },
+        );
+      }
+    }
+
+    return {
+      run_id: args.run_id,
+      experiment_id: args.experiment_id,
+      run_exists: result.run_exists,
+      has_more: result.has_more,
+      deleted: result.deleted,
+    };
+  },
+});
+
+export const markExperimentResetComplete = zInternalMutation({
+  args: z.object({
+    experiment_id: zid("experiments"),
+  }),
+  returns: z.object({
+    experiment_id: zid("experiments"),
+    total_count: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.experiment_id, { total_count: 0 });
+    return {
+      experiment_id: args.experiment_id,
+      total_count: 0,
+    };
+  },
+});
 
 export const GetV3CampaignStatusReturnSchema = z.object({
   selected_experiment_count: z.number(),
@@ -974,19 +1050,74 @@ export const resetV3Campaign = zAction({
       }
     }
 
-    const resetResult = await resetCohortRunDataViaMutation(ctx, {
-      dry_run: args.dry_run,
-      experiment_tags: args.experiment_tags,
-    });
+    if (args.dry_run) {
+      const resetResult = await resetCohortRunDataViaMutation(ctx, {
+        dry_run: true,
+        experiment_tags: args.experiment_tags,
+      });
+
+      return {
+        dry_run: true,
+        selected_experiment_count: resetResult.selected_experiment_count,
+        missing_experiment_tags: resetResult.missing_experiment_tags,
+        cancelled_processes,
+        processed_experiment_count: resetResult.processed_experiment_count,
+        rows: resetResult.rows,
+        totals: resetResult.totals,
+      };
+    }
+
+    const runsByExperiment = new Map<string, Array<{
+      run_id: Id<"runs">;
+      experiment_id: Id<"experiments">;
+    }>>();
+    for (const run of runs) {
+      const key = String(run.experiment_id);
+      const bucket = runsByExperiment.get(key) ?? [];
+      bucket.push({
+        run_id: run.run_id,
+        experiment_id: run.experiment_id,
+      });
+      runsByExperiment.set(key, bucket);
+    }
+
+    for (const experiment of filtered.selected) {
+      const experimentRuns = runsByExperiment.get(String(experiment.experiment_id)) ?? [];
+      if (experimentRuns.length === 0) {
+        await ctx.runMutation(
+          internal.domain.maintenance.v3_campaign.markExperimentResetComplete,
+          {
+            experiment_id: experiment.experiment_id,
+          },
+        );
+        continue;
+      }
+      for (const run of experimentRuns) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.domain.maintenance.v3_campaign.continueRunReset,
+          {
+            run_id: run.run_id,
+            experiment_id: run.experiment_id,
+            limit_per_table: RESET_RUN_LIMIT_PER_TABLE,
+          },
+        );
+      }
+    }
 
     return {
-      dry_run: args.dry_run,
-      selected_experiment_count: resetResult.selected_experiment_count,
-      missing_experiment_tags: resetResult.missing_experiment_tags,
+      dry_run: false,
+      selected_experiment_count: filtered.selected.length,
+      missing_experiment_tags: filtered.missingTags,
       cancelled_processes,
-      processed_experiment_count: resetResult.processed_experiment_count,
-      rows: resetResult.rows,
-      totals: resetResult.totals,
+      processed_experiment_count: filtered.selected.length,
+      rows: filtered.selected.map((experiment) => ({
+        experiment_id: experiment.experiment_id,
+        experiment_tag: experiment.experiment_tag,
+        runs_found: (runsByExperiment.get(String(experiment.experiment_id)) ?? []).length,
+        deleted: { ...ZeroResetTotals },
+      })),
+      totals: { ...ZeroResetTotals },
     };
   },
 });
@@ -1112,21 +1243,10 @@ export const resetV3CampaignChunked = zAction({
       }
     }
 
-    const resetResult = await resetCohortRunDataViaMutation(ctx, {
-      dry_run: args.dry_run,
-      experiment_tags: args.experiment_tags,
-      max_experiments_per_pass: 1,
-    });
-
-    return {
-      dry_run: args.dry_run,
-      selected_experiment_count: resetResult.selected_experiment_count,
-      missing_experiment_tags: resetResult.missing_experiment_tags,
-      cancelled_processes,
-      processed_experiment_count: resetResult.processed_experiment_count,
-      rows: resetResult.rows,
-      totals: resetResult.totals,
-    };
+    return ctx.runAction(
+      internal.domain.maintenance.v3_campaign.resetV3Campaign,
+      args,
+    );
   },
 });
 

@@ -38,16 +38,25 @@
     },
     {
       "id": "v3_20260322_subset_verdict_parser_contract",
-      "status": "open",
+      "status": "fixed_in_repo",
       "taxonomy": "artifact_apply",
       "created_at": "2026-03-22T01:19:00Z",
       "summary": "The subset score parser still rejects some model outputs that include multiple stage identifiers on the verdict line, causing terminal score_gen failures and blocking downstream score_critic on those targets.",
+      "fix_summary": "Relaxed subset verdict parsing so multi-label `VERDICT:` lines with commas and markdown emphasis are accepted instead of treated as terminal parse failures.",
       "evidence_run_id": "kx7btwjsqzf5y6wyydbvxxe2z583asw2",
       "evidence_experiment_tag": "v3_a2_gpt_5_2_l3",
       "examples": [
         "Unrecognized verdict label: VcGZj, dqqCdj",
         "Failed to parse verdict line with narrative plus VERDICT: ThKMhJ, vcPIJZ"
       ]
+    },
+    {
+      "id": "v3_20260322_reset_control_timeout",
+      "status": "fixed_in_repo",
+      "taxonomy": "control_contract",
+      "created_at": "2026-03-22T15:40:00Z",
+      "summary": "The `resetV3Campaign` action still builds the entire 18-experiment cohort into one Convex function call, which now regularly times out under the new dataset chunking strategy.",
+      "fix_summary": "Refactored campaign reset into scheduled incremental per-run cleanup backed by `continueRunReset`, and increased the per-pass delete budget so a full live cohort drains back to `preflight_clean` without timing out."
     }
   ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."
