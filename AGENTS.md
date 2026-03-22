@@ -28,6 +28,7 @@ Open-source LLM-as-Judge design-space engine. Turborepo monorepo with Bun (`apps
 - Do not run `npx convex codegen` unless explicitly instructed.
 - Do not modify environment variables without explicit user approval.
 - Prefer repo wrappers such as `scripts/run_convex.sh` over ad hoc `bun x convex run` when calling the live Convex deployment from shell tooling.
+- When the user explicitly asks for local dev-log monitoring, let the agent own the root `bun dev` session so Turbo/Convex logs stay in the agent context; prefer the repo's stream-mode Turbo output over a user-owned TUI.
 - After any Convex code or schema change, run the full validation routine:
   1. `bun run validate:convex`, or
   2. `cd apps/engine-convex && npx convex codegen`, then `bun run typecheck` from repo root.
@@ -69,6 +70,7 @@ These are generic engine/debug tools. Do not put campaign-specific procedures he
 - Treat `_campaigns/v3_finish_pass/manifest.json` as the machine-readable contract for that mission.
 - Treat the `experiments` table as the live experiment-config source of truth.
 - For raw live control-plane calls during the V3 pass, use `scripts/run_convex.sh` unless an existing Bun wrapper already covers the exact function you need.
+- When local Convex errors need investigation before a V3 relaunch, have the agent own `bun dev` so Convex dev logs are directly monitorable in-stream.
 
 ## Fresh-Context Bootstrap
 

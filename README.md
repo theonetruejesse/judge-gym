@@ -141,6 +141,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Local development**
 
 - `bun dev` from the repo root starts the local UI and Convex development surfaces only (`apps/lab` + `apps/engine-convex`). The Temporal cluster and worker run on Railway in the primary dev path.
+- `turbo.json` is intentionally pinned to `ui: "stream"` so local Turbo/Convex logs stay readable and capturable during agent-led debugging; when local Convex log monitoring matters, let the agent own the root `bun dev` session.
 - `apps/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
 - When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for the Temporal frontend service, while the Railway-hosted `engine-temporal` worker should use the private service alias `temporalserver:7233` unless your Railway template used a different private name.
 - The Railway worker deploy path for `apps/engine-temporal` is pinned in repo via `railway.toml` plus the repo-root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `apps/engine-temporal`.

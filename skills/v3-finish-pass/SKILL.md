@@ -191,3 +191,4 @@ then add an item to `_campaigns/v3_finish_pass/observability_backlog.json`.
 - Update `README.md` when behavior or operator surfaces change.
 - Keep campaign semantics out of `AGENTS.md`; this skill owns them.
 - Treat Railway deploy verification as part of the loop, not an optional postscript: do not relaunch the live V3 cohort on stale worker code.
+- When local Convex errors need inspection before the next loop, own the repo-root `bun dev` session so streamed Turbo/Convex logs stay visible in the agent context instead of hiding inside a separate TUI.
