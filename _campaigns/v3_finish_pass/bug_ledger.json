@@ -57,6 +57,28 @@
       "created_at": "2026-03-22T15:40:00Z",
       "summary": "The `resetV3Campaign` action still builds the entire 18-experiment cohort into one Convex function call, which now regularly times out under the new dataset chunking strategy.",
       "fix_summary": "Refactored campaign reset into scheduled incremental per-run cleanup backed by `continueRunReset`, and increased the per-pass delete budget so a full live cohort drains back to `preflight_clean` without timing out."
+    },
+    {
+      "id": "v3_20260322_score_stage_batch_preamble_timeout",
+      "status": "fixed_in_repo",
+      "taxonomy": "projection_staleness",
+      "created_at": "2026-03-22T21:05:44Z",
+      "summary": "Large `score_gen` chunks could fire hundreds of `recordLlmAttemptStart` mutations at once before batch registration, leaving no preamble heartbeat coverage on that fanout and causing `ensureBatchExecution` to time out before a provider batch was ever bound.",
+      "fix_summary": "Run-stage batch preamble now records batch attempt starts with bounded concurrency and emits `batch_preamble:record_attempt_starts` heartbeats under the same preflight guard before quota reservation and batch registration continue.",
+      "evidence_run_id": "kx74fke6hrm6q2pk1ag0rzed1h83dnxr",
+      "evidence_experiment_tag": "v3_a5_gpt_4_1_illiberal_democracy",
+      "examples": [
+        "Timed out preparing batch execution for score_gen run kx74fke6hrm6q2pk1ag0rzed1h83dnxr",
+        "score_gen batch reconciliation showed failed 500-item and 100-item chunks with provider_batch_id=null and 0/600 completed targets"
+      ]
+    },
+    {
+      "id": "v3_20260322_active_reset_callback_race",
+      "status": "open",
+      "taxonomy": "control_contract",
+      "created_at": "2026-03-22T22:17:00Z",
+      "summary": "Forced active-run cleanup still leaves late run-stage callbacks racing into deleted rows, producing `Run not found` / `Score target not found for run` errors after the cohort has already been reset to `preflight_clean`.",
+      "fix_summary": "Pending. The Convex worker should treat late `applyRunStageResult` and `markRunStageFailure` callbacks against deleted run/score-target rows as safe no-ops with telemetry, mirroring the earlier missing-attempt and missing-window cleanup hardening."
     }
   ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."

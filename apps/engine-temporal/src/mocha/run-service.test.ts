@@ -671,6 +671,143 @@ describe("run stage service", function () {
     assert.equal(batchCallCount, 2);
   });
 
+  it("bounds batch attempt-start fanout and emits preamble heartbeats while staging large chunks", async () => {
+    let maxAttemptStartsInFlight = 0;
+    let attemptStartsInFlight = 0;
+    const heartbeatSteps: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+            },
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              maxConcurrentRequests: 1,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_attempt_start_heartbeat",
+              experiment_id: "exp_batch_attempt_start_heartbeat",
+              workflow_id: "run:run_batch_attempt_start_heartbeat",
+              workflow_run_id: "workflow-run-batch-attempt-start-heartbeat",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 5,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return Array.from({ length: 5 }, (_, index) => ({
+              target_type: "sample_score_target" as const,
+              target_id: `target_${index + 1}`,
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: `user-${index + 1}`,
+              metadata_json: null,
+            }));
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            attemptStartsInFlight += 1;
+            maxAttemptStartsInFlight = Math.max(
+              maxAttemptStartsInFlight,
+              attemptStartsInFlight,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            attemptStartsInFlight -= 1;
+            return {
+              attempt_id: `attempt_${target_id}`,
+            };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSteps.push(`${payload?.source ?? "unknown"}:${payload?.step ?? "unknown"}`);
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 5,
+              completed: 5,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_fanout",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+            };
+          },
+          async bindBatchExecutionSubmitted() {
+            return null;
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat(args: any) {
+          return {
+            batchId: "batch_fanout",
+            outputFileId: "file_out_fanout",
+            errorFileId: null,
+            succeeded: args.items.map((item: any) => ({
+              customId: `attempt_${item.metadata.input.target_id}`,
+              metadata: {
+                input: item.metadata.input,
+                attemptId: `attempt_${item.metadata.input.target_id}`,
+              },
+              batchId: "batch_fanout",
+              assistant_output: `ok-${item.metadata.input.target_id}`,
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            })),
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_attempt_start_heartbeat",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=5:failed=0:completed=5");
+    assert.equal(maxAttemptStartsInFlight <= 4, true);
+    assert.ok(heartbeatSteps.includes("batch_preamble:record_attempt_starts"));
+  });
+
   it("continues when stage finalization reports partial failure but surviving work completed", async () => {
     const calls: string[] = [];
 

@@ -86,6 +86,13 @@ function getLlmPreflightTimeoutMs(deps: RunStageDependencies) {
   return getSettings(deps).llm.preflightTimeoutMs;
 }
 
+function getBatchAttemptStartConcurrency(settings: EngineSettings) {
+  return Math.max(
+    settings.llm.direct.maxConcurrentRequests,
+    Math.min(16, settings.llm.direct.maxConcurrentRequests * 4),
+  );
+}
+
 function getDefaultRunStageDependencies(): RunStageDependencies {
   return {
     convex: getConvexWorkerClient(),
@@ -212,22 +219,34 @@ async function processConcurrently<T>(
   maxConcurrent: number,
   handler: (item: T) => Promise<"succeeded" | "failed">,
 ) {
-  const chunks = chunkItems(items, maxConcurrent);
+  const results = await mapConcurrently(items, maxConcurrent, handler);
   let successCount = 0;
   let failureCount = 0;
 
-  for (const chunk of chunks) {
-    const results = await Promise.all(chunk.map((item) => handler(item)));
-    for (const result of results) {
-      if (result === "succeeded") {
-        successCount += 1;
-      } else {
-        failureCount += 1;
-      }
+  for (const result of results) {
+    if (result === "succeeded") {
+      successCount += 1;
+    } else {
+      failureCount += 1;
     }
   }
 
   return { successCount, failureCount };
+}
+
+async function mapConcurrently<T, TResult>(
+  items: T[],
+  maxConcurrent: number,
+  handler: (item: T) => Promise<TResult>,
+) {
+  const chunks = chunkItems(items, maxConcurrent);
+  const results: TResult[] = [];
+
+  for (const chunk of chunks) {
+    results.push(...await Promise.all(chunk.map((item) => handler(item))));
+  }
+
+  return results;
 }
 
 async function sleep(ms: number) {
@@ -691,36 +710,60 @@ async function processRunStageBatchChunk(
     model: args.model,
     inputs: args.inputs,
   });
-  const startedAttempts = await Promise.all(
-    args.inputs.map(async (input) => {
-      const { attempt_id } = await deps.convex.recordLlmAttemptStart({
-        attempt_key: [
-          "run",
-          args.runId,
-          args.stage,
-          input.target_id,
-          "batch",
-        ].join(":"),
+  const attemptStartConcurrency = getBatchAttemptStartConcurrency(settings);
+  const startedAttempts = await withPreflightGuard({
+    intervalMs: getProcessHeartbeatIntervalMs(deps),
+    timeoutMs: getLlmPreflightTimeoutMs(deps),
+    timeoutMessage:
+      `Timed out recording batch attempts for ${args.stage} run ${args.runId}`,
+    onHeartbeat: async () => {
+      await deps.convex.recordProcessHeartbeat?.({
         process_kind: "run",
         process_id: args.runId,
-        target_type: input.target_type,
-        target_id: input.target_id,
         stage: args.stage,
-        provider,
-        model: input.model,
-        operation_type: "batch",
-        workflow_id: args.workflowId,
-        system_prompt: input.system_prompt,
-        user_prompt: input.user_prompt,
-        metadata_json: input.metadata_json,
+        payload_json: JSON.stringify({
+          source: "batch_preamble",
+          step: "record_attempt_starts",
+          model: args.model,
+          item_count: args.inputs.length,
+          batch_key: batchKey,
+          attempt_start_concurrency: attemptStartConcurrency,
+        }),
       });
-      return {
-        input,
-        attemptId: attempt_id,
-        estimatedInputTokens: estimatePromptTokens(input),
-      };
-    }),
-  );
+    },
+    task: () => mapConcurrently(
+      args.inputs,
+      attemptStartConcurrency,
+      async (input) => {
+        const { attempt_id } = await deps.convex.recordLlmAttemptStart({
+          attempt_key: [
+            "run",
+            args.runId,
+            args.stage,
+            input.target_id,
+            "batch",
+          ].join(":"),
+          process_kind: "run",
+          process_id: args.runId,
+          target_type: input.target_type,
+          target_id: input.target_id,
+          stage: args.stage,
+          provider,
+          model: input.model,
+          operation_type: "batch",
+          workflow_id: args.workflowId,
+          system_prompt: input.system_prompt,
+          user_prompt: input.user_prompt,
+          metadata_json: input.metadata_json,
+        });
+        return {
+          input,
+          attemptId: attempt_id,
+          estimatedInputTokens: estimatePromptTokens(input),
+        };
+      },
+    ),
+  });
 
   const reservedDimensions = {
     requests: 1,

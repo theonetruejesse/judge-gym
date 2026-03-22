@@ -1,10 +1,11 @@
 {
   "campaign_id": "v3_finish_pass",
   "phase": "preflight_clean",
-  "latest_iteration_id": "20260322T183004Z_score_stage_projection_recurrence",
+  "latest_iteration_id": "20260322T210544Z_projection_staleness_recurrence",
   "last_successful_gate": "canary",
   "current_blockers": [
-    "convex_cleanup_race_logs_pending"
+    "run_stage_batch_preamble_live_validation_pending",
+    "active_reset_callback_race_logs_pending"
   ],
   "reset_allowed": true,
   "notes": [
@@ -41,6 +42,11 @@
     "2026-03-22T19:01:02.659Z deployed the patched Railway worker under deployment `565cc726-ffe2-4ef1-8b97-bcc6e08dd4d1`; live verification kept the V3 cohort at `preflight_clean` with `launch_ready=true`, zero backlog, and new worker identity `1@8ca2e1f3c6ee` polling both Temporal queues.",
     "A stale prior worker identity (`1@cef77b7ce4be`) remained visible in queue metadata immediately after rollout with no fresh poll activity, so relaunch is paused until Convex-side cleanup-race errors are reviewed.",
     "2026-03-22 local Convex dev logs also showed repeated cleanup-race failures after destructive resets (`packages/worker:recordLlmAttemptFinish -> Attempt not found`, `packages/worker:projectProcessState -> Window run not found`), which should be triaged before the next V3 loop.",
-    "2026-03-22 repo procedure was updated so Turbo defaults to streamed logs and the agent owns the root `bun dev` session whenever local Convex log monitoring is needed."
+    "2026-03-22 repo procedure was updated so Turbo defaults to streamed logs and the agent owns the root `bun dev` session whenever local Convex log monitoring is needed.",
+    "2026-03-22T21:05:44Z captured unhealthy iteration `20260322T210544Z_projection_staleness_recurrence` after a fresh full-loop relaunch degraded from `healthy_progressing` to `stalled_recoverable` with 10 `stale_projection` runs while Temporal queues still reported healthy pollers.",
+    "One bounded `reproject_snapshot` safe-heal temporarily cleared the stale set, but the pass relapsed and localized the active blocker to score-stage batch preamble: representative run `kx74fke6hrm6q2pk1ag0rzed1h83dnxr` remained at `0/600` score targets with failed `llm_batch_executions` carrying `Timed out preparing batch execution` and no provider batch id.",
+    "2026-03-22 the cohort was parked back at `preflight_clean` using single-experiment `packages/codex:resetRuns` fallbacks with `allow_active=true` after `resetV3Campaign` timed out waiting for Temporal cancellation and multi-experiment `resetRuns` pages exceeded Convex read limits.",
+    "2026-03-22T21:18Z deployed a runtime patch to Railway that bounds score-stage batch attempt-start fanout and emits `batch_preamble:record_attempt_starts` heartbeats before batch registration. Live validation of that fix is still pending the next relaunch.",
+    "Late callbacks from the forcibly reset cohort still produced Convex cleanup-race noise (`packages/worker:applyRunStageResult -> Run not found`, `packages/worker:markRunStageFailure -> Score target not found for run`), so reset-path idempotency remains an autonomy blocker even though the cohort is clean again."
   ]
 }
