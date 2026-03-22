@@ -1,0 +1,72 @@
+{
+  "captured_at": "2026-03-22T01:19:00Z",
+  "effective_campaign_state": "scientifically_invalid",
+  "blocked_task_queues": [],
+  "launch_ready": false,
+  "status": {
+    "campaign_state": "scientifically_invalid",
+    "counts": {
+      "canceled": 0,
+      "completed": 18,
+      "error": 0,
+      "latest_runs_with_failures": 1,
+      "paused": 0,
+      "queued": 0,
+      "running": 0,
+      "start": 0,
+      "total": 18,
+      "with_latest_run": 18
+    },
+    "scientific_validity": "scientifically_invalid",
+    "selected_experiment_count": 18,
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 0
+      },
+      {
+        "stage": "score_gen",
+        "count": 0
+      },
+      {
+        "stage": "score_critic",
+        "count": 18
+      }
+    ],
+    "stuck_summary": [],
+    "stuck_items": []
+  },
+  "failed_run": {
+    "experiment_tag": "v3_a2_gpt_5_2_l3",
+    "run_id": "kx7btwjsqzf5y6wyydbvxxe2z583asw2",
+    "completed_count": 29,
+    "target_count": 30,
+    "score_gen_success": 597,
+    "score_gen_failed": 3,
+    "score_critic_failed": 3
+  },
+  "temporal_readiness": {
+    "all_ready": true,
+    "namespace": "default",
+    "queues": [
+      {
+        "task_queue": "judge-gym.run",
+        "queue_kind": "run",
+        "ready": true,
+        "workflow_poller_count": 2,
+        "activity_poller_count": 2
+      },
+      {
+        "task_queue": "judge-gym.window",
+        "queue_kind": "window",
+        "ready": true,
+        "workflow_poller_count": 2,
+        "activity_poller_count": 2
+      }
+    ]
+  }
+}

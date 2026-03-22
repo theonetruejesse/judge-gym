@@ -1,9 +1,11 @@
 {
   "campaign_id": "v3_finish_pass",
-  "phase": "healthy_progressing",
-  "latest_iteration_id": "20260321T215833Z_score_stage_hardening_audit",
+  "phase": "scientifically_invalid",
+  "latest_iteration_id": "20260322T011900Z_full_pass_subset_parser_invalid",
   "last_successful_gate": "canary",
-  "current_blockers": [],
+  "current_blockers": [
+    "subset_verdict_parser_contract"
+  ],
   "reset_allowed": true,
   "notes": [
     "The active V3 finish pass now targets the corrected 32-experiment matrix described in docs/pilots/v3_gpt_ablations.md.",
@@ -12,6 +14,7 @@
     "2026-03-21 clean reset canceled the paused run cohort, preserved the active window/pool setup, and returned the campaign to preflight_clean.",
     "Reset control now routes deletion through the paged resetRuns mutation path instead of the older monolithic action cleanup.",
     "2026-03-21 score-stage hardening audit found three dominant issues under live rubric-gate/full-loop load: batch transport/apply brittleness, projection activity timeout pressure, and cohort status reads that still scanned too broadly.",
-    "The current patch set addresses those without wiping the cohort: stage activities now retry with bounded budgets, projection activities have a separate longer timeout, OpenAI batch/file polling has explicit transport retries, and V3 campaign status is cohort-scoped by explicit manifest tags."
+    "The current patch set addresses those without wiping the cohort: stage activities now retry with bounded budgets, projection activities have a separate longer timeout, OpenAI batch/file polling has explicit transport retries, and V3 campaign status is cohort-scoped by explicit manifest tags.",
+    "2026-03-22 the full cohort converged to completed after the Railway worker redeploy, but one run (`v3_a2_gpt_5_2_l3`) remained scientifically invalid because three score_gen targets hit subset-verdict parse failures and their paired score_critic targets were correctly blocked."
   ]
 }

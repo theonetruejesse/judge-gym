@@ -35,6 +35,19 @@
       "created_at": "2026-03-21T21:58:33Z",
       "summary": "V3 cohort status still depended on broad experiment/run scans and global stuck-work reads, which timed out during large score stages.",
       "fix_summary": "Campaign status now scopes experiment listing to the explicit manifest tag set and derives cohort stuckness from process_observability for the latest run per experiment."
+    },
+    {
+      "id": "v3_20260322_subset_verdict_parser_contract",
+      "status": "open",
+      "taxonomy": "artifact_apply",
+      "created_at": "2026-03-22T01:19:00Z",
+      "summary": "The subset score parser still rejects some model outputs that include multiple stage identifiers on the verdict line, causing terminal score_gen failures and blocking downstream score_critic on those targets.",
+      "evidence_run_id": "kx7btwjsqzf5y6wyydbvxxe2z583asw2",
+      "evidence_experiment_tag": "v3_a2_gpt_5_2_l3",
+      "examples": [
+        "Unrecognized verdict label: VcGZj, dqqCdj",
+        "Failed to parse verdict line with narrative plus VERDICT: ThKMhJ, vcPIJZ"
+      ]
     }
   ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."
