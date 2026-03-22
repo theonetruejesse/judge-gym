@@ -371,7 +371,7 @@ export const deleteRunDataPass = zInternalMutation({
     const deleted = zeroRunDeleteSummary();
     const limit = args.limit_per_table;
     const payloadLimit = Math.max(1, Math.min(limit, 10));
-    const attemptLimit = Math.max(1, Math.min(limit, 50));
+    const attemptLimit = Math.max(1, Math.min(limit, 10));
 
     const batchExecutions = await ctx.db
       .query("llm_batch_executions")
