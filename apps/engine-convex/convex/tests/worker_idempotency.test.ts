@@ -36,6 +36,104 @@ async function seedWindow(t: ReturnType<typeof convexTest>) {
   return { window_id, window_run_id };
 }
 
+async function seedRun(t: ReturnType<typeof convexTest>) {
+  const { window_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindow,
+    {
+      country: "USA",
+      start_date: "2026-03-01",
+      end_date: "2026-03-02",
+      query: "worker-idempotency-run",
+      default_target_count: 1,
+      default_target_stage: "l3_abstracted",
+    },
+  );
+  const { window_run_id } = await t.mutation(
+    internal.domain.window.window_repo.createWindowRun,
+    {
+      window_id,
+      model: "gpt-4.1-mini",
+      target_count: 1,
+      target_stage: "l3_abstracted",
+    },
+  );
+
+  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
+    window_run_id,
+    evidences: [{
+      title: "Run Evidence 1",
+      url: "https://example.com/run-e1",
+      raw_content: "Run evidence one raw content.",
+    }],
+  });
+
+  const evidenceRows = await t.query(api.packages.lab.listEvidenceByWindow, { window_id });
+  const pool = await t.mutation(api.packages.lab.createPool, {
+    evidence_ids: evidenceRows.map((row: { evidence_id: Id<"evidences"> }) => row.evidence_id),
+    pool_tag: "worker_idempotency_pool",
+  });
+
+  const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
+    pool_id: pool.pool_id,
+    experiment_config: {
+      rubric_config: {
+        model: "gpt-4.1",
+        scale_size: 4,
+        concept: "fascism",
+      },
+      scoring_config: {
+        model: "gpt-4.1",
+        method: "subset",
+        abstain_enabled: true,
+        evidence_view: "l2_neutralized",
+        randomizations: [],
+        evidence_bundle_size: 1,
+      },
+    },
+  });
+
+  const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
+    experiment_id,
+    target_count: 1,
+  });
+
+  const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
+  const firstTarget = scoreTargets[0]!;
+
+  return {
+    run_id,
+    sample_id: firstTarget.sample_id,
+    score_target_id: firstTarget.score_target_id,
+  };
+}
+
+async function startRunAttempt(
+  t: ReturnType<typeof convexTest>,
+  args: {
+    run_id: Id<"runs">;
+    target_type: "sample" | "sample_score_target";
+    target_id: string;
+    stage: "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic";
+    attempt_key: string;
+  },
+) {
+  return t.mutation(api.packages.worker.recordLlmAttemptStart, {
+    attempt_key: args.attempt_key,
+    process_kind: "run",
+    process_id: String(args.run_id),
+    target_type: args.target_type,
+    target_id: args.target_id,
+    stage: args.stage,
+    provider: "openai",
+    model: "gpt-4.1",
+    operation_type: "chat",
+    workflow_id: `run:${args.run_id}`,
+    system_prompt: "system",
+    user_prompt: "user",
+    metadata_json: null,
+  });
+}
+
 describe("worker mutation idempotency", () => {
   const originalDataset = process.env.AXIOM_DATASET;
   const originalToken = process.env.AXIOM_TOKEN;
@@ -346,5 +444,86 @@ describe("worker mutation idempotency", () => {
     expect(observability?.last_event_name).toBe("process_projection_skipped_missing_target");
     expect(observability?.last_status).toBe("error");
     expect(observability?.recent_events.at(-1)?.payload_json).toContain("\"reason\":\"window_run_missing\"");
+  });
+
+  test("drops late run-stage apply callbacks after reset cleanup removes the run row", async () => {
+    const t = initTest();
+    const { run_id, sample_id } = await seedRun(t);
+
+    const attempt = await startRunAttempt(t, {
+      run_id,
+      target_type: "sample",
+      target_id: String(sample_id),
+      stage: "rubric_gen",
+      attempt_key: "run:test:rubric_gen:late_apply",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(run_id);
+    });
+
+    await expect(t.mutation(api.packages.worker.applyRunStageResult, {
+      run_id,
+      target_id: String(sample_id),
+      stage: "rubric_gen",
+      attempt_id: attempt.attempt_id,
+      output: [
+        "REASONING: signal",
+        "1) Weak or Isolated Features :: criterion one; criterion two",
+        "2) Coordinated Authoritarian Moves :: criterion three; criterion four",
+        "3) Systemic Democratic Erosion :: criterion five; criterion six",
+        "4) Consolidated Fascist Control :: criterion seven; criterion eight",
+      ].join("\n"),
+    })).resolves.toBeNull();
+
+    const observability = await t.query(
+      internal.domain.telemetry.events.getProcessObservability,
+      {
+        process_type: "run",
+        process_id: String(run_id),
+      },
+    );
+
+    expect(observability?.last_event_name).toBe("run_stage_result_skipped_missing_target");
+    expect(observability?.last_status).toBe("error");
+    expect(observability?.recent_events.at(-1)?.payload_json).toContain("\"reason\":\"run_missing\"");
+  });
+
+  test("drops late run-stage failure callbacks after reset cleanup removes the score target row", async () => {
+    const t = initTest();
+    const { run_id, score_target_id } = await seedRun(t);
+
+    const attempt = await startRunAttempt(t, {
+      run_id,
+      target_type: "sample_score_target",
+      target_id: String(score_target_id),
+      stage: "score_gen",
+      attempt_key: "run:test:score_gen:late_failure",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.delete(score_target_id);
+    });
+
+    await expect(t.mutation(api.packages.worker.markRunStageFailure, {
+      run_id,
+      target_id: String(score_target_id),
+      stage: "score_gen",
+      attempt_id: attempt.attempt_id,
+      error_message: "late callback after reset cleanup",
+    })).resolves.toBeNull();
+
+    const observability = await t.query(
+      internal.domain.telemetry.events.getProcessObservability,
+      {
+        process_type: "run",
+        process_id: String(run_id),
+      },
+    );
+
+    expect(observability?.last_event_name).toBe("run_stage_failure_skipped_missing_target");
+    expect(observability?.last_status).toBe("error");
+    expect(observability?.recent_events.at(-1)?.payload_json)
+      .toContain("\"reason\":\"score_target_missing\"");
   });
 });

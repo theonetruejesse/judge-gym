@@ -153,6 +153,40 @@ async function emitSkippedProcessProjection(
   });
 }
 
+async function emitSkippedRunStageCallback(
+  ctx: MutationCtx,
+  args: {
+    run_id: Id<"runs">;
+    target_id: string;
+    stage: z.infer<typeof RunStageInputSchema>;
+    attempt_id: Id<"llm_attempts">;
+    error_message?: string;
+  },
+  event_name:
+    | "run_stage_result_skipped_missing_target"
+    | "run_stage_failure_skipped_missing_target",
+  reason:
+    | "run_missing"
+    | "sample_missing"
+    | "score_target_missing"
+    | "rubric_missing",
+) {
+  await emitTraceEvent(ctx, {
+    trace_id: `run:${args.run_id}`,
+    entity_type: "run",
+    entity_id: String(args.run_id),
+    event_name,
+    status: "error",
+    stage: args.stage,
+    payload_json: JSON.stringify({
+      reason,
+      target_id: args.target_id,
+      attempt_id: args.attempt_id,
+      error_message: args.error_message ?? null,
+    }),
+  });
+}
+
 function runStageFields(stage: z.infer<typeof RunStageInputSchema>) {
   switch (stage) {
     case "rubric_gen":
@@ -1435,7 +1469,13 @@ export const applyRunStageResult = zMutation({
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.run_id);
     if (!run) {
-      throw new Error("Run not found");
+      await emitSkippedRunStageCallback(
+        ctx,
+        args,
+        "run_stage_result_skipped_missing_target",
+        "run_missing",
+      );
+      return null;
     }
     const experiment = await ctx.db.get(run.experiment_id);
     if (!experiment) {
@@ -1445,7 +1485,16 @@ export const applyRunStageResult = zMutation({
 
     if (args.stage === "rubric_gen") {
       const sample = await ctx.db.get(args.target_id as Id<"samples">);
-      if (!sample || sample.run_id !== args.run_id) {
+      if (!sample) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "sample_missing",
+        );
+        return null;
+      }
+      if (sample.run_id !== args.run_id) {
         throw new Error("Sample not found for run");
       }
       if (sample.rubric_id) {
@@ -1480,7 +1529,16 @@ export const applyRunStageResult = zMutation({
 
     if (args.stage === "rubric_critic") {
       const sample = await ctx.db.get(args.target_id as Id<"samples">);
-      if (!sample || sample.run_id !== args.run_id) {
+      if (!sample) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "sample_missing",
+        );
+        return null;
+      }
+      if (sample.run_id !== args.run_id) {
         throw new Error("Sample not found for run");
       }
       if (sample.rubric_critic_id) {
@@ -1491,7 +1549,13 @@ export const applyRunStageResult = zMutation({
       }
       const rubric = await ctx.db.get(sample.rubric_id);
       if (!rubric) {
-        throw new Error("Rubric not found");
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "rubric_missing",
+        );
+        return null;
       }
       const parsed = parseQualityResponse(args.output);
       const rubric_critic_id = await ctx.db.insert("rubric_critics", {
@@ -1514,7 +1578,16 @@ export const applyRunStageResult = zMutation({
 
     if (args.stage === "score_gen") {
       const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
-      if (!target || target.run_id !== args.run_id) {
+      if (!target) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "score_target_missing",
+        );
+        return null;
+      }
+      if (target.run_id !== args.run_id) {
         throw new Error("Score target not found for run");
       }
       if (target.score_id) {
@@ -1522,14 +1595,26 @@ export const applyRunStageResult = zMutation({
       }
       const sample = await ctx.db.get(target.sample_id);
       if (!sample) {
-        throw new Error("Sample not found");
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "sample_missing",
+        );
+        return null;
       }
       if (!sample.rubric_id) {
         throw new Error("Rubric missing for sample");
       }
       const rubric = await ctx.db.get(sample.rubric_id);
       if (!rubric) {
-        throw new Error("Rubric not found");
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "rubric_missing",
+        );
+        return null;
       }
       const parsedVerdict = config.scoring_config.method === "subset"
         ? parseSubsetVerdict(args.output, rubric.label_mapping)
@@ -1554,7 +1639,16 @@ export const applyRunStageResult = zMutation({
 
     if (args.stage === "score_critic") {
       const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
-      if (!target || target.run_id !== args.run_id) {
+      if (!target) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "score_target_missing",
+        );
+        return null;
+      }
+      if (target.run_id !== args.run_id) {
         throw new Error("Score target not found for run");
       }
       if (target.score_critic_id) {
@@ -1562,7 +1656,13 @@ export const applyRunStageResult = zMutation({
       }
       const sample = await ctx.db.get(target.sample_id);
       if (!sample) {
-        throw new Error("Sample not found");
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_result_skipped_missing_target",
+          "sample_missing",
+        );
+        return null;
       }
       const parsed = parseExpertAgreementResponse(args.output);
       const score_critic_id = await ctx.db.insert("score_critics", {
@@ -1611,7 +1711,16 @@ export const markRunStageFailure = zMutation({
     const fields = runStageFields(args.stage);
     if (fields.targetType === "sample") {
       const sample = await ctx.db.get(args.target_id as Id<"samples">);
-      if (!sample || sample.run_id !== args.run_id) {
+      if (!sample) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_failure_skipped_missing_target",
+          "sample_missing",
+        );
+        return null;
+      }
+      if (sample.run_id !== args.run_id) {
         throw new Error("Sample not found for run");
       }
       if ((sample as any)[fields.outputField]) {
@@ -1623,7 +1732,16 @@ export const markRunStageFailure = zMutation({
       } as Partial<Doc<"samples">>);
     } else {
       const target = await ctx.db.get(args.target_id as Id<"sample_score_targets">);
-      if (!target || target.run_id !== args.run_id) {
+      if (!target) {
+        await emitSkippedRunStageCallback(
+          ctx,
+          args,
+          "run_stage_failure_skipped_missing_target",
+          "score_target_missing",
+        );
+        return null;
+      }
+      if (target.run_id !== args.run_id) {
         throw new Error("Score target not found for run");
       }
       if ((target as any)[fields.outputField]) {

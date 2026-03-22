@@ -74,11 +74,11 @@
     },
     {
       "id": "v3_20260322_active_reset_callback_race",
-      "status": "open",
+      "status": "fixed_in_repo",
       "taxonomy": "control_contract",
       "created_at": "2026-03-22T22:17:00Z",
       "summary": "Forced active-run cleanup still leaves late run-stage callbacks racing into deleted rows, producing `Run not found` / `Score target not found for run` errors after the cohort has already been reset to `preflight_clean`.",
-      "fix_summary": "Pending. The Convex worker should treat late `applyRunStageResult` and `markRunStageFailure` callbacks against deleted run/score-target rows as safe no-ops with telemetry, mirroring the earlier missing-attempt and missing-window cleanup hardening."
+      "fix_summary": "The Convex worker now treats late `applyRunStageResult` and `markRunStageFailure` callbacks against deleted run/sample/score-target/rubric rows as safe no-ops with run-trace breadcrumbs, mirroring the earlier missing-attempt and missing-window cleanup hardening. Live ownDev failure logs were quiet after the push; the next forced reset remains the proving pass."
     }
   ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."

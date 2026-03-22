@@ -5,7 +5,7 @@
   "last_successful_gate": "canary",
   "current_blockers": [
     "run_stage_batch_preamble_live_validation_pending",
-    "active_reset_callback_race_logs_pending"
+    "active_reset_callback_race_live_validation_pending"
   ],
   "reset_allowed": true,
   "notes": [
@@ -47,6 +47,7 @@
     "One bounded `reproject_snapshot` safe-heal temporarily cleared the stale set, but the pass relapsed and localized the active blocker to score-stage batch preamble: representative run `kx74fke6hrm6q2pk1ag0rzed1h83dnxr` remained at `0/600` score targets with failed `llm_batch_executions` carrying `Timed out preparing batch execution` and no provider batch id.",
     "2026-03-22 the cohort was parked back at `preflight_clean` using single-experiment `packages/codex:resetRuns` fallbacks with `allow_active=true` after `resetV3Campaign` timed out waiting for Temporal cancellation and multi-experiment `resetRuns` pages exceeded Convex read limits.",
     "2026-03-22T21:18Z deployed a runtime patch to Railway that bounds score-stage batch attempt-start fanout and emits `batch_preamble:record_attempt_starts` heartbeats before batch registration. Live validation of that fix is still pending the next relaunch.",
-    "Late callbacks from the forcibly reset cohort still produced Convex cleanup-race noise (`packages/worker:applyRunStageResult -> Run not found`, `packages/worker:markRunStageFailure -> Score target not found for run`), so reset-path idempotency remains an autonomy blocker even though the cohort is clean again."
+    "Late callbacks from the forcibly reset cohort still produced Convex cleanup-race noise (`packages/worker:applyRunStageResult -> Run not found`, `packages/worker:markRunStageFailure -> Score target not found for run`), so reset-path idempotency remains an autonomy blocker even though the cohort is clean again.",
+    "2026-03-22T22:33Z patched Convex run-stage worker mutations so late apply/failure callbacks against deleted run/sample/score-target/rubric rows emit trace breadcrumbs and return `null` instead of throwing. `bun run validate:convex` and `convex/tests/worker_idempotency.test.ts` passed, live ownDev snapshot stayed `preflight_clean`, queue health converged to a single worker identity (`1@57c4e8d4aaeb`), and recent Convex failure logs were empty after the push. The next active reset should still be treated as live validation for this cleanup-race fix."
   ]
 }
