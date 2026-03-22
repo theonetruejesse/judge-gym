@@ -206,7 +206,7 @@ const DEFAULT_V3_EXPERIMENT_TAGS = [
   "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2",
 ] as const;
 
-const RESET_RUN_LIMIT_PER_TABLE = 10;
+const RESET_RUN_LIMIT_PER_TABLE = 5;
 
 async function resetCohortRunDataViaMutation(
   ctx: {

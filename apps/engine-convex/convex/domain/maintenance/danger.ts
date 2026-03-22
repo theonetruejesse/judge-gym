@@ -370,6 +370,7 @@ export const deleteRunDataPass = zInternalMutation({
 
     const deleted = zeroRunDeleteSummary();
     const limit = args.limit_per_table;
+    const heavyArtifactLimit = Math.max(1, Math.min(limit, 2));
     const payloadLimit = Math.max(1, Math.min(limit, 5));
     const attemptLimit = Math.max(1, Math.min(limit, 5));
 
@@ -400,25 +401,37 @@ export const deleteRunDataPass = zInternalMutation({
       await deleteChunk(ctx, "process_observability", observabilityRows as Array<{ _id: unknown }>);
     }
 
-    const scoreCritics = await ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    const scoreCritics = await ctx.db
+      .query("score_critics")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(heavyArtifactLimit);
     deleted.score_critics += scoreCritics.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "score_critics", scoreCritics as Array<{ _id: unknown }>);
     }
 
-    const scores = await ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    const scores = await ctx.db
+      .query("scores")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(heavyArtifactLimit);
     deleted.scores += scores.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "scores", scores as Array<{ _id: unknown }>);
     }
 
-    const rubricCritics = await ctx.db.query("rubric_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    const rubricCritics = await ctx.db
+      .query("rubric_critics")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(heavyArtifactLimit);
     deleted.rubric_critics += rubricCritics.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "rubric_critics", rubricCritics as Array<{ _id: unknown }>);
     }
 
-    const rubrics = await ctx.db.query("rubrics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
+    const rubrics = await ctx.db
+      .query("rubrics")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(heavyArtifactLimit);
     deleted.rubrics += rubrics.length;
     if (!args.isDryRun) {
       await deleteChunk(ctx, "rubrics", rubrics as Array<{ _id: unknown }>);
@@ -470,6 +483,10 @@ export const deleteRunDataPass = zInternalMutation({
       samples.length,
       attempts.length,
     ].some((count) => count === limit)
+      || scoreCritics.length === heavyArtifactLimit
+      || scores.length === heavyArtifactLimit
+      || rubricCritics.length === heavyArtifactLimit
+      || rubrics.length === heavyArtifactLimit
       || payloads.length === payloadLimit
       || attempts.length === attemptLimit;
 
