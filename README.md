@@ -105,6 +105,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - V3 campaign status reads are now cohort-scoped by explicit manifest tags instead of global experiment/run scans, so `packages/codex:getV3CampaignSnapshot` stays usable during large score stages.
 - Temporal stage activities now use bounded retries from `packages/engine-settings`, while projection updates keep a separate longer timeout budget and single-attempt semantics to avoid duplicate projection churn.
 - Run-stage preflight now heartbeats and timeboxes quota reservation plus batch-execution registration before provider work begins, so a stalled Redis/Convex preamble fails fast instead of silently aging active runs into `stale_projection`.
+- Temporal run/window stage bootstrap now validates required process ids locally before issuing Convex stage-context queries, so malformed runtime state fails in worker logs instead of surfacing only as opaque Convex validator spam.
 - OpenAI batch execution now uses explicit transport retries for batch/file polling, and batch chunks persist provider batch lifecycle through `llm_batch_executions` so batch-backed stages can resume polling instead of blindly resubmitting on every replay.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.

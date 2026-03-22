@@ -37,6 +37,53 @@ function buildWindowContext() {
 
 describe("window stage service", function () {
   this.timeout(10_000);
+
+  it("fails fast when stage bootstrap is missing a window run id", async () => {
+    await assert.rejects(
+      () => runWindowStageActivityWithDeps(
+        {
+          convex: {
+            async getWindowExecutionContext() {
+              throw new Error("getWindowExecutionContext should not be called");
+            },
+            async insertWindowEvidenceBatch() {
+              throw new Error("insertWindowEvidenceBatch should not be called");
+            },
+            async listWindowStageInputs() {
+              throw new Error("listWindowStageInputs should not be called");
+            },
+            async recordLlmAttemptStart() {
+              throw new Error("recordLlmAttemptStart should not be called");
+            },
+            async recordLlmAttemptFinish() {
+              throw new Error("recordLlmAttemptFinish should not be called");
+            },
+            async applyWindowStageResult() {
+              throw new Error("applyWindowStageResult should not be called");
+            },
+            async markWindowStageFailure() {
+              throw new Error("markWindowStageFailure should not be called");
+            },
+            async markWindowNoEvidence() {
+              throw new Error("markWindowNoEvidence should not be called");
+            },
+            async markWindowProcessError() {
+              throw new Error("markWindowProcessError should not be called");
+            },
+          },
+          searchWindowEvidence: async () => [],
+          runOpenAiChat: async () => {
+            throw new Error("runOpenAiChat should not be called");
+          },
+          quota: buildQuota(),
+        },
+        "" as string,
+        "collect",
+      ),
+      /windowRunId is required/,
+    );
+  });
+
   it("halts the workflow when collection finds no evidence", async () => {
     let markedNoEvidence = 0;
 

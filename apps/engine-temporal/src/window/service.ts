@@ -108,6 +108,13 @@ const WINDOW_STAGE_PROMPTS: Record<
   },
 };
 
+function assertRequiredProcessId(value: string, field: "runId" | "windowRunId") {
+  if (typeof value === "string" && value.length > 0) {
+    return;
+  }
+  throw new Error(`[temporal.stage_bootstrap] ${field} is required before Convex stage bootstrap`);
+}
+
 export async function searchWindowEvidence(args: {
   query: string;
   country: string;
@@ -313,6 +320,7 @@ export async function runWindowStageActivityWithDeps(
   windowRunId: string,
   stage: WindowStageKey,
 ): Promise<StageActivityResult<WindowStageKey>> {
+  assertRequiredProcessId(windowRunId, "windowRunId");
   const { convex } = deps;
   const settings = getSettings(deps);
   const window = await convex.getWindowExecutionContext(windowRunId);

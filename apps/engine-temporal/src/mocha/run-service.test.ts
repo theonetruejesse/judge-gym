@@ -17,6 +17,49 @@ function buildQuota() {
 
 describe("run stage service", function () {
   this.timeout(10_000);
+
+  it("fails fast when stage bootstrap is missing a run id", async () => {
+    await assert.rejects(
+      () => runRunStageActivityWithDeps(
+        {
+          quota: buildQuota(),
+          convex: {
+            async getRunExecutionContext() {
+              throw new Error("getRunExecutionContext should not be called");
+            },
+            async listRunStageInputs() {
+              throw new Error("listRunStageInputs should not be called");
+            },
+            async recordLlmAttemptStart() {
+              throw new Error("recordLlmAttemptStart should not be called");
+            },
+            async recordLlmAttemptFinish() {
+              throw new Error("recordLlmAttemptFinish should not be called");
+            },
+            async applyRunStageResult() {
+              throw new Error("applyRunStageResult should not be called");
+            },
+            async markRunStageFailure() {
+              throw new Error("markRunStageFailure should not be called");
+            },
+            async finalizeRunStage() {
+              throw new Error("finalizeRunStage should not be called");
+            },
+            async markRunProcessError() {
+              throw new Error("markRunProcessError should not be called");
+            },
+          },
+          async runOpenAiChat() {
+            throw new Error("runOpenAiChat should not be called");
+          },
+        },
+        "" as string,
+        "rubric_gen",
+      ),
+      /runId is required/,
+    );
+  });
+
   it("records successful rubric generation attempts and finalizes the stage", async () => {
     const calls: string[] = [];
     let seenTimeoutMs: number | undefined;

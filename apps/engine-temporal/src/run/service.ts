@@ -117,6 +117,13 @@ function stableHash(content: string): string {
   return `h_${(hash >>> 0).toString(16)}`;
 }
 
+function assertRequiredProcessId(value: string, field: "runId" | "windowRunId") {
+  if (typeof value === "string" && value.length > 0) {
+    return;
+  }
+  throw new Error(`[temporal.stage_bootstrap] ${field} is required before Convex stage bootstrap`);
+}
+
 function buildRunBatchKey(args: {
   runId: string;
   stage: RunStageKey;
@@ -311,6 +318,7 @@ export async function runRunStageActivityWithDeps(
   runId: string,
   stage: RunStageKey,
 ): Promise<StageActivityResult<RunStageKey>> {
+  assertRequiredProcessId(runId, "runId");
   const { convex } = deps;
   const resolvedSettings = getSettings(deps);
   const run = await convex.getRunExecutionContext(runId);
