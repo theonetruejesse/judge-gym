@@ -373,139 +373,111 @@ export const deleteRunDataPass = zInternalMutation({
     const heavyArtifactLimit = Math.max(1, Math.min(limit, 2));
     const payloadLimit = Math.max(1, Math.min(limit, 5));
     const attemptLimit = Math.max(1, Math.min(limit, 5));
+    const deleteIfAny = async (
+      table: keyof DataModel,
+      docs: Array<{ _id: unknown }>,
+      deletedKey: keyof typeof deleted,
+    ) => {
+      deleted[deletedKey] += docs.length;
+      if (!args.isDryRun) {
+        await deleteChunk(ctx, table, docs);
+      }
+      return {
+        trace_id,
+        deleted,
+        has_more: true,
+      };
+    };
 
     const batchExecutions = await ctx.db
       .query("llm_batch_executions")
       .withIndex("by_process_stage", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
       .take(limit);
-    deleted.llm_batch_executions += batchExecutions.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "llm_batch_executions", batchExecutions as Array<{ _id: unknown }>);
+    if (batchExecutions.length > 0) {
+      return deleteIfAny("llm_batch_executions", batchExecutions as Array<{ _id: unknown }>, "llm_batch_executions");
     }
 
     const payloads = await ctx.db
       .query("llm_attempt_payloads")
       .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
       .take(payloadLimit);
-    deleted.llm_attempt_payloads += payloads.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "llm_attempt_payloads", payloads as Array<{ _id: unknown }>);
+    if (payloads.length > 0) {
+      return deleteIfAny("llm_attempt_payloads", payloads as Array<{ _id: unknown }>, "llm_attempt_payloads");
     }
 
     const observabilityRows = await ctx.db
       .query("process_observability")
       .withIndex("by_process", (q) => q.eq("process_type", "run").eq("process_id", String(args.run_id)))
       .take(limit);
-    deleted.process_observability += observabilityRows.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "process_observability", observabilityRows as Array<{ _id: unknown }>);
+    if (observabilityRows.length > 0) {
+      return deleteIfAny("process_observability", observabilityRows as Array<{ _id: unknown }>, "process_observability");
     }
 
     const scoreCritics = await ctx.db
       .query("score_critics")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(heavyArtifactLimit);
-    deleted.score_critics += scoreCritics.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "score_critics", scoreCritics as Array<{ _id: unknown }>);
+    if (scoreCritics.length > 0) {
+      return deleteIfAny("score_critics", scoreCritics as Array<{ _id: unknown }>, "score_critics");
     }
 
     const scores = await ctx.db
       .query("scores")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(heavyArtifactLimit);
-    deleted.scores += scores.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "scores", scores as Array<{ _id: unknown }>);
+    if (scores.length > 0) {
+      return deleteIfAny("scores", scores as Array<{ _id: unknown }>, "scores");
     }
 
     const rubricCritics = await ctx.db
       .query("rubric_critics")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(heavyArtifactLimit);
-    deleted.rubric_critics += rubricCritics.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "rubric_critics", rubricCritics as Array<{ _id: unknown }>);
+    if (rubricCritics.length > 0) {
+      return deleteIfAny("rubric_critics", rubricCritics as Array<{ _id: unknown }>, "rubric_critics");
     }
 
     const rubrics = await ctx.db
       .query("rubrics")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(heavyArtifactLimit);
-    deleted.rubrics += rubrics.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "rubrics", rubrics as Array<{ _id: unknown }>);
+    if (rubrics.length > 0) {
+      return deleteIfAny("rubrics", rubrics as Array<{ _id: unknown }>, "rubrics");
     }
 
     const scoreTargetItems = await ctx.db
       .query("sample_score_target_items")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(limit);
-    deleted.sample_score_target_items += scoreTargetItems.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "sample_score_target_items", scoreTargetItems as Array<{ _id: unknown }>);
+    if (scoreTargetItems.length > 0) {
+      return deleteIfAny("sample_score_target_items", scoreTargetItems as Array<{ _id: unknown }>, "sample_score_target_items");
     }
 
     const scoreTargets = await ctx.db
       .query("sample_score_targets")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .take(limit);
-    deleted.sample_score_targets += scoreTargets.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "sample_score_targets", scoreTargets as Array<{ _id: unknown }>);
+    if (scoreTargets.length > 0) {
+      return deleteIfAny("sample_score_targets", scoreTargets as Array<{ _id: unknown }>, "sample_score_targets");
     }
 
-    const samples = await ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(limit);
-    deleted.samples += samples.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "samples", samples as Array<{ _id: unknown }>);
+    const samples = await ctx.db
+      .query("samples")
+      .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
+      .take(limit);
+    if (samples.length > 0) {
+      return deleteIfAny("samples", samples as Array<{ _id: unknown }>, "samples");
     }
 
     const attempts = await ctx.db
       .query("llm_attempts")
       .withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id)))
       .take(attemptLimit);
-    deleted.llm_attempts += attempts.length;
-    if (!args.isDryRun) {
-      await deleteChunk(ctx, "llm_attempts", attempts as Array<{ _id: unknown }>);
+    if (attempts.length > 0) {
+      return deleteIfAny("llm_attempts", attempts as Array<{ _id: unknown }>, "llm_attempts");
     }
 
-    let has_more = [
-      batchExecutions.length,
-      payloads.length,
-      observabilityRows.length,
-      scoreCritics.length,
-      scores.length,
-      rubricCritics.length,
-      rubrics.length,
-      scoreTargetItems.length,
-      scoreTargets.length,
-      samples.length,
-      attempts.length,
-    ].some((count) => count === limit)
-      || scoreCritics.length === heavyArtifactLimit
-      || scores.length === heavyArtifactLimit
-      || rubricCritics.length === heavyArtifactLimit
-      || rubrics.length === heavyArtifactLimit
-      || payloads.length === payloadLimit
-      || attempts.length === attemptLimit;
-
-    if (!has_more) {
-      const remainingCounts = await Promise.all([
-        ctx.db.query("llm_batch_executions").withIndex("by_process_stage", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
-        ctx.db.query("llm_attempt_payloads").withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
-        ctx.db.query("process_observability").withIndex("by_process", (q) => q.eq("process_type", "run").eq("process_id", String(args.run_id))).take(1),
-        ctx.db.query("score_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("scores").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("rubric_critics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("rubrics").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("sample_score_target_items").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("sample_score_targets").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("samples").withIndex("by_run", (q) => q.eq("run_id", args.run_id)).take(1),
-        ctx.db.query("llm_attempts").withIndex("by_process", (q) => q.eq("process_kind", "run").eq("process_id", String(args.run_id))).take(1),
-      ]);
-      has_more = remainingCounts.some((docs) => docs.length > 0);
-    }
+    const has_more = false;
 
     if (!args.isDryRun && !has_more) {
       await ctx.db.delete(args.run_id);
