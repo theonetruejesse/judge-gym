@@ -35,3 +35,5 @@ Important timeout split:
 - `llm.batching.maxWaitMs` is the total allowed batch poll/wait budget
 - `temporal.activityStartToCloseMs` should stay above the batch wait budget so a
   long batch does not cause the entire stage activity to time out prematurely
+- the current defaults intentionally align to the provider's `24h` batch window
+  and keep the Temporal stage timeout above that budget

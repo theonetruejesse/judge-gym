@@ -19,7 +19,7 @@ export const BatchSettingsSchema = z.object({
   transportMaxAttempts: z.number().int().min(1).default(3),
   transportBackoffMs: z.number().int().min(0).default(2_000),
   pollIntervalMs: z.number().int().positive().default(5_000),
-  maxWaitMs: z.number().int().positive().default(2 * 60 * 60 * 1_000),
+  maxWaitMs: z.number().int().positive().default(24 * 60 * 60 * 1_000),
 });
 
 export type BatchSettings = z.infer<typeof BatchSettingsSchema>;
