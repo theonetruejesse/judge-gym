@@ -96,6 +96,20 @@
       "created_at": "2026-03-22T22:17:00Z",
       "summary": "Forced active-run cleanup still leaves late run-stage callbacks racing into deleted rows, producing `Run not found` / `Score target not found for run` errors after the cohort has already been reset to `preflight_clean`.",
       "fix_summary": "The Convex worker now treats late `applyRunStageResult` and `markRunStageFailure` callbacks against deleted run/sample/score-target/rubric rows as safe no-ops with run-trace breadcrumbs, mirroring the earlier missing-attempt and missing-window cleanup hardening. Live ownDev failure logs were quiet after the push; the next forced reset remains the proving pass."
+    },
+    {
+      "id": "v3_20260323_batch_wait_window_mismatch",
+      "status": "fixed_in_repo",
+      "taxonomy": "provider_or_quota",
+      "created_at": "2026-03-23T19:59:23Z",
+      "summary": "Score-stage OpenAI batches can remain legitimately alive beyond the engine's prior `2h` internal wait ceiling, causing the workflow to fail even though the provider batch is still inside the provider's `24h` completion window.",
+      "fix_summary": "Aligned `llm.batching.maxWaitMs` to `24h` and raised `temporal.activityStartToCloseMs` to `26h` so batch-backed stages can wait through the full provider window while still surfacing an explicit batch-timeout error if that longer budget is actually exceeded.",
+      "evidence_run_id": "kx7et85vvqezjtt9kgnh7ncgnx83f48s",
+      "evidence_experiment_tag": "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "examples": [
+        "OpenAI batch batch_69c179e27b948190ae7670f39aaa4f7e exceeded max wait of 7200000ms",
+        "OpenAI batch batch_69c17be197908190bfa35256ba821d88 exceeded max wait of 7200000ms"
+      ]
     }
   ],
   "historical_entries_note": "Queue-era validated bugs from the pre-Temporal runtime remain preserved in the old iteration snapshots and git history. The active finish-pass ledger now tracks only Temporal-era pilot blockers."

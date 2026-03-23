@@ -1,9 +1,11 @@
 {
   "campaign_id": "v3_finish_pass",
-  "phase": "complete",
-  "latest_iteration_id": "20260323T065235Z_full_loop_completion_validation",
+  "phase": "patch_required",
+  "latest_iteration_id": "20260323T195923Z_reduced_chaos_batch_wait_ceiling",
   "last_successful_gate": "full",
-  "current_blockers": [],
+  "current_blockers": [
+    "v3_20260323_batch_wait_window_mismatch"
+  ],
   "reset_allowed": true,
   "notes": [
     "The active V3 finish pass now targets the corrected 32-experiment matrix described in docs/pilots/v3_gpt_ablations.md.",
@@ -53,6 +55,8 @@
     "2026-03-22 local validation for the score-stage stability-closure patch passed with `bun run validate:convex`, `cd apps/engine-temporal && bun run test -- src/mocha/run-service.test.ts`, and `bun run typecheck`.",
     "2026-03-22T22:33Z-22:38Z returned the manifest-scoped cohort to `preflight_clean` via paged `packages/codex:resetRuns` (`max_experiments=1`) after the failed score-stage pass. Live snapshot now shows `launch_ready=true`, all 18 experiments in `start`, and healthy Temporal queues on the new worker identity `1@3da3f2b1f874`.",
     "2026-03-23T06:52:35Z captured successful iteration `20260323T065235Z_full_loop_completion_validation`: the full 18-experiment cohort completed with `scientifically_valid` status, zero run errors, zero latest-run failures, and all 18 latest runs ended in `score_critic`.",
-    "The score-stage stability-closure patch is now validated live: representative score runs created early `llm_batch_executions` rows, checkpointed all score attempts through `preparing`, bound provider batch ids, and reconciled both `score_gen` and `score_critic` to completion without reproducing the earlier batch-attempt timeout."
+    "The score-stage stability-closure patch is now validated live: representative score runs created early `llm_batch_executions` rows, checkpointed all score attempts through `preparing`, bound provider batch ids, and reconciled both `score_gen` and `score_critic` to completion without reproducing the earlier batch-attempt timeout.",
+    "2026-03-23T19:59:23Z captured unhealthy iteration `20260323T195923Z_reduced_chaos_batch_wait_ceiling` after the reduced-load chaos subset finished with retry semantics behaving correctly but six score-stage runs failing on the legacy `2h` batch wait ceiling while provider batches were still valid upstream.",
+    "The temporary chaos hook has already been reverted, and commit `52e3aab` now aligns `llm.batching.maxWaitMs` to the provider's `24h` completion window while raising the Temporal stage activity timeout above that budget. Final clean-loop validation is blocked only on that Railway rollout reaching the live worker."
   ]
 }
