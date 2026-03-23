@@ -19,7 +19,6 @@ import {
 } from "../llm/openai";
 import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "../window/model_registry";
-import { maybeInjectRunStageChaosAssistantOutput } from "./stage_chaos";
 
 type RunStageInput = {
   target_type: "sample" | "sample_score_target";
@@ -534,7 +533,6 @@ export async function runRunStageActivityWithDeps(
           groupInputs,
           resolvedSettings.llm.direct.maxConcurrentRequests,
           async (input) => processRunStageInputWithRetries(deps, {
-            experimentId: run.experiment_id,
             runId,
             stage,
             input,
@@ -568,7 +566,6 @@ export async function runRunStageActivityWithDeps(
         );
         const results = await Promise.all(
           slice.map((chunk) => processRunStageBatchChunk(deps, {
-            experimentId: run.experiment_id,
             runId,
             stage,
             workflowId: run.workflow_id ?? `run:${runId}`,
@@ -658,7 +655,6 @@ export async function runRunStageActivity(
 async function processRunStageInputWithRetries(
   deps: RunStageDependencies,
   args: {
-    experimentId: string;
     runId: string;
     stage: RunStageKey;
     workflowId: string;
@@ -713,7 +709,6 @@ async function processRunStageInputWithRetries(
 async function executeRunChatAttempt(
   deps: RunStageDependencies,
   args: {
-    experimentId: string;
     runId: string;
     stage: RunStageKey;
     workflowId: string;
@@ -813,32 +808,24 @@ async function executeRunChatAttempt(
           }),
         });
       },
-        task: () => deps.runOpenAiChat({
-          model: args.input.model,
-          systemPrompt: args.input.system_prompt,
-          userPrompt: args.input.user_prompt,
-          timeoutMs: settings.llm.direct.requestTimeoutMs,
-        }),
-    });
-    const assistantOutput = maybeInjectRunStageChaosAssistantOutput({
-      experimentId: args.experimentId,
-      runId: args.runId,
-      stage: args.stage,
-      targetId: args.input.target_id,
-      attemptOrdinal: args.attemptOrdinal,
-      assistantOutput: result.assistant_output,
+      task: () => deps.runOpenAiChat({
+        model: args.input.model,
+        systemPrompt: args.input.system_prompt,
+        userPrompt: args.input.user_prompt,
+        timeoutMs: settings.llm.direct.requestTimeoutMs,
+      }),
     });
     await deps.convex.applyRunStageResult({
       run_id: args.runId,
       target_id: args.input.target_id,
       stage: args.stage,
       attempt_id,
-      output: assistantOutput,
+      output: result.assistant_output,
     });
     await deps.convex.recordLlmAttemptFinish({
       attempt_id,
       status: "succeeded",
-      assistant_output: assistantOutput,
+      assistant_output: result.assistant_output,
       input_tokens: result.input_tokens,
       output_tokens: result.output_tokens,
       total_tokens: result.total_tokens,
@@ -889,7 +876,6 @@ async function executeRunChatAttempt(
 async function processRunStageBatchChunk(
   deps: RunStageDependencies,
   args: {
-    experimentId: string;
     runId: string;
     stage: RunStageKey;
     workflowId: string;
@@ -1108,25 +1094,17 @@ async function processRunStageBatchChunk(
 
       for (const item of batch.succeeded) {
         try {
-          const assistantOutput = maybeInjectRunStageChaosAssistantOutput({
-            experimentId: args.experimentId,
-            runId: args.runId,
-            stage: args.stage,
-            targetId: item.metadata.input.target_id,
-            attemptOrdinal: 1,
-            assistantOutput: item.assistant_output,
-          });
           await deps.convex.applyRunStageResult({
             run_id: args.runId,
             target_id: item.metadata.input.target_id,
             stage: args.stage,
             attempt_id: item.metadata.attemptId,
-            output: assistantOutput,
+            output: item.assistant_output,
           });
           await deps.convex.recordLlmAttemptFinish({
             attempt_id: item.metadata.attemptId,
             status: "succeeded",
-            assistant_output: assistantOutput,
+            assistant_output: item.assistant_output,
             input_tokens: item.input_tokens,
             output_tokens: item.output_tokens,
             total_tokens: item.total_tokens,
@@ -1257,7 +1235,6 @@ async function processRunStageBatchChunk(
       continue;
     }
     const result = await processRunStageInputWithRetries(deps, {
-      experimentId: args.experimentId,
       runId: args.runId,
       stage: args.stage,
       workflowId: args.workflowId,
