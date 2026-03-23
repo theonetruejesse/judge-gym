@@ -20,6 +20,7 @@ export {
   getRunDiagnostics,
   getRunSummary,
   listRunScoreTargets,
+  listRunScoreTargetsPage,
 } from "./lab";
 export {
   getV3CampaignStatus,

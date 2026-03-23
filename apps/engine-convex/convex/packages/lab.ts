@@ -2,6 +2,9 @@ import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery, zInternalAction } from "../utils/custom_fns";
 import { api, internal } from "../_generated/api";
+import {
+  classifyTaskFailure,
+} from "@judge-gym/engine-settings";
 import { modelTypeSchema, type ModelType } from "@judge-gym/engine-settings/provider";
 import { WindowStageKeySchema } from "@judge-gym/engine-settings/process";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -254,6 +257,75 @@ type EvidenceStatus =
   | "neutralizing"
   | "abstracting"
   | "ready";
+
+const RunScoreTargetListItemSchema = z.object({
+  score_target_id: zid("sample_score_targets"),
+  sample_id: zid("samples"),
+  score_id: zid("scores").nullable(),
+  score_critic_id: zid("score_critics").nullable(),
+  items: z.array(z.object({
+    evidence_id: zid("evidences"),
+    window_id: zid("windows"),
+    position: z.number(),
+    title: z.string(),
+    url: z.string(),
+  })),
+});
+
+function parseAttemptOrdinal(attemptKey: string | null | undefined): number | null {
+  if (!attemptKey) {
+    return null;
+  }
+  const match = attemptKey.match(/:attempt:(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  const ordinal = Number.parseInt(match[1] ?? "", 10);
+  return Number.isFinite(ordinal) ? ordinal : null;
+}
+
+function deriveFailureClass(errorMessage: string | null): string | null {
+  if (!errorMessage) {
+    return null;
+  }
+  return classifyTaskFailure(new Error(errorMessage));
+}
+
+async function hydrateRunScoreTargets(
+  ctx: any,
+  scoreTargets: Array<Doc<"sample_score_targets">>,
+) {
+  const results: Array<z.infer<typeof RunScoreTargetListItemSchema>> = [];
+  for (const scoreTarget of scoreTargets) {
+    const items = await ctx.db
+      .query("sample_score_target_items")
+      .withIndex("by_score_target", (q: any) => q.eq("score_target_id", scoreTarget._id))
+      .collect();
+
+    const hydratedItems: Array<z.infer<typeof RunScoreTargetListItemSchema.shape.items.element>> = [];
+    for (const item of items.slice().sort((a: any, b: any) => a.position - b.position)) {
+      const evidence = await ctx.db.get(item.evidence_id);
+      if (!evidence) continue;
+      hydratedItems.push({
+        evidence_id: evidence._id,
+        window_id: item.window_id,
+        position: item.position,
+        title: evidence.title,
+        url: evidence.url,
+      });
+    }
+
+    results.push({
+      score_target_id: scoreTarget._id,
+      sample_id: scoreTarget.sample_id,
+      score_id: scoreTarget.score_id,
+      score_critic_id: scoreTarget.score_critic_id,
+      items: hydratedItems,
+    });
+  }
+
+  return results;
+}
 
 
 export const listEvidenceWindows: ReturnType<typeof zQuery> = zQuery({
@@ -912,6 +984,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
 
     const failedAttemptPayloads = new Map<string, string | null>();
     const outputAttemptPayloads = new Map<string, string | null>();
+    const attemptsByTargetStage = new Map<string, Array<Doc<"llm_attempts">>>();
     for (const attempt of attemptRows) {
       if (attempt.error_payload_id) {
         const payload = await ctx.db.get(attempt.error_payload_id);
@@ -921,6 +994,36 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
         const payload = await ctx.db.get(attempt.assistant_output_payload_id);
         outputAttemptPayloads.set(String(attempt._id), payload?.content_text ?? null);
       }
+      const current = attemptsByTargetStage.get(
+        `${attempt.target_type}:${attempt.target_id}:${attempt.stage}`,
+      ) ?? [];
+      current.push(attempt);
+      attemptsByTargetStage.set(
+        `${attempt.target_type}:${attempt.target_id}:${attempt.stage}`,
+        current,
+      );
+    }
+    for (const attempts of attemptsByTargetStage.values()) {
+      attempts.sort((left, right) => left.started_at_ms - right.started_at_ms);
+    }
+
+    const getAttemptStats = (
+      targetType: "sample" | "sample_score_target",
+      targetId: string,
+      stage: "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic",
+      fallbackAttemptId: Id<"llm_attempts"> | null | undefined,
+    ) => {
+      const attempts =
+        attemptsByTargetStage.get(`${targetType}:${targetId}:${stage}`) ?? [];
+      const attemptCount = attempts.length > 0
+        ? attempts.length
+        : fallbackAttemptId
+          ? 1
+          : 0;
+      return {
+        attempt_count: attemptCount,
+        retry_count: Math.max(0, attemptCount - 1),
+      };
     }
 
     for (const attempt of attemptRows) {
@@ -943,7 +1046,7 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
         failed_requests.push({
           request_id: attempt._id,
           custom_key: `${attempt.target_type}:${attempt.target_id}:${attempt.stage}`,
-          attempt_index: null,
+          attempt_index: parseAttemptOrdinal(attempt.attempt_key),
           last_error: failedAttemptPayloads.get(String(attempt._id)) ?? null,
           status: "error",
           assistant_output_preview: outputAttemptPayloads.get(String(attempt._id))?.slice(0, 400) ?? null,
@@ -966,6 +1069,12 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
           error_message: string | null;
         }>;
         if (sample.rubric_gen_error_message) {
+          const attemptStats = getAttemptStats(
+            "sample",
+            String(sample._id),
+            "rubric_gen",
+            sample.rubric_gen_attempt_id,
+          );
           rows.push({
             sample_id: sample._id,
             sample_ordinal: sampleOrdinalById.get(String(sample._id)) ?? null,
@@ -973,13 +1082,19 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
             target_id: String(sample._id),
             stage: "rubric_gen",
             custom_key: `sample:${sample._id}:rubric_gen`,
-            attempt_count: sample.rubric_gen_attempt_id ? 1 : 0,
-            retry_count: 0,
-            error_class: "attempt_failed",
+            attempt_count: attemptStats.attempt_count,
+            retry_count: attemptStats.retry_count,
+            error_class: deriveFailureClass(sample.rubric_gen_error_message),
             error_message: sample.rubric_gen_error_message,
           });
         }
         if (sample.rubric_critic_error_message) {
+          const attemptStats = getAttemptStats(
+            "sample",
+            String(sample._id),
+            "rubric_critic",
+            sample.rubric_critic_attempt_id,
+          );
           rows.push({
             sample_id: sample._id,
             sample_ordinal: sampleOrdinalById.get(String(sample._id)) ?? null,
@@ -987,9 +1102,9 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
             target_id: String(sample._id),
             stage: "rubric_critic",
             custom_key: `sample:${sample._id}:rubric_critic`,
-            attempt_count: sample.rubric_critic_attempt_id ? 1 : 0,
-            retry_count: 0,
-            error_class: "attempt_failed",
+            attempt_count: attemptStats.attempt_count,
+            retry_count: attemptStats.retry_count,
+            error_class: deriveFailureClass(sample.rubric_critic_error_message),
             error_message: sample.rubric_critic_error_message,
           });
         }
@@ -1013,6 +1128,12 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
           error_message: string | null;
         }>;
         if (target.score_gen_error_message) {
+          const attemptStats = getAttemptStats(
+            "sample_score_target",
+            String(target._id),
+            "score_gen",
+            target.score_gen_attempt_id,
+          );
           rows.push({
             sample_id: sampleId,
             sample_ordinal: sampleOrdinal,
@@ -1020,13 +1141,19 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
             target_id: String(target._id),
             stage: "score_gen",
             custom_key: `sample_score_target:${target._id}:score_gen`,
-            attempt_count: target.score_gen_attempt_id ? 1 : 0,
-            retry_count: 0,
-            error_class: "attempt_failed",
+            attempt_count: attemptStats.attempt_count,
+            retry_count: attemptStats.retry_count,
+            error_class: deriveFailureClass(target.score_gen_error_message),
             error_message: target.score_gen_error_message,
           });
         }
         if (target.score_critic_error_message) {
+          const attemptStats = getAttemptStats(
+            "sample_score_target",
+            String(target._id),
+            "score_critic",
+            target.score_critic_attempt_id,
+          );
           rows.push({
             sample_id: sampleId,
             sample_ordinal: sampleOrdinal,
@@ -1034,9 +1161,9 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
             target_id: String(target._id),
             stage: "score_critic",
             custom_key: `sample_score_target:${target._id}:score_critic`,
-            attempt_count: target.score_critic_attempt_id ? 1 : 0,
-            retry_count: 0,
-            error_class: "attempt_failed",
+            attempt_count: attemptStats.attempt_count,
+            retry_count: attemptStats.retry_count,
+            error_class: deriveFailureClass(target.score_critic_error_message),
             error_message: target.score_critic_error_message,
           });
         }
@@ -1127,55 +1254,41 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
 
 export const listRunScoreTargets: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ run_id: zid("runs") }),
-  returns: z.array(z.object({
-    score_target_id: zid("sample_score_targets"),
-    sample_id: zid("samples"),
-    score_id: zid("scores").nullable(),
-    score_critic_id: zid("score_critics").nullable(),
-    items: z.array(z.object({
-      evidence_id: zid("evidences"),
-      window_id: zid("windows"),
-      position: z.number(),
-      title: z.string(),
-      url: z.string(),
-    })),
-  })),
+  returns: z.array(RunScoreTargetListItemSchema),
   handler: async (ctx, { run_id }) => {
     const scoreTargets = await ctx.db
       .query("sample_score_targets")
       .withIndex("by_run", (q) => q.eq("run_id", run_id))
       .collect();
+    return hydrateRunScoreTargets(ctx, scoreTargets);
+  },
+});
 
-    const results = [];
-    for (const scoreTarget of scoreTargets) {
-      const items = await ctx.db
-        .query("sample_score_target_items")
-        .withIndex("by_score_target", (q) => q.eq("score_target_id", scoreTarget._id))
-        .collect();
-
-      const hydratedItems = [];
-      for (const item of items.slice().sort((a, b) => a.position - b.position)) {
-        const evidence = await ctx.db.get(item.evidence_id);
-        if (!evidence) continue;
-        hydratedItems.push({
-          evidence_id: evidence._id,
-          window_id: item.window_id,
-          position: item.position,
-          title: evidence.title,
-          url: evidence.url,
-        });
-      }
-
-      results.push({
-        score_target_id: scoreTarget._id,
-        sample_id: scoreTarget.sample_id,
-        score_id: scoreTarget.score_id,
-        score_critic_id: scoreTarget.score_critic_id,
-        items: hydratedItems,
+export const listRunScoreTargetsPage: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    run_id: zid("runs"),
+    cursor: z.string().nullable().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  }),
+  returns: z.object({
+    items: z.array(RunScoreTargetListItemSchema),
+    continue_cursor: z.string().nullable(),
+    is_done: z.boolean(),
+  }),
+  handler: async (ctx, { run_id, cursor, limit }) => {
+    const page = await ctx.db
+      .query("sample_score_targets")
+      .withIndex("by_run", (q) => q.eq("run_id", run_id))
+      .paginate({
+        cursor: cursor ?? null,
+        numItems: limit ?? 25,
       });
-    }
 
-    return results;
+    return {
+      items: await hydrateRunScoreTargets(ctx, page.page),
+      continue_cursor: page.continueCursor,
+      is_done: page.isDone,
+    };
   },
 });
 

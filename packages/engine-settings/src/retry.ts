@@ -21,6 +21,29 @@ export type RetrySettings = z.infer<typeof RetrySettingsSchema>;
 
 export const DEFAULT_RETRY_SETTINGS: RetrySettings = RetrySettingsSchema.parse({});
 
+const PARSE_ERROR_PATTERNS = [
+  "failed to parse",
+  "failed to find rubric block",
+  "invalid rubric line",
+  "invalid criteria count",
+  "missing reasoning before",
+  "unrecognized verdict label",
+  "invalid probability value",
+] as const;
+
+const PROVIDER_ERROR_PATTERNS = [
+  "api error",
+  "fetch failed",
+  "provider failed",
+  "timeout",
+  "timed out",
+  "firecrawl",
+  "rate limit",
+  "service unavailable",
+  "bad gateway",
+  "gateway timeout",
+] as const;
+
 export function classifyTaskFailure(error: unknown): TaskFailureClass {
   const message = error instanceof Error ? error.message : String(error);
   const normalized = message.toLowerCase();
@@ -30,25 +53,13 @@ export function classifyTaskFailure(error: unknown): TaskFailureClass {
   }
 
   if (
-    normalized.includes("failed to parse")
-    || normalized.includes("invalid probability")
-    || normalized.includes("invalid verdict")
+    normalized.includes("invalid verdict")
+    || PARSE_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
   ) {
     return "parse_error";
   }
 
-  if (
-    normalized.includes("api error")
-    || normalized.includes("fetch failed")
-    || normalized.includes("provider failed")
-    || normalized.includes("timeout")
-    || normalized.includes("timed out")
-    || normalized.includes("firecrawl")
-    || normalized.includes("rate limit")
-    || normalized.includes("service unavailable")
-    || normalized.includes("bad gateway")
-    || normalized.includes("gateway timeout")
-  ) {
+  if (PROVIDER_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     return "provider_error";
   }
 

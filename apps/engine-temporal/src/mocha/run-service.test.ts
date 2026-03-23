@@ -1277,6 +1277,171 @@ describe("run stage service", function () {
     ]);
   });
 
+  it("retries retryable batch apply parse failures with direct per-target recovery", async () => {
+    let attemptCounter = 0;
+    let retryTargetApplyAttempts = 0;
+    const finishStatuses: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 10,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_retry",
+              experiment_id: "exp_batch_retry",
+              workflow_id: "run:run_batch_retry",
+              workflow_run_id: "workflow-run-batch-retry",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_retry",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-retry",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_ok",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-ok",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart() {
+            attemptCounter += 1;
+            return {
+              attempt_id: `attempt_${attemptCounter}`,
+            };
+          },
+          async recordLlmAttemptFinish({ attempt_id, status }) {
+            finishStatuses.push(`${attempt_id}:${status}`);
+            return null;
+          },
+          async applyRunStageResult({ target_id }) {
+            if (target_id === "target_retry") {
+              retryTargetApplyAttempts += 1;
+              if (retryTargetApplyAttempts < 3) {
+                throw new Error("Unrecognized verdict label: XoxW0");
+              }
+            }
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          return {
+            assistant_output: "VERDICT: A",
+            input_tokens: 10,
+            output_tokens: 10,
+            total_tokens: 20,
+          };
+        },
+        async runOpenAiBatchChat() {
+          return {
+            batchId: "batch_retry",
+            outputFileId: "file_out_retry",
+            errorFileId: null,
+            succeeded: [
+              {
+                customId: "attempt_1",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_retry",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-retry",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_1",
+                },
+                batchId: "batch_retry",
+                assistant_output: "VERDICT: XoxW0",
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+              },
+              {
+                customId: "attempt_2",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_ok",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-ok",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_2",
+                },
+                batchId: "batch_retry",
+                assistant_output: "VERDICT: A",
+                input_tokens: 11,
+                output_tokens: 6,
+                total_tokens: 17,
+              },
+            ],
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_retry",
+      "score_gen",
+    );
+
+    assert.equal(
+      result.summary,
+      "run_stage:score_gen:success=2:failed=0:completed=2",
+    );
+    assert.equal(retryTargetApplyAttempts, 3);
+    assert.equal(attemptCounter, 4);
+    assert.deepEqual(finishStatuses, [
+      "attempt_1:failed",
+      "attempt_2:succeeded",
+      "attempt_3:failed",
+      "attempt_4:succeeded",
+    ]);
+  });
+
   it("marks the run failed when stage finalization still reports pending work", async () => {
     const calls: string[] = [];
 

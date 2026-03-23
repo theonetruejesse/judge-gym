@@ -272,4 +272,91 @@ describe("run partial failure progression", () => {
       ]),
     );
   }, 15_000);
+
+  test("run diagnostics report terminal target retry counts from llm_attempt history", async () => {
+    const t = initTest();
+    const { run_id, sample_ids, score_targets_by_sample } = await seedRun(t);
+    const failedSampleId = sample_ids[0]!;
+    const failedTargetId = score_targets_by_sample.get(String(failedSampleId))?.[0];
+
+    expect(failedTargetId).toBeDefined();
+
+    const firstAttempt = await startAttempt(t, {
+      run_id,
+      target_type: "sample_score_target",
+      target_id: failedTargetId!,
+      stage: "score_gen",
+    });
+    await t.mutation(api.packages.worker.markRunStageFailure, {
+      run_id,
+      target_id: failedTargetId!,
+      stage: "score_gen",
+      attempt_id: firstAttempt.attempt_id,
+      error_message: "Unrecognized verdict label: XoxW0",
+    });
+
+    const secondAttempt = await startAttempt(t, {
+      run_id,
+      target_type: "sample_score_target",
+      target_id: failedTargetId!,
+      stage: "score_gen",
+    });
+    await t.mutation(api.packages.worker.markRunStageFailure, {
+      run_id,
+      target_id: failedTargetId!,
+      stage: "score_gen",
+      attempt_id: secondAttempt.attempt_id,
+      error_message: "Unrecognized verdict label: XoxW0",
+    });
+
+    const diagnostics = await t.query(api.packages.lab.getRunDiagnostics, { run_id });
+    const failedTarget = diagnostics.terminal_failed_targets.find(
+      (target: {
+        target_id: string;
+        stage: string;
+        attempt_count: number;
+        retry_count: number;
+        error_class: string | null;
+      }) => target.target_id === failedTargetId && target.stage === "score_gen",
+    );
+
+    expect(failedTarget).toMatchObject({
+      target_id: failedTargetId,
+      stage: "score_gen",
+      attempt_count: 2,
+      retry_count: 1,
+      error_class: "parse_error",
+    });
+  }, 15_000);
+
+  test("score target forensics can be paged without loading the whole run at once", async () => {
+    const t = initTest();
+    const { run_id } = await seedRun(t);
+
+    const fullTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
+    const pagedTargetIds: string[] = [];
+    let cursor: string | null = null;
+
+    while (true) {
+      const page: any = await t.query(api.packages.lab.listRunScoreTargetsPage, {
+        run_id,
+        cursor,
+        limit: 1,
+      });
+      if (page.items.length > 0) {
+        expect(page.items).toHaveLength(1);
+        pagedTargetIds.push(String(page.items[0]!.score_target_id));
+      }
+      if (page.is_done) {
+        break;
+      }
+      cursor = page.continue_cursor;
+      expect(cursor).toBeTruthy();
+    }
+
+    expect(pagedTargetIds).toEqual(
+      fullTargets.map((target: { score_target_id: Id<"sample_score_targets"> }) =>
+        String(target.score_target_id)),
+    );
+  }, 15_000);
 });

@@ -87,7 +87,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine now includes a codex live-debug surface (`apps/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
 - `getProcessHealth` now derives live health from persisted run/window state, `process_observability`, and `llm_attempts` instead of the legacy request/batch snapshot tables.
 - The codex surface now also exposes direct Temporal inspection/control actions: `inspectProcessExecution` and `controlProcessExecution`, so agents can query live workflow state and send explicit `pause_now`, `resume`, `cancel`, `set_pause_after`, or bounded repair commands without relying on queue-era heuristics.
-- Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures and including a short failed-output preview for Temporal-owned forensics.
+- Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures, surfacing real per-target `attempt_count` / `retry_count`, and including a short failed-output preview for Temporal-owned forensics.
 - Score-critic prompts now mirror the exact randomized rubric surface shown to `score_gen` (same identifiers, label hiding, and rubric order) instead of leaking decoded canonical stage labels back into the critic.
 - Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
 - Non-abstain score prompts now use an explicit forced-choice fallback: if no stronger stage is supported, the model must emit the weakest displayed stage identifier instead of `None`, blank verdicts, or other out-of-contract text.
@@ -292,6 +292,8 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
 - For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
 - `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
+- For large failed runs, prefer `packages/lab:listRunScoreTargetsPage` over the full `listRunScoreTargets` dump so target-level bundle forensics stay within Convex read limits.
+- Parser-originated target failures such as unrecognized verdict labels now classify under the shared `parse_error` retry budget, so batch reconciliation falls back to the per-target retry path before a unit is marked terminal.
 
 ---
 
