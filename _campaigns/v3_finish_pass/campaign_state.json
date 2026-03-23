@@ -1,8 +1,8 @@
 {
   "campaign_id": "v3_finish_pass",
-  "phase": "preflight_clean",
-  "latest_iteration_id": "20260322T215646Z_score_gen_batch_attempt_timeout_recurrence",
-  "last_successful_gate": "canary",
+  "phase": "complete",
+  "latest_iteration_id": "20260323T065235Z_full_loop_completion_validation",
+  "last_successful_gate": "full",
   "current_blockers": [],
   "reset_allowed": true,
   "notes": [
@@ -51,6 +51,8 @@
     "Railway worker logs on deployment `a41e6ac2-f67e-4f58-be84-2216fa2330d6` localized the hidden cause: `Timed out recording batch attempts for score_gen run ...`. The prior bounded-concurrency hardening was insufficient; the remaining blocker is the attempt-recording segment itself, which still needs resumable paging/continuation semantics before batch registration.",
     "2026-03-22T22:28Z deployed the score-stage stability-closure patch to Railway under deployment `1ac971f7-7102-4b28-989b-3f807fa9078c`. The patch persists batch-preparation checkpoints on `llm_batch_executions`, restores them on replay, pages fresh `recordLlmAttemptStart` work, and records concrete run-process errors if batch preparation still fails.",
     "2026-03-22 local validation for the score-stage stability-closure patch passed with `bun run validate:convex`, `cd apps/engine-temporal && bun run test -- src/mocha/run-service.test.ts`, and `bun run typecheck`.",
-    "2026-03-22T22:33Z-22:38Z returned the manifest-scoped cohort to `preflight_clean` via paged `packages/codex:resetRuns` (`max_experiments=1`) after the failed score-stage pass. Live snapshot now shows `launch_ready=true`, all 18 experiments in `start`, and healthy Temporal queues on the new worker identity `1@3da3f2b1f874`."
+    "2026-03-22T22:33Z-22:38Z returned the manifest-scoped cohort to `preflight_clean` via paged `packages/codex:resetRuns` (`max_experiments=1`) after the failed score-stage pass. Live snapshot now shows `launch_ready=true`, all 18 experiments in `start`, and healthy Temporal queues on the new worker identity `1@3da3f2b1f874`.",
+    "2026-03-23T06:52:35Z captured successful iteration `20260323T065235Z_full_loop_completion_validation`: the full 18-experiment cohort completed with `scientifically_valid` status, zero run errors, zero latest-run failures, and all 18 latest runs ended in `score_critic`.",
+    "The score-stage stability-closure patch is now validated live: representative score runs created early `llm_batch_executions` rows, checkpointed all score attempts through `preparing`, bound provider batch ids, and reconciled both `score_gen` and `score_critic` to completion without reproducing the earlier batch-attempt timeout."
   ]
 }
