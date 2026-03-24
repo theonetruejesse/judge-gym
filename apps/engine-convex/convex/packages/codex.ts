@@ -33,5 +33,4 @@ export {
 } from "../domain/maintenance/v3_campaign";
 export {
   getV3MatrixContract,
-  initV3MatrixFromPool,
 } from "../domain/maintenance/v3_matrix";

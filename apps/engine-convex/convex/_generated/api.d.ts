@@ -17,12 +17,9 @@ import type * as domain_maintenance_danger from "../domain/maintenance/danger.js
 import type * as domain_maintenance_process_debug from "../domain/maintenance/process_debug.js";
 import type * as domain_maintenance_v3_campaign from "../domain/maintenance/v3_campaign.js";
 import type * as domain_maintenance_v3_matrix from "../domain/maintenance/v3_matrix.js";
-import type * as domain_runs_bundle_plan_materializer from "../domain/runs/bundle_plan_materializer.js";
-import type * as domain_runs_bundle_plan_repo from "../domain/runs/bundle_plan_repo.js";
 import type * as domain_runs_experiment_progress from "../domain/runs/experiment_progress.js";
 import type * as domain_runs_experiments_repo from "../domain/runs/experiments_repo.js";
 import type * as domain_runs_experiments_service from "../domain/runs/experiments_service.js";
-import type * as domain_runs_pool_repo from "../domain/runs/pool_repo.js";
 import type * as domain_runs_run_parsers from "../domain/runs/run_parsers.js";
 import type * as domain_runs_run_progress from "../domain/runs/run_progress.js";
 import type * as domain_runs_run_repo from "../domain/runs/run_repo.js";
@@ -37,7 +34,6 @@ import type * as domain_window_window_repo from "../domain/window/window_repo.js
 import type * as models__shared from "../models/_shared.js";
 import type * as models_attempts from "../models/attempts.js";
 import type * as models_batches from "../models/batches.js";
-import type * as models_bundles from "../models/bundles.js";
 import type * as models_evidence from "../models/evidence.js";
 import type * as models_experiments from "../models/experiments.js";
 import type * as models_samples from "../models/samples.js";
@@ -70,12 +66,9 @@ declare const fullApi: ApiFromModules<{
   "domain/maintenance/process_debug": typeof domain_maintenance_process_debug;
   "domain/maintenance/v3_campaign": typeof domain_maintenance_v3_campaign;
   "domain/maintenance/v3_matrix": typeof domain_maintenance_v3_matrix;
-  "domain/runs/bundle_plan_materializer": typeof domain_runs_bundle_plan_materializer;
-  "domain/runs/bundle_plan_repo": typeof domain_runs_bundle_plan_repo;
   "domain/runs/experiment_progress": typeof domain_runs_experiment_progress;
   "domain/runs/experiments_repo": typeof domain_runs_experiments_repo;
   "domain/runs/experiments_service": typeof domain_runs_experiments_service;
-  "domain/runs/pool_repo": typeof domain_runs_pool_repo;
   "domain/runs/run_parsers": typeof domain_runs_run_parsers;
   "domain/runs/run_progress": typeof domain_runs_run_progress;
   "domain/runs/run_repo": typeof domain_runs_run_repo;
@@ -90,7 +83,6 @@ declare const fullApi: ApiFromModules<{
   "models/_shared": typeof models__shared;
   "models/attempts": typeof models_attempts;
   "models/batches": typeof models_batches;
-  "models/bundles": typeof models_bundles;
   "models/evidence": typeof models_evidence;
   "models/experiments": typeof models_experiments;
   "models/samples": typeof models_samples;

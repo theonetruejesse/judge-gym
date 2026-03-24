@@ -49,13 +49,3 @@ export const EvidencesTableSchema = z.object({
     l3_attempt_id: zid("llm_attempts").nullable().optional(),
     l3_error_message: z.string().nullable().optional(),
 });
-
-export const PoolsTableSchema = z.object({
-    pool_tag: z.string(),
-    evidence_count: z.number(),
-});
-
-export const PoolEvidencesTableSchema = z.object({
-    pool_id: zid("pools"),
-    evidence_id: zid("evidences"),
-});

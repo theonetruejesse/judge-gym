@@ -12,14 +12,6 @@ import {
   RunsTableSchema,
 } from "./models/experiments";
 import {
-  PoolEvidencesTableSchema,
-  PoolsTableSchema
-} from "./models/window";
-import {
-  BundlePlanItemsTableSchema,
-  BundlePlansTableSchema,
-} from "./models/bundles";
-import {
   AcquisitionRunsTableSchema,
   AcquisitionSpecsTableSchema,
   EvidenceAssetsTableSchema,
@@ -100,23 +92,9 @@ export default defineSchema({
     .index("by_window_id", ["window_id"])
     .index("by_window_run_id", ["window_run_id"])
     .index("by_window_run_url", ["window_run_id", "url"]),
-  pools: defineTable(zodOutputToConvex(PoolsTableSchema))
-    .index("by_pool_tag", ["pool_tag"]),
-  pool_evidences: defineTable(zodOutputToConvex(PoolEvidencesTableSchema))
-    .index("by_pool", ["pool_id"]),
-  bundle_plans: defineTable(zodOutputToConvex(BundlePlansTableSchema))
-    .index("by_bundle_plan_tag", ["bundle_plan_tag"])
-    .index("by_pool", ["pool_id"])
-    .index("by_pool_strategy_bundle_size", ["pool_id", "strategy", "bundle_size"]),
-  bundle_plan_items: defineTable(zodOutputToConvex(BundlePlanItemsTableSchema))
-    .index("by_bundle_plan", ["bundle_plan_id"])
-    .index("by_bundle_plan_bundle", ["bundle_plan_id", "bundle_index"])
-    .index("by_evidence", ["evidence_id"]),
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
     .index("by_experiment_tag", ["experiment_tag"])
-    .index("by_pool", ["pool_id"])
-    .index("by_evidence_set", ["evidence_set_id"])
-    .index("by_bundle_plan", ["bundle_plan_id"]),
+    .index("by_evidence_set", ["evidence_set_id"]),
   runs: defineTable(zodOutputToConvex(RunsTableSchema))
     .index("by_experiment", ["experiment_id"]),
   samples: defineTable(zodOutputToConvex(SamplesTableSchema))

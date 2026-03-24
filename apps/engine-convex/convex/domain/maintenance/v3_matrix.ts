@@ -1,6 +1,5 @@
 import z from "zod";
-import { zid } from "convex-helpers/server/zod4";
-import { zMutation, zQuery } from "../../utils/custom_fns";
+import { zQuery } from "../../utils/custom_fns";
 import { ExperimentsTableSchema } from "../../models/experiments";
 import { BundleStrategySchema, SemanticLevelSchema } from "../../models/_shared";
 import type { ModelType } from "@judge-gym/engine-settings/provider";
@@ -338,31 +337,4 @@ export const getV3MatrixContract = zQuery({
     experiment_count: V3_MATRIX_EXPERIMENT_SPECS.length,
     experiments: V3_MATRIX_EXPERIMENT_SPECS,
   }),
-});
-
-export const initV3MatrixFromPool = zMutation({
-  args: z.object({
-    pool_id: zid("pools"),
-    force_reconfigure: z.boolean().default(false),
-    experiment_tags: z.array(z.string()).optional(),
-  }),
-  returns: z.object({
-    pool_id: zid("pools"),
-    experiment_count: z.number(),
-    missing_experiment_tags: z.array(z.string()),
-    rows: z.array(z.object({
-      experiment_tag: z.string(),
-      family_slug: z.string(),
-      experiment_id: zid("experiments"),
-      bundle_plan_id: zid("bundle_plans"),
-      bundle_plan_tag: z.string(),
-      action: z.enum(["created", "updated", "unchanged", "conflict"]),
-    })),
-  }),
-  handler: async (_ctx, _args) => {
-    throw new Error(
-      "initV3MatrixFromPool is removed in the greenfield V4 engine. "
-      + "Create evidence-set-backed experiments instead.",
-    );
-  },
 });

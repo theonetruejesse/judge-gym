@@ -30,7 +30,6 @@ const NormalizedExperimentSchema = z.object({
   evidence_set_tag: z.string().nullable(),
   evidence_set_source_kind: z.string().nullable(),
   evidence_set_quality_label: z.string().nullable(),
-  bundle_plan_id: zid("bundle_plans").nullable(),
   bundle_plan_tag: z.string().nullable(),
   bundle_strategy: BundleStrategySchema,
   bundle_strategy_version: z.string().nullable(),
@@ -275,11 +274,7 @@ async function normalizeExperiment(
   experiment: Doc<"experiments">,
 ): Promise<NormalizedExperiment> {
   const evidenceSet = await requireEvidenceSetBackedExperiment(ctx, experiment);
-  const bundlePlan = experiment.bundle_plan_id
-    ? await ctx.db.get(experiment.bundle_plan_id)
-    : null;
-  const bundleStrategy = bundlePlan?.strategy
-    ?? experiment.scoring_config.bundle_strategy
+  const bundleStrategy = experiment.scoring_config.bundle_strategy
     ?? "window_round_robin";
   return {
     experiment_id: experiment._id,
@@ -289,16 +284,12 @@ async function normalizeExperiment(
     evidence_set_tag: evidenceSet.evidence_set_tag,
     evidence_set_source_kind: evidenceSet.source_kind,
     evidence_set_quality_label: evidenceSet.quality_label,
-    bundle_plan_id: experiment.bundle_plan_id ?? null,
-    bundle_plan_tag: bundlePlan?.bundle_plan_tag ?? null,
+    bundle_plan_tag: null,
     bundle_strategy: bundleStrategy,
-    bundle_strategy_version: bundlePlan?.strategy_version
-      ?? experiment.scoring_config.bundle_strategy_version
+    bundle_strategy_version: experiment.scoring_config.bundle_strategy_version
       ?? null,
-    clustering_seed: bundlePlan?.seed
-      ?? experiment.scoring_config.clustering_seed
-      ?? null,
-    bundle_source_view: bundlePlan?.source_view ?? null,
+    clustering_seed: experiment.scoring_config.clustering_seed ?? null,
+    bundle_source_view: null,
     evidence_count: experiment.total_count > 0 ? experiment.total_count : evidenceSet.item_count,
     model_id: experiment.scoring_config.model,
     rubric_model: experiment.rubric_config.model,
@@ -472,23 +463,8 @@ function buildBundleSignature(
     .join("|");
 }
 
-async function buildBundlePlanContext(
-  ctx: QueryCtx,
-  bundlePlanId: Id<"bundle_plans"> | null | undefined,
-) {
+async function buildBundlePlanContext() {
   const clusterIdBySignature = new Map<string, string | null>();
-  if (!bundlePlanId) {
-    return { clusterIdBySignature };
-  }
-  const bundleItems = await ctx.db
-    .query("bundle_plan_items")
-    .withIndex("by_bundle_plan", (q) => q.eq("bundle_plan_id", bundlePlanId))
-    .collect();
-  for (const item of bundleItems) {
-    if (!clusterIdBySignature.has(item.bundle_signature)) {
-      clusterIdBySignature.set(item.bundle_signature, item.cluster_id ?? null);
-    }
-  }
   return { clusterIdBySignature };
 }
 
@@ -563,10 +539,7 @@ export const listAnalysisResponses = zInternalQuery({
       scoreCriticByTargetId.set(String(critic.score_target_id), critic);
     }
     const { evidenceLabelById } = await buildEvidenceContext(ctx, experiment);
-    const { clusterIdBySignature } = await buildBundlePlanContext(
-      ctx,
-      experiment.bundle_plan_id,
-    );
+    const { clusterIdBySignature } = await buildBundlePlanContext();
 
     const rows = await Promise.all(scores.map(async (score) => {
       const sample = sampleById.get(String(score.sample_id));

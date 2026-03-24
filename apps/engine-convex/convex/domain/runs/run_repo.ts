@@ -260,11 +260,6 @@ export const createRun = zInternalMutation({
         "Greenfield V4 run materialization now requires evidence-set-backed experiments.",
       );
     }
-    if (rawExperiment.bundle_plan_id) {
-      throw new Error(
-        "Bundle plans are not yet supported for greenfield V4 evidence-set runs.",
-      );
-    }
 
     const experimentConfig = normalizeExperimentConfig(rawExperiment);
     const resolvedSelections = await resolveEvidenceSetSelections(ctx, rawExperiment);
