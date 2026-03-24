@@ -80,6 +80,7 @@ type ExperimentSummary = {
 type EvidenceItem = {
   evidence_set_item_id: string;
   evidence_item_id: string;
+  evidence_source_record_id: string | null;
   evidence_view_id: string | null;
   title: string | null;
   url: string | null;

@@ -16,6 +16,7 @@ import {
   EvidenceAssetsTableSchema,
   EvidenceCandidatesTableSchema,
   EvidenceItemsTableSchema,
+  EvidenceSourceRecordsTableSchema,
   EvidenceSetItemsTableSchema,
   EvidenceSetsTableSchema,
   EvidenceUniverseTableSchema,
@@ -70,6 +71,10 @@ export default defineSchema({
     .index("by_candidate", ["candidate_id"])
     .index("by_canonical_key", ["canonical_key"])
     .index("by_hydration_status", ["hydration_status"]),
+  evidence_source_records: defineTable(zodOutputToConvex(EvidenceSourceRecordsTableSchema))
+    .index("by_item", ["evidence_item_id"])
+    .index("by_item_kind", ["evidence_item_id", "record_kind"])
+    .index("by_asset", ["asset_id"]),
   evidence_sets: defineTable(zodOutputToConvex(EvidenceSetsTableSchema))
     .index("by_universe", ["universe_id"])
     .index("by_evidence_set_tag", ["evidence_set_tag"])
@@ -115,6 +120,7 @@ export default defineSchema({
     .index("by_score_target", ["score_target_id"])
     .index("by_evidence_set_item", ["evidence_set_item_id"])
     .index("by_evidence_item", ["evidence_item_id"])
+    .index("by_source_record", ["evidence_source_record_id"])
     .index("by_evidence_view", ["evidence_view_id"])
     .index("by_content_asset", ["content_asset_id"]),
   process_observability: defineTable(zodOutputToConvex(ProcessObservabilityTableSchema))

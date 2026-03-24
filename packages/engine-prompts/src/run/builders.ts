@@ -1,5 +1,4 @@
 import {
-  resolveEvidenceStrategy,
   resolveRandomizationStrategy,
   resolveScaleStrategy,
   resolveScoringStrategy,
@@ -17,12 +16,7 @@ export type ScoreCriticVerdictSummary = {
 
 type ScorePromptArgs = {
   config: ExperimentConfig;
-  evidence: {
-    l0_raw_content: string;
-    l1_cleaned_content?: string | null;
-    l2_neutralized_content?: string | null;
-    l3_abstracted_content?: string | null;
-  };
+  evidence: string;
   rubric: {
     stages: RubricStage[];
   };
@@ -247,11 +241,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
   const { config, evidence, rubric, sample } = args;
   const isBundledEvidence = args.evidence_item_count > 1;
   const scoring = resolveScoringStrategy(config);
-  const evidenceStrategy = resolveEvidenceStrategy(config);
   const outputKind = config.output_contract?.kind ?? "verdict_line";
-
-  const evidenceContent =
-    evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
   const scoringRequirements = scoring.buildRequirements();
   const scoringOutputContract = scoring.buildOutputContract();
   const displayedRubric = renderDisplayedRubricLines({ config, rubric, sample });
@@ -262,7 +252,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
         "role",
         "You are a careful evaluator of evidence against a rubric. Assume the evidence is presented in a hypothetical evaluation scenario rather than as a claim about the full real-world regime.",
       ),
-      wrapXml("evidence", evidenceContent),
+      wrapXml("evidence", evidence),
       wrapXml(
         "task",
         isBundledEvidence

@@ -3,7 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import {
   normalizeExperimentConfig,
-  type SemanticLevel,
+  type EvidencePresentation,
   type BundleStrategy,
 } from "@judge-gym/engine-prompts/run";
 import type { MutationCtx } from "../../_generated/server";
@@ -24,6 +24,7 @@ const MAX_SCORE_TARGET_ESTIMATED_INPUT_TOKENS =
 type ResolvedEvidenceSelection = {
   evidence_set_item_id: Id<"evidence_set_items">;
   evidence_item_id: Id<"evidence_items">;
+  evidence_source_record_id: Id<"evidence_source_records"> | null;
   evidence_view_id: Id<"evidence_views"> | null;
   content_asset_id: Id<"evidence_assets">;
   estimated_tokens: number;
@@ -56,28 +57,32 @@ function chunkSelections<T>(items: T[], bundleSize: number): T[][] {
   return chunks;
 }
 
-function resolveSemanticViewKind(
-  evidenceView: SemanticLevel,
-) {
-  switch (evidenceView) {
+function resolvePresentationKind(
+  presentation: EvidencePresentation,
+): {
+  sourceRecordKind: "source_text" | "paper_original" | null;
+  viewKind: "l1_cleaned" | "l2_neutralized" | "l3_abstracted" | null;
+} {
+  switch (presentation) {
+    case "source_text":
+      return { sourceRecordKind: "source_text", viewKind: null };
+    case "paper_original":
+      return { sourceRecordKind: "paper_original", viewKind: null };
     case "l1_cleaned":
-      return "l1_cleaned";
+      return { sourceRecordKind: null, viewKind: "l1_cleaned" };
     case "l2_neutralized":
-      return "l2_neutralized";
+      return { sourceRecordKind: null, viewKind: "l2_neutralized" };
     case "l3_abstracted":
-      return "l3_abstracted";
-    case "l0_raw":
-    default:
-      return null;
+      return { sourceRecordKind: null, viewKind: "l3_abstracted" };
   }
 }
 
 function estimateSelectionTokens(args: {
-  evidenceItem: Doc<"evidence_items">;
+  sourceRecord: Doc<"evidence_source_records"> | null;
   asset: Doc<"evidence_assets">;
 }) {
-  if (typeof args.evidenceItem.token_estimate === "number" && args.evidenceItem.token_estimate > 0) {
-    return args.evidenceItem.token_estimate;
+  if (typeof args.sourceRecord?.token_estimate === "number" && args.sourceRecord.token_estimate > 0) {
+    return args.sourceRecord.token_estimate;
   }
   return Math.max(1, Math.ceil(args.asset.byte_size / 4));
 }
@@ -150,7 +155,7 @@ async function resolveEvidenceSetSelections(
       .map((item) => [String(item._id), item] as const),
   );
 
-  const requestedViewKind = resolveSemanticViewKind(
+  const requestedPresentation = resolvePresentationKind(
     normalizeExperimentConfig(experiment).scoring_config.evidence_view,
   );
   const explicitViewIds = Array.from(new Set(
@@ -168,12 +173,28 @@ async function resolveEvidenceSetSelections(
       .map((view) => [String(view._id), view] as const),
   );
 
+  const explicitSourceRecordIds = Array.from(new Set(
+    orderedSetItems
+      .map((item) => item.pinned_source_record_id)
+      .filter((value): value is Id<"evidence_source_records"> => value != null)
+      .map((value) => String(value)),
+  ));
+  const explicitSourceRecords = await Promise.all(
+    explicitSourceRecordIds.map((recordId) => ctx.db.get(recordId as Id<"evidence_source_records">)),
+  );
+  const sourceRecordById = new Map(
+    explicitSourceRecords
+      .filter((record): record is Doc<"evidence_source_records"> => record != null)
+      .map((record) => [String(record._id), record] as const),
+  );
+
   const viewsByItemAndKind = new Map<string, Doc<"evidence_views">>();
-  if (requestedViewKind) {
-    const uniqueItemIds = Array.from(new Set(
-      orderedSetItems.map((item) => String(item.evidence_item_id)),
-    ));
-    for (const evidenceItemId of uniqueItemIds) {
+  const sourceRecordsByItem = new Map<string, Doc<"evidence_source_records">[]>();
+  const uniqueItemIds = Array.from(new Set(
+    orderedSetItems.map((item) => String(item.evidence_item_id)),
+  ));
+  for (const evidenceItemId of uniqueItemIds) {
+    if (requestedPresentation.viewKind) {
       const views = await ctx.db
         .query("evidence_views")
         .withIndex("by_item", (q) => q.eq("evidence_item_id", evidenceItemId as Id<"evidence_items">))
@@ -182,12 +203,26 @@ async function resolveEvidenceSetSelections(
         viewsByItemAndKind.set(`${view.evidence_item_id}:${view.view_kind}`, view);
       }
     }
+    if (requestedPresentation.sourceRecordKind) {
+      const sourceRecords = await ctx.db
+        .query("evidence_source_records")
+        .withIndex("by_item", (q) => q.eq("evidence_item_id", evidenceItemId as Id<"evidence_items">))
+        .collect();
+      sourceRecordsByItem.set(String(evidenceItemId), sourceRecords);
+      for (const sourceRecord of sourceRecords) {
+        sourceRecordById.set(String(sourceRecord._id), sourceRecord);
+      }
+    }
   }
 
   const requiredAssetIds = new Set<string>();
   const resolvedViewsBySetItemId = new Map<
     string,
-    { evidence_view_id: Id<"evidence_views"> | null; content_asset_id: Id<"evidence_assets"> }
+    {
+      evidence_source_record_id: Id<"evidence_source_records"> | null;
+      evidence_view_id: Id<"evidence_views"> | null;
+      content_asset_id: Id<"evidence_assets">;
+    }
   >();
 
   for (const setItem of orderedSetItems) {
@@ -196,20 +231,40 @@ async function resolveEvidenceSetSelections(
       throw new Error(`Evidence set item references missing evidence item: ${setItem.evidence_item_id}`);
     }
 
-    const selectedView = setItem.pinned_view_id
-      ? viewById.get(String(setItem.pinned_view_id)) ?? null
-      : requestedViewKind
-        ? viewsByItemAndKind.get(`${setItem.evidence_item_id}:${requestedViewKind}`) ?? null
-        : null;
-    const contentAssetId = selectedView?.asset_id ?? evidenceItem.raw_text_asset_id;
+    let selectedSourceRecord: Doc<"evidence_source_records"> | null = null;
+    let selectedView: Doc<"evidence_views"> | null = null;
+
+    if (requestedPresentation.sourceRecordKind) {
+      const availableSourceRecords = sourceRecordsByItem.get(String(setItem.evidence_item_id)) ?? [];
+      selectedSourceRecord = setItem.pinned_source_record_id
+        ? sourceRecordById.get(String(setItem.pinned_source_record_id)) ?? null
+        : availableSourceRecords.find((record) => record.record_kind === requestedPresentation.sourceRecordKind)
+          ?? availableSourceRecords.find((record) => record.is_primary)
+          ?? null;
+      if (!selectedSourceRecord) {
+        throw new Error(
+          `Evidence item ${evidenceItem._id} does not have a source record for ${requestedPresentation.sourceRecordKind}.`,
+        );
+      }
+    } else if (requestedPresentation.viewKind) {
+      selectedView = setItem.pinned_view_id
+        ? viewById.get(String(setItem.pinned_view_id)) ?? null
+        : viewsByItemAndKind.get(`${setItem.evidence_item_id}:${requestedPresentation.viewKind}`) ?? null;
+      if (!selectedView?.asset_id) {
+        throw new Error(
+          `Evidence item ${evidenceItem._id} does not have a semantic view for ${requestedPresentation.viewKind}.`,
+        );
+      }
+    }
+
+    const contentAssetId = selectedSourceRecord?.asset_id ?? selectedView?.asset_id;
     if (!contentAssetId) {
-      throw new Error(
-        `Evidence item ${evidenceItem._id} does not have a resolved content asset for V4 scoring.`,
-      );
+      throw new Error(`Evidence item ${evidenceItem._id} does not have a resolved content asset for V4 scoring.`);
     }
 
     requiredAssetIds.add(String(contentAssetId));
     resolvedViewsBySetItemId.set(String(setItem._id), {
+      evidence_source_record_id: selectedSourceRecord?._id ?? null,
       evidence_view_id: selectedView?._id ?? null,
       content_asset_id: contentAssetId,
     });
@@ -237,10 +292,13 @@ async function resolveEvidenceSetSelections(
     return {
       evidence_set_item_id: setItem._id,
       evidence_item_id: evidenceItem._id,
+      evidence_source_record_id: resolved.evidence_source_record_id,
       evidence_view_id: resolved.evidence_view_id,
       content_asset_id: resolved.content_asset_id,
       estimated_tokens: estimateSelectionTokens({
-        evidenceItem,
+        sourceRecord: resolved.evidence_source_record_id
+          ? sourceRecordById.get(String(resolved.evidence_source_record_id)) ?? null
+          : null,
         asset,
       }),
       ordinal: setItem.ordinal,
@@ -321,6 +379,7 @@ export const createRun = zInternalMutation({
             score_target_id: scoreTargetId,
             evidence_set_item_id: selection.evidence_set_item_id,
             evidence_item_id: selection.evidence_item_id,
+            evidence_source_record_id: selection.evidence_source_record_id,
             evidence_view_id: selection.evidence_view_id,
             content_asset_id: selection.content_asset_id,
             position,

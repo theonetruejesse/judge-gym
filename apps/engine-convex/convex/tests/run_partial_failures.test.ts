@@ -30,7 +30,7 @@ async function seedRun(
     title: "Evidence 1",
     source_url: "https://example.com/e1",
     raw_text: "Evidence one raw content.",
-    view_kind: "paper_original",
+    source_record_kind: "paper_original",
     pipeline_kind: "import",
     pipeline_version: "partial-failure-v1",
   });
@@ -40,7 +40,7 @@ async function seedRun(
     title: "Evidence 2",
     source_url: "https://example.com/e2",
     raw_text: "Evidence two raw content.",
-    view_kind: "paper_original",
+    source_record_kind: "paper_original",
     pipeline_kind: "import",
     pipeline_version: "partial-failure-v1",
   });
@@ -61,13 +61,13 @@ async function seedRun(
     items: [
       {
         evidence_item_id: importedOne.evidence_item_id,
-        pinned_view_id: importedOne.evidence_view_id,
+        pinned_source_record_id: importedOne.source_record_id,
         ordinal: 0,
         quality_label: "high",
       },
       {
         evidence_item_id: importedTwo.evidence_item_id,
-        pinned_view_id: importedTwo.evidence_view_id,
+        pinned_source_record_id: importedTwo.source_record_id,
         ordinal: 1,
         quality_label: "high",
       },
@@ -103,7 +103,7 @@ async function seedRun(
       model: "gpt-4.1",
       method: "subset",
       abstain_enabled: true,
-      evidence_view: "l0_raw",
+      evidence_view: "paper_original",
       randomizations: [],
       evidence_bundle_size: 1,
     },

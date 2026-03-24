@@ -9,7 +9,7 @@ function initTest() {
 }
 
 describe("evidence repository", () => {
-  test("creates a universe, acquisition spec, run, candidates, item, and view", async () => {
+  test("creates a universe, acquisition spec, run, candidates, item, source record, and view", async () => {
     const t = initTest();
 
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
@@ -116,15 +116,25 @@ describe("evidence repository", () => {
         publish_date: "2026-03-03T12:00:00Z",
         language: "en",
         hydration_status: "hydrated",
-        raw_text_asset_id,
-        content_hash: "raw_text_hash",
-        char_count: 924,
-        token_estimate: 220,
-        extraction_version: "readability-v1",
       },
     );
 
     expect(action).toBe("created");
+
+    const sourceRecordResult = await t.mutation(
+      internal.domain.evidence.evidence_repo.upsertSourceRecord,
+      {
+        evidence_item_id,
+        record_kind: "source_text",
+        asset_id: raw_text_asset_id,
+        is_primary: true,
+        content_hash: "raw_text_hash",
+        char_count: 924,
+        token_estimate: 220,
+        pipeline_kind: "hydrate",
+        pipeline_version: "readability-v1",
+      },
+    );
 
     const { asset_id: cleaned_view_asset_id } = await t.mutation(
       internal.domain.evidence.evidence_repo.createAsset,
@@ -140,7 +150,7 @@ describe("evidence repository", () => {
 
     const viewResult = await t.mutation(internal.domain.evidence.evidence_repo.upsertView, {
       evidence_item_id,
-      view_kind: "cleaned",
+      view_kind: "l1_cleaned",
       pipeline_kind: "normalize",
       pipeline_version: "v1",
       asset_id: cleaned_view_asset_id,
@@ -154,10 +164,17 @@ describe("evidence repository", () => {
     });
     expect(items).toHaveLength(1);
     expect(items[0]?.hydration_status).toBe("hydrated");
-    expect(items[0]?.raw_text_asset_id).toBe(raw_text_asset_id);
     expect(items[0]?.title).toBe("Story One");
     expect(items[0]?.source_url).toBe("https://example.com/story-001");
     expect(items[0]?.source_name).toBe("Example News");
+
+    const sourceRecords = await t.query(
+      internal.domain.evidence.evidence_repo.listItemSourceRecords,
+      { evidence_item_id },
+    );
+    expect(sourceRecords).toHaveLength(1);
+    expect(sourceRecords[0]?._id).toBe(sourceRecordResult.evidence_source_record_id);
+    expect(sourceRecords[0]?.asset_id).toBe(raw_text_asset_id);
 
     const { evidence_set_id } = await t.mutation(
       internal.domain.evidence.evidence_repo.createEvidenceSet,
@@ -177,7 +194,7 @@ describe("evidence repository", () => {
         items: [
           {
             evidence_item_id,
-            pinned_view_id: viewResult.evidence_view_id,
+            pinned_source_record_id: sourceRecordResult.evidence_source_record_id,
             ordinal: 0,
             inclusion_reason: "Representative sample",
             quality_label: "high",
@@ -201,7 +218,7 @@ describe("evidence repository", () => {
       evidence_set_id,
     });
     expect(setItems).toHaveLength(1);
-    expect(setItems[0]?.pinned_view_id).toBe(viewResult.evidence_view_id);
+    expect(setItems[0]?.pinned_source_record_id).toBe(sourceRecordResult.evidence_source_record_id);
   });
 
   test("upsertCandidates dedupes by universe, provider, and external id", async () => {

@@ -25,6 +25,7 @@ export type EvidenceSetCatalogItem = {
 export type EvidenceSetItem = {
   evidence_set_item_id: string;
   evidence_item_id: string;
+  pinned_source_record_id: string | null;
   pinned_view_id: string | null;
   ordinal: number;
   inclusion_reason: string | null;

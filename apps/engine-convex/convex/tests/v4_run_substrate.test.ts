@@ -35,7 +35,7 @@ async function seedEvidenceSet(
         title: `Imported item ${index + 1}`,
         source_url: `https://example.com/imported/${index + 1}`,
         raw_text: `Imported evidence text ${index + 1}.`,
-        view_kind: "paper_original",
+        source_record_kind: "paper_original",
         pipeline_kind: "import",
         pipeline_version: "v4-test",
       },
@@ -58,7 +58,7 @@ async function seedEvidenceSet(
     evidence_set_id,
     items: importedItems.map((item, index) => ({
       evidence_item_id: item.evidence_item_id,
-      pinned_view_id: item.evidence_view_id,
+      pinned_source_record_id: item.source_record_id,
       ordinal: index,
       quality_label: "high" as const,
     })),
@@ -105,7 +105,7 @@ async function createV4Experiment(
       model: "claude-sonnet-4",
       method: "single",
       abstain_enabled: false,
-      evidence_view: "l0_raw",
+      evidence_view: "paper_original",
       randomizations: [],
       evidence_bundle_size,
     },
@@ -142,7 +142,7 @@ describe("v4 run substrate", () => {
     vi.unstubAllGlobals();
   });
 
-  test("createRun materializes evidence-set-backed score targets with item and view refs", async () => {
+  test("createRun materializes evidence-set-backed score targets with item and source refs", async () => {
     const t = initTest();
     const seeded = await seedEvidenceSet(t, {
       universe_tag: "v4-run-bundles",
@@ -173,7 +173,7 @@ describe("v4 run substrate", () => {
       expect(targets[1]?.items).toHaveLength(1);
       for (const item of targets.flatMap((target: typeof targets[number]) => target.items)) {
         expect(item.evidence_item_id).toBeDefined();
-        expect(item.evidence_view_id).toBeDefined();
+        expect(item.evidence_source_record_id).toBeDefined();
         expect(item.title).toMatch(/Imported item/);
         expect(item.url).toMatch(/^https:\/\/example\.com\/imported\//);
       }

@@ -27,7 +27,7 @@ async function seedRun(t: ReturnType<typeof convexTest>) {
       title: "Run Evidence 1",
       source_url: "https://example.com/run-e1",
       raw_text: "Run evidence one raw content.",
-      view_kind: "paper_original",
+      source_record_kind: "paper_original",
       pipeline_kind: "import",
       pipeline_version: "worker-idempotency-v4",
     },
@@ -48,7 +48,7 @@ async function seedRun(t: ReturnType<typeof convexTest>) {
     evidence_set_id,
     items: [{
       evidence_item_id: imported.evidence_item_id,
-      pinned_view_id: imported.evidence_view_id,
+      pinned_source_record_id: imported.source_record_id,
       quality_label: "high",
     }],
   });
@@ -65,7 +65,7 @@ async function seedRun(t: ReturnType<typeof convexTest>) {
         model: "gpt-4.1",
         method: "subset",
         abstain_enabled: true,
-        evidence_view: "l0_raw",
+        evidence_view: "paper_original",
         randomizations: [],
         evidence_bundle_size: 1,
       },

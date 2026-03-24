@@ -136,7 +136,7 @@ describe("evidence package", () => {
       publish_date: "2024-01-10",
       language: "en",
       raw_text: "A coded excerpt for compatibility testing.",
-      view_kind: "paper_original",
+      source_record_kind: "paper_original",
       pipeline_kind: "import",
       pipeline_version: "paper-audit-v1",
     });
@@ -154,7 +154,7 @@ describe("evidence package", () => {
       items: [
         {
           evidence_item_id: imported.evidence_item_id,
-          pinned_view_id: imported.evidence_view_id,
+          pinned_source_record_id: imported.source_record_id,
           ordinal: 0,
           inclusion_reason: "Core compatibility row",
           quality_label: "high",
@@ -186,7 +186,7 @@ describe("evidence package", () => {
     });
     expect(setItems).toHaveLength(1);
     expect(setItems[0]?.title).toBe("Annotated article excerpt");
-    expect(setItems[0]?.pinned_view_id).toBe(imported.evidence_view_id);
+    expect(setItems[0]?.pinned_source_record_id).toBe(imported.source_record_id);
   });
 
   test("lists universes and acquisition runs, snapshots a run into an evidence set, and loads content", async () => {
@@ -288,6 +288,6 @@ describe("evidence package", () => {
     const content = await t.action(api.packages.evidence.getEvidenceItemContent, {
       evidence_item_id: universeItems[0]!.evidence_item_id,
     });
-    expect(content.raw_text).toBe("Stored evidence text.");
+    expect(content.source_records[0]?.content).toBe("Stored evidence text.");
   });
 });

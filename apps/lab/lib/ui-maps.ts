@@ -31,7 +31,8 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
 };
 
 export const VIEW_LABELS: Record<string, string> = {
-  l0_raw: "L0 Raw",
+  source_text: "Source Text",
+  paper_original: "Paper Original",
   l1_cleaned: "L1 Cleaned",
   l2_neutralized: "L2 Neutralized",
   l3_abstracted: "L3 Abstracted",

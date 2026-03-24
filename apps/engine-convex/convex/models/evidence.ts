@@ -26,6 +26,12 @@ export const EvidenceAssetRoleSchema = z.enum([
   "view_text",
 ]);
 
+export const EvidenceSourceRecordKindSchema = z.enum([
+  "source_text",
+  "source_html",
+  "paper_original",
+]);
+
 export const EvidenceSetSourceKindSchema = z.enum([
   "universe_slice",
   "manual_import",
@@ -123,12 +129,21 @@ export const EvidenceItemsTableSchema = z.object({
   publish_date: z.string().nullable().optional(),
   language: z.string().nullable().optional(),
   hydration_status: EvidenceHydrationStatusSchema,
-  raw_text_asset_id: zid("evidence_assets").nullable().optional(),
-  raw_html_asset_id: zid("evidence_assets").nullable().optional(),
+  metadata_json: z.string().nullable().optional(),
+  created_at_ms: z.number(),
+  updated_at_ms: z.number(),
+});
+
+export const EvidenceSourceRecordsTableSchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  record_kind: EvidenceSourceRecordKindSchema,
+  asset_id: zid("evidence_assets"),
+  is_primary: z.boolean(),
   content_hash: z.string().nullable().optional(),
   char_count: z.number().nullable().optional(),
   token_estimate: z.number().nullable().optional(),
-  extraction_version: z.string().nullable().optional(),
+  pipeline_kind: z.string(),
+  pipeline_version: z.string(),
   metadata_json: z.string().nullable().optional(),
   created_at_ms: z.number(),
   updated_at_ms: z.number(),
@@ -151,6 +166,7 @@ export const EvidenceSetsTableSchema = z.object({
 export const EvidenceSetItemsTableSchema = z.object({
   evidence_set_id: zid("evidence_sets"),
   evidence_item_id: zid("evidence_items"),
+  pinned_source_record_id: zid("evidence_source_records").nullable().optional(),
   pinned_view_id: zid("evidence_views").nullable().optional(),
   ordinal: z.number(),
   inclusion_reason: z.string().nullable().optional(),

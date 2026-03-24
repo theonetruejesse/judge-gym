@@ -24,8 +24,9 @@ The evidence path is:
 3. execute an `acquisition_run`
 4. ingest Media Cloud discovery into `evidence_candidates`
 5. hydrate candidates into canonical `evidence_items`
-6. generate versioned `evidence_views`
-7. freeze reusable `evidence_sets`
+6. persist original documents as `evidence_source_records`
+7. generate semantic/derived `evidence_views`
+8. freeze reusable `evidence_sets`
 
 Large payloads live in Convex storage and are referenced through `evidence_assets`.
 
@@ -36,6 +37,7 @@ Core tables:
 - `acquisition_runs`
 - `evidence_candidates`
 - `evidence_items`
+- `evidence_source_records`
 - `evidence_views`
 - `evidence_assets`
 - `evidence_sets`
@@ -90,7 +92,7 @@ The evidence detail page inspects:
 - acquisition runs
 - evidence sets
 - universe items
-- raw/storage-backed content
+- source records / raw storage-backed content
 - generated views
 
 ## Validation

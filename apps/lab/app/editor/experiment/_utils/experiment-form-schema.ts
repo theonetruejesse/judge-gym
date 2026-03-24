@@ -11,7 +11,8 @@ const methodOptions = Object.keys(SCORING_METHOD_LABELS) as [
   "subset",
 ];
 const viewOptions = Object.keys(VIEW_LABELS) as [
-  "l0_raw",
+  "source_text",
+  "paper_original",
   "l1_cleaned",
   "l2_neutralized",
   "l3_abstracted",
@@ -63,7 +64,7 @@ export const DEFAULT_EXPERIMENT_FORM_VALUES: ExperimentFormValues = {
   scoring_model: "",
   scale_size: 5,
   method: "single",
-  evidence_view: "l0_raw",
+  evidence_view: "source_text",
   abstain_enabled: false,
   randomizations: [],
 };

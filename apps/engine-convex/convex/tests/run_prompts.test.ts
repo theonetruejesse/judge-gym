@@ -81,10 +81,7 @@ describe("run prompts", () => {
           evidence_bundle_size: 1,
         },
       },
-      evidence: {
-        l0_raw_content: "Raw evidence",
-        l2_neutralized_content: "Neutralized evidence",
-      },
+      evidence: "Neutralized evidence",
       rubric: {
         stages: [
           { label: "Minimal", criteria: ["a", "b", "c"] },
@@ -125,10 +122,7 @@ describe("run prompts", () => {
           evidence_bundle_size: 1,
         },
       },
-      evidence: {
-        l0_raw_content: "Raw evidence",
-        l2_neutralized_content: "Neutralized evidence",
-      },
+      evidence: "Neutralized evidence",
       rubric: {
         stages: [
           { label: "Minimal", criteria: ["a", "b", "c"] },
@@ -158,7 +152,7 @@ describe("run prompts", () => {
         scoring_config: {
           method: "single",
           abstain_enabled: false,
-          evidence_view: "l0_raw",
+          evidence_view: "source_text",
           randomizations: [],
           evidence_bundle_size: 1,
         },
@@ -168,9 +162,7 @@ describe("run prompts", () => {
           parser_key: "label_choice",
         },
       },
-      evidence: {
-        l0_raw_content: "Imported article excerpt",
-      },
+      evidence: "Imported article excerpt",
       rubric: {
         stages: [
           { label: "Relevant", criteria: ["a", "b", "c"] },
@@ -195,7 +187,7 @@ describe("run prompts", () => {
         scoring_config: {
           method: "single",
           abstain_enabled: true,
-          evidence_view: "l0_raw",
+          evidence_view: "source_text",
           randomizations: [],
           evidence_bundle_size: 1,
         },
@@ -205,9 +197,7 @@ describe("run prompts", () => {
           parser_key: "json_label_choice",
         },
       },
-      evidence: {
-        l0_raw_content: "Imported article excerpt",
-      },
+      evidence: "Imported article excerpt",
       rubric: {
         stages: [
           { label: "Relevant", criteria: ["a", "b", "c"] },
@@ -304,7 +294,7 @@ describe("run prompts", () => {
         scoring_config: {
           method: "single",
           abstain_enabled: true,
-          evidence_view: "l0_raw",
+          evidence_view: "source_text",
           randomizations: [],
           evidence_bundle_size: 1,
         },
@@ -342,10 +332,7 @@ describe("run prompts", () => {
           evidence_bundle_size: 5,
         },
       },
-      evidence: {
-        l0_raw_content: "EVIDENCE 1\nRaw evidence A\n\nEVIDENCE 2\nRaw evidence B",
-        l2_neutralized_content: "EVIDENCE 1\nNeutralized evidence A\n\nEVIDENCE 2\nNeutralized evidence B",
-      },
+      evidence: "EVIDENCE 1\nNeutralized evidence A\n\nEVIDENCE 2\nNeutralized evidence B",
       rubric: {
         stages: [
           { label: "Minimal", criteria: ["a", "b", "c"] },

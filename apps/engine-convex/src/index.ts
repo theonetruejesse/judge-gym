@@ -7,6 +7,6 @@ export {
 } from "@judge-gym/engine-settings/provider";
 
 export {
-  SemanticLevelSchema,
-  type SemanticLevel,
+  EvidencePresentationSchema,
+  type EvidencePresentation,
 } from "../convex/models/_shared";

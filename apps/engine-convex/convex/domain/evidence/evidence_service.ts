@@ -52,6 +52,8 @@ const HydrateCandidateArgsSchema = z.object({
 
 const HydrateCandidateResultSchema = z.object({
   evidence_item_id: zid("evidence_items"),
+  source_text_record_id: zid("evidence_source_records"),
+  source_html_record_id: zid("evidence_source_records").nullable(),
   raw_text_asset_id: zid("evidence_assets"),
   raw_html_asset_id: zid("evidence_assets").nullable(),
   action: z.enum(["created", "updated"]),
@@ -81,16 +83,17 @@ const ImportEvidenceItemArgsSchema = z.object({
   raw_text: z.string().min(1),
   raw_html: z.string().nullable().optional(),
   metadata_json: z.string().nullable().optional(),
-  view_kind: z.string().optional(),
+  source_record_kind: z.enum(["source_text", "paper_original"]).optional(),
   pipeline_kind: z.string().optional(),
   pipeline_version: z.string().optional(),
 });
 
 const ImportEvidenceItemResultSchema = z.object({
   evidence_item_id: zid("evidence_items"),
+  source_record_id: zid("evidence_source_records"),
+  source_html_record_id: zid("evidence_source_records").nullable(),
   raw_text_asset_id: zid("evidence_assets"),
   raw_html_asset_id: zid("evidence_assets").nullable(),
-  evidence_view_id: zid("evidence_views"),
   action: z.enum(["created", "updated"]),
 });
 
@@ -320,12 +323,6 @@ async function hydrateCandidateInternal(
       publish_date: candidate.publish_date ?? null,
       language: candidate.language ?? null,
       hydration_status: "hydrated",
-      raw_text_asset_id: rawTextAsset.asset_id,
-      raw_html_asset_id,
-      content_hash: rawTextAsset.content_hash,
-      char_count: rawText.length,
-      token_estimate: approximateTokenCount(rawText),
-      extraction_version,
       metadata_json: JSON.stringify({
         fetched_at_ms: Date.now(),
         response_content_type: contentType,
@@ -334,19 +331,49 @@ async function hydrateCandidateInternal(
     },
   );
 
-  await ctx.runMutation(internal.domain.evidence.evidence_repo.upsertView, {
-    evidence_item_id: itemResult.evidence_item_id,
-    view_kind: "raw",
-    pipeline_kind: "hydrate",
-    pipeline_version: extraction_version,
-    asset_id: rawTextAsset.asset_id,
-    status: "completed",
-    metadata_json: JSON.stringify({
-      source: "url_hydration",
-      candidate_id: String(candidate._id),
+  const sourceTextRecord = await ctx.runMutation(
+    internal.domain.evidence.evidence_repo.upsertSourceRecord,
+    {
+      evidence_item_id: itemResult.evidence_item_id,
+      record_kind: "source_text",
+      asset_id: rawTextAsset.asset_id,
+      is_primary: true,
       content_hash: rawTextAsset.content_hash,
-    }),
-  });
+      char_count: rawText.length,
+      token_estimate: approximateTokenCount(rawText),
+      pipeline_kind: "hydrate",
+      pipeline_version: extraction_version,
+      metadata_json: JSON.stringify({
+        source: "url_hydration",
+        candidate_id: String(candidate._id),
+        content_hash: rawTextAsset.content_hash,
+      }),
+    },
+  );
+
+  let sourceHtmlRecordId: Id<"evidence_source_records"> | null = null;
+  if (raw_html_asset_id) {
+    const sourceHtmlRecord = await ctx.runMutation(
+      internal.domain.evidence.evidence_repo.upsertSourceRecord,
+      {
+        evidence_item_id: itemResult.evidence_item_id,
+        record_kind: "source_html",
+        asset_id: raw_html_asset_id,
+        is_primary: false,
+        content_hash: null,
+        char_count: body.length,
+        token_estimate: null,
+        pipeline_kind: "hydrate",
+        pipeline_version: extraction_version,
+        metadata_json: JSON.stringify({
+          source: "url_hydration",
+          candidate_id: String(candidate._id),
+          response_content_type: contentType,
+        }),
+      },
+    );
+    sourceHtmlRecordId = sourceHtmlRecord.evidence_source_record_id;
+  }
 
   const acquisitionRun = await ctx.runQuery(
     internal.domain.evidence.evidence_repo.getAcquisitionRun,
@@ -363,6 +390,8 @@ async function hydrateCandidateInternal(
 
   return {
     evidence_item_id: itemResult.evidence_item_id,
+    source_text_record_id: sourceTextRecord.evidence_source_record_id,
+    source_html_record_id: sourceHtmlRecordId,
     raw_text_asset_id: rawTextAsset.asset_id,
     raw_html_asset_id,
     action: itemResult.action,
@@ -573,34 +602,60 @@ export const importEvidenceItem = zInternalAction({
         publish_date: args.publish_date ?? null,
         language: args.language ?? null,
         hydration_status: "hydrated",
-        raw_text_asset_id: rawTextAsset.asset_id,
-        raw_html_asset_id,
-        content_hash: rawTextAsset.content_hash,
-        char_count: rawText.length,
-        token_estimate: approximateTokenCount(rawText),
-        extraction_version: args.pipeline_version ?? "manual-import-v1",
         metadata_json: args.metadata_json ?? null,
       },
     );
 
-    const viewResult = await ctx.runMutation(internal.domain.evidence.evidence_repo.upsertView, {
-      evidence_item_id: itemResult.evidence_item_id,
-      view_kind: args.view_kind ?? "raw",
-      pipeline_kind: args.pipeline_kind ?? "import",
-      pipeline_version: args.pipeline_version ?? "manual-import-v1",
-      asset_id: rawTextAsset.asset_id,
-      status: "completed",
-      metadata_json: JSON.stringify({
-        source: "direct_import",
-        canonical_key: args.canonical_key,
-      }),
-    });
+    const pipelineVersion = args.pipeline_version ?? "manual-import-v1";
+    const sourceRecord = await ctx.runMutation(
+      internal.domain.evidence.evidence_repo.upsertSourceRecord,
+      {
+        evidence_item_id: itemResult.evidence_item_id,
+        record_kind: args.source_record_kind ?? "paper_original",
+        asset_id: rawTextAsset.asset_id,
+        is_primary: true,
+        content_hash: rawTextAsset.content_hash,
+        char_count: rawText.length,
+        token_estimate: approximateTokenCount(rawText),
+        pipeline_kind: args.pipeline_kind ?? "import",
+        pipeline_version: pipelineVersion,
+        metadata_json: JSON.stringify({
+          source: "direct_import",
+          canonical_key: args.canonical_key,
+        }),
+      },
+    );
+
+    let sourceHtmlRecordId: Id<"evidence_source_records"> | null = null;
+    if (raw_html_asset_id) {
+      const sourceHtmlRecord = await ctx.runMutation(
+        internal.domain.evidence.evidence_repo.upsertSourceRecord,
+        {
+          evidence_item_id: itemResult.evidence_item_id,
+          record_kind: "source_html",
+          asset_id: raw_html_asset_id,
+          is_primary: false,
+          content_hash: null,
+          char_count: (args.raw_html ?? "").length,
+          token_estimate: null,
+          pipeline_kind: args.pipeline_kind ?? "import",
+          pipeline_version: pipelineVersion,
+          metadata_json: JSON.stringify({
+            source: "direct_import",
+            canonical_key: args.canonical_key,
+            content_type: "text/html",
+          }),
+        },
+      );
+      sourceHtmlRecordId = sourceHtmlRecord.evidence_source_record_id;
+    }
 
     return {
       evidence_item_id: itemResult.evidence_item_id,
+      source_record_id: sourceRecord.evidence_source_record_id,
+      source_html_record_id: sourceHtmlRecordId,
       raw_text_asset_id: rawTextAsset.asset_id,
       raw_html_asset_id,
-      evidence_view_id: viewResult.evidence_view_id,
       action: itemResult.action,
     };
   },

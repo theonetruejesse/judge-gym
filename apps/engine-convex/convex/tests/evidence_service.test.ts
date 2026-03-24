@@ -143,7 +143,7 @@ describe("evidence service", () => {
     expect(candidates[0]?.provider_payload_asset_id).toBeTruthy();
   });
 
-  test("hydrateCandidate stores raw html/raw text and creates a raw evidence view", async () => {
+  test("hydrateCandidate stores raw html/raw text as source records", async () => {
     const t = initTest();
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "hydrate-candidate",
@@ -218,11 +218,17 @@ describe("evidence service", () => {
       universe_id,
     });
     expect(items).toHaveLength(1);
-    expect(items[0]?.raw_text_asset_id).toBe(result.raw_text_asset_id);
     expect(items[0]?.hydration_status).toBe("hydrated");
+    const sourceRecords = await t.query(
+      internal.domain.evidence.evidence_repo.listItemSourceRecords,
+      { evidence_item_id: items[0]!._id },
+    );
+    expect(sourceRecords).toHaveLength(2);
+    expect(sourceRecords.find((record) => record._id === result.source_text_record_id)?.record_kind).toBe("source_text");
+    expect(sourceRecords.find((record) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
   });
 
-  test("importEvidenceItem stores direct text imports as hydrated evidence plus a pinned view", async () => {
+  test("importEvidenceItem stores direct text imports as hydrated source records", async () => {
     const t = initTest();
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "direct-import",
@@ -240,7 +246,7 @@ describe("evidence service", () => {
       language: "en",
       raw_text: "Imported raw text for regime compatibility testing.",
       raw_html: "<article><p>Imported raw text for regime compatibility testing.</p></article>",
-      view_kind: "paper_original",
+      source_record_kind: "paper_original",
       pipeline_kind: "import",
       pipeline_version: "paper-import-v1",
     });
@@ -256,5 +262,11 @@ describe("evidence service", () => {
     expect(items[0]?.source_url).toBe("https://example.com/direct-import/001");
     expect(items[0]?.source_name).toBe("Replication archive");
     expect(items[0]?.hydration_status).toBe("hydrated");
+    const sourceRecords = await t.query(
+      internal.domain.evidence.evidence_repo.listItemSourceRecords,
+      { evidence_item_id: items[0]!._id },
+    );
+    expect(sourceRecords.find((record) => record._id === result.source_record_id)?.record_kind).toBe("paper_original");
+    expect(sourceRecords.find((record) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
   });
 });

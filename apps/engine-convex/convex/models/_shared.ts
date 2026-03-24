@@ -2,10 +2,10 @@ import z from "zod";
 import {
   BundleStrategySchema,
   type BundleStrategy,
+  EvidencePresentationSchema,
+  type EvidencePresentation,
   RubricStageConfigSchema,
   ScoringStageConfigSchema,
-  SemanticLevelSchema,
-  type SemanticLevel,
 } from "@judge-gym/engine-prompts/run";
 
 export const StateStatusSchema = z.enum([
@@ -22,12 +22,12 @@ export type StateStatus = z.infer<typeof StateStatusSchema>;
 
 export {
   BundleStrategySchema,
+  EvidencePresentationSchema,
   RubricStageConfigSchema,
   ScoringStageConfigSchema,
-  SemanticLevelSchema,
 };
 
 export type {
   BundleStrategy,
-  SemanticLevel,
+  EvidencePresentation,
 };

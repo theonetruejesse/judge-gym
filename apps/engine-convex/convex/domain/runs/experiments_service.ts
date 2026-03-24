@@ -465,6 +465,7 @@ export const listExperimentEvidence = zInternalQuery({
     const evidenceRows: Array<{
       evidence_set_item_id: Id<"evidence_set_items">;
       evidence_item_id: Id<"evidence_items">;
+      evidence_source_record_id: Id<"evidence_source_records"> | null;
       evidence_view_id: Id<"evidence_views"> | null;
       title: string | null;
       url: string | null;
@@ -481,6 +482,7 @@ export const listExperimentEvidence = zInternalQuery({
       evidenceRows.push({
         evidence_set_item_id: setItem._id,
         evidence_item_id: evidenceItem._id,
+        evidence_source_record_id: setItem.pinned_source_record_id ?? null,
         evidence_view_id: setItem.pinned_view_id ?? null,
         title: evidenceItem.title ?? null,
         url: evidenceItem.source_url ?? null,

@@ -65,8 +65,14 @@ type EvidenceContent = {
   source_url: string | null;
   source_name: string | null;
   publish_date: string | null;
-  raw_text: string | null;
-  raw_html: string | null;
+  source_records: Array<{
+    evidence_source_record_id: string;
+    record_kind: string;
+    is_primary: boolean;
+    pipeline_kind: string;
+    pipeline_version: string;
+    content: string | null;
+  }>;
   views: Array<{
     evidence_view_id: string;
     view_kind: string;
@@ -83,7 +89,7 @@ export default function EvidenceUniversePage({
 }) {
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("");
-  const [selectedTab, setSelectedTab] = useState<string>("raw_text");
+  const [selectedTab, setSelectedTab] = useState<string>("source_text");
   const [content, setContent] = useState<EvidenceContent | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
 
@@ -140,11 +146,9 @@ export default function EvidenceUniversePage({
         if (cancelled) return;
         const typed = result as EvidenceContent;
         setContent(typed);
-        const firstTab = typed.raw_text
-          ? "raw_text"
-          : typed.raw_html
-            ? "raw_html"
-            : (typed.views[0]?.view_kind ?? "raw_text");
+        const firstTab = typed.source_records[0]?.record_kind
+          ?? typed.views[0]?.view_kind
+          ?? "source_text";
         setSelectedTab(firstTab);
       })
       .catch(() => {
@@ -188,12 +192,11 @@ export default function EvidenceUniversePage({
   const selectedItem =
     evidenceRows.find((item) => item.evidence_item_id === selectedEvidenceId) ?? null;
   const previewTabs = [
-    ...(content?.raw_text
-      ? [{ key: "raw_text", label: "Raw Text", content: content.raw_text }]
-      : []),
-    ...(content?.raw_html
-      ? [{ key: "raw_html", label: "Raw HTML", content: content.raw_html }]
-      : []),
+    ...((content?.source_records ?? []).map((record) => ({
+      key: record.record_kind,
+      label: record.record_kind,
+      content: record.content ?? "",
+    }))),
     ...((content?.views ?? []).map((view) => ({
       key: view.view_kind,
       label: view.view_kind,

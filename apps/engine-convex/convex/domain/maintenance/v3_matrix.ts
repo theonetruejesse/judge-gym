@@ -1,7 +1,7 @@
 import z from "zod";
 import { zQuery } from "../../utils/custom_fns";
 import { ExperimentsTableSchema } from "../../models/experiments";
-import { BundleStrategySchema, SemanticLevelSchema } from "../../models/_shared";
+import { BundleStrategySchema, EvidencePresentationSchema } from "../../models/_shared";
 import type { ModelType } from "@judge-gym/engine-settings/provider";
 
 const DEFAULT_RANDOMIZATIONS = [
@@ -33,7 +33,7 @@ function buildSpec(args: {
   scale_size?: number;
   concept?: string;
   abstain_enabled?: boolean;
-  evidence_view?: z.infer<typeof SemanticLevelSchema>;
+  evidence_view?: z.infer<typeof EvidencePresentationSchema>;
   evidence_bundle_size?: number;
   bundle_strategy?: z.infer<typeof BundleStrategySchema>;
   bundle_strategy_version?: string;

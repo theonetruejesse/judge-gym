@@ -29,7 +29,7 @@ async function createEvidenceSet(
 
   const importedItems = [] as Array<{
     evidence_item_id: string;
-    evidence_view_id: string;
+    evidence_source_record_id: string;
   }>;
 
   for (let index = 0; index < args.itemCount; index += 1) {
@@ -41,14 +41,14 @@ async function createEvidenceSet(
         title: `${args.evidence_set_tag} item ${index + 1}`,
         source_url: `https://example.com/${args.evidence_set_tag}/${index + 1}`,
         raw_text: `${args.evidence_set_tag} evidence text ${index + 1}.`,
-        view_kind: "paper_original",
+        source_record_kind: "paper_original",
         pipeline_kind: "import",
         pipeline_version: "bundle-tests-v4",
       },
     );
     importedItems.push({
       evidence_item_id: imported.evidence_item_id,
-      evidence_view_id: imported.evidence_view_id,
+      evidence_source_record_id: imported.source_record_id,
     });
   }
 
@@ -67,7 +67,7 @@ async function createEvidenceSet(
     evidence_set_id,
     items: importedItems.map((item, index) => ({
       evidence_item_id: item.evidence_item_id as never,
-      pinned_view_id: item.evidence_view_id as never,
+      pinned_source_record_id: item.evidence_source_record_id as never,
       ordinal: index,
       quality_label: "high" as const,
     })),
@@ -98,7 +98,7 @@ async function createExperiment(
         model: "gpt-4.1",
         method: "subset",
         abstain_enabled: true,
-        evidence_view: "l0_raw",
+        evidence_view: "paper_original",
         randomizations: [],
         evidence_bundle_size: args.evidence_bundle_size,
       },

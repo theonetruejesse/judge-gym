@@ -3,7 +3,7 @@ import { zid } from "convex-helpers/server/zod4";
 import {
   BundleStrategySchema,
   RandomizationModeSchema,
-  SemanticLevelSchema,
+  EvidencePresentationSchema,
 } from "@judge-gym/engine-prompts/run";
 import {
   ProcessExecutionStatusSchema,
@@ -34,7 +34,7 @@ const NormalizedExperimentSchema = z.object({
   bundle_strategy: BundleStrategySchema,
   bundle_strategy_version: z.string().nullable(),
   clustering_seed: z.number().nullable(),
-  bundle_source_view: SemanticLevelSchema.nullable(),
+  bundle_source_view: EvidencePresentationSchema.nullable(),
   evidence_count: z.number().int().nonnegative(),
   model_id: z.string(),
   rubric_model: z.string(),
@@ -43,7 +43,7 @@ const NormalizedExperimentSchema = z.object({
   scale_size: z.number().int().positive(),
   scoring_method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
-  evidence_view: SemanticLevelSchema,
+  evidence_view: EvidencePresentationSchema,
   evidence_bundle_size: z.number().int().positive(),
   randomizations: z.array(RandomizationModeSchema),
 });
@@ -92,7 +92,7 @@ export const AnalysisResponseRowSchema = z.object({
   scale_size: z.number().int().positive(),
   scoring_method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
-  evidence_view: SemanticLevelSchema,
+  evidence_view: EvidencePresentationSchema,
   evidence_bundle_size: z.number().int().positive(),
   bundle_plan_tag: z.string().nullable(),
   bundle_strategy: BundleStrategySchema,

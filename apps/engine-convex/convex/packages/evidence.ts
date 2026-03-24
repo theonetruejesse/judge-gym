@@ -74,6 +74,8 @@ const HydrateAcquisitionRunArgsSchema = z.object({
 
 const HydrateCandidateItemSchema = z.object({
   evidence_item_id: zid("evidence_items"),
+  source_text_record_id: zid("evidence_source_records"),
+  source_html_record_id: zid("evidence_source_records").nullable(),
   raw_text_asset_id: zid("evidence_assets"),
   raw_html_asset_id: zid("evidence_assets").nullable(),
   action: z.enum(["created", "updated"]),
@@ -97,16 +99,17 @@ const ImportEvidenceItemArgsSchema = z.object({
   raw_text: z.string().min(1),
   raw_html: z.string().nullable().optional(),
   metadata_json: z.string().nullable().optional(),
-  view_kind: z.string().optional(),
+  source_record_kind: z.enum(["source_text", "paper_original"]).optional(),
   pipeline_kind: z.string().optional(),
   pipeline_version: z.string().optional(),
 });
 
 const ImportEvidenceItemResultSchema = z.object({
   evidence_item_id: zid("evidence_items"),
+  source_record_id: zid("evidence_source_records"),
+  source_html_record_id: zid("evidence_source_records").nullable(),
   raw_text_asset_id: zid("evidence_assets"),
   raw_html_asset_id: zid("evidence_assets").nullable(),
-  evidence_view_id: zid("evidence_views"),
   action: z.enum(["created", "updated"]),
 });
 
@@ -123,6 +126,7 @@ const EvidenceSetInputSchema = z.object({
 
 const EvidenceSetItemInputSchema = z.object({
   evidence_item_id: zid("evidence_items"),
+  pinned_source_record_id: zid("evidence_source_records").nullable().optional(),
   pinned_view_id: zid("evidence_views").nullable().optional(),
   ordinal: z.number().optional(),
   inclusion_reason: z.string().nullable().optional(),
@@ -200,6 +204,7 @@ const EvidenceSetCatalogEntrySchema = z.object({
 const EvidenceSetItemSummarySchema = z.object({
   evidence_set_item_id: zid("evidence_set_items"),
   evidence_item_id: zid("evidence_items"),
+  pinned_source_record_id: zid("evidence_source_records").nullable(),
   pinned_view_id: zid("evidence_views").nullable(),
   ordinal: z.number(),
   inclusion_reason: z.string().nullable(),
@@ -254,8 +259,14 @@ const EvidenceItemContentSchema = z.object({
   source_url: EvidenceItemsTableSchema.shape.source_url.nullable(),
   source_name: EvidenceItemsTableSchema.shape.source_name.nullable(),
   publish_date: EvidenceItemsTableSchema.shape.publish_date.nullable(),
-  raw_text: z.string().nullable(),
-  raw_html: z.string().nullable(),
+  source_records: z.array(z.object({
+    evidence_source_record_id: zid("evidence_source_records"),
+    record_kind: z.string(),
+    is_primary: z.boolean(),
+    pipeline_kind: z.string(),
+    pipeline_version: z.string(),
+    content: z.string().nullable(),
+  })),
   views: z.array(z.object({
     evidence_view_id: zid("evidence_views"),
     view_kind: z.string(),
@@ -775,25 +786,31 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
     if (!item) {
       throw new Error("Evidence item not found.");
     }
-    const [rawTextAsset, rawHtmlAsset, views] = await Promise.all([
-      item.raw_text_asset_id
-        ? ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
-          asset_id: item.raw_text_asset_id,
-        })
-        : Promise.resolve(null),
-      item.raw_html_asset_id
-        ? ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
-          asset_id: item.raw_html_asset_id,
-        })
-        : Promise.resolve(null),
+    const [sourceRecords, views] = await Promise.all([
+      ctx.runQuery(internal.domain.evidence.evidence_repo.listItemSourceRecords, {
+        evidence_item_id: item._id,
+      }),
       ctx.runQuery(internal.domain.evidence.evidence_repo.listItemViews, {
         evidence_item_id: item._id,
       }),
     ]);
 
-    const [rawText, rawHtml, renderedViews] = await Promise.all([
-      rawTextAsset ? readStorageText(ctx, rawTextAsset.storage_id) : Promise.resolve(null),
-      rawHtmlAsset ? readStorageText(ctx, rawHtmlAsset.storage_id) : Promise.resolve(null),
+    const [renderedSourceRecords, renderedViews] = await Promise.all([
+      Promise.all(
+        sourceRecords.map(async (record) => {
+          const asset = await ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
+            asset_id: record.asset_id,
+          });
+          return {
+            evidence_source_record_id: record._id,
+            record_kind: record.record_kind,
+            is_primary: record.is_primary,
+            pipeline_kind: record.pipeline_kind,
+            pipeline_version: record.pipeline_version,
+            content: asset ? await readStorageText(ctx, asset.storage_id) : null,
+          };
+        }),
+      ),
       Promise.all(
         views.map(async (view) => {
           const asset = view.asset_id
@@ -819,8 +836,15 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
       source_url: item.source_url ?? null,
       source_name: item.source_name ?? null,
       publish_date: item.publish_date ?? null,
-      raw_text: rawText,
-      raw_html: rawHtml,
+      source_records: renderedSourceRecords.sort((left, right) => {
+        if (left.is_primary !== right.is_primary) {
+          return left.is_primary ? -1 : 1;
+        }
+        if (left.record_kind !== right.record_kind) {
+          return left.record_kind.localeCompare(right.record_kind);
+        }
+        return left.pipeline_version.localeCompare(right.pipeline_version);
+      }),
       views: renderedViews.sort((left, right) => left.view_kind.localeCompare(right.view_kind)),
     };
   },
@@ -848,6 +872,7 @@ export const listEvidenceSetItems: ReturnType<typeof zQuery> = zQuery({
         return {
           evidence_set_item_id: row._id,
           evidence_item_id: row.evidence_item_id,
+          pinned_source_record_id: row.pinned_source_record_id ?? null,
           pinned_view_id: row.pinned_view_id ?? null,
           ordinal: row.ordinal,
           inclusion_reason: row.inclusion_reason ?? null,

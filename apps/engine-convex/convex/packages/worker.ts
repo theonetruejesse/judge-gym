@@ -341,23 +341,9 @@ function buildRunLabelMapping(
 function renderBundledEvidence(
   items: Array<{ content: string }>,
 ) {
-  return {
-    l0_raw_content: items.map(({ content }, index) => {
-      return [`EVIDENCE ${index + 1}`, content].join("\n");
-    }).join("\n\n"),
-    l1_cleaned_content: items.map(({ content }, index) => {
-      return [`EVIDENCE ${index + 1}`, content].join("\n");
-    }).join("\n\n"),
-    l2_neutralized_content: items.map(({ content }, index) => {
-      return [`EVIDENCE ${index + 1}`, content].join("\n");
-    }).join("\n\n"),
-    l3_abstracted_content: items.map(({ content }, index) => {
-      return [`EVIDENCE ${index + 1}`, content].join("\n");
-    }).join("\n\n"),
-    selected_content: items.map(({ content }, index) => {
-      return [`EVIDENCE ${index + 1}`, content].join("\n");
-    }).join("\n\n"),
-  };
+  return items.map(({ content }, index) => {
+    return [`EVIDENCE ${index + 1}`, content].join("\n");
+  }).join("\n\n");
 }
 
 const RunStageInputResultSchema = z.array(z.object({
@@ -387,6 +373,7 @@ type RunScoreStageTargetSeed = {
   items: Array<{
     position: number;
     evidence_item_id: Id<"evidence_items">;
+    evidence_source_record_id: Id<"evidence_source_records"> | null;
     evidence_view_id: Id<"evidence_views"> | null;
     content_asset_id: Id<"evidence_assets">;
   }>;
@@ -648,6 +635,7 @@ export const listRunStageInputSeed = zInternalQuery({
     const itemsByTargetId = new Map<string, Array<{
       position: number;
       evidence_item_id: Id<"evidence_items">;
+      evidence_source_record_id: Id<"evidence_source_records"> | null;
       evidence_view_id: Id<"evidence_views"> | null;
       content_asset_id: Id<"evidence_assets">;
     }>>();
@@ -656,6 +644,7 @@ export const listRunStageInputSeed = zInternalQuery({
       current.push({
         position: item.position,
         evidence_item_id: item.evidence_item_id,
+        evidence_source_record_id: item.evidence_source_record_id ?? null,
         evidence_view_id: item.evidence_view_id ?? null,
         content_asset_id: item.content_asset_id,
       });
@@ -788,12 +777,7 @@ export const listRunStageInputs = zAction({
       if (args.stage === "score_gen") {
         const prompt = buildScoreGenPrompt({
           config: seed.config,
-          evidence: {
-            l0_raw_content: renderedEvidence.l0_raw_content,
-            l1_cleaned_content: renderedEvidence.l1_cleaned_content,
-            l2_neutralized_content: renderedEvidence.l2_neutralized_content,
-            l3_abstracted_content: renderedEvidence.l3_abstracted_content,
-          },
+          evidence: renderedEvidence,
           rubric: {
             stages: target.rubric.stages,
           },
@@ -823,7 +807,7 @@ export const listRunStageInputs = zAction({
       }
       const prompt = buildScoreCriticPrompt({
         config: seed.config,
-        evidence: renderedEvidence.selected_content,
+        evidence: renderedEvidence,
         rubric: {
           stages: target.rubric.stages,
         },

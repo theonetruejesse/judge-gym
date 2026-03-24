@@ -53,7 +53,7 @@ describe("experiment contract", () => {
       canonical_key: "contract:item:001",
       title: "Imported audit row",
       raw_text: "Imported audit row text.",
-      view_kind: "paper_original",
+      source_record_kind: "paper_original",
       pipeline_kind: "import",
       pipeline_version: "contract-v1",
     });
@@ -74,7 +74,7 @@ describe("experiment contract", () => {
       items: [
         {
           evidence_item_id: imported.evidence_item_id,
-          pinned_view_id: imported.evidence_view_id,
+          pinned_source_record_id: imported.source_record_id,
           quality_label: "high",
         },
       ],
@@ -109,7 +109,7 @@ describe("experiment contract", () => {
         model: "claude-sonnet-4",
         method: "single",
         abstain_enabled: false,
-        evidence_view: "l0_raw",
+        evidence_view: "paper_original",
         randomizations: [],
         evidence_bundle_size: 1,
       },
@@ -147,7 +147,7 @@ describe("experiment contract", () => {
       source_name: "Example Source",
       publish_date: "2026-03-01",
       raw_text: "Lab imported row text.",
-      view_kind: "paper_original",
+      source_record_kind: "paper_original",
       pipeline_kind: "import",
       pipeline_version: "lab-v1",
     });
@@ -168,7 +168,7 @@ describe("experiment contract", () => {
       items: [
         {
           evidence_item_id: imported.evidence_item_id,
-          pinned_view_id: imported.evidence_view_id,
+          pinned_source_record_id: imported.source_record_id,
           ordinal: 0,
           quality_label: "high",
         },
@@ -205,7 +205,7 @@ describe("experiment contract", () => {
           model: "claude-sonnet-4",
           method: "single",
           abstain_enabled: false,
-          evidence_view: "l0_raw",
+          evidence_view: "paper_original",
           randomizations: [],
           evidence_bundle_size: 1,
         },
@@ -218,7 +218,7 @@ describe("experiment contract", () => {
 
     expect(evidenceRows).toHaveLength(1);
     expect(evidenceRows[0]?.evidence_item_id).toBe(imported.evidence_item_id);
-    expect(evidenceRows[0]?.evidence_view_id).toBe(imported.evidence_view_id);
+    expect(evidenceRows[0]?.evidence_source_record_id).toBe(imported.source_record_id);
     expect(evidenceRows[0]?.title).toBe("Lab imported row");
     expect(evidenceRows[0]?.url).toBe("https://example.com/lab-row");
     expect(evidenceRows[0]?.source_name).toBe("Example Source");

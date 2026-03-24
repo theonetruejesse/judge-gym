@@ -17,6 +17,7 @@ const RunScoreTargetListItemSchema = z.object({
   score_critic_id: zid("score_critics").nullable(),
   items: z.array(z.object({
     evidence_item_id: zid("evidence_items"),
+    evidence_source_record_id: zid("evidence_source_records").nullable(),
     evidence_view_id: zid("evidence_views").nullable(),
     position: z.number(),
     title: z.string().nullable(),
@@ -60,6 +61,7 @@ async function hydrateRunScoreTargets(
       if (!evidenceItem) continue;
       hydratedItems.push({
         evidence_item_id: evidenceItem._id,
+        evidence_source_record_id: item.evidence_source_record_id ?? null,
         evidence_view_id: item.evidence_view_id ?? null,
         position: item.position,
         title: evidenceItem.title ?? null,
@@ -300,6 +302,7 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
     z.object({
       evidence_set_item_id: zid("evidence_set_items"),
       evidence_item_id: zid("evidence_items"),
+      evidence_source_record_id: zid("evidence_source_records").nullable(),
       evidence_view_id: zid("evidence_views").nullable(),
       title: z.string().nullable(),
       url: z.string().nullable(),

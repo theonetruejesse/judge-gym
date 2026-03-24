@@ -1,14 +1,23 @@
 import { z } from "zod";
 import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
 
-export const SemanticLevelSchema = z.enum([
-  "l0_raw",
+export const SemanticViewSchema = z.enum([
   "l1_cleaned",
   "l2_neutralized",
   "l3_abstracted",
 ]);
 
-export type SemanticLevel = z.infer<typeof SemanticLevelSchema>;
+export type SemanticView = z.infer<typeof SemanticViewSchema>;
+
+export const EvidencePresentationSchema = z.enum([
+  "source_text",
+  "paper_original",
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+]);
+
+export type EvidencePresentation = z.infer<typeof EvidencePresentationSchema>;
 
 export const BundleStrategySchema = z.enum([
   "window_round_robin",
@@ -93,7 +102,7 @@ export const ScoringStageConfigSchema = z.object({
   model: modelTypeSchema,
   method: z.enum(["single", "subset"]),
   abstain_enabled: z.boolean(),
-  evidence_view: SemanticLevelSchema,
+  evidence_view: EvidencePresentationSchema,
   randomizations: z.array(RandomizationModeSchema),
   evidence_bundle_size: z.number().int().min(1),
   bundle_strategy: BundleStrategySchema.optional(),
@@ -109,7 +118,7 @@ export type ExperimentConfig = {
   scoring_config: {
     method: "single" | "subset";
     abstain_enabled: boolean;
-    evidence_view: SemanticLevel;
+    evidence_view: EvidencePresentation;
     randomizations: Array<
       "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
     >;
@@ -134,7 +143,7 @@ export function normalizeExperimentConfig<T extends {
   scoring_config: {
     method: "single" | "subset";
     abstain_enabled: boolean;
-    evidence_view: SemanticLevel;
+    evidence_view: EvidencePresentation;
     randomizations: Array<
       "anonymize_stages" | "shuffle_rubric_order" | "hide_label_text"
     >;
@@ -215,30 +224,14 @@ export function resolveScaleStrategy(config: ExperimentConfig): ScaleStrategy {
 }
 
 export interface EvidenceStrategy {
-  contentField:
-    | "l0_raw_content"
-    | "l1_cleaned_content"
-    | "l2_neutralized_content"
-    | "l3_abstracted_content";
+  presentation: EvidencePresentation;
 }
 
 export function resolveEvidenceStrategy(
   config: ExperimentConfig,
 ): EvidenceStrategy {
-  const contentField = (() => {
-    switch (config.scoring_config.evidence_view) {
-      case "l1_cleaned":
-        return "l1_cleaned_content";
-      case "l2_neutralized":
-        return "l2_neutralized_content";
-      case "l3_abstracted":
-        return "l3_abstracted_content";
-      default:
-        return "l0_raw_content";
-    }
-  })();
   return {
-    contentField,
+    presentation: config.scoring_config.evidence_view,
   };
 }
 
