@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "originalQuestion": "Determine whether the shortlisted V4 candidate papers for judge-gym have sufficiently reconstructable public resources, materials, prompts, datasets, and evaluation protocols to support fair evaluator-regime audits, and assign certainty scores to each target recommendation.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-target-resource-viability",
+    "finalPlanPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-target-resource-viability/blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "main",
+    "researchers": [
+      {
+        "id": "019d1bf0-331b-7763-add6-20731c7a3d82",
+        "role": "social_science_resource_researcher"
+      },
+      {
+        "id": "019d1bf0-332d-7082-8e6d-703cdb9f9729",
+        "role": "comparator_method_resource_researcher"
+      },
+      {
+        "id": "019d1bf0-3365-7e92-832e-453ece0facc0",
+        "role": "opinion_expansion_resource_researcher"
+      }
+    ],
+    "falsifier": "bounded_timeout_then_lead_null_challenge",
+    "certaintyScorer": "019d1bf9-77f8-7f60-985d-f79714fb7634",
+    "synthesizer": "main"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_social_science",
+      "scope": "Gilardi, Ziems, Törnberg",
+      "assignedAgent": "019d1bf0-331b-7763-add6-20731c7a3d82"
+    },
+    {
+      "areaOfAnalysisID": "A_comparators",
+      "scope": "Zheng, Thakur, Wei, Shi, Stureborg",
+      "assignedAgent": "019d1bf0-332d-7082-8e6d-703cdb9f9729"
+    },
+    {
+      "areaOfAnalysisID": "A_expansion",
+      "scope": "Santurkar",
+      "assignedAgent": "019d1bf0-3365-7e92-832e-453ece0facc0"
+    },
+    {
+      "areaOfAnalysisID": "A_engine_fit",
+      "scope": "fairness-of-reconstruction and engine-lift criteria",
+      "assignedAgent": "main"
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_social_science_evidence.md",
+      "knowledge/k_002_comparator_evidence.md",
+      "knowledge/k_003_opinion_expansion_evidence.md",
+      "knowledge/k_004_engine_fit_evidence.md"
+    ]
+  },
+  "evidenceReviews": [
+    {
+      "target": "Gilardi",
+      "recommendation": "primary",
+      "certainty": 0.86
+    },
+    {
+      "target": "Ziems subset",
+      "recommendation": "primary",
+      "certainty": 0.74
+    },
+    {
+      "target": "Zheng / MT-Bench",
+      "recommendation": "clean comparator",
+      "certainty": 0.91
+    },
+    {
+      "target": "Thakur",
+      "recommendation": "clean comparator",
+      "certainty": 0.81
+    },
+    {
+      "target": "Santurkar",
+      "recommendation": "expansion target",
+      "certainty": 0.82
+    },
+    {
+      "target": "Törnberg",
+      "recommendation": "conditional",
+      "certainty": 0.68
+    }
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "subject": "Gilardi primary",
+        "score": 0.86
+      },
+      {
+        "subject": "Ziems subset primary",
+        "score": 0.74
+      },
+      {
+        "subject": "Zheng comparator",
+        "score": 0.91
+      },
+      {
+        "subject": "Thakur comparator",
+        "score": 0.81
+      },
+      {
+        "subject": "Santurkar expansion",
+        "score": 0.82
+      },
+      {
+        "subject": "Törnberg conditional",
+        "score": 0.68
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    "A_social_science",
+    "A_comparators",
+    "A_expansion",
+    "A_engine_fit"
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_A_social_001_gilardi_primary.json",
+    "hypotheses/hyp_A_social_002_ziems_subset_primary.json",
+    "hypotheses/hyp_A_comp_001_zheng_clean_comparator.json",
+    "hypotheses/hyp_A_comp_002_thakur_clean_comparator.json",
+    "hypotheses/hyp_A_exp_001_santurkar_expansion.json",
+    "hypotheses/hyp_A_social_003_tornberg_conditional.json"
+  ],
+  "hypothesisConflicts": [
+    {
+      "targets": [
+        "Zheng / MT-Bench",
+        "Thakur"
+      ],
+      "issue": "Both are viable comparators, but only one may belong in the first-wave launch bundle."
+    },
+    {
+      "targets": [
+        "Santurkar",
+        "launch bundle"
+      ],
+      "issue": "Strong materials conflict with high engine-lift cost."
+    }
+  ],
+  "synthesisOutput": "blueprint.md"
+}

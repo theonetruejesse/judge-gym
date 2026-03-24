@@ -1,0 +1,34 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "chaos-harness-designer",
+  "objective": "Design a deterministic fault-injection harness for the engine so singular work units, apply paths, batch reconciliation, and cleanup races can be stressed deliberately without relying on random production failures.",
+  "inputs": [
+    "apps/engine-temporal/src/run/service.ts",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "packages/engine-settings/src/index.ts",
+    "README.md",
+    "_deep_workflows/v3-repeatability-sanity-validation/agents/N05/sanity_run_result.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "requiredOutputs": [
+    "chaos_plan.md",
+    "fault_injection_matrix.json"
+  ],
+  "completionCriteria": [
+    "Define deterministic failure injection points by stage, unit type, and failure phase.",
+    "Specify how to validate three-attempt retry behavior and downstream containment.",
+    "Keep the proposed chaos harness greenfield-friendly and throwaway-safe."
+  ]
+}

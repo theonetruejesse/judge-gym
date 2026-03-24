@@ -1,0 +1,33 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "social-science-resource-researcher",
+  "objective": "Assess resource viability for the direct social-science and coder-replacement targets, focusing on datasets, prompts, protocols, and fair baseline reconstruction.",
+  "inputs": [
+    "agents/N01/candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.spawn_agent",
+    "functions.send_input",
+    "functions.wait_agent",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "requiredOutputs": [
+    "social_science_resources.md"
+  ],
+  "completionCriteria": [
+    "Evaluate Gilardi, Ziems, and Törnberg against resource-viability criteria.",
+    "Distinguish strong evidence from materials uncertainty.",
+    "Recommend which of these can fairly support a V4 audit."
+  ]
+}

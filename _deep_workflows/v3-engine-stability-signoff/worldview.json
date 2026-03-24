@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-engine-stability-signoff",
+    "objective": "Compile a compile-only workflow that defines the remaining engine-stability hardening program: per-work-unit retry semantics in engine settings, deterministic fault injection for chaos testing, final observability and forensic gaps, and the complete test/signoff matrix required before calling the engine stable.",
+    "objectiveClass": "audit",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_only"
+  },
+  "status": {
+    "workflow": "compiled",
+    "nodes": {
+      "N01": "pending",
+      "N02": "pending",
+      "N03": "pending",
+      "N04": "pending",
+      "N05": "pending"
+    },
+    "synthesis": "pending",
+    "validation": "pending"
+  },
+  "decisions": [
+    "Treat per-work-unit retries as a first-class engine-settings contract.",
+    "Use deterministic fault injection rather than purely random failures for initial chaos validation.",
+    "Separate operational stability signoff from scientific-validity signoff; both must be represented in the final gate."
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "patchProgram": "synthesis/patch_program.json",
+    "signoffMatrix": "synthesis/signoff_matrix.md",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

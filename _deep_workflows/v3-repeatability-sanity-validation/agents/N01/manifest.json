@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "nodeId": "N01",
+  "kind": "query",
+  "createdAt": "2026-03-23T16:05:00Z",
+  "inputs": [
+    "_campaigns/v3_finish_pass/iterations/20260323T065235Z_full_loop_completion_validation/",
+    "_campaigns/v3_finish_pass/campaign_state.json"
+  ],
+  "outputs": [
+    "completion_state.json",
+    "run_log.json"
+  ],
+  "toolVersions": [
+    "scripts/run_convex.sh",
+    "git"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "nodeId": "N01",
+  "kind": "query",
+  "entries": [
+    {
+      "ts": "2026-03-23T16:03:00Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/codex:getV3CampaignSnapshot '{}'",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:03:30Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/codex:getTemporalTaskQueueHealth '{}'",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:04:00Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/lab:getRunSummary '{\"run_id\":\"kx73pkbf3wm136p046gkwxne1583cjbd\"}'",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:04:30Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/codex:listBatchReconciliationStatus '{\"process_id\":\"kx73pkbf3wm136p046gkwxne1583cjbd\",\"process_kind\":\"run\"}'",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:05:00Z",
+      "tool": "shell",
+      "action": "git status --short && git rev-parse HEAD && git log --oneline -5",
+      "result": "ok"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pending": false,
+  "sources": [
+    "agents/N01/candidate_map.md",
+    "agents/N02/social_science_resources.md",
+    "agents/N03/comparator_method_resources.md",
+    "agents/N04/opinion_expansion_resources.md",
+    "agents/N05/engine_fit_criteria.md",
+    "agents/N06/null_challenges.md",
+    "agents/N07/certainty_inputs.md"
+  ],
+  "decision": "Launch on Gilardi plus a scoped Ziems subset, choose Zheng by default as comparator, keep Thakur as the alternate comparator, reserve Santurkar for the expansion wave, and keep Törnberg conditional."
+}

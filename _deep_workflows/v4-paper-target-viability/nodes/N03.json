@@ -1,0 +1,31 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "benchmark-and-opinion-paper-viability",
+  "objective": "Investigate direct V4 audit viability for benchmark, opinion-mapping, and adjacent candidate papers such as Santurkar, Zheng/MT-Bench, and Ziems-related task surfaces discussed in the export.",
+  "inputs": [
+    "agents/N01/export_candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "web.run",
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "requiredOutputs": [
+    "benchmark_opinion_targets.md"
+  ],
+  "completionCriteria": [
+    "Check whether the task is reconstructable enough for a judge-gym audit.",
+    "Distinguish flagship audit value from supporting or contrast-case value.",
+    "Record concrete risks such as missing materials, weak contested-concept fit, or protocol mismatch."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "microHypothesisID": "h_A_comp_002",
+  "areaOfAnalysisID": "A_comparators",
+  "statement": "Thakur is a clean comparator target with strong public protocol visibility, though some human-comparison artifacts may require deeper repo inspection.",
+  "confidence": 0.84,
+  "rationale": "The ACL paper and official repo expose a config-driven evaluation surface that appears fair to reconstruct.",
+  "keyAssumptions": [
+    "The exact paper configs and comparison artifacts are recoverable from the repo."
+  ],
+  "validationCriteria": [
+    "Human-comparison slices are discoverable.",
+    "Comparator replication does not require hidden internal assets."
+  ],
+  "critiquePoints": [
+    "Human artifact discoverability may be weaker than the code surface."
+  ],
+  "questions": []
+}

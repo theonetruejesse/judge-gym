@@ -1,0 +1,105 @@
+{
+  "captured_at": "2026-03-23T16:05:00Z",
+  "git": {
+    "head": "2d87a241a42362259a8d07c5ea8e478534089534",
+    "recent_commits": [
+      "2d87a24 Record V3 full-loop completion",
+      "b81ba5d Checkpoint score-stage stability closure",
+      "5cc5cd7 Persist score batch preamble checkpoints",
+      "1ffbe20 Make reset callback cleanup idempotent",
+      "8068cb0 Harden score batch preamble staging"
+    ],
+    "dirty_paths": [
+      "_deep_workflows/v3-repeatability-sanity-validation/"
+    ]
+  },
+  "campaign_snapshot": {
+    "effective_campaign_state": "complete",
+    "launch_ready": false,
+    "scientific_validity": "scientifically_valid",
+    "selected_experiment_count": 18,
+    "counts": {
+      "completed": 18,
+      "error": 0,
+      "latest_runs_with_failures": 0,
+      "running": 0,
+      "with_latest_run": 18
+    },
+    "stage_distribution": [
+      {
+        "stage": "rubric_gen",
+        "count": 0
+      },
+      {
+        "stage": "rubric_critic",
+        "count": 0
+      },
+      {
+        "stage": "score_gen",
+        "count": 0
+      },
+      {
+        "stage": "score_critic",
+        "count": 18
+      }
+    ],
+    "missing_experiment_tags": [],
+    "blocked_task_queues": [],
+    "stuck_items": []
+  },
+  "temporal_queue_health": {
+    "all_ready": true,
+    "queue_identities": [
+      "1@11034f45235a"
+    ],
+    "backlog_count": 0
+  },
+  "representative_run": {
+    "run_id": "kx73pkbf3wm136p046gkwxne1583cjbd",
+    "status": "completed",
+    "current_stage": "score_critic",
+    "target_count": 30,
+    "completed_count": 30,
+    "failed_stage_count": 0,
+    "stage_counts": {
+      "rubric_gen": 30,
+      "rubric_critic": 30,
+      "score_gen": 120,
+      "score_critic": 120
+    }
+  },
+  "representative_batches": {
+    "process_id": "kx73pkbf3wm136p046gkwxne1583cjbd",
+    "summary": {
+      "batch_count": 2,
+      "total_items": 240,
+      "attempt_counts": {
+        "succeeded": 300,
+        "failed": 0,
+        "started": 0
+      },
+      "status_counts": {
+        "completed": 2,
+        "failed": 0,
+        "preparing": 0,
+        "submitted": 0,
+        "cancelled": 0
+      }
+    },
+    "batches": [
+      {
+        "stage": "score_gen",
+        "status": "completed",
+        "item_count": 120,
+        "provider_batch_id": "batch_69c07b0d91bc8190a986043975f85659"
+      },
+      {
+        "stage": "score_critic",
+        "status": "completed",
+        "item_count": 120,
+        "provider_batch_id": "batch_69c0855c9a848190a340ba6cdcbee446"
+      }
+    ]
+  },
+  "baseline_conclusion": "The validated full V3 cohort is still complete, scientifically valid, and queue-idle. No new live degradation is visible before considering a sanity rerun."
+}

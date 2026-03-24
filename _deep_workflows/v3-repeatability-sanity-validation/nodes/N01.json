@@ -1,0 +1,33 @@
+{
+  "nodeId": "N01",
+  "kind": "query",
+  "role": "live-completion-baseline",
+  "objective": "Capture the live completed V3 cohort state, representative run summary, representative batch reconciliation, and repo cleanliness as the baseline for repeatability validation.",
+  "inputs": [
+    "_campaigns/v3_finish_pass/iterations/20260323T065235Z_full_loop_completion_validation/",
+    "_campaigns/v3_finish_pass/campaign_state.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "run_local_scripts",
+    "touch_live_ops",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "manifest.json",
+    "run_log.json",
+    "completion_state.json"
+  ],
+  "completionCriteria": [
+    "Record the current manifest-scoped campaign snapshot.",
+    "Record representative run and batch reconciliation evidence.",
+    "Record current git cleanliness and relevant head commits."
+  ]
+}

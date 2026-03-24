@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability",
+    "objective": "Determine which candidate published papers are actually viable targets for judge-gym V4 audits, based on current conversation context, thread export clues, and source-backed checks of dataset/prompt/protocol reproducibility and engine fit.",
+    "objectiveClass": "research_audit_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed",
+      "N06": "completed",
+      "N07": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "decision": "Treat candidate-paper viability as a read-only research triage workflow with source-backed checks and no code or live mutations."
+    },
+    {
+      "id": "D02",
+      "decision": "Prioritize a small number of strong targets that are reconstructable and legible over a broad survey of loosely related papers."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

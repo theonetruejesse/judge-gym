@@ -1,0 +1,206 @@
+{
+  "meta": {
+    "name": "V4 Paper Target Viability",
+    "slug": "v4-paper-target-viability",
+    "objective": "Determine which candidate published papers are actually viable targets for judge-gym V4 audits, based on current conversation context, thread export clues, and source-backed checks of dataset/prompt/protocol reproducibility and engine fit.",
+    "objectiveClass": "research_audit_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability"
+  },
+  "compile": {
+    "baseHint": "Use the thread export to recover the candidate paper set, then verify target viability against primary sources and reproducibility surfaces. Prefer a small number of strong V4 targets over a long undifferentiated list.",
+    "taskSignals": [
+      "User explicitly requested deep-workflow execution for candidate-paper viability.",
+      "Current V4 direction is a two-track program: contested-concept core plus targeted audits of published evaluator pipelines.",
+      "Primary success artifact is a ranked shortlist of papers that judge-gym can realistically target."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq",
+      "parallel",
+      "search",
+      "agent",
+      "falsify",
+      "score",
+      "synthesize"
+    ],
+    "notes": [
+      "Treat public data/materials availability and faithful pipeline reconstruction as first-order viability criteria.",
+      "Separate direct audit targets from framing-only papers.",
+      "Bias toward targets that fit judge-gym's current and near-term primitives: EvidenceUniverse, AdjudicativeRubric, ScoringRegime.",
+      "The workflow is operationally read-only even though operatingMode is set to live_ops to satisfy the validator's current rule that web-backed nodes require the live_ops mode."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/Downloads/Threads Export Mar 23 2026.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v3_gpt_ablations.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.spawn_agent",
+      "functions.send_input",
+      "functions.wait_agent",
+      "web.run"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "search",
+        "role": "export-target-miner"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "social-science-paper-viability"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "benchmark-and-opinion-paper-viability"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "agent",
+        "role": "methods-support-paper-filter"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "falsify",
+        "role": "fairness-and-feasibility-challenger"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "score",
+        "role": "target-ranker"
+      },
+      {
+        "nodeId": "N07",
+        "kind": "synthesize",
+        "role": "lead-synthesizer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N07",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/export_candidate_map.md",
+      "agents/N02/social_science_targets.md",
+      "agents/N03/benchmark_opinion_targets.md",
+      "agents/N04/methods_support_filter.md",
+      "agents/N05/fairness_feasibility_challenges.md",
+      "agents/N06/target_scores.md",
+      "synthesis/final_report.md"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "decision",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when each candidate paper discussed in the export is classified as primary, secondary, or framing-only with evidence-backed rationale.",
+      "Do not recommend more than five primary or near-primary V4 audit targets."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxWebSearchRounds": 6,
+      "preferredPrimarySources": [
+        "publisher pages",
+        "official paper PDFs",
+        "official project pages",
+        "official code/data repositories"
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "nodeId": "N04",
+  "kind": "agent",
+  "role": "methods-support-paper-filter",
+  "objective": "Evaluate whether methods and judge-bias papers mentioned in the export, such as Stureborg, Wei, Thakur, and Shi, should be treated as direct audit targets or framing/supporting literature only.",
+  "inputs": [
+    "agents/N01/export_candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "web.run",
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "methods_support_filter.md"
+  ],
+  "completionCriteria": [
+    "Identify which papers are better used as framing rather than direct replication targets.",
+    "Explain why each paper is or is not a good direct audit case for judge-gym.",
+    "Flag any unexpectedly strong target hidden in the methods set."
+  ]
+}

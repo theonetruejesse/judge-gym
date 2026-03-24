@@ -1,0 +1,59 @@
+{
+  "node": "N02",
+  "captured_at": "2026-03-23T00:00:00-05:00",
+  "scope": "Pre-rerun patch candidates only. This file does not imply execution; it enumerates what would be justified if specific triggers occur.",
+  "blocking": [],
+  "non_blocking": [
+    {
+      "id": "v3_failed_apply_output_capture",
+      "source": "observability_backlog",
+      "status": "open",
+      "summary": "Persist assistant output (or a compact representation) before apply-time parsing, so apply-time failures preserve the exact model output that triggered parsing/contract errors.",
+      "why_it_is_not_blocking_now": "Latest evidence shows full cohort completion with zero errors; this is forensics/diagnostic hardening rather than an unblocker.",
+      "exact_trigger_for_pre_rerun_patch": "If any sanity rerun fails in apply-time parsing/contract validation and the attempt record does not include the assistant output needed to reproduce/debug the failure without Railway/local logs.",
+      "expected_outcome": "Postmortems become self-contained in Convex attempt/run artifacts; diagnosis no longer depends on transient worker logs.",
+      "risk_tradeoff": "Storing full assistant output may increase storage and potentially PII risk depending on prompt contents; consider size caps, redaction, or hashed + sampled capture."
+    },
+    {
+      "id": "window_raw_semantic_split_followup",
+      "source": "observability_backlog",
+      "status": "open",
+      "summary": "Split raw evidence collection from semantic view generation so pipeline identity and model-specific cleaning can evolve independently.",
+      "why_it_is_not_blocking_now": "Not tied to any observed instability in the current V3 sanity loop; large refactor risk outweighs pre-rerun benefit.",
+      "exact_trigger_for_pre_rerun_patch": "If the sanity rerun’s scientific-surface requirements expand (new datasets, new cleaning rules, or collection-vs-transform gating) such that the shared model/data path demonstrably blocks correctness or iteration speed.",
+      "expected_outcome": "Cleaner separation of concerns for future expansion beyond the current corrected V3 matrix.",
+      "risk_tradeoff": "High scope and regression risk; would require targeted validation beyond a quick sanity rerun."
+    },
+    {
+      "id": "v3_reset_incremental_timeout_or_incomplete_cleanup_followup",
+      "source": "inferred_from_bug_ledger_and_rerun_prerequisites",
+      "status": "contingent",
+      "summary": "Further harden incremental cohort reset if the current refactor still times out or leaves artifacts behind during the first reset needed for the rerun.",
+      "why_it_is_not_blocking_now": "Reset timeout is recorded as fixed in repo, but this node has no new evidence of regression; do not preemptively change reset logic without a failing reset attempt.",
+      "exact_trigger_for_pre_rerun_patch": "The first pre-rerun reset attempt (with the current incremental `continueRunReset` flow) fails or does not converge the full cohort to `preflight_clean` within the expected number of scheduled passes.",
+      "expected_outcome": "Reruns become reliably repeatable without operator babysitting or repeated timeouts.",
+      "risk_tradeoff": "Reset logic changes are high blast radius (data deletion); should be driven by concrete failing traces and validated with dry-run summaries where possible."
+    },
+    {
+      "id": "v3_score_stage_preamble_timeout_followup",
+      "source": "inferred_from_bug_ledger_validated_live_item",
+      "status": "contingent",
+      "summary": "If score-stage preamble timeouts recur, further reduce preamble concurrency or move attempt-start persistence behind a smaller, replay-safe, resumable unit (e.g., smaller pages, more checkpoints, or a dedicated persistence activity).",
+      "why_it_is_not_blocking_now": "The previously recurring issue is marked `validated_live` with a zero-error full-cohort completion; do not churn the preamble unless it reproduces.",
+      "exact_trigger_for_pre_rerun_patch": "A sanity rerun reproduces a Temporal activity failure before provider batch creation with a concrete cause consistent with attempt-recording/preamble timeouts.",
+      "expected_outcome": "Restores score-stage repeatability under current workload without requiring manual intervention.",
+      "risk_tradeoff": "Additional checkpoints/serialization can slow throughput; should be applied only if the timeout pattern is observed again."
+    },
+    {
+      "id": "v3_active_reset_callback_race_followup",
+      "source": "inferred_from_bug_ledger_fixed_in_repo_item",
+      "status": "contingent",
+      "summary": "If late callbacks still cause failures/noise during reset, extend the no-op guards and/or add explicit callback tombstones keyed by run/stage to make late arrivals measurable and harmless.",
+      "why_it_is_not_blocking_now": "Ledger indicates a fix exists; N01 evidence did not exercise a forced reset proving pass and shows no current failure symptoms.",
+      "exact_trigger_for_pre_rerun_patch": "During the pre-rerun reset, late stage callbacks still surface as errors or materially degrade observability, despite the no-op guards.",
+      "expected_outcome": "Reset becomes robust even with in-flight workflow callbacks arriving after deletion.",
+      "risk_tradeoff": "Over-broad no-op behavior can hide real bugs; only widen suppression for clearly tombstoned/deleted entities with trace breadcrumbs."
+    }
+  ]
+}
+

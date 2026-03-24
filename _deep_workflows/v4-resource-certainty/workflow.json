@@ -1,0 +1,235 @@
+{
+  "meta": {
+    "name": "V4 Resource Certainty",
+    "slug": "v4-resource-certainty",
+    "objective": "Run a deep-search-style certainty-scored research pass, using a deep-workflow artifact, to determine whether shortlisted V4 candidate-paper resources are reconstructable enough for fair judge-gym audits and which targets are best supported by current public materials.",
+    "objectiveClass": "research_audit_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-resource-certainty"
+  },
+  "compile": {
+    "baseHint": "Use the prior V4 shortlist, the thread export, and primary-source material surfaces to assign certainty-scored viability judgments. The main question is not whether the papers are interesting, but whether their public resources are sufficient for fair evaluator-regime audits with judge-gym.",
+    "taskSignals": [
+      "User requested a deep-search-style certainty pass modified through deep-workflow.",
+      "The target output is a resource-viability assessment, not code changes.",
+      "The workflow must support independent evidence gathering, falsification, and certainty scoring."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq",
+      "parallel",
+      "search",
+      "agent",
+      "analyze",
+      "falsify",
+      "score",
+      "synthesize"
+    ],
+    "notes": [
+      "This workflow is operationally read-only. The live_ops metadata is only to satisfy the current deep-workflow validator for web-backed nodes.",
+      "The lead agent owns the blueprint artifacts and certainty scoring merge.",
+      "Certainty scores should reflect both evidence quality and fairness-of-reconstruction risk."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/Downloads/Threads Export Mar 23 2026.json",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/agents/N06/target_scores.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-target-resource-viability"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.spawn_agent",
+      "functions.send_input",
+      "functions.wait_agent",
+      "web.run"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "search",
+        "role": "candidate-and-criteria-miner"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "social-science-resource-researcher"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "comparator-and-methods-resource-researcher"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "agent",
+        "role": "opinion-expansion-resource-researcher"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "analyze",
+        "role": "engine-fit-and-fairness-criteria-mapper"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "falsify",
+        "role": "resource-viability-falsifier"
+      },
+      {
+        "nodeId": "N07",
+        "kind": "score",
+        "role": "certainty-scorer"
+      },
+      {
+        "nodeId": "N08",
+        "kind": "synthesize",
+        "role": "lead-synthesizer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N07",
+        "to": "N08",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N08",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/candidate_map.md",
+      "agents/N02/social_science_resources.md",
+      "agents/N03/comparator_method_resources.md",
+      "agents/N04/opinion_expansion_resources.md",
+      "agents/N05/engine_fit_criteria.md",
+      "agents/N06/null_challenges.md",
+      "agents/N07/certainty_inputs.md",
+      "synthesis/final_report.md"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "hypothesis",
+      "metric",
+      "decision",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when each target is assigned a recommendation class and an explicit certainty score grounded in public-resource viability.",
+      "Do not recommend a paper as primary if the baseline would require too much reverse engineering."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxWebSearchRounds": 8,
+      "preferredPrimarySources": [
+        "publisher pages",
+        "official paper pages",
+        "official code repositories",
+        "official replication packages"
+      ]
+    }
+  }
+}

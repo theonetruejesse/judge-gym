@@ -1,0 +1,33 @@
+{
+  "nodeId": "N04",
+  "kind": "agent",
+  "role": "opinion-expansion-resource-researcher",
+  "objective": "Assess whether the survey and opinion-style target materially works as a V4 resource candidate or requires too much engine expansion for the current phase.",
+  "inputs": [
+    "agents/N01/candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.spawn_agent",
+    "functions.send_input",
+    "functions.wait_agent",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "opinion_expansion_resources.md"
+  ],
+  "completionCriteria": [
+    "Evaluate Santurkar as a resource-viability candidate.",
+    "Separate resource viability from engine-expansion cost.",
+    "Decide whether Santurkar belongs in the initial V4 bundle or in a later expansion wave."
+  ]
+}

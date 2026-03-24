@@ -1,0 +1,116 @@
+{
+  "node": "N02",
+  "captured_at": "2026-03-23T00:00:00-05:00",
+  "write_scope": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-repeatability-sanity-validation/agents/N02",
+  "inputs": {
+    "n01_completion_state_path": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-repeatability-sanity-validation/agents/N01/completion_state.json",
+    "bug_ledger_path": "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/bug_ledger.json",
+    "observability_backlog_path": "/Users/jesselee/dev/research/jg/judge-gym/_campaigns/v3_finish_pass/observability_backlog.json"
+  },
+  "evidence_summary": {
+    "git_head_from_n01": "2d87a241a42362259a8d07c5ea8e478534089534",
+    "n01_captured_at": "2026-03-23T16:05:00Z",
+    "campaign_state": {
+      "effective_campaign_state": "complete",
+      "scientific_validity": "scientifically_valid",
+      "selected_experiment_count": 18,
+      "completed": 18,
+      "error": 0,
+      "running": 0,
+      "stuck_items": 0,
+      "blocked_task_queues": 0
+    },
+    "representative_run": {
+      "run_id": "kx73pkbf3wm136p046gkwxne1583cjbd",
+      "status": "completed",
+      "failed_stage_count": 0,
+      "target_count": 30,
+      "completed_count": 30
+    },
+    "representative_batches": {
+      "process_id": "kx73pkbf3wm136p046gkwxne1583cjbd",
+      "batch_count": 2,
+      "total_items": 240,
+      "status_counts": {
+        "completed": 2,
+        "failed": 0
+      }
+    },
+    "temporal_queue_health": {
+      "all_ready": true,
+      "backlog_count": 0
+    }
+  },
+  "comparison_against_bug_ledger": {
+    "result": "no_unmitigated_blockers_detected",
+    "notes": [
+      "All bug ledger entries are marked `fixed_in_repo` or `validated_live` as of 2026-03-23.",
+      "The formerly recurring score-stage preamble timeout is explicitly marked `validated_live` with a full-cohort completion validation iteration and a representative run completing score_gen + score_critic with provider batches bound and applied."
+    ],
+    "potentially_rerun_relevant_fixed_items": [
+      "v3_20260322_score_stage_batch_attempt_record_timeout_recurrence",
+      "v3_20260322_score_stage_batch_preamble_timeout",
+      "v3_20260321_batch_transport_apply_brittleness",
+      "v3_20260322_subset_verdict_parser_contract",
+      "v3_20260322_reset_control_timeout",
+      "v3_20260322_active_reset_callback_race"
+    ]
+  },
+  "comparison_against_observability_backlog": {
+    "open_items": [
+      "window_raw_semantic_split_followup",
+      "v3_failed_apply_output_capture"
+    ],
+    "mitigated_or_fixed_items": [
+      "v3_rubric_gate_projection_freshness_false_stall",
+      "v3_score_stage_batch_reconciliation_visibility",
+      "v3_cohort_reset_timeout",
+      "v3_stage_activity_failure_cause_surface"
+    ],
+    "assessment": "Remaining open observability items are not required to execute a sanity rerun given current evidence (full cohort complete, queue idle, no failures)."
+  },
+  "decision": {
+    "recommend_pre_rerun_patch": false,
+    "blocking_patches": [],
+    "non_blocking_backlog": [
+      {
+        "id": "v3_failed_apply_output_capture",
+        "why_not_blocking_now": "No apply-time failures were observed in the latest validated full-loop evidence; adding payload capture improves forensics but does not unblock a currently failing rerun."
+      },
+      {
+        "id": "window_raw_semantic_split_followup",
+        "why_not_blocking_now": "This is an architectural refactor for future expansion; it is not tied to a demonstrated instability in the current V3 sanity loop."
+      }
+    ]
+  },
+  "explicit_triggers_that_would_justify_a_pre_rerun_patch": [
+    {
+      "trigger": "A new rerun attempt hits an apply-time parser/contract failure (e.g., subset verdict parse error) where the persisted attempt record lacks the assistant output needed to diagnose the failure without external logs.",
+      "justifies_patch_candidate_ids": [
+        "v3_failed_apply_output_capture"
+      ]
+    },
+    {
+      "trigger": "The first pre-rerun reset attempt (using the current incremental reset flow) still times out or leaves the cohort in a non-`preflight_clean` state after the expected incremental passes complete.",
+      "justifies_patch_candidate_ids": [
+        "v3_reset_incremental_timeout_or_incomplete_cleanup_followup"
+      ]
+    },
+    {
+      "trigger": "Score-stage preamble attempt-recording timeouts recur (Temporal activity fails before provider batch creation) on the sanity rerun at the current cohort size/settings.",
+      "justifies_patch_candidate_ids": [
+        "v3_score_stage_preamble_timeout_followup"
+      ]
+    },
+    {
+      "trigger": "During reset or forced cleanup, late callbacks again produce non-noop errors (\"Run not found\", \"Score target not found\") that surface as failures or materially spam operator logs.",
+      "justifies_patch_candidate_ids": [
+        "v3_active_reset_callback_race_followup"
+      ]
+    }
+  ],
+  "notes": [
+    "This node intentionally prefers no patch unless there is evidence of renewed failure modes; the N01 snapshot shows the system is currently stable and idle, so the highest-leverage next step is a rerun rather than speculative changes."
+  ]
+}
+

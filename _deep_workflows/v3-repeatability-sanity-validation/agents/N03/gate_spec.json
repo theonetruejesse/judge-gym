@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "node": "N03",
+  "generated_at": "2026-03-23",
+  "inputs": {
+    "n01_completion_state_path": "_deep_workflows/v3-repeatability-sanity-validation/agents/N01/completion_state.json",
+    "campaign_manifest_path": "_campaigns/v3_finish_pass/manifest.json",
+    "campaign_state_path": "_campaigns/v3_finish_pass/campaign_state.json"
+  },
+  "campaign": {
+    "campaign_id": "v3_finish_pass",
+    "manifest_version": 2,
+    "pilot_contract": "corrected_matrix_pilot",
+    "required_experiment_count": 18,
+    "launch_mode": "full",
+    "launch_mode_contract": {
+      "target_count": 30,
+      "pause_after": null,
+      "start_policy": "all"
+    },
+    "required_experiment_tags": [
+      "v3_a1_gpt_4_1_abstain_false",
+      "v3_a1_gpt_4_1_abstain_true",
+      "v3_a1_gpt_5_2_abstain_false",
+      "v3_a1_gpt_5_2_abstain_true",
+      "v3_a2_gpt_4_1_l3",
+      "v3_a2_gpt_5_2_l3",
+      "v3_a4_rubric_gpt_4_1_scoring_gpt_5_2",
+      "v3_a4_rubric_gpt_5_2_scoring_gpt_4_1",
+      "v3_a5_gpt_4_1_illiberal_democracy",
+      "v3_a5_gpt_5_2_illiberal_democracy",
+      "v3_d1_control_gpt_4_1",
+      "v3_d1_control_gpt_5_2",
+      "v3_1_c1_gpt_4_1_bundle_5_random_l2",
+      "v3_1_c1_gpt_5_2_bundle_5_random_l2",
+      "v3_1_c2_gpt_4_1_bundle_5_cluster_l2_v2",
+      "v3_1_c2_gpt_5_2_bundle_5_cluster_l2_v2",
+      "v3_1_c3_gpt_4_1_bundle_5_cluster_l3_v2",
+      "v3_1_c3_gpt_5_2_bundle_5_cluster_l3_v2"
+    ],
+    "monitoring_policy": {
+      "stuck_older_than_ms": 120000,
+      "safe_heal_attempt_limit": 1,
+      "require_temporal_readiness": true
+    },
+    "control_plane_fns": {
+      "snapshot_fn": "packages/codex:getV3CampaignSnapshot",
+      "status_fn": "packages/codex:getV3CampaignStatus",
+      "temporal_readiness_fn": "packages/codex:getTemporalTaskQueueHealth",
+      "batch_reconciliation_fn": "packages/codex:listBatchReconciliationStatus",
+      "inspect_fn": "packages/codex:inspectProcessExecution",
+      "control_fn": "packages/codex:controlProcessExecution",
+      "reset_fn": "packages/codex:resetV3Campaign",
+      "start_fn": "packages/codex:startV3Campaign",
+      "resume_fn": "packages/codex:resumeV3Experiments"
+    }
+  },
+  "baseline": {
+    "captured_at": "2026-03-23T16:05:00Z",
+    "git_head": "2d87a241a42362259a8d07c5ea8e478534089534",
+    "expected_full_pass_shape": {
+      "target_count": 30,
+      "stage_counts_per_run": {
+        "rubric_gen": "target_count",
+        "rubric_critic": "target_count",
+        "score_gen": "4 * target_count",
+        "score_critic": "4 * target_count"
+      }
+    },
+    "representative_run": {
+      "run_id": "kx73pkbf3wm136p046gkwxne1583cjbd",
+      "status": "completed",
+      "current_stage": "score_critic",
+      "target_count": 30,
+      "completed_count": 30,
+      "failed_stage_count": 0
+    },
+    "representative_score_batches": {
+      "batch_count": 2,
+      "expected_min": 2,
+      "stages": [
+        "score_gen",
+        "score_critic"
+      ]
+    },
+    "temporal_queue_health": {
+      "all_ready": true,
+      "per_queue_approximate_backlog_count": 0
+    }
+  },
+  "entry_gate": {
+    "intent": "Do not touch live state unless the just-validated full pass is still clean and the worker queues are ready.",
+    "preconditions": [
+      {
+        "id": "campaign_reset_allowed",
+        "source": "campaign_state.json",
+        "require": {
+          "reset_allowed": true,
+          "current_blockers_len": 0
+        }
+      },
+      {
+        "id": "fresh_snapshot_clean_and_idle",
+        "source": "snapshot_fn",
+        "require": {
+          "effective_campaign_state_in": [
+            "complete",
+            "validated"
+          ],
+          "blocked_task_queues_len": 0,
+          "status": {
+            "scientific_validity": "scientifically_valid",
+            "selected_experiment_count": 18,
+            "missing_experiment_tags_len": 0,
+            "counts": {
+              "running": 0,
+              "error": 0,
+              "latest_runs_with_failures": 0
+            },
+            "stuck_items_len": 0
+          }
+        }
+      },
+      {
+        "id": "temporal_ready_and_idle",
+        "source": "temporal_readiness_fn",
+        "require": {
+          "all_ready": true,
+          "queues_approximate_backlog_count_max": 0
+        }
+      }
+    ],
+    "on_failure": {
+      "action": "no_go",
+      "reason": "Baseline is not clean/idle or Temporal queues are not ready; capture forensics and stop."
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "checkpoint_a_pre_reset_snapshot",
+      "intent": "Capture baseline right before any reset so the sanity rerun can be compared to the validated full pass.",
+      "calls": [
+        "packages/codex:getV3CampaignSnapshot",
+        "packages/codex:getTemporalTaskQueueHealth"
+      ],
+      "success_criteria": [
+        "entry_gate.preconditions are all satisfied"
+      ]
+    },
+    {
+      "id": "checkpoint_b_reset_to_preflight_clean",
+      "intent": "Prove the cohort can return to a relaunchable state without cleanup races or residual stuck items.",
+      "calls": [
+        "packages/codex:resetV3Campaign",
+        "packages/codex:getV3CampaignSnapshot"
+      ],
+      "poll_until": {
+        "effective_campaign_state": "preflight_clean",
+        "launch_ready": true,
+        "blocked_task_queues_len": 0,
+        "status": {
+          "counts": {
+            "running": 0
+          },
+          "stuck_items_len": 0
+        }
+      },
+      "timeout_ms": 900000,
+      "on_failure": {
+        "action": "stop",
+        "reason": "Reset did not converge to preflight_clean quickly/reliably."
+      }
+    },
+    {
+      "id": "checkpoint_c_launch_integrity",
+      "intent": "Prove the full cohort relaunch binds workflows, queues stay healthy, and the control plane sees all 18 latest runs.",
+      "calls": [
+        "packages/codex:startV3Campaign",
+        "packages/codex:getV3CampaignSnapshot",
+        "packages/codex:getTemporalTaskQueueHealth"
+      ],
+      "require": {
+        "status": {
+          "selected_experiment_count": 18,
+          "missing_experiment_tags_len": 0,
+          "counts": {
+            "with_latest_run": 18
+          }
+        },
+        "temporal_readiness": {
+          "all_ready": true
+        }
+      },
+      "timeout_ms": 300000,
+      "on_failure": {
+        "action": "stop",
+        "reason": "Launch did not bind cleanly or queue readiness degraded."
+      }
+    },
+    {
+      "id": "checkpoint_d_direct_policy_rubric_stages",
+      "intent": "Confirm 30-target rubric stages do not create provider batches (direct-only policy preserved).",
+      "calls": [
+        "packages/codex:listBatchReconciliationStatus"
+      ],
+      "selection": {
+        "representative_run_source": "snapshot_fn.latest_runs_any",
+        "require_target_count": 30,
+        "prefer_current_stage_in": [
+          "rubric_gen",
+          "rubric_critic"
+        ]
+      },
+      "require": {
+        "reconciliation": {
+          "stage_in": [
+            "rubric_gen",
+            "rubric_critic"
+          ],
+          "summary": {
+            "batch_count": 0
+          }
+        }
+      },
+      "timeout_ms": 600000,
+      "on_failure": {
+        "action": "stop",
+        "reason": "Rubric stages unexpectedly used batch path; indicates policy drift or regression."
+      }
+    },
+    {
+      "id": "checkpoint_e_first_score_gen_batch_submitted",
+      "intent": "Primary repeatability proof point for the recently-patched score-stage batch preamble: at least one score_gen batch reaches submitted without process error.",
+      "calls": [
+        "packages/codex:listBatchReconciliationStatus",
+        "packages/codex:getV3CampaignSnapshot"
+      ],
+      "selection": {
+        "representative_run_source": "snapshot_fn.latest_runs_any",
+        "require_target_count": 30,
+        "require_current_stage_at_least": "score_gen"
+      },
+      "require": {
+        "reconciliation": {
+          "stage": "score_gen",
+          "summary": {
+            "status_counts": {
+              "submitted_or_completed_min": 1,
+              "failed": 0
+            }
+          },
+          "any_batch": {
+            "provider_batch_id_required": true
+          }
+        },
+        "snapshot": {
+          "status": {
+            "counts": {
+              "error": 0,
+              "latest_runs_with_failures": 0
+            }
+          }
+        }
+      },
+      "timeout_ms": 3600000,
+      "on_failure": {
+        "action": "stop",
+        "reason": "Score-stage batch submission did not occur or the run surfaced a process error before submission."
+      }
+    }
+  ],
+  "stop_conditions": [
+    {
+      "id": "temporal_not_ready",
+      "trigger": "temporal_readiness_fn.all_ready == false",
+      "action": "stop"
+    },
+    {
+      "id": "scientifically_invalid_or_unknown",
+      "trigger": "snapshot_fn.effective_campaign_state in ['scientifically_invalid','stalled_unknown']",
+      "action": "stop"
+    },
+    {
+      "id": "stuck_items_persist",
+      "trigger": "snapshot_fn.stuck_items_len > 0 AND stuck_age_ms >= monitoring_policy.stuck_older_than_ms",
+      "action": "attempt_one_safe_heal_then_stop_if_not_cleared"
+    },
+    {
+      "id": "blocked_task_queues",
+      "trigger": "snapshot_fn.blocked_task_queues_len > 0",
+      "action": "stop"
+    }
+  ],
+  "validated_sanity_rerun_definition_for_this_turn": {
+    "required_checkpoint_ids": [
+      "checkpoint_b_reset_to_preflight_clean",
+      "checkpoint_c_launch_integrity",
+      "checkpoint_d_direct_policy_rubric_stages",
+      "checkpoint_e_first_score_gen_batch_submitted"
+    ],
+    "explicitly_not_required": [
+      "Full terminal cohort completion (all runs completed through score_critic)."
+    ]
+  }
+}

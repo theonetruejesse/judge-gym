@@ -1,0 +1,30 @@
+{
+  "nodeId": "N05",
+  "kind": "analyze",
+  "role": "engine-fit-and-fairness-criteria-mapper",
+  "objective": "Map target-resource viability onto judge-gym's current and near-term primitives, using local project context to define what counts as a fair reconstruction burden.",
+  "inputs": [
+    "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+    "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-target-resource-viability"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05/",
+  "requiredOutputs": [
+    "engine_fit_criteria.md"
+  ],
+  "completionCriteria": [
+    "Define the fairness-of-reconstruction criteria.",
+    "Define the engine-lift bands used in the certainty scoring.",
+    "Explain which resource gaps are fatal versus tolerable."
+  ]
+}

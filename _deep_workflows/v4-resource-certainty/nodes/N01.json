@@ -1,0 +1,29 @@
+{
+  "nodeId": "N01",
+  "kind": "search",
+  "role": "candidate-and-criteria-miner",
+  "objective": "Recover the candidate paper set, prior shortlist logic, and explicit evaluation criteria for resource viability and fair reconstruction.",
+  "inputs": [
+    "/Users/jesselee/Downloads/Threads Export Mar 23 2026.json",
+    "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+    "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/agents/N06/target_scores.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "candidate_map.md"
+  ],
+  "completionCriteria": [
+    "Enumerate the candidate papers under consideration.",
+    "Record the shortlist logic from the prior workflow and the thread export.",
+    "Define the viability criteria that downstream nodes will use."
+  ]
+}

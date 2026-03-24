@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_social_003",
+  "areaOfAnalysisID": "A_social_science",
+  "statement": "Törnberg should remain conditional because the resource surface is real but exact-baseline fairness is exposed to model drift and workflow fragility.",
+  "confidence": 0.71,
+  "rationale": "The paper and repo appear materially useful, but the baseline depends on a legacy GPT-4 endpoint and a less hardened reproduction stack.",
+  "keyAssumptions": [
+    "The repo assets are sufficiently complete for a protocol-faithful audit.",
+    "V4 should penalize baseline time-travel risk."
+  ],
+  "validationCriteria": [
+    "The released data and outputs cover the needed sample and label surfaces.",
+    "A fair audit does not require exact replay of the retired model endpoint."
+  ],
+  "critiquePoints": [
+    "Notebook-centric workflows can hide implementation choices.",
+    "Exact-baseline replication may be impossible."
+  ],
+  "questions": []
+}

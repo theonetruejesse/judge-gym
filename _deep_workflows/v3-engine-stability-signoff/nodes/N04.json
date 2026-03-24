@@ -1,0 +1,37 @@
+{
+  "nodeId": "N04",
+  "kind": "falsify",
+  "role": "signoff-plan-falsifier",
+  "objective": "Challenge the compiled stability plan for blind spots, especially around retry overreach, hidden observability costs, false confidence from passing reduced-load chaos tests, and scientific-invalidity edge cases.",
+  "inputs": [
+    "agents/N01/findings.json",
+    "agents/N01/settings_contract.md",
+    "agents/N02/chaos_plan.md",
+    "agents/N02/fault_injection_matrix.json",
+    "agents/N03/test_matrix.md",
+    "agents/N03/signoff_gate.json"
+  ],
+  "dependencies": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "objections.json"
+  ],
+  "completionCriteria": [
+    "Surface the strongest objections to the proposed retry, chaos, and signoff plan.",
+    "Force explicit handling of at least one scientific-validity edge case and one observability scalability edge case.",
+    "Keep objections concrete enough to change patch order or signoff criteria if they stand."
+  ]
+}

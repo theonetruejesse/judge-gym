@@ -1,0 +1,27 @@
+{
+  "nodeId": "N01",
+  "kind": "search",
+  "role": "export-target-miner",
+  "objective": "Read the local thread export and recover the full candidate-paper set discussed for V4, including message references, named papers/authors, and target task families.",
+  "inputs": [
+    "/Users/jesselee/Downloads/Threads Export Mar 23 2026.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "export_candidate_map.md"
+  ],
+  "completionCriteria": [
+    "Enumerate all named candidate papers/authors mentioned in the export.",
+    "Separate concrete papers from general target classes.",
+    "Record the message numbers that justify each candidate."
+  ]
+}

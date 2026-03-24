@@ -1,0 +1,184 @@
+{
+  "meta": {
+    "name": "V3 Engine Stability Signoff",
+    "slug": "v3-engine-stability-signoff",
+    "objective": "Compile a compile-only workflow that defines the remaining engine-stability hardening program: per-work-unit retry semantics in engine settings, deterministic fault injection for chaos testing, final observability and forensic gaps, and the complete test/signoff matrix required before calling the engine stable.",
+    "objectiveClass": "audit",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_only",
+    "status": "compiled",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-engine-stability-signoff"
+  },
+  "compile": {
+    "baseHint": "The engine is operationally much healthier, but signoff is blocked by one remaining product-level failure mode: a single target can still fail terminally without consuming a defined retry budget. The workflow should define the smallest stability program needed to close retry semantics, deterministic chaos coverage, and final signoff criteria without reopening broad architectural work.",
+    "taskSignals": [
+      "The latest sanity rerun crossed the former score-stage timeout boundary without reproducing the old failure family.",
+      "A later full loop completed operationally but the control plane marked the cohort scientifically_invalid because one score target failed with an unrecognized verdict label and its paired downstream target was blocked.",
+      "Diagnostics on the failed run show the target did not consume a three-attempt retry budget; the current behavior is effectively terminal too early for the desired policy.",
+      "Large target-level forensic queries can still exceed read limits, so observability and pagination remain part of stability signoff."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq",
+      "gate",
+      "falsify",
+      "synthesize"
+    ],
+    "notes": [
+      "This is compile-only. It defines the remaining hardening and signoff program but does not patch or relaunch anything itself.",
+      "The intended execution order is: localize retry semantics, define deterministic chaos hooks, define the signoff test matrix, adversarially challenge the plan, then synthesize one patch-and-validation roadmap.",
+      "The workflow should treat per-work-unit retry semantics as an engine-settings contract, not as ad hoc logic hidden in stage-specific code."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_campaigns/v3_finish_pass/manifest.json",
+      "_campaigns/v3_finish_pass/campaign_state.json",
+      "_campaigns/v3_finish_pass/bug_ledger.json",
+      "_campaigns/v3_finish_pass/observability_backlog.json",
+      "_deep_workflows/v3-repeatability-sanity-validation/",
+      "apps/engine-temporal/src/run/service.ts",
+      "apps/engine-convex/convex/packages/worker.ts",
+      "apps/engine-convex/convex/domain/runs/run_parsers.ts",
+      "packages/engine-settings/src/index.ts",
+      "README.md"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": [
+      "Current live cohort state from control-plane checks should be treated as context, not as a required execution input for this compile-only artifact."
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01",
+      "N02",
+      "N03"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "agent",
+        "role": "retry-semantics-auditor"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "chaos-harness-designer"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "signoff-matrix-designer"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "falsify",
+        "role": "signoff-plan-falsifier"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "synthesize",
+        "role": "stability-closure-roadmap"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N05",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/patch_program.json",
+      "synthesis/signoff_matrix.md",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/findings.json",
+      "agents/N01/settings_contract.md",
+      "agents/N02/chaos_plan.md",
+      "agents/N02/fault_injection_matrix.json",
+      "agents/N03/test_matrix.md",
+      "agents/N03/signoff_gate.json",
+      "agents/N04/objections.json",
+      "agents/N05/final_report.md",
+      "agents/N05/patch_program.json",
+      "agents/N05/signoff_matrix.md"
+    ],
+    "artifactTypes": [
+      "finding",
+      "patch_candidate",
+      "decision",
+      "report",
+      "validation_result"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop at compilation. Do not patch code, deploy runtime changes, or launch live chaos runs from this workflow artifact.",
+      "The compiled plan must produce one explicit answer for what must pass before the engine can be called stable enough for signoff.",
+      "If a proposed test or patch is not tied to a concrete observed risk, it should be pushed to backlog rather than included in the required signoff gate."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxParallelEntryNodes": 3,
+      "maxExecutionPhases": 3
+    }
+  }
+}

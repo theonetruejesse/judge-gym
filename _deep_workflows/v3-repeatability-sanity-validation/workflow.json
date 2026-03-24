@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "name": "V3 Repeatability Sanity Validation",
+    "slug": "v3-repeatability-sanity-validation",
+    "objective": "Identify any remaining patches after the validated full V3 completion, define the scaffolding needed for repeatable sanity reruns, and decide whether to relaunch a new sanity run immediately.",
+    "objectiveClass": "validation",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "compiled",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-repeatability-sanity-validation"
+  },
+  "compile": {
+    "baseHint": "Use the just-completed full V3 pass as the baseline, prefer no new patch unless a concrete blocker emerges, and only relaunch after an explicit repeatability gate says the runtime is still clean enough to trust another run.",
+    "taskSignals": [
+      "The latest full 18-experiment V3 pass completed scientifically valid with zero run errors.",
+      "The score-stage batch-attempt timeout is now validated live, but repeatability still needs another sanity rerun to prove the pass is not one-off luck.",
+      "The user explicitly wants deep-workflow scaffolding around identifying any remaining patches, defining the rerun scaffolding, and then trying again."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq",
+      "gate",
+      "checkpoint",
+      "synthesize",
+      "validate"
+    ],
+    "notes": [
+      "This workflow is compile-and-execute.",
+      "Patches are conditional, not assumed. If the repeatability audit finds no new blocker, the workflow should relaunch without code changes.",
+      "The sanity rerun does not need to wait for full terminal completion in this turn if it would take many hours; the gate can validate repeatability at launch integrity, direct-policy correctness, and first score-stage batch submission."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_campaigns/v3_finish_pass/manifest.json",
+      "_campaigns/v3_finish_pass/campaign_state.json",
+      "_campaigns/v3_finish_pass/bug_ledger.json",
+      "_campaigns/v3_finish_pass/observability_backlog.json",
+      "_campaigns/v3_finish_pass/iterations/20260323T065235Z_full_loop_completion_validation/",
+      "_campaigns/v3_finish_pass/iterations/20260322T215646Z_score_gen_batch_attempt_timeout_recurrence/",
+      "_deep_workflows/v3-score-stage-stability-closure/"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "railway",
+      "convex wrappers"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": [
+      "CONVEX_URL",
+      "Railway linked project"
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01",
+      "N02",
+      "N03"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "query",
+        "role": "live-completion-baseline"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "remaining-patch-auditor"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "repeatability-scaffolding-designer"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "synthesize",
+        "role": "relaunch-gate"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "script",
+        "role": "sanity-rerun-executor"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N05",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/relaunch_gate.json",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/manifest.json",
+      "agents/N01/run_log.json",
+      "agents/N01/completion_state.json",
+      "agents/N02/findings.json",
+      "agents/N02/patch_candidates.json",
+      "agents/N03/scaffolding_plan.md",
+      "agents/N03/gate_spec.json",
+      "agents/N05/manifest.json",
+      "agents/N05/run_log.json",
+      "agents/N05/sanity_run_result.json"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "patch_candidate",
+      "decision",
+      "validation_result",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Abort relaunch if the patch audit finds a new concrete blocker that would invalidate another live pass.",
+      "Abort relaunch if reset cannot return the cohort to preflight_clean with healthy queues.",
+      "Treat the sanity rerun as validated for this turn once launch integrity is clean, 30-target stages stay direct-only, and at least one representative score_gen batch reaches submitted with no worker/process error."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxLiveRelaunches": 1,
+      "maxPatchPassesBeforeRelaunch": 1
+    }
+  }
+}

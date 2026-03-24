@@ -1,0 +1,33 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "comparator-and-methods-resource-researcher",
+  "objective": "Assess resource viability for comparator and methods targets, focusing on which cases are reconstructable enough to serve as real audits versus framing support only.",
+  "inputs": [
+    "agents/N01/candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.spawn_agent",
+    "functions.send_input",
+    "functions.wait_agent",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "requiredOutputs": [
+    "comparator_method_resources.md"
+  ],
+  "completionCriteria": [
+    "Evaluate Zheng, Thakur, Wei, Shi, and Stureborg against resource-viability criteria.",
+    "Separate clean comparator targets from framing-only literature.",
+    "Call out any engine generalizations that would still block a fair audit."
+  ]
+}

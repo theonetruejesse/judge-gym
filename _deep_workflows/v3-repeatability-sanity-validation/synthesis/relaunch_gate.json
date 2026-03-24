@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-03-23T16:12:00Z",
+  "decision": "go",
+  "summary": "Proceed with one manifest-scoped full sanity rerun. The latest full cohort is still scientifically valid and queue-idle, the patch audit found no active blocker, and the rerun can be validated through launch integrity, direct-policy correctness, and first score-stage provider batch submission.",
+  "blocking_patch_required": false,
+  "blocking_patch_ids": [],
+  "preconditions": [
+    "Reset the complete cohort back to preflight_clean.",
+    "Verify launch_ready=true, all 18 experiments in start, and healthy Temporal queues before relaunch.",
+    "Use the manifest full launch mode without changing cohort membership or settings."
+  ],
+  "validation_checkpoints": [
+    "All 18 experiments bind fresh latest runs after launch.",
+    "Representative 30-target rubric stages remain direct-only with batch_count=0.",
+    "At least one representative score_gen batch binds a provider_batch_id without reproducing the batch-attempt timeout family."
+  ],
+  "stop_conditions": [
+    "scientifically_invalid",
+    "stalled_unknown",
+    "stalled_recoverable after one bounded safe-heal",
+    "reproduction of reset cleanup regression",
+    "reproduction of under-35 batch-policy drift",
+    "reproduction of score-stage preamble/attempt-record timeout"
+  ],
+  "notes": [
+    "Do not make speculative code changes before the rerun.",
+    "Treat any new regression as a fresh bounded iteration with forensics before patching."
+  ]
+}

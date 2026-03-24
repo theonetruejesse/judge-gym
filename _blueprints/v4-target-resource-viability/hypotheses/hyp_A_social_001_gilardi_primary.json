@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_social_001",
+  "areaOfAnalysisID": "A_social_science",
+  "statement": "Gilardi is a primary V4 target because its public resources and protocol details are sufficient for a fair evaluator-regime audit with manageable engine lift.",
+  "confidence": 0.89,
+  "rationale": "The paper appears to expose task definitions, codebooks, protocol details, and a replication package surface strong enough for protocol-faithful reconstruction.",
+  "keyAssumptions": [
+    "The replication package contains the needed codebook and sample artifacts.",
+    "A fair audit does not require exact historical replay of the original API alias."
+  ],
+  "validationCriteria": [
+    "Replication materials are materially complete for the core tasks.",
+    "Prompt/codebook reconstruction does not require major reverse engineering."
+  ],
+  "critiquePoints": [
+    "Tweet-ID-only sharing may create incomplete data recovery.",
+    "Historical API drift reduces exact-baseline fidelity."
+  ],
+  "questions": []
+}

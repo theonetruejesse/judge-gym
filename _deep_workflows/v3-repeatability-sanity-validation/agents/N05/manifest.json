@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "nodeId": "N05",
+  "kind": "script",
+  "createdAt": "2026-03-23T17:25:00Z",
+  "inputs": [
+    "synthesis/relaunch_gate.json",
+    "_campaigns/v3_finish_pass/manifest.json"
+  ],
+  "outputs": [
+    "run_log.json",
+    "sanity_run_result.json"
+  ],
+  "toolVersions": [
+    "scripts/run_convex.sh"
+  ]
+}

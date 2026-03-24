@@ -1,0 +1,18 @@
+{
+  "microHypothesisID": "h_A_comp_001",
+  "areaOfAnalysisID": "A_comparators",
+  "statement": "Zheng / MT-Bench is the cleanest comparator target because its benchmark, human judgments, and judging pipeline are public enough to support a fair audit.",
+  "confidence": 0.93,
+  "rationale": "The paper and official artifacts expose the benchmark surface and human labels unusually clearly.",
+  "keyAssumptions": [
+    "Protocol-faithful reconstruction is acceptable even if historical GPT-4 behavior cannot be exactly replayed."
+  ],
+  "validationCriteria": [
+    "Public artifacts cover benchmark items, human labels, and the judging workflow.",
+    "A comparator audit can use archived or reconstructed judge outputs fairly."
+  ],
+  "critiquePoints": [
+    "Exact replay still depends on paper-era GPT-4 behavior."
+  ],
+  "questions": []
+}

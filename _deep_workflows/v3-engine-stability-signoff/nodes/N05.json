@@ -1,0 +1,41 @@
+{
+  "nodeId": "N05",
+  "kind": "synthesize",
+  "role": "stability-closure-roadmap",
+  "objective": "Merge the retry audit, chaos design, signoff matrix, and falsifier objections into one final patch-and-validation roadmap that defines exactly what must happen before the engine can be called stable.",
+  "inputs": [
+    "agents/N01/findings.json",
+    "agents/N01/settings_contract.md",
+    "agents/N02/chaos_plan.md",
+    "agents/N02/fault_injection_matrix.json",
+    "agents/N03/test_matrix.md",
+    "agents/N03/signoff_gate.json",
+    "agents/N04/objections.json"
+  ],
+  "dependencies": [
+    "N01",
+    "N02",
+    "N03",
+    "N04"
+  ],
+  "effects": [
+    "read_state",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "synthesis/",
+  "requiredOutputs": [
+    "patch_program.json",
+    "signoff_matrix.md",
+    "final_report.md"
+  ],
+  "completionCriteria": [
+    "Emit one concrete patch program in priority order.",
+    "Emit one complete signoff matrix covering local, chaos, and live tests.",
+    "Make the final go/no-go bar for engine stability explicit."
+  ]
+}

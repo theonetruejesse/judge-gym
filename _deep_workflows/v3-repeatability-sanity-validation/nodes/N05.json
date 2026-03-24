@@ -1,0 +1,37 @@
+{
+  "nodeId": "N05",
+  "kind": "script",
+  "role": "sanity-rerun-executor",
+  "objective": "If the relaunch gate says go, return the completed cohort to preflight_clean, relaunch one new full sanity run, and capture enough live evidence to confirm repeatability at launch integrity, direct-policy correctness, and first score-stage batch submission.",
+  "inputs": [
+    "synthesis/relaunch_gate.json",
+    "_campaigns/v3_finish_pass/manifest.json"
+  ],
+  "dependencies": [
+    "N04"
+  ],
+  "effects": [
+    "read_state",
+    "run_local_scripts",
+    "run_mutating_scripts",
+    "touch_live_ops",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "railway"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05/",
+  "requiredOutputs": [
+    "manifest.json",
+    "run_log.json",
+    "sanity_run_result.json"
+  ],
+  "completionCriteria": [
+    "Reset or otherwise return the cohort to a clean relaunchable state.",
+    "Start one new full sanity run if the gate says go.",
+    "Capture whether the new run revalidates the patched score-stage path up through first score batch submission."
+  ]
+}

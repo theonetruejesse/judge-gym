@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v3-repeatability-sanity-validation",
+    "objective": "Identify any remaining patches after the validated full V3 completion, define the scaffolding needed for repeatable sanity reruns, and decide whether to relaunch a new sanity run immediately.",
+    "objectiveClass": "validation",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "executed",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    "Use the validated full V3 completion as the baseline evidence bundle.",
+    "Prefer no new patch unless the repeatability audit finds a concrete blocker.",
+    "If the relaunch gate stays green, execute one new sanity rerun in this workflow.",
+    "The executed sanity rerun passed the old score-stage failure boundary without reproducing the timeout family."
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "relaunchGate": "synthesis/relaunch_gate.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

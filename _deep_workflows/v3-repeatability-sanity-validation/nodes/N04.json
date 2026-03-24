@@ -1,0 +1,36 @@
+{
+  "nodeId": "N04",
+  "kind": "synthesize",
+  "role": "relaunch-gate",
+  "objective": "Merge the baseline evidence, patch audit, and scaffolding plan into one explicit relaunch decision and execution contract.",
+  "inputs": [
+    "agents/N01/completion_state.json",
+    "agents/N02/findings.json",
+    "agents/N02/patch_candidates.json",
+    "agents/N03/scaffolding_plan.md",
+    "agents/N03/gate_spec.json"
+  ],
+  "dependencies": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "effects": [
+    "read_state",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "shell"
+  ],
+  "allowedScripts": [],
+  "writeScope": "synthesis/",
+  "requiredOutputs": [
+    "relaunch_gate.json",
+    "final_report.md"
+  ],
+  "completionCriteria": [
+    "Emit a single go/no-go decision for the sanity rerun.",
+    "Name any blocking patch if the answer is no.",
+    "Name the exact validation checkpoints if the answer is yes."
+  ]
+}

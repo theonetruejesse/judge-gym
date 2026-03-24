@@ -1,0 +1,49 @@
+{
+  "version": "1.0",
+  "nodeId": "N05",
+  "kind": "script",
+  "entries": [
+    {
+      "ts": "2026-03-23T16:12:00Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/codex:resetV3Campaign <manifest tags>",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:13:00Z",
+      "tool": "shell",
+      "action": "poll packages/codex:getV3CampaignSnapshot until preflight_clean",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:14:00Z",
+      "tool": "shell",
+      "action": "bash scripts/run_convex.sh packages/codex:startV3Campaign <mode=full, manifest tags>",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:15:00Z",
+      "tool": "shell",
+      "action": "poll campaign snapshot and queue health for launch integrity",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:16:00Z",
+      "tool": "shell",
+      "action": "query representative run summaries and batch reconciliation for direct-policy correctness",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T16:20:00Z",
+      "tool": "shell",
+      "action": "continue polling representative run through rubric_gen and rubric_critic transitions",
+      "result": "ok"
+    },
+    {
+      "ts": "2026-03-23T17:20:00Z",
+      "tool": "shell",
+      "action": "observe representative score_gen batch execution entering preparing and recording all 120 attempt starts with no failures",
+      "result": "ok"
+    }
+  ]
+}

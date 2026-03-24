@@ -1,0 +1,32 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "remaining-patch-auditor",
+  "objective": "Decide whether any additional patch is justified before a new sanity rerun by comparing the successful full-loop evidence against the current bug ledger and open observability backlog.",
+  "inputs": [
+    "agents/N01/completion_state.json",
+    "_campaigns/v3_finish_pass/bug_ledger.json",
+    "_campaigns/v3_finish_pass/observability_backlog.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "requiredOutputs": [
+    "findings.json",
+    "patch_candidates.json"
+  ],
+  "completionCriteria": [
+    "State whether any blocker warrants patching before relaunch.",
+    "Separate blocking patches from non-blocking backlog items.",
+    "Name the exact trigger that would justify a pre-rerun patch."
+  ]
+}

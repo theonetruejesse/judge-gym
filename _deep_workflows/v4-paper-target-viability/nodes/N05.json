@@ -1,0 +1,33 @@
+{
+  "nodeId": "N05",
+  "kind": "falsify",
+  "role": "fairness-and-feasibility-challenger",
+  "objective": "Adversarially challenge the emerging shortlist for overreach, unfair replication risk, weak reproducibility, or weak fit with judge-gym's current and near-term engine abstractions.",
+  "inputs": [
+    "agents/N02/social_science_targets.md",
+    "agents/N03/benchmark_opinion_targets.md",
+    "agents/N04/methods_support_filter.md"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05/",
+  "requiredOutputs": [
+    "fairness_feasibility_challenges.md"
+  ],
+  "completionCriteria": [
+    "Produce concrete challenges against each apparent top target.",
+    "Call out where the shortlist is drifting from contested-concept audit toward generic LLM eval.",
+    "Identify any target that looks flashy but is probably not fair or feasible for V4."
+  ]
+}

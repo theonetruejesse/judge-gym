@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_social_002",
+  "areaOfAnalysisID": "A_social_science",
+  "statement": "Ziems is a primary V4 target only when treated as a scoped subset rather than a whole-program replication.",
+  "confidence": 0.77,
+  "rationale": "The official repo and paper give a real audit surface, but the full suite is too broad and heterogeneous for a fair first-wave audit.",
+  "keyAssumptions": [
+    "A narrow subset of public label-based tasks can be selected.",
+    "Those tasks still download and execute cleanly."
+  ],
+  "validationCriteria": [
+    "Chosen tasks have stable data access and obvious output spaces.",
+    "Subset-level audit remains recognizable as a fair engagement with the paper."
+  ],
+  "critiquePoints": [
+    "Some tasks may rely on brittle sources or unavailable model endpoints.",
+    "Whole-suite reproduction would exceed reasonable first-wave scope."
+  ],
+  "questions": []
+}

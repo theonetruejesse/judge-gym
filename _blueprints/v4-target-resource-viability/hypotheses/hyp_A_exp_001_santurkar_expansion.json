@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_A_exp_001",
+  "areaOfAnalysisID": "A_expansion",
+  "statement": "Santurkar is a strong expansion target because the resources are real, but the engine-lift cost makes it a better later-wave audit than an initial launch-bundle paper.",
+  "confidence": 0.86,
+  "rationale": "The public bundle and protocol are relatively strong, but the audit surface is distributional and weighted rather than standard single-item coding.",
+  "keyAssumptions": [
+    "The released bundle contains enough fields for fair recomputation or archived-run auditing.",
+    "V4 launch should prioritize lower-lift targets first."
+  ],
+  "validationCriteria": [
+    "Resource completeness is confirmed.",
+    "Engine-expansion cost remains the main blocker rather than missing materials."
+  ],
+  "critiquePoints": [
+    "Missing weighting fields would reduce exact reproducibility.",
+    "If launch scope expands aggressively, Santurkar could move earlier."
+  ],
+  "questions": []
+}

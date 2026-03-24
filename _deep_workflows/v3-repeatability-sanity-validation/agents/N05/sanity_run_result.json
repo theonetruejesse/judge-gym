@@ -1,0 +1,53 @@
+{
+  "captured_at": "2026-03-23T17:25:00Z",
+  "decision": "validated_for_turn",
+  "pre_rerun_patch_required": false,
+  "reset_result": {
+    "selected_experiment_count": 18,
+    "converged_to_preflight_clean": true,
+    "fallback_needed": false
+  },
+  "launch_result": {
+    "mode": "full",
+    "selected_experiment_count": 18,
+    "all_runs_bound": true,
+    "campaign_state_after_launch": "healthy_progressing"
+  },
+  "direct_policy_check": {
+    "representative_120_run_id": "kx7dtchhh2d8fjt4aphzz5gzax83evv4",
+    "representative_600_run_id": "kx758ydnmfmxwc07bs1c3whq6x83ep6b",
+    "batch_count_120_family": 0,
+    "batch_count_600_family": 0,
+    "result": "pass"
+  },
+  "score_stage_check": {
+    "representative_run_id": "kx7dtchhh2d8fjt4aphzz5gzax83evv4",
+    "current_stage": "score_gen",
+    "batch_key": "h_992714a9",
+    "batch_status": "preparing",
+    "provider_batch_id": null,
+    "item_count": 120,
+    "attempt_counts": {
+      "started": 120,
+      "succeeded": 60,
+      "failed": 0
+    },
+    "result": "old timeout family not reproduced; batch execution row exists and full attempt-start preamble completed without failure"
+  },
+  "campaign_snapshot": {
+    "effective_campaign_state": "healthy_progressing",
+    "latest_runs_with_failures": 0,
+    "blocked_task_queues": [],
+    "stage_distribution": {
+      "rubric_critic": 9,
+      "score_gen": 9
+    }
+  },
+  "queue_health": {
+    "all_ready": true,
+    "worker_identity": "1@11034f45235a",
+    "backlog_count": 0
+  },
+  "validation_summary": "The sanity rerun reset cleanly, relaunched all 18 experiments, revalidated the under-35 direct policy, and progressed past the former score-stage timeout boundary. The representative score_gen batch is still in preparing with all 120 attempt starts recorded and no failures, which is materially beyond the previous failure point.",
+  "remaining_uncertainty": "The observed window did not yet include provider_batch_id binding for the representative score_gen batch, so the turn validated score-stage preamble repeatability rather than full provider submission timing."
+}

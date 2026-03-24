@@ -1,0 +1,31 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "social-science-paper-viability",
+  "objective": "Investigate direct V4 audit viability for social-science and political-content-analysis targets such as Gilardi, Tornberg, and concrete incivility or political annotation candidates mentioned in the export.",
+  "inputs": [
+    "agents/N01/export_candidate_map.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "web.run",
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "requiredOutputs": [
+    "social_science_targets.md"
+  ],
+  "completionCriteria": [
+    "Check primary-source availability for paper pages, datasets, prompts/codebooks, and code/materials where possible.",
+    "Classify each investigated target as strong target, possible target, or framing only.",
+    "Note engine-fit implications for EvidenceUniverse, AdjudicativeRubric, and ScoringRegime."
+  ]
+}

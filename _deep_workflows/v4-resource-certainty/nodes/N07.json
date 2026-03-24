@@ -1,0 +1,39 @@
+{
+  "nodeId": "N07",
+  "kind": "score",
+  "role": "certainty-scorer",
+  "objective": "Assign certainty scores to the target recommendations, evidence clusters, and blueprint steps using the researcher outputs and null challenges.",
+  "inputs": [
+    "agents/N02/social_science_resources.md",
+    "agents/N03/comparator_method_resources.md",
+    "agents/N04/opinion_expansion_resources.md",
+    "agents/N05/engine_fit_criteria.md",
+    "agents/N06/null_challenges.md"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04",
+    "N05",
+    "N06"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.spawn_agent",
+    "functions.send_input",
+    "functions.wait_agent"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N07/",
+  "requiredOutputs": [
+    "certainty_inputs.md"
+  ],
+  "completionCriteria": [
+    "Assign certainty bands to each target recommendation.",
+    "Explain why each score is not higher.",
+    "Produce scores that can be copied into the blueprint certainty report."
+  ]
+}

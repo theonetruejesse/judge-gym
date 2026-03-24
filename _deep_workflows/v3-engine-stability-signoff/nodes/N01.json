@@ -1,0 +1,35 @@
+{
+  "nodeId": "N01",
+  "kind": "agent",
+  "role": "retry-semantics-auditor",
+  "objective": "Localize where singular work units become terminal too early, define the desired retry contract at the engine-settings layer, and identify the smallest patch surface needed to enforce three attempts before permanent failure for retryable unit-level errors.",
+  "inputs": [
+    "_campaigns/v3_finish_pass/bug_ledger.json",
+    "_campaigns/v3_finish_pass/observability_backlog.json",
+    "apps/engine-temporal/src/run/service.ts",
+    "apps/engine-convex/convex/packages/worker.ts",
+    "apps/engine-convex/convex/domain/runs/run_parsers.ts",
+    "packages/engine-settings/src/index.ts"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "findings.json",
+    "settings_contract.md"
+  ],
+  "completionCriteria": [
+    "Identify the current retry classification boundary for singular rubric/score work units.",
+    "Define which error classes should be retryable versus terminal.",
+    "Propose an engine-settings-level contract, including defaults and likely stage-specific overrides."
+  ]
+}

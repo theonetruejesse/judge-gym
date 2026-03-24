@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-resource-certainty",
+    "objective": "Run a deep-search-style certainty-scored research pass, using a deep-workflow artifact, to determine whether shortlisted V4 candidate-paper resources are reconstructable enough for fair judge-gym audits and which targets are best supported by current public materials.",
+    "objectiveClass": "research_audit_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed",
+      "N06": "completed",
+      "N07": "completed",
+      "N08": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "decision": "Treat the question as a research-only certainty exercise over target viability, not as an implementation pass."
+    },
+    {
+      "id": "D02",
+      "decision": "Use public-resource sufficiency and fairness-of-reconstruction as the core scoring dimensions."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

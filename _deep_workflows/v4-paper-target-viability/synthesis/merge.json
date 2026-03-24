@@ -1,0 +1,12 @@
+{
+  "pending": false,
+  "sources": [
+    "agents/N01/export_candidate_map.md",
+    "agents/N02/social_science_targets.md",
+    "agents/N03/benchmark_opinion_targets.md",
+    "agents/N04/methods_support_filter.md",
+    "agents/N05/fairness_feasibility_challenges.md",
+    "agents/N06/target_scores.md"
+  ],
+  "decision": "Recommend Gilardi and a scoped Ziems subset as the primary V4 launch targets, with Santurkar or Zheng occupying the third slot depending on whether V4 prioritizes breadth or comparator clarity."
+}

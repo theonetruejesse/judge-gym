@@ -1,0 +1,32 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "repeatability-scaffolding-designer",
+  "objective": "Define the minimal scaffolding needed to make repeatable V3 sanity reruns reliable, inspectable, and comparable to the validated full pass.",
+  "inputs": [
+    "agents/N01/completion_state.json",
+    "_campaigns/v3_finish_pass/manifest.json",
+    "_campaigns/v3_finish_pass/campaign_state.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "requiredOutputs": [
+    "scaffolding_plan.md",
+    "gate_spec.json"
+  ],
+  "completionCriteria": [
+    "Describe the rerun entry gate, monitoring checkpoints, and stop conditions.",
+    "Define what counts as a validated sanity rerun in this turn.",
+    "Keep the scaffolding minimal and grounded in the existing control plane."
+  ]
+}

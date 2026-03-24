@@ -1,0 +1,59 @@
+{
+  "challengeID": "nc_resource_viability_001",
+  "microHypothesisID": "multiple",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Gilardi may be missing enough replication detail to demote it from primary.",
+      "falsificationQueries": [
+        "inspect whether codebooks or task assets might be missing from the replication package",
+        "test whether API drift alone invalidates a protocol-faithful audit"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_social_science_evidence.md",
+        "knowledge/k_004_engine_fit_evidence.md"
+      ],
+      "falsificationAnalysis": "Data completeness and API drift reduce certainty but do not currently block a fair protocol-faithful audit.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Ziems may be too broad to count as a fair first-wave audit target.",
+      "falsificationQueries": [
+        "test whether the whole suite is too heterogeneous",
+        "test whether subset selection would look like cherry-picking"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_social_science_evidence.md",
+        "knowledge/k_004_engine_fit_evidence.md"
+      ],
+      "falsificationAnalysis": "The broad version weakens, but a precommitted subset remains defensible.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Santurkar might be too ambitious for any near-term V4 plan.",
+      "falsificationQueries": [
+        "separate resource viability from engine-lift cost",
+        "test whether missing materials rather than engine expansion is the real blocker"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_003_opinion_expansion_evidence.md",
+        "knowledge/k_004_engine_fit_evidence.md"
+      ],
+      "falsificationAnalysis": "The strongest blocker remains engine-lift cost rather than missing materials, so expansion status holds.",
+      "outcome": "Passed"
+    },
+    {
+      "targetDescription": "Törnberg may actually deserve promotion above conditional.",
+      "falsificationQueries": [
+        "check whether the resource surface is stronger than assumed",
+        "test whether fairness risk is mainly model drift rather than missing assets"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_001_social_science_evidence.md",
+        "knowledge/k_004_engine_fit_evidence.md"
+      ],
+      "falsificationAnalysis": "The challenge narrows the gap but does not remove the fairness risk enough to promote the target today.",
+      "outcome": "Passed"
+    }
+  ],
+  "overallOutcome": "Passed"
+}
