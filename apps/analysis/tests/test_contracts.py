@@ -21,8 +21,11 @@ def _manifest(*, experiment_tag: str, export_schema_version: int) -> dict[str, o
         "experiment": {
             "experiment_id": f"{experiment_tag}_id",
             "experiment_tag": experiment_tag,
-            "pool_id": "pool_1",
-            "pool_tag": "pool_tag",
+            "evidence_source_kind": "evidence_set",
+            "evidence_set_id": "es_1",
+            "evidence_set_tag": "set_tag",
+            "evidence_set_source_kind": "manual_import",
+            "evidence_set_quality_label": "high",
             "model_id": "gpt-4.1",
             "rubric_model": "gpt-4.1",
             "scoring_model": "gpt-4.1",
@@ -62,7 +65,7 @@ class ContractArtifactsTest(unittest.TestCase):
                 snapshot_id = create_snapshot(
                     connection,
                     deployment_url="https://example.convex.cloud",
-                    manifest=_manifest(experiment_tag="v3_demo", export_schema_version=3),
+                    manifest=_manifest(experiment_tag="v3_demo", export_schema_version=4),
                 )
                 mark_snapshot_completed(connection, snapshot_id)
             finally:
@@ -75,7 +78,7 @@ class ContractArtifactsTest(unittest.TestCase):
                 "purpose": "test",
                 "dataSource": {
                     "sqlitePath": str(db_path),
-                    "exportSchemaVersion": 3,
+                    "exportSchemaVersion": 4,
                     "snapshotIds": [snapshot_id],
                     "selectionPolicy": {
                         "includeTagPrefixes": ["v3_"],
@@ -165,7 +168,7 @@ class ContractArtifactsTest(unittest.TestCase):
                     "purpose": "test",
                     "dataSource": {
                         "sqlitePath": "cache.sqlite",
-                        "exportSchemaVersion": 3,
+                        "exportSchemaVersion": 4,
                         "snapshotIds": ["s1"],
                         "selectionPolicy": {
                             "includeTagPrefixes": ["v3_"],
@@ -205,7 +208,7 @@ class ContractArtifactsTest(unittest.TestCase):
                     "purpose": "test",
                     "dataSource": {
                         "sqlitePath": "cache.sqlite",
-                        "exportSchemaVersion": 3,
+                        "exportSchemaVersion": 4,
                         "snapshotIds": ["s1"],
                         "selectionPolicy": {
                             "includeTagPrefixes": ["v3_"],
@@ -278,7 +281,7 @@ class ContractArtifactsTest(unittest.TestCase):
                     "purpose": "test",
                     "dataSource": {
                         "sqlitePath": str(db_path),
-                        "exportSchemaVersion": 3,
+                        "exportSchemaVersion": 4,
                         "snapshotIds": [snapshot_id],
                         "selectionPolicy": {
                             "includeTagPrefixes": ["v3_"],
@@ -353,4 +356,3 @@ class ContractArtifactsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

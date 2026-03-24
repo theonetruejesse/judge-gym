@@ -572,7 +572,7 @@ def _build_sample_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
         non_abstain = group[~group["abstained"]]
         sample_id = str(group["sample_id"].iloc[0])
         bundle_signature = _signature(group["bundle_signature"].astype(str).tolist())
-        window_signature = _signature(_flatten(group["window_ids"]))
+        view_signature = _signature(_flatten(group["evidence_view_ids"]))
         scale_size = int(experiment["scale_size"])
         stage_distribution = _mean_stage_distribution(non_abstain["decoded_scores"], scale_size)
         sample_rows.append(
@@ -585,7 +585,7 @@ def _build_sample_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
                 "response_rows": int(len(group)),
                 "unique_bundle_count": int(group["bundle_signature"].nunique()),
                 "bundle_signature": bundle_signature,
-                "window_signature": window_signature,
+                "view_signature": view_signature,
                 "bundle_size_signature": _signature(group["bundle_size"].astype(str).tolist()),
                 "abstain_rate": float(group["abstained"].mean()),
                 "abstain_count": int(group["abstained"].sum()),
@@ -713,7 +713,7 @@ def _build_evidence_metrics(bundle: SnapshotBundle) -> pd.DataFrame:
                 "bundle_signature": bundle_signature,
                 "response_rows": int(len(group)),
                 "bundle_size": int(group["bundle_size"].iloc[0]),
-                "window_signature": _signature(_flatten(group["window_ids"])),
+                "view_signature": _signature(_flatten(group["evidence_view_ids"])),
                 "abstain_rate": float(group["abstained"].mean()),
                 "singleton_rate": _safe_mean(non_abstain["is_singleton"]),
                 "mean_subset_size": _safe_mean(non_abstain["subset_size"]),
@@ -830,8 +830,8 @@ def _build_bundle_verdict_profiles(bundle: SnapshotBundle) -> pd.DataFrame:
             .fillna(pd.to_numeric(responses["scale_size_meta"], errors="coerce"))
         )
     if "bundle_size" not in responses.columns:
-        if "evidence_ids" in responses.columns:
-            responses["bundle_size"] = responses["evidence_ids"].apply(lambda values: len(values) if isinstance(values, list) else 1)
+        if "evidence_item_ids" in responses.columns:
+            responses["bundle_size"] = responses["evidence_item_ids"].apply(lambda values: len(values) if isinstance(values, list) else 1)
         else:
             responses["bundle_size"] = 1
     else:
@@ -920,8 +920,8 @@ def _build_bundle_belief_profiles(bundle: SnapshotBundle, *, closed_world: bool)
             .fillna(pd.to_numeric(responses["scale_size_meta"], errors="coerce"))
         )
     if "bundle_size" not in responses.columns:
-        if "evidence_ids" in responses.columns:
-            responses["bundle_size"] = responses["evidence_ids"].apply(lambda values: len(values) if isinstance(values, list) else 1)
+        if "evidence_item_ids" in responses.columns:
+            responses["bundle_size"] = responses["evidence_item_ids"].apply(lambda values: len(values) if isinstance(values, list) else 1)
         else:
             responses["bundle_size"] = 1
     else:
@@ -1453,18 +1453,19 @@ def _build_matching_tables(
         ordinals = sorted(set(baseline.index) | set(variant.index))
         matched_rows = 0
         all_checks = []
+        signature_key = "view_signature" if "view_signature" in sample_metrics.columns else "window_signature"
         for ordinal in ordinals:
             left = baseline.loc[ordinal] if ordinal in baseline.index else None
             right = variant.loc[ordinal] if ordinal in variant.index else None
             present_both = left is not None and right is not None
             bundle_match = present_both and left["bundle_signature"] == right["bundle_signature"]
-            window_match = present_both and left["window_signature"] == right["window_signature"]
+            view_match = present_both and left[signature_key] == right[signature_key]
             bundle_size_match = present_both and left["bundle_size_signature"] == right["bundle_size_signature"]
             response_rows_match = present_both and int(left["response_rows"]) == int(right["response_rows"])
             if contrast.match_mode == "window_only":
-                comparable = bool(window_match and bundle_size_match and response_rows_match)
+                comparable = bool(view_match and bundle_size_match and response_rows_match)
             else:
-                comparable = bool(bundle_match and window_match and bundle_size_match)
+                comparable = bool(bundle_match and view_match and bundle_size_match)
             if comparable:
                 matched_rows += 1
             all_checks.append(comparable)
@@ -1482,7 +1483,7 @@ def _build_matching_tables(
                     "baseline_response_rows": None if left is None else int(left["response_rows"]),
                     "variant_response_rows": None if right is None else int(right["response_rows"]),
                     "bundle_signature_match": bool(bundle_match),
-                    "window_signature_match": bool(window_match),
+                    "view_signature_match": bool(view_match),
                     "bundle_size_signature_match": bool(bundle_size_match),
                     "response_rows_match": bool(response_rows_match),
                     "match_mode": contrast.match_mode,

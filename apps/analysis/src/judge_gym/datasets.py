@@ -146,29 +146,31 @@ def _decode_response_frame(frame: pd.DataFrame) -> pd.DataFrame:
     for column in [
         "randomizations_json",
         "decoded_scores_json",
-        "evidence_ids_json",
+        "evidence_set_item_ids_json",
+        "evidence_item_ids_json",
+        "evidence_view_ids_json",
         "evidence_labels_json",
         "evidence_titles_json",
         "evidence_urls_json",
-        "window_ids_json",
         "evidence_positions_json",
     ]:
         frame[column] = frame[column].apply(json.loads)
 
     frame["randomizations"] = frame.pop("randomizations_json")
     frame["decoded_scores"] = frame.pop("decoded_scores_json")
-    frame["evidence_ids"] = frame.pop("evidence_ids_json")
+    frame["evidence_set_item_ids"] = frame.pop("evidence_set_item_ids_json")
+    frame["evidence_item_ids"] = frame.pop("evidence_item_ids_json")
+    frame["evidence_view_ids"] = frame.pop("evidence_view_ids_json")
     frame["evidence_labels"] = frame.pop("evidence_labels_json")
     frame["evidence_titles"] = frame.pop("evidence_titles_json")
     frame["evidence_urls"] = frame.pop("evidence_urls_json")
-    frame["window_ids"] = frame.pop("window_ids_json")
     frame["evidence_positions"] = frame.pop("evidence_positions_json")
     frame["abstain_enabled"] = frame["abstain_enabled"].astype(bool)
     frame["abstained"] = frame["abstained"].astype(bool)
     frame["bundle_label"] = frame["evidence_labels"].apply(lambda vals: " | ".join(vals))
-    frame["bundle_size"] = frame["evidence_ids"].apply(len)
+    frame["bundle_size"] = frame["evidence_item_ids"].apply(len)
     if "bundle_signature" not in frame.columns:
-        frame["bundle_signature"] = frame["evidence_ids"].apply(
+        frame["bundle_signature"] = frame["evidence_item_ids"].apply(
             lambda vals: "|".join(sorted(str(value) for value in vals)),
         )
     if "cluster_id" not in frame.columns:
@@ -194,8 +196,8 @@ def _decode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
 def _explode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for row in frame.itertuples():
-        bundle_size = len(row.evidence_ids)
-        for index, evidence_id in enumerate(row.evidence_ids):
+        bundle_size = len(row.evidence_item_ids)
+        for index, evidence_item_id in enumerate(row.evidence_item_ids):
             rows.append(
                 {
                     "snapshot_id": row.snapshot_id,
@@ -208,16 +210,25 @@ def _explode_response_items_frame(frame: pd.DataFrame) -> pd.DataFrame:
                     "bundle_plan_tag": getattr(row, "bundle_plan_tag", None),
                     "bundle_strategy": getattr(row, "bundle_strategy", None),
                     "bundle_signature": getattr(row, "bundle_signature", None)
-                    or "|".join(sorted(str(value) for value in row.evidence_ids)),
+                    or "|".join(sorted(str(value) for value in row.evidence_item_ids)),
                     "cluster_id": getattr(row, "cluster_id", None),
                     "bundle_size": bundle_size,
                     "abstained": bool(row.abstained),
                     "subset_size": row.subset_size,
-                    "evidence_id": evidence_id,
+                    "evidence_set_item_id": (
+                        row.evidence_set_item_ids[index]
+                        if hasattr(row, "evidence_set_item_ids") and index < len(row.evidence_set_item_ids)
+                        else ""
+                    ),
+                    "evidence_item_id": evidence_item_id,
+                    "evidence_view_id": (
+                        row.evidence_view_ids[index]
+                        if index < len(row.evidence_view_ids)
+                        else None
+                    ),
                     "evidence_label": row.evidence_labels[index] if index < len(row.evidence_labels) else "",
                     "evidence_title": row.evidence_titles[index] if index < len(row.evidence_titles) else "",
                     "evidence_url": row.evidence_urls[index] if index < len(row.evidence_urls) else "",
-                    "window_id": row.window_ids[index] if index < len(row.window_ids) else "",
                     "position": row.evidence_positions[index] if index < len(row.evidence_positions) else index,
                 }
             )

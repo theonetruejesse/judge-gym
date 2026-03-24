@@ -82,14 +82,15 @@ class ConvexAnalysisClient:
 def build_response_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     item_rows: list[dict[str, Any]] = []
     for row in rows:
-        evidence_ids = list(row.get("evidence_ids", []))
+        evidence_set_item_ids = list(row.get("evidence_set_item_ids", []))
+        evidence_item_ids = list(row.get("evidence_item_ids", []))
+        evidence_view_ids = list(row.get("evidence_view_ids", []))
         evidence_labels = list(row.get("evidence_labels", []))
         evidence_titles = list(row.get("evidence_titles", []))
         evidence_urls = list(row.get("evidence_urls", []))
-        window_ids = list(row.get("window_ids", []))
         positions = list(row.get("evidence_positions", []))
-        bundle_size = len(evidence_ids)
-        for index, evidence_id in enumerate(evidence_ids):
+        bundle_size = len(evidence_item_ids)
+        for index, evidence_item_id in enumerate(evidence_item_ids):
             item_rows.append({
                 "response_id": row["response_id"],
                 "experiment_tag": row["experiment_tag"],
@@ -104,11 +105,12 @@ def build_response_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "bundle_size": bundle_size,
                 "abstained": row["abstained"],
                 "subset_size": row["subset_size"],
-                "evidence_id": evidence_id,
+                "evidence_set_item_id": evidence_set_item_ids[index] if index < len(evidence_set_item_ids) else "",
+                "evidence_item_id": evidence_item_id,
+                "evidence_view_id": evidence_view_ids[index] if index < len(evidence_view_ids) else None,
                 "evidence_label": evidence_labels[index] if index < len(evidence_labels) else "",
                 "evidence_title": evidence_titles[index] if index < len(evidence_titles) else "",
                 "evidence_url": evidence_urls[index] if index < len(evidence_urls) else "",
-                "window_id": window_ids[index] if index < len(window_ids) else "",
                 "position": positions[index] if index < len(positions) else index,
             })
     return item_rows

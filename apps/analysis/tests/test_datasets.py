@@ -20,14 +20,17 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
-def _manifest(*, experiment_tag: str, export_schema_version: int = 3) -> dict[str, object]:
+def _manifest(*, experiment_tag: str, export_schema_version: int = 4) -> dict[str, object]:
     return {
         "export_schema_version": export_schema_version,
         "experiment": {
             "experiment_id": f"{experiment_tag}_id",
             "experiment_tag": experiment_tag,
-            "pool_id": "pool_1",
-            "pool_tag": "pool_tag",
+            "evidence_source_kind": "evidence_set",
+            "evidence_set_id": "es_1",
+            "evidence_set_tag": "set_tag",
+            "evidence_set_source_kind": "manual_import",
+            "evidence_set_quality_label": "high",
             "evidence_count": 1,
             "model_id": "gpt-4.1",
             "rubric_model": "gpt-4.1",
@@ -102,11 +105,11 @@ class ContractDatasetsTest(unittest.TestCase):
                             "score_expert_agreement_prob": 0.8,
                             "rubric_observability_score": 0.7,
                             "rubric_discriminability_score": 0.6,
-                            "evidence_ids": ["ev_1"],
+                            "evidence_item_ids": ["ei_1"],
+                            "evidence_view_ids": ["view_1"],
                             "evidence_labels": ["E1"],
                             "evidence_titles": ["Title"],
                             "evidence_urls": ["https://example.com"],
-                            "window_ids": ["w1"],
                             "evidence_positions": [0],
                         }
                     ],
@@ -122,7 +125,7 @@ class ContractDatasetsTest(unittest.TestCase):
                 "purpose": "test",
                 "dataSource": {
                     "sqlitePath": str(db_path),
-                    "exportSchemaVersion": 3,
+                    "exportSchemaVersion": 4,
                     "snapshotIds": [snapshot_id],
                     "selectionPolicy": {
                         "includeTagPrefixes": ["v3_"],
@@ -205,7 +208,7 @@ class ContractDatasetsTest(unittest.TestCase):
                     "purpose": "test",
                     "dataSource": {
                         "sqlitePath": str(db_path),
-                        "exportSchemaVersion": 3,
+                        "exportSchemaVersion": 4,
                         "snapshotIds": ["missing_snapshot"],
                         "selectionPolicy": {
                             "includeTagPrefixes": ["v3_"],
@@ -270,4 +273,3 @@ class ContractDatasetsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

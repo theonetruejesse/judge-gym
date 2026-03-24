@@ -13,7 +13,7 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { zInternalQuery } from "../../utils/custom_fns";
 
-export const ANALYSIS_EXPORT_SCHEMA_VERSION = 3;
+export const ANALYSIS_EXPORT_SCHEMA_VERSION = 4;
 const DEFAULT_PAGE_LIMIT = 100;
 const MAX_PAGE_LIMIT = 250;
 
@@ -25,8 +25,11 @@ export const AnalysisPaginationArgsSchema = z.object({
 const NormalizedExperimentSchema = z.object({
   experiment_id: zid("experiments"),
   experiment_tag: z.string(),
-  pool_id: zid("pools"),
-  pool_tag: z.string().nullable(),
+  evidence_source_kind: z.string(),
+  evidence_set_id: zid("evidence_sets"),
+  evidence_set_tag: z.string().nullable(),
+  evidence_set_source_kind: z.string().nullable(),
+  evidence_set_quality_label: z.string().nullable(),
   bundle_plan_id: zid("bundle_plans").nullable(),
   bundle_plan_tag: z.string().nullable(),
   bundle_strategy: BundleStrategySchema,
@@ -106,6 +109,7 @@ export const AnalysisResponseRowSchema = z.object({
   score_expert_agreement_prob: z.number().nullable(),
   rubric_observability_score: z.number().nullable(),
   rubric_discriminability_score: z.number().nullable(),
+  evidence_set_item_ids: z.array(zid("evidence_set_items").nullable()),
   evidence_item_ids: z.array(zid("evidence_items")),
   evidence_view_ids: z.array(zid("evidence_views").nullable()),
   evidence_labels: z.array(z.string()),
@@ -136,15 +140,20 @@ export const AnalysisRubricRowSchema = z.object({
 });
 
 export const AnalysisEvidenceRowSchema = z.object({
-  evidence_id: zid("evidences"),
+  evidence_set_item_id: zid("evidence_set_items"),
+  evidence_item_id: zid("evidence_items"),
+  evidence_view_id: zid("evidence_views").nullable(),
   experiment_id: zid("experiments"),
   experiment_tag: z.string(),
   run_id: zid("runs"),
-  pool_tag: z.string().nullable(),
+  evidence_source_kind: z.string(),
+  evidence_set_tag: z.string().nullable(),
   label: z.string(),
   title: z.string(),
   url: z.string(),
-  window_id: zid("windows"),
+  source_name: z.string().nullable(),
+  publish_date: z.string().nullable(),
+  ordinal: z.number().int().nonnegative(),
 });
 
 export const AnalysisSampleRowSchema = z.object({
@@ -174,16 +183,21 @@ export function analysisPageResultSchema<T extends z.ZodTypeAny>(item: T) {
 type NormalizedExperiment = z.infer<typeof NormalizedExperimentSchema>;
 type AnalysisRunSummary = z.infer<typeof AnalysisRunSummarySchema>;
 
-function requirePoolBackedExperiment(
+async function requireEvidenceSetBackedExperiment(
+  ctx: QueryCtx,
   experiment: Doc<"experiments">,
-): Id<"pools"> {
-  if (!experiment.pool_id) {
+) {
+  if (!experiment.evidence_set_id) {
     throw new Error(
-      `Analysis exports currently require a pool-backed experiment. `
+      `Analysis exports currently require an evidence-set-backed experiment. `
       + `Experiment "${experiment.experiment_tag}" uses source "${experiment.evidence_source_kind}".`,
     );
   }
-  return experiment.pool_id;
+  const evidenceSet = await ctx.db.get(experiment.evidence_set_id);
+  if (!evidenceSet) {
+    throw new Error(`Evidence set missing for experiment "${experiment.experiment_tag}"`);
+  }
+  return evidenceSet;
 }
 
 function normalizePageArgs(args: z.infer<typeof AnalysisPaginationArgsSchema>) {
@@ -256,44 +270,11 @@ async function getRequiredRun(
   return run;
 }
 
-async function getPoolTag(
-  ctx: QueryCtx,
-  poolId: Id<"pools">,
-) {
-  const pool = await ctx.db.get(poolId);
-  return pool?.pool_tag ?? null;
-}
-
-async function getPoolEvidenceRows(
-  ctx: QueryCtx,
-  poolId: Id<"pools">,
-) {
-  const links = await ctx.db
-    .query("pool_evidences")
-    .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
-    .collect();
-  const sortedLinks = links
-    .slice()
-    .sort((a, b) => String(a.evidence_id).localeCompare(String(b.evidence_id)));
-  const evidences = await Promise.all(
-    sortedLinks.map(async (link) => {
-      const evidence = await ctx.db.get(link.evidence_id);
-      if (!evidence) return null;
-      return {
-        evidence,
-        link,
-      };
-    }),
-  );
-  return evidences.filter((row): row is { evidence: Doc<"evidences">; link: Doc<"pool_evidences"> } => row != null);
-}
-
 async function normalizeExperiment(
   ctx: QueryCtx,
   experiment: Doc<"experiments">,
 ): Promise<NormalizedExperiment> {
-  const poolId = requirePoolBackedExperiment(experiment);
-  const poolTag = await getPoolTag(ctx, poolId);
+  const evidenceSet = await requireEvidenceSetBackedExperiment(ctx, experiment);
   const bundlePlan = experiment.bundle_plan_id
     ? await ctx.db.get(experiment.bundle_plan_id)
     : null;
@@ -303,8 +284,11 @@ async function normalizeExperiment(
   return {
     experiment_id: experiment._id,
     experiment_tag: experiment.experiment_tag,
-    pool_id: poolId,
-    pool_tag: poolTag,
+    evidence_source_kind: experiment.evidence_source_kind,
+    evidence_set_id: evidenceSet._id,
+    evidence_set_tag: evidenceSet.evidence_set_tag,
+    evidence_set_source_kind: evidenceSet.source_kind,
+    evidence_set_quality_label: evidenceSet.quality_label,
     bundle_plan_id: experiment.bundle_plan_id ?? null,
     bundle_plan_tag: bundlePlan?.bundle_plan_tag ?? null,
     bundle_strategy: bundleStrategy,
@@ -315,12 +299,7 @@ async function normalizeExperiment(
       ?? experiment.scoring_config.clustering_seed
       ?? null,
     bundle_source_view: bundlePlan?.source_view ?? null,
-    evidence_count: experiment.total_count > 0 ? experiment.total_count : (
-      await ctx.db
-        .query("pool_evidences")
-        .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
-        .collect()
-    ).length,
+    evidence_count: experiment.total_count > 0 ? experiment.total_count : evidenceSet.item_count,
     model_id: experiment.scoring_config.model,
     rubric_model: experiment.rubric_config.model,
     scoring_model: experiment.scoring_config.model,
@@ -377,7 +356,7 @@ async function resolveManifest(
   }
 
   const normalizedExperiment = await normalizeExperiment(ctx, experiment);
-  const poolId = requirePoolBackedExperiment(experiment);
+  const evidenceSet = await requireEvidenceSetBackedExperiment(ctx, experiment);
   const samples = await ctx.db
     .query("samples")
     .withIndex("by_run", (q) => q.eq("run_id", run._id))
@@ -390,17 +369,21 @@ async function resolveManifest(
     .query("scores")
     .withIndex("by_run", (q) => q.eq("run_id", run._id))
     .collect();
-  const poolEvidenceRows = await getPoolEvidenceRows(ctx, poolId);
+  const evidenceSetItems = await ctx.db
+    .query("evidence_set_items")
+    .withIndex("by_set", (q) => q.eq("evidence_set_id", evidenceSet._id))
+    .collect();
 
   return {
     experiment,
+    evidenceSet,
     normalizedExperiment,
     run,
     summary: summarizeRun(run),
     counts: {
       responses: scores.length,
       rubrics: rubrics.length,
-      evidence: poolEvidenceRows.length,
+      evidence: evidenceSetItems.length,
       samples: samples.length,
     },
   };
@@ -455,18 +438,25 @@ async function buildEvidenceContext(
   ctx: QueryCtx,
   experiment: Doc<"experiments">,
 ) {
-  const poolEvidenceRows = await getPoolEvidenceRows(
-    ctx,
-    requirePoolBackedExperiment(experiment),
-  );
+  const evidenceSet = await requireEvidenceSetBackedExperiment(ctx, experiment);
+  const evidenceSetItems = (
+    await ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", evidenceSet._id))
+      .collect()
+  ).slice().sort((a, b) => a.ordinal - b.ordinal || String(a._id).localeCompare(String(b._id)));
   const evidenceLabelById = new Map<string, string>();
-  const evidenceById = new Map<string, Doc<"evidences">>();
-  poolEvidenceRows.forEach(({ evidence }, index) => {
-    evidenceLabelById.set(String(evidence._id), `E${index + 1}`);
-    evidenceById.set(String(evidence._id), evidence);
-  });
+  const evidenceById = new Map<string, Doc<"evidence_items">>();
+  await Promise.all(evidenceSetItems.map(async (setItem, index) => {
+    evidenceLabelById.set(String(setItem.evidence_item_id), `E${index + 1}`);
+    const evidence = await ctx.db.get(setItem.evidence_item_id);
+    if (evidence) {
+      evidenceById.set(String(evidence._id), evidence);
+    }
+  }));
   return {
-    poolEvidenceRows,
+    evidenceSet,
+    evidenceSetItems,
     evidenceLabelById,
     evidenceById,
   };
@@ -595,6 +585,7 @@ export const listAnalysisResponses = zInternalQuery({
       const evidenceItems = await Promise.all(
         items.map((item) => ctx.db.get(item.evidence_item_id)),
       );
+      const evidenceSetItemIds = items.map((item) => item.evidence_set_item_id ?? null);
       const evidenceItemIds = items.map((item) => item.evidence_item_id);
       const evidenceViewIds = items.map((item) => item.evidence_view_id ?? null);
       const evidenceLabels = items.map((item, index) => {
@@ -641,6 +632,7 @@ export const listAnalysisResponses = zInternalQuery({
         score_expert_agreement_prob: scoreCritic?.expert_agreement_prob ?? null,
         rubric_observability_score: rubricCritic?.expert_agreement_prob.observability_score ?? null,
         rubric_discriminability_score: rubricCritic?.expert_agreement_prob.discriminability_score ?? null,
+        evidence_set_item_ids: evidenceSetItemIds,
         evidence_item_ids: evidenceItemIds,
         evidence_view_ids: evidenceViewIds,
         evidence_labels: evidenceLabels,
@@ -707,19 +699,29 @@ export const listAnalysisEvidence = zInternalQuery({
     const manifest = await resolveManifest(ctx, { run_id: args.run_id });
     const { experiment, run } = manifest;
     const pagination = args.pagination ?? {};
-    const poolTag = await getPoolTag(ctx, requirePoolBackedExperiment(experiment));
-    const { poolEvidenceRows } = await buildEvidenceContext(ctx, experiment);
-    const rows = poolEvidenceRows.map(({ evidence }, index) => ({
-      evidence_id: evidence._id,
-      experiment_id: experiment._id,
-      experiment_tag: experiment.experiment_tag,
-      run_id: run._id,
-      pool_tag: poolTag,
-      label: `E${index + 1}`,
-      title: evidence.title,
-      url: evidence.url,
-      window_id: evidence.window_id,
-    }));
+    const { evidenceSet, evidenceSetItems, evidenceById } = await buildEvidenceContext(ctx, experiment);
+    const rows = evidenceSetItems.map((setItem, index) => {
+      const evidence = evidenceById.get(String(setItem.evidence_item_id));
+      if (!evidence) {
+        throw new Error(`Evidence item missing for evidence_set_item ${setItem._id}`);
+      }
+      return {
+        evidence_set_item_id: setItem._id,
+        evidence_item_id: evidence._id,
+        evidence_view_id: setItem.pinned_view_id ?? null,
+        experiment_id: experiment._id,
+        experiment_tag: experiment.experiment_tag,
+        run_id: run._id,
+        evidence_source_kind: experiment.evidence_source_kind,
+        evidence_set_tag: evidenceSet.evidence_set_tag,
+        label: `E${index + 1}`,
+        title: evidence.title ?? "",
+        url: evidence.source_url ?? "",
+        source_name: evidence.source_name ?? null,
+        publish_date: evidence.publish_date ?? null,
+        ordinal: setItem.ordinal,
+      };
+    });
     return slicePage(rows, pagination);
   },
 });

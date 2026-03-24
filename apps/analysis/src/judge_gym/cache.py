@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 APPLICATION_ID = 0x4A47414D  # "JGAM"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def default_cache_path() -> Path:
@@ -27,6 +27,11 @@ def connect_cache(path: str | Path | None = None) -> sqlite3.Connection:
 
 
 def ensure_schema(connection: sqlite3.Connection) -> None:
+    current_version = int(
+        connection.execute("PRAGMA user_version").fetchone()[0],
+    )
+    if current_version not in {0, SCHEMA_VERSION}:
+        _drop_analysis_tables(connection)
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS export_snapshots (
@@ -79,11 +84,12 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
           score_expert_agreement_prob REAL,
           rubric_observability_score REAL,
           rubric_discriminability_score REAL,
-          evidence_ids_json TEXT NOT NULL,
+          evidence_set_item_ids_json TEXT NOT NULL,
+          evidence_item_ids_json TEXT NOT NULL,
+          evidence_view_ids_json TEXT NOT NULL,
           evidence_labels_json TEXT NOT NULL,
           evidence_titles_json TEXT NOT NULL,
           evidence_urls_json TEXT NOT NULL,
-          window_ids_json TEXT NOT NULL,
           evidence_positions_json TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_analysis_responses_snapshot
@@ -104,11 +110,12 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
           bundle_size INTEGER NOT NULL,
           abstained INTEGER NOT NULL,
           subset_size INTEGER NOT NULL,
-          evidence_id TEXT NOT NULL,
+          evidence_set_item_id TEXT NOT NULL,
+          evidence_item_id TEXT NOT NULL,
+          evidence_view_id TEXT,
           evidence_label TEXT NOT NULL,
           evidence_title TEXT NOT NULL,
           evidence_url TEXT NOT NULL,
-          window_id TEXT NOT NULL,
           position INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_analysis_response_items_snapshot
@@ -138,15 +145,20 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS analysis_evidence (
           snapshot_id TEXT NOT NULL,
-          evidence_id TEXT NOT NULL,
+          evidence_set_item_id TEXT NOT NULL,
+          evidence_item_id TEXT NOT NULL,
+          evidence_view_id TEXT,
           experiment_id TEXT NOT NULL,
           experiment_tag TEXT NOT NULL,
           run_id TEXT NOT NULL,
-          pool_tag TEXT,
+          evidence_source_kind TEXT NOT NULL,
+          evidence_set_tag TEXT,
           label TEXT NOT NULL,
           title TEXT NOT NULL,
           url TEXT NOT NULL,
-          window_id TEXT NOT NULL
+          source_name TEXT,
+          publish_date TEXT,
+          ordinal INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_analysis_evidence_snapshot
           ON analysis_evidence (snapshot_id, experiment_tag);
@@ -188,6 +200,21 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "analysis_responses", "bundle_signature", "TEXT")
     _ensure_column(connection, "analysis_responses", "cluster_id", "TEXT")
     connection.execute(f"PRAGMA user_version={SCHEMA_VERSION};")
+    connection.commit()
+
+
+def _drop_analysis_tables(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        DROP TABLE IF EXISTS analysis_artifacts;
+        DROP TABLE IF EXISTS analysis_samples;
+        DROP TABLE IF EXISTS analysis_evidence;
+        DROP TABLE IF EXISTS analysis_rubrics;
+        DROP TABLE IF EXISTS analysis_response_items;
+        DROP TABLE IF EXISTS analysis_responses;
+        DROP TABLE IF EXISTS export_snapshots;
+        """
+    )
     connection.commit()
 
 
@@ -410,11 +437,12 @@ def _serialize_row(
             "score_expert_agreement_prob": row["score_expert_agreement_prob"],
             "rubric_observability_score": row["rubric_observability_score"],
             "rubric_discriminability_score": row["rubric_discriminability_score"],
-            "evidence_ids_json": json.dumps(row["evidence_ids"]),
+            "evidence_set_item_ids_json": json.dumps(row.get("evidence_set_item_ids", [])),
+            "evidence_item_ids_json": json.dumps(row["evidence_item_ids"]),
+            "evidence_view_ids_json": json.dumps(row["evidence_view_ids"]),
             "evidence_labels_json": json.dumps(row["evidence_labels"]),
             "evidence_titles_json": json.dumps(row["evidence_titles"]),
             "evidence_urls_json": json.dumps(row["evidence_urls"]),
-            "window_ids_json": json.dumps(row["window_ids"]),
             "evidence_positions_json": json.dumps(row["evidence_positions"]),
         }
     if table == "analysis_response_items":
@@ -432,11 +460,12 @@ def _serialize_row(
             "bundle_size": row["bundle_size"],
             "abstained": int(bool(row["abstained"])),
             "subset_size": row["subset_size"],
-            "evidence_id": row["evidence_id"],
+            "evidence_set_item_id": row["evidence_set_item_id"],
+            "evidence_item_id": row["evidence_item_id"],
+            "evidence_view_id": row.get("evidence_view_id"),
             "evidence_label": row["evidence_label"],
             "evidence_title": row["evidence_title"],
             "evidence_url": row["evidence_url"],
-            "window_id": row["window_id"],
             "position": row["position"],
         }
     if table == "analysis_rubrics":
@@ -458,15 +487,20 @@ def _serialize_row(
         }
     if table == "analysis_evidence":
         return base | {
-            "evidence_id": row["evidence_id"],
+            "evidence_set_item_id": row["evidence_set_item_id"],
+            "evidence_item_id": row["evidence_item_id"],
+            "evidence_view_id": row.get("evidence_view_id"),
             "experiment_id": row["experiment_id"],
             "experiment_tag": row["experiment_tag"],
             "run_id": row["run_id"],
-            "pool_tag": row["pool_tag"],
+            "evidence_source_kind": row["evidence_source_kind"],
+            "evidence_set_tag": row.get("evidence_set_tag"),
             "label": row["label"],
             "title": row["title"],
             "url": row["url"],
-            "window_id": row["window_id"],
+            "source_name": row.get("source_name"),
+            "publish_date": row.get("publish_date"),
+            "ordinal": row["ordinal"],
         }
     if table == "analysis_samples":
         return base | {

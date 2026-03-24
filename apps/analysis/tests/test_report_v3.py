@@ -25,9 +25,9 @@ class V3ReportAssemblerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             blueprints = root / "_blueprints" / "v3-analysis-process"
-            contracts_dir = root / "packages" / "analysis" / "contracts"
-            tables_dir = root / "packages" / "analysis" / "_outputs" / "v3" / "investigation" / "tables"
-            figures_dir = root / "packages" / "analysis" / "_outputs" / "v3" / "investigation" / "figures" / "curated"
+            contracts_dir = root / "apps" / "analysis" / "contracts"
+            tables_dir = root / "apps" / "analysis" / "_outputs" / "v3" / "investigation" / "tables"
+            figures_dir = root / "apps" / "analysis" / "_outputs" / "v3" / "investigation" / "figures" / "curated"
 
             contracts_dir.mkdir(parents=True, exist_ok=True)
             figures_dir.mkdir(parents=True, exist_ok=True)
@@ -121,7 +121,7 @@ class V3ReportAssemblerTest(unittest.TestCase):
 
             contract = {
                 "contractVersion": 1,
-                "dataSource": {"exportSchemaVersion": 3, "snapshotIds": ["s1"]},
+                "dataSource": {"exportSchemaVersion": 4, "snapshotIds": ["s1"]},
                 "inclusion": {"includeTags": ["x"], "excludeTags": ["y"]},
                 "contrastRegistry": {"path": "../../apps/analysis/contracts/v3_contrasts.json"},
                 "endpoints": {"primary": ["abstain_rate"]},
@@ -167,8 +167,8 @@ class V3ReportAssemblerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             blueprints = root / "_blueprints" / "v3-analysis-process"
-            contracts_dir = root / "packages" / "analysis" / "contracts"
-            tables_dir = root / "packages" / "analysis" / "_outputs" / "v3" / "investigation" / "tables"
+            contracts_dir = root / "apps" / "analysis" / "contracts"
+            tables_dir = root / "apps" / "analysis" / "_outputs" / "v3" / "investigation" / "tables"
 
             contracts_dir.mkdir(parents=True, exist_ok=True)
             blueprints.mkdir(parents=True, exist_ok=True)
@@ -193,7 +193,7 @@ class V3ReportAssemblerTest(unittest.TestCase):
 
             contract = {
                 "contractVersion": 1,
-                "dataSource": {"exportSchemaVersion": 3, "snapshotIds": []},
+                "dataSource": {"exportSchemaVersion": 4, "snapshotIds": []},
                 "inclusion": {"includeTags": [], "excludeTags": []},
                 "contrastRegistry": {"path": "../../apps/analysis/contracts/v3_contrasts.json"},
                 "endpoints": {"primary": ["abstain_rate"]},

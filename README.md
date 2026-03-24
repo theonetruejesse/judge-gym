@@ -59,6 +59,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Greenfield run materialization is now evidence-set-native: `createRun` resolves each score-target item to an `evidence_item`, the exact `evidence_view` (when pinned/resolved), and the concrete storage-backed content asset that will be judged.
 - Run-stage prompt preparation for score stages is now storage-backed as well: Convex reads the frozen content assets for each `sample_score_target_item`, reconstructs bundled evidence text, and returns final prompts to Temporal without depending on legacy inline `evidences` rows.
 - The lab inspection layer now treats V4 evidence sets as first-class too: experiment evidence listing returns `evidence_set_item` / `evidence_item` / `evidence_view` metadata instead of requiring legacy window evidence rows.
+- The analysis/export contract is now V4-native as well: Convex exports schema version `4`, manifests are `evidence_set`-backed, response bundles carry `evidence_set_item_ids` / `evidence_item_ids` / `evidence_view_ids`, and the Python cache resets on schema-version drift instead of migrating old pool/window layouts.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
@@ -195,7 +196,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start actions for windows and runs |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
 | `domain/window/evidence_search.ts` | Firecrawl-based news search with bounded timeout/retry policy from `engine-settings` |
-| `domain/exports/analysis_export.ts` | Analysis/export read surfaces for the Python package |
+| `domain/exports/analysis_export.ts` | Evidence-set-native analysis/export read surfaces for the Python package |
 | `domain/maintenance/process_debug.ts` | Temporal-aware health, stuck-work detection, and bounded repair helpers |
 | `domain/maintenance/danger.ts` | Run-scoped destructive maintenance and table-prune helpers |
 | `packages/worker.ts` | Narrow worker-facing Convex API for Temporal activities |
