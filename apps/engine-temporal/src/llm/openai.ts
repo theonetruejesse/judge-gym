@@ -70,7 +70,7 @@ async function openAiRequest(
   return response;
 }
 
-function parseAssistantOutput(content: unknown): string {
+export function parseAssistantOutput(content: unknown): string {
   if (typeof content === "string") {
     return content;
   }
@@ -305,6 +305,7 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
   batchId: string;
   outputFileId: string | null;
   errorFileId: string | null;
+  providerArtifactsJson?: string | null;
   succeeded: Array<BatchChatSuccess<TMetadata>>;
   failed: Array<BatchChatFailure<TMetadata>>;
 }> {
@@ -313,6 +314,7 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
       batchId: "batch:none",
       outputFileId: null,
       errorFileId: null,
+      providerArtifactsJson: null,
       succeeded: [],
       failed: [],
     };
@@ -507,6 +509,10 @@ export async function runOpenAiBatchChat<TMetadata>(args: {
     batchId: lifecycle.id,
     outputFileId: lifecycle.output_file_id ?? null,
     errorFileId: lifecycle.error_file_id ?? null,
+    providerArtifactsJson: JSON.stringify({
+      output_file_id: lifecycle.output_file_id ?? null,
+      error_file_id: lifecycle.error_file_id ?? null,
+    }),
     succeeded,
     failed,
   };

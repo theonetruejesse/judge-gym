@@ -21,6 +21,7 @@ export const LlmBatchExecutionsTableSchema = z.object({
   input_file_id: z.string().nullable().optional(),
   output_file_id: z.string().nullable().optional(),
   error_file_id: z.string().nullable().optional(),
+  provider_artifacts_json: z.string().nullable().optional(),
   status: LlmBatchExecutionStatusSchema,
   last_known_provider_status: z.string().nullable().optional(),
   last_error_message: z.string().nullable().optional(),

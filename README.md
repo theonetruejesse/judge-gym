@@ -46,6 +46,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 
 - Evidence windows are now started from the Convex engine and executed by a Temporal-owned `WindowWorkflow` with the same 3-stage LLM pipeline (clean → neutralize → abstract).
 - Window state is now split cleanly between reusable `windows` definitions and executable `window_runs`, so one search slice can be rerun with different cleaning targets or models without redefining the window itself.
+- A new V4 evidence substrate now exists alongside the legacy window path: `evidence_universes`, `acquisition_specs`, `acquisition_runs`, `evidence_candidates`, `evidence_items`, `evidence_views`, and `evidence_assets`.
+- The V4 evidence path now separates discovery from hydration: Media Cloud-backed discovery writes reusable candidate metadata first, then hydration creates canonical evidence items and rendered views later.
+- Raw provider payloads, hydrated HTML, hydrated text, and derived evidence views in the V4 path are now stored as Convex storage-backed assets referenced from metadata rows instead of being embedded directly into one table shape.
 - The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
 - Experiment runs are now also started from the Convex engine and executed by a Temporal-owned `RunWorkflow` across `rubric_gen`, `rubric_critic`, `score_gen`, and `score_critic`.
 - The Temporal run path now persists workflow bindings on `runs`, per-stage attempt/error refs on `samples` and `sample_score_targets`, and writes run artifacts against the `llm_attempts` ledger instead of the legacy request queue.
@@ -160,6 +163,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | Path | Role |
 | --- | --- |
 | `domain/runs/` | Experiment creation + pool binding + run launch/reporting |
+| `domain/evidence/` | V4 evidence acquisition, Media Cloud discovery, storage-backed hydration, and evidence repo functions |
 | `domain/exports/` | Convex-owned export/reporting surfaces consumed by the analysis package |
 | `domain/temporal/` | Convex-side Temporal client/start helpers |
 | `domain/window/` | Evidence window setup + search |
@@ -178,6 +182,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `domain/runs/bundle_plan_materializer.ts` | Bundle-plan materialization helpers |
 | `domain/runs/run_service.ts` | Run lifecycle and Temporal launch/resume path |
 | `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
+| `domain/evidence/evidence_repo.ts` | V4 evidence-universe, candidate, item, view, and asset persistence |
+| `domain/evidence/evidence_service.ts` | Storage-backed asset writes, Media Cloud discovery ingest, and candidate hydration |
+| `domain/evidence/mediacloud.ts` | Media Cloud story-list client + candidate normalization |
 | `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start actions for windows and runs |
 | `domain/window/window_repo.ts` | Evidence search + insert + queries |
 | `domain/window/evidence_search.ts` | Firecrawl-based news search with bounded timeout/retry policy from `engine-settings` |
@@ -190,6 +197,17 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 ---
 
 ## Data Model (Core Tables)
+
+**V4 evidence acquisition tables**
+| Table | Purpose | Key fields |
+| --- | --- | --- |
+| `evidence_universes` | Reusable corpus boundary for V4 studies and imported audit datasets | `universe_tag`, `kind`, `title`, `status` |
+| `acquisition_specs` | Frozen acquisition definition for one universe | `universe_id`, `spec_tag`, `discovery_provider`, `discovery_config_json`, `hydrator_kind` |
+| `acquisition_runs` | One execution of an acquisition spec | `acquisition_spec_id`, `status`, `cursor_json`, `discovered_count`, `hydrated_count`, `last_error_message` |
+| `evidence_candidates` | Discovery-stage metadata before hydration | `universe_id`, `acquisition_run_id`, `discovery_provider`, `external_id`, `url`, `publish_date`, `metadata_json`, `provider_payload_asset_id` |
+| `evidence_items` | Canonical hydrated evidence items | `universe_id`, `candidate_id`, `canonical_key`, `hydration_status`, `raw_text_asset_id`, `raw_html_asset_id`, `content_hash` |
+| `evidence_views` | Versioned rendered representations of an evidence item | `evidence_item_id`, `view_kind`, `pipeline_kind`, `pipeline_version`, `asset_id`, `status` |
+| `evidence_assets` | Convex storage-backed payload metadata | `storage_id`, `role`, `mime_type`, `byte_size`, `content_hash` |
 
 **Window definition + execution tables**
 | Table | Purpose | Key fields |
@@ -271,8 +289,9 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 - `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, Temporal activity timeout budgets, queue names, and env-key constants.
 - The current default batch policy is intentionally conservative: work stays on direct jobs below `llm.batching.minBatchSize = 35`, then batches are chunked by both `maxBatchSize` and `maxBatchRequestBytes` so provider batch size is bounded by payload size as well as item count.
 - The timeout split is intentional: direct chat requests use `llm.direct.requestTimeoutMs`, batch transport calls use `llm.batching.requestTimeoutMs`, batch poll/wait uses `llm.batching.maxWaitMs`, and Temporal stage activities use the larger `temporal.activityStartToCloseMs` budget.
-- `OPENAI_API_KEY` is required for OpenAI calls.
-- `FIRECRAWL_API_KEY` is required for evidence search.
+- OpenAI and Anthropic now both support native batch execution in the Temporal worker path; OpenRouter remains direct-only and will not enter the batch lane even when the provider supports the same underlying model family.
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENROUTER_API_KEY` are the provider-side runtime keys for direct or batch LLM execution.
+- `MEDIACLOUD_API_KEY` is required for V4 discovery. Firecrawl is no longer the search layer in the V4 evidence path; it can still be used as a URL hydrator while Media Cloud owns candidate discovery.
 - Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
 
 ---
@@ -281,13 +300,13 @@ Window and run execution are now Temporal-owned, and the old Convex queue substr
 
 - `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
 - Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, Firecrawl collection behavior, and Temporal activity budgets now live in one shared package instead of being hardcoded across Convex and Temporal.
-- Temporal now routes eligible run/window LLM work through the OpenAI Batch API when the centralized batch policy allows it, then falls back to direct per-item retries only for failed batch items so retry semantics stay per-target instead of per-batch.
+- Temporal now routes eligible run/window LLM work through provider-native batching when the centralized batch policy allows it. OpenAI and Anthropic use their native batch APIs; OpenRouter stays on direct chat requests and failed batch items still fall back to direct per-item retries so retry semantics stay per-target instead of per-batch.
 - Control-plane actions are split by weight: `repair_bounded` still uses acknowledged Temporal updates, while routine operator actions like `resume`, `pause_now`, and `set_pause_after` now default to async command sends instead of waiting on full snapshot projection before returning.
 - Batch-backed stage execution now uses deterministic attempt keys plus a durable `llm_batch_executions` registry in Convex so activity replay can resume/poll an existing batch instead of blindly submitting a second one.
 - Run stages now emit periodic process heartbeats while long direct requests or batch waits are still in flight, and batch-backed stages still emit milestone heartbeats during submit/poll/completion, so the control plane does not misclassify live work as stalled just because stage-boundary projections are sparse.
 - `packages/codex:listBatchReconciliationStatus` now returns stage-level batch, attempt, and target summary counts so the operator/debug layer can see where completed provider batches are still waiting on apply/reconciliation.
 - V3 campaign reset now backfills run ownership onto `sample_score_target_items` before deletion so large rubric-gate cohorts can be reset without hitting Convex read limits from per-target cleanup queries.
-- Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is live for the OpenAI chat path, while broader provider-policy expansion is still in progress.
+- Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is generic across the routed provider/model pair, but `llm_batch_executions` still store OpenAI-shaped artifact fields (`input_file_id`, `output_file_id`, `error_file_id`) so non-OpenAI batch artifact references are not yet normalized into a provider-agnostic schema.
 - Window evidence collection and `l3` application are replay-safe: repeated inserts dedupe by URL within a run, and repeated result application no-ops once the evidence output is already present.
 - `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
 - Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.

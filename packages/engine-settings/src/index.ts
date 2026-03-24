@@ -8,6 +8,10 @@ import {
   FirecrawlSettingsSchema,
 } from "./firecrawl";
 import {
+  DEFAULT_MEDIACLOUD_SETTINGS,
+  MediaCloudSettingsSchema,
+} from "./mediacloud";
+import {
   DEFAULT_RETRY_SETTINGS,
   RetrySettingsSchema,
 } from "./retry";
@@ -67,9 +71,11 @@ export const EngineSettingsSchema = z.object({
   }),
   window: z.object({
     firecrawl: FirecrawlSettingsSchema.default(DEFAULT_FIRECRAWL_SETTINGS),
+    mediacloud: MediaCloudSettingsSchema.default(DEFAULT_MEDIACLOUD_SETTINGS),
     maxStageInputChars: z.number().int().positive().default(20_000),
   }).default({
     firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+    mediacloud: DEFAULT_MEDIACLOUD_SETTINGS,
     maxStageInputChars: 20_000,
   }),
   run: z.object({
@@ -119,6 +125,7 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   },
   window: {
     firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+    mediacloud: DEFAULT_MEDIACLOUD_SETTINGS,
     maxStageInputChars: 20_000,
   },
   run: {
@@ -141,5 +148,6 @@ export function resolveEngineSettings(
 
 export * from "./batch";
 export * from "./firecrawl";
+export * from "./mediacloud";
 export * from "./provider";
 export * from "./retry";

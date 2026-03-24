@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as domain_evidence_evidence_repo from "../domain/evidence/evidence_repo.js";
+import type * as domain_evidence_evidence_service from "../domain/evidence/evidence_service.js";
+import type * as domain_evidence_mediacloud from "../domain/evidence/mediacloud.js";
 import type * as domain_exports_analysis_export from "../domain/exports/analysis_export.js";
 import type * as domain_maintenance_codex from "../domain/maintenance/codex.js";
 import type * as domain_maintenance_danger from "../domain/maintenance/danger.js";
@@ -35,12 +38,14 @@ import type * as models__shared from "../models/_shared.js";
 import type * as models_attempts from "../models/attempts.js";
 import type * as models_batches from "../models/batches.js";
 import type * as models_bundles from "../models/bundles.js";
+import type * as models_evidence from "../models/evidence.js";
 import type * as models_experiments from "../models/experiments.js";
 import type * as models_samples from "../models/samples.js";
 import type * as models_telemetry from "../models/telemetry.js";
 import type * as models_window from "../models/window.js";
 import type * as packages_analysis from "../packages/analysis.js";
 import type * as packages_codex from "../packages/codex.js";
+import type * as packages_evidence from "../packages/evidence.js";
 import type * as packages_lab from "../packages/lab.js";
 import type * as packages_v3_campaign from "../packages/v3_campaign.js";
 import type * as packages_worker from "../packages/worker.js";
@@ -56,6 +61,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "domain/evidence/evidence_repo": typeof domain_evidence_evidence_repo;
+  "domain/evidence/evidence_service": typeof domain_evidence_evidence_service;
+  "domain/evidence/mediacloud": typeof domain_evidence_mediacloud;
   "domain/exports/analysis_export": typeof domain_exports_analysis_export;
   "domain/maintenance/codex": typeof domain_maintenance_codex;
   "domain/maintenance/danger": typeof domain_maintenance_danger;
@@ -83,12 +91,14 @@ declare const fullApi: ApiFromModules<{
   "models/attempts": typeof models_attempts;
   "models/batches": typeof models_batches;
   "models/bundles": typeof models_bundles;
+  "models/evidence": typeof models_evidence;
   "models/experiments": typeof models_experiments;
   "models/samples": typeof models_samples;
   "models/telemetry": typeof models_telemetry;
   "models/window": typeof models_window;
   "packages/analysis": typeof packages_analysis;
   "packages/codex": typeof packages_codex;
+  "packages/evidence": typeof packages_evidence;
   "packages/lab": typeof packages_lab;
   "packages/v3_campaign": typeof packages_v3_campaign;
   "packages/worker": typeof packages_worker;

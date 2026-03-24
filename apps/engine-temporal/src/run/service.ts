@@ -12,11 +12,13 @@ import type {
 } from "@judge-gym/engine-settings/process";
 import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
 import {
-  runOpenAiBatchChat,
-  runOpenAiChat,
+  runModelBatchChat,
+  runModelChat,
   type BatchChatFailure,
+  type BatchChatCreatedEvent,
+  type BatchChatLifecycleEvent,
   type ChatResult,
-} from "../llm/openai";
+} from "../llm/client";
 import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "../window/model_registry";
 
@@ -47,8 +49,8 @@ type RunStageDependencies = {
     bindBatchExecutionSubmitted?: ConvexWorkerClient["bindBatchExecutionSubmitted"];
     finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
   };
-  runOpenAiChat: typeof runOpenAiChat;
-  runOpenAiBatchChat?: typeof runOpenAiBatchChat;
+  runOpenAiChat: typeof runModelChat;
+  runOpenAiBatchChat?: typeof runModelBatchChat;
   quota: QuotaStore;
   settings?: EngineSettings;
   processHeartbeatIntervalMs?: number;
@@ -77,6 +79,13 @@ type StartedRunBatchAttempt = {
   estimatedInputTokens: number;
 };
 
+type RunBatchMetadata = {
+  input: RunStageInput;
+  attemptId: string;
+};
+
+type RunBatchResult = Awaited<ReturnType<typeof runModelBatchChat<RunBatchMetadata>>>;
+
 const DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS = 30_000;
 
 function getSettings(deps: RunStageDependencies) {
@@ -84,7 +93,7 @@ function getSettings(deps: RunStageDependencies) {
 }
 
 function getBatchExecutor(deps: RunStageDependencies) {
-  return deps.runOpenAiBatchChat ?? runOpenAiBatchChat;
+  return deps.runOpenAiBatchChat ?? runModelBatchChat;
 }
 
 function getProcessHeartbeatIntervalMs(deps: RunStageDependencies) {
@@ -110,8 +119,8 @@ function getBatchAttemptStartPageSize(settings: EngineSettings) {
 function getDefaultRunStageDependencies(): RunStageDependencies {
   return {
     convex: getConvexWorkerClient(),
-    runOpenAiChat,
-    runOpenAiBatchChat,
+    runOpenAiChat: runModelChat,
+    runOpenAiBatchChat: runModelBatchChat,
     quota: getQuotaStore(),
     settings: DEFAULT_ENGINE_SETTINGS,
   };
@@ -1010,7 +1019,7 @@ async function processRunStageBatchChunk(
         `Quota reservation denied for ${args.stage}: ${reservation.reason ?? "quota_denied"}`;
       await recordSharedBatchFailure(message);
     } else {
-      const batch = await withPeriodicHeartbeat({
+      const batch: RunBatchResult = await withPeriodicHeartbeat({
         intervalMs: getProcessHeartbeatIntervalMs(deps),
         onHeartbeat: async () => {
           await deps.convex.recordProcessHeartbeat?.({
@@ -1025,7 +1034,7 @@ async function processRunStageBatchChunk(
             }),
           });
         },
-        task: () => getBatchExecutor(deps)({
+        task: () => getBatchExecutor(deps)<RunBatchMetadata>({
           model: args.model,
           existingBatchId: batchExecution?.provider_batch_id ?? undefined,
           items: startedAttempts.map(({ input, attemptId }) => ({
@@ -1037,15 +1046,15 @@ async function processRunStageBatchChunk(
           })),
           settings: settings.llm.batching,
           timeoutMs: settings.llm.batching.requestTimeoutMs,
-          onBatchCreated: async (event) => {
+          onBatchCreated: async (event: BatchChatCreatedEvent) => {
             await deps.convex.bindBatchExecutionSubmitted?.({
               batch_execution_id: batchExecution!.batch_execution_id,
               provider_batch_id: event.batchId,
-              input_file_id: event.inputFileId,
+              input_file_id: event.inputFileId ?? null,
               provider_status: event.status,
             });
           },
-          onLifecycleEvent: async (event) => {
+          onLifecycleEvent: async (event: BatchChatLifecycleEvent) => {
             if (batchExecution) {
               await deps.convex.finalizeBatchExecution?.({
                 batch_execution_id: batchExecution.batch_execution_id,
@@ -1089,6 +1098,7 @@ async function processRunStageBatchChunk(
           provider_status: "completed",
           output_file_id: batch.outputFileId,
           error_file_id: batch.errorFileId,
+          provider_artifacts_json: batch.providerArtifactsJson ?? null,
         });
       }
 
@@ -1217,6 +1227,7 @@ async function processRunStageBatchChunk(
         batch_execution_id: existingBatchExecution.batch_execution_id,
         status: "failed",
         provider_status: "failed",
+        provider_artifacts_json: null,
         error_message: message,
       });
     }

@@ -20,11 +20,11 @@ import {
 } from "@judge-gym/engine-prompts/window";
 import { getConvexWorkerClient, type ConvexWorkerClient } from "../convex/client";
 import {
-  runOpenAiBatchChat,
-  runOpenAiChat,
+  runModelBatchChat,
+  runModelChat,
   type BatchChatFailure,
   type ChatResult,
-} from "../llm/openai";
+} from "../llm/client";
 import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
 import { getModelConfig } from "./model_registry";
 
@@ -55,8 +55,8 @@ type WindowStageDependencies = {
     finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
   };
   searchWindowEvidence: typeof searchWindowEvidence;
-  runOpenAiChat: typeof runOpenAiChat;
-  runOpenAiBatchChat?: typeof runOpenAiBatchChat;
+  runOpenAiChat: typeof runModelChat;
+  runOpenAiBatchChat?: typeof runModelBatchChat;
   quota: QuotaStore;
   settings?: EngineSettings;
 };
@@ -84,7 +84,7 @@ function getSettings(deps: WindowStageDependencies) {
 }
 
 function getBatchExecutor(deps: WindowStageDependencies) {
-  return deps.runOpenAiBatchChat ?? runOpenAiBatchChat;
+  return deps.runOpenAiBatchChat ?? runModelBatchChat;
 }
 
 const WINDOW_STAGE_PROMPTS: Record<
@@ -160,8 +160,8 @@ function getDefaultWindowStageDependencies(): WindowStageDependencies {
   return {
     convex: getConvexWorkerClient(),
     searchWindowEvidence,
-    runOpenAiChat,
-    runOpenAiBatchChat,
+    runOpenAiChat: runModelChat,
+    runOpenAiBatchChat: runModelBatchChat,
     quota: getQuotaStore(),
     settings: DEFAULT_ENGINE_SETTINGS,
   };
@@ -836,13 +836,13 @@ async function processWindowStageBatchChunk(
         settings: settings.llm.batching,
         timeoutMs: settings.llm.batching.requestTimeoutMs,
         onBatchCreated: async (event) => {
-          await deps.convex.bindBatchExecutionSubmitted?.({
-            batch_execution_id: batchExecution!.batch_execution_id,
-            provider_batch_id: event.batchId,
-            input_file_id: event.inputFileId,
-            provider_status: event.status,
-          });
-        },
+            await deps.convex.bindBatchExecutionSubmitted?.({
+              batch_execution_id: batchExecution!.batch_execution_id,
+              provider_batch_id: event.batchId,
+              input_file_id: event.inputFileId ?? null,
+              provider_status: event.status,
+            });
+          },
         onLifecycleEvent: async (event) => {
           if (batchExecution) {
             await deps.convex.finalizeBatchExecution?.({
@@ -886,6 +886,7 @@ async function processWindowStageBatchChunk(
           provider_status: "completed",
           output_file_id: batch.outputFileId,
           error_file_id: batch.errorFileId,
+          provider_artifacts_json: batch.providerArtifactsJson ?? null,
         });
       }
 
@@ -964,6 +965,7 @@ async function processWindowStageBatchChunk(
         batch_execution_id: existingBatchExecution.batch_execution_id,
         status: "failed",
         provider_status: "failed",
+        provider_artifacts_json: null,
         error_message: message,
       });
     }

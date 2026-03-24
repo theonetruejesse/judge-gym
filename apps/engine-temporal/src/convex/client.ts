@@ -403,6 +403,7 @@ export class ConvexWorkerClient {
       status: string;
       output_file_id?: string | null;
       error_file_id?: string | null;
+      provider_artifacts_json?: string | null;
       attempt_recorded_count?: number | null;
       attempt_records_json?: string | null;
     } | null>;
@@ -415,6 +416,7 @@ export class ConvexWorkerClient {
       status: string;
       output_file_id?: string | null;
       error_file_id?: string | null;
+      provider_artifacts_json?: string | null;
       attempt_recorded_count?: number | null;
       attempt_records_json?: string | null;
     }>;
@@ -443,6 +445,7 @@ export class ConvexWorkerClient {
     provider_status: string;
     output_file_id?: string | null;
     error_file_id?: string | null;
+    provider_artifacts_json?: string | null;
     error_message?: string | null;
   }) {
     return this.client.mutation(workerApi.finalizeBatchExecution, args);

@@ -5,6 +5,7 @@ import type {
 } from "@judge-gym/engine-settings/quota";
 import {
   MODEL_BY_ID,
+  PROVIDERS,
   rateLimitToTokenBucketPolicies,
   resolveProviderRateLimit,
   type ModelType,
@@ -52,15 +53,18 @@ const MODEL_POLICIES: Record<string, DimensionPolicyMap> = Object.fromEntries(
   ]),
 );
 
-const PROVIDER_POLICIES: Record<string, DimensionPolicyMap> = {
-  openai: sumPoliciesByDimension(
-    Object.fromEntries(
-      Object.values(MODEL_BY_ID)
-        .filter((model) => model.provider === "openai")
-        .map((model) => [model.id, MODEL_POLICIES[model.id] ?? {}]),
+const PROVIDER_POLICIES: Record<string, DimensionPolicyMap> = Object.fromEntries(
+  Object.keys(PROVIDERS).map((provider) => [
+    provider,
+    sumPoliciesByDimension(
+      Object.fromEntries(
+        Object.values(MODEL_BY_ID)
+          .filter((model) => model.provider === provider)
+          .map((model) => [model.id, MODEL_POLICIES[model.id] ?? {}]),
+      ),
     ),
-  ),
-};
+  ]),
+);
 
 export function resolveQuotaBucketPolicy(
   ref: QuotaBucketRef,

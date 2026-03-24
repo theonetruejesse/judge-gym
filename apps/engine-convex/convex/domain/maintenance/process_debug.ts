@@ -20,6 +20,7 @@ const StageProgressSchema = z.object({
   pending: z.number(),
   failed: z.number(),
 });
+type StageProgress = z.infer<typeof StageProgressSchema>;
 
 const ProjectionMetaSchema = z.object({
   approximate: z.boolean(),
@@ -183,10 +184,10 @@ async function getProcessRow(
   process_id: string,
 ): Promise<ProcessRow | null> {
   if (process_type === "run") {
-    const row = await ctx.db.get(process_id as Id<"runs">);
+    const row = await ctx.db.get("runs", process_id as Id<"runs">);
     return row ? { process_type, row } : null;
   }
-  const row = await ctx.db.get(process_id as Id<"window_runs">);
+  const row = await ctx.db.get("window_runs", process_id as Id<"window_runs">);
   return row ? { process_type, row } : null;
 }
 
@@ -221,7 +222,12 @@ async function buildRunStageProgress(
   const summary = await ctx.runQuery(internal.domain.runs.experiments_service.getRunSummary, {
     run_id,
   });
-  return summary.stages.map((stage) => ({
+  return summary.stages.map((stage: {
+    stage: string;
+    total: number;
+    completed: number;
+    failed: number;
+  }) => ({
     stage: stage.stage,
     target_total: stage.total,
     completed: stage.completed,
@@ -381,7 +387,7 @@ async function collectProcessHealth(
     || process.row.status === "paused"
     || latestUpdatedAt == null
     || Math.max(0, Date.now() - latestUpdatedAt) <= ACTIVE_PROJECTION_FRESH_MS;
-  const pendingStages = stage_progress.filter((stage) => stage.pending > 0);
+  const pendingStages = stage_progress.filter((stage: StageProgress) => stage.pending > 0);
   const recent_events = (observability?.recent_events ?? [])
     .slice(-(args.include_recent_events ?? 25));
 
@@ -401,22 +407,28 @@ async function collectProcessHealth(
       workflow_run_id: process.row.workflow_run_id ?? null,
       projection_fresh: projectionFresh,
     },
-    stalled_signals: {
-      no_progress_for_ms: noProgressForMs,
-      oldest_pending_request_age_ms: pendingStages.length > 0 ? noProgressForMs : null,
-      recoverable_stage_stalls: noProgressForMs != null && noProgressForMs > 0 && pendingStages.length > 0
-        ? [{
-            stage: process.row.current_stage,
-            retryable_targets: pendingStages.reduce((sum, stage) => sum + stage.pending, 0),
-          }]
-        : [],
-    },
-    projection_meta: {
-      approximate: false,
-      scanned_targets: stage_progress.reduce((sum, stage) => sum + stage.target_total, 0),
-      latest_updated_at_ms: latestUpdatedAt,
-      last_milestone_at_ms: lastMilestoneAt,
-      projection_fresh: projectionFresh,
+	    stalled_signals: {
+	      no_progress_for_ms: noProgressForMs,
+	      oldest_pending_request_age_ms: pendingStages.length > 0 ? noProgressForMs : null,
+	      recoverable_stage_stalls: noProgressForMs != null && noProgressForMs > 0 && pendingStages.length > 0
+	        ? [{
+	            stage: process.row.current_stage,
+	            retryable_targets: pendingStages.reduce(
+                (sum: number, stage: StageProgress) => sum + stage.pending,
+                0,
+              ),
+	          }]
+	        : [],
+	    },
+	    projection_meta: {
+	      approximate: false,
+	      scanned_targets: stage_progress.reduce(
+          (sum: number, stage: StageProgress) => sum + stage.target_total,
+          0,
+        ),
+	      latest_updated_at_ms: latestUpdatedAt,
+	      last_milestone_at_ms: lastMilestoneAt,
+	      projection_fresh: projectionFresh,
     },
     error_summary,
     historical_error_summary,

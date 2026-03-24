@@ -20,6 +20,15 @@ import {
   BundlePlansTableSchema,
 } from "./models/bundles";
 import {
+  AcquisitionRunsTableSchema,
+  AcquisitionSpecsTableSchema,
+  EvidenceAssetsTableSchema,
+  EvidenceCandidatesTableSchema,
+  EvidenceItemsTableSchema,
+  EvidenceUniverseTableSchema,
+  EvidenceViewsTableSchema,
+} from "./models/evidence";
+import {
   SamplesTableSchema,
   RubricsTableSchema,
   RubricCriticsTableSchema,
@@ -46,6 +55,32 @@ export default defineSchema({
   llm_batch_executions: defineTable(zodOutputToConvex(LlmBatchExecutionsTableSchema))
     .index("by_batch_key", ["batch_key"])
     .index("by_process_stage", ["process_kind", "process_id", "stage"]),
+  evidence_universes: defineTable(zodOutputToConvex(EvidenceUniverseTableSchema))
+    .index("by_universe_tag", ["universe_tag"])
+    .index("by_kind", ["kind"]),
+  acquisition_specs: defineTable(zodOutputToConvex(AcquisitionSpecsTableSchema))
+    .index("by_universe", ["universe_id"])
+    .index("by_spec_tag", ["spec_tag"])
+    .index("by_universe_spec_tag", ["universe_id", "spec_tag"]),
+  acquisition_runs: defineTable(zodOutputToConvex(AcquisitionRunsTableSchema))
+    .index("by_spec", ["acquisition_spec_id"])
+    .index("by_status", ["status"]),
+  evidence_assets: defineTable(zodOutputToConvex(EvidenceAssetsTableSchema))
+    .index("by_content_hash", ["content_hash"])
+    .index("by_role", ["role"]),
+  evidence_candidates: defineTable(zodOutputToConvex(EvidenceCandidatesTableSchema))
+    .index("by_run", ["acquisition_run_id"])
+    .index("by_universe_provider_external", ["universe_id", "discovery_provider", "external_id"])
+    .index("by_universe_url", ["universe_id", "url"]),
+  evidence_items: defineTable(zodOutputToConvex(EvidenceItemsTableSchema))
+    .index("by_universe", ["universe_id"])
+    .index("by_candidate", ["candidate_id"])
+    .index("by_canonical_key", ["canonical_key"])
+    .index("by_hydration_status", ["hydration_status"]),
+  evidence_views: defineTable(zodOutputToConvex(EvidenceViewsTableSchema))
+    .index("by_item", ["evidence_item_id"])
+    .index("by_item_view", ["evidence_item_id", "view_kind"])
+    .index("by_attempt", ["attempt_id"]),
   windows: defineTable(zodOutputToConvex(WindowsTableSchema))
     .index("by_window_tag", ["window_tag"]),
   window_runs: defineTable(zodOutputToConvex(WindowRunsTableSchema))

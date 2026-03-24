@@ -1896,6 +1896,7 @@ export const getBatchExecution = zQuery({
     status: z.string(),
     output_file_id: z.string().nullable().optional(),
     error_file_id: z.string().nullable().optional(),
+    provider_artifacts_json: z.string().nullable().optional(),
     attempt_recorded_count: z.number().nullable().optional(),
     attempt_records_json: z.string().nullable().optional(),
   }).nullable(),
@@ -1913,6 +1914,7 @@ export const getBatchExecution = zQuery({
       status: execution.status,
       output_file_id: execution.output_file_id ?? null,
       error_file_id: execution.error_file_id ?? null,
+      provider_artifacts_json: execution.provider_artifacts_json ?? null,
       attempt_recorded_count: execution.attempt_recorded_count ?? null,
       attempt_records_json: execution.attempt_records_json ?? null,
     };
@@ -1936,6 +1938,7 @@ export const ensureBatchExecution = zMutation({
     status: z.string(),
     output_file_id: z.string().nullable().optional(),
     error_file_id: z.string().nullable().optional(),
+    provider_artifacts_json: z.string().nullable().optional(),
     attempt_recorded_count: z.number().nullable().optional(),
     attempt_records_json: z.string().nullable().optional(),
   }),
@@ -1969,6 +1972,7 @@ export const ensureBatchExecution = zMutation({
       input_file_id: null,
       output_file_id: null,
       error_file_id: null,
+      provider_artifacts_json: null,
       status: "preparing",
       last_known_provider_status: null,
       last_error_message: null,
@@ -1984,6 +1988,7 @@ export const ensureBatchExecution = zMutation({
       status: "preparing",
       output_file_id: null,
       error_file_id: null,
+      provider_artifacts_json: null,
       attempt_recorded_count: 0,
       attempt_records_json: null,
     };
@@ -2053,6 +2058,7 @@ export const finalizeBatchExecution = zMutation({
     provider_status: z.string(),
     output_file_id: z.string().nullable().optional(),
     error_file_id: z.string().nullable().optional(),
+    provider_artifacts_json: z.string().nullable().optional(),
     error_message: z.string().nullable().optional(),
   }),
   returns: z.null(),
@@ -2066,6 +2072,10 @@ export const finalizeBatchExecution = zMutation({
       last_known_provider_status: args.provider_status,
       output_file_id: args.output_file_id ?? execution.output_file_id ?? null,
       error_file_id: args.error_file_id ?? execution.error_file_id ?? null,
+      provider_artifacts_json:
+        args.provider_artifacts_json
+        ?? execution.provider_artifacts_json
+        ?? null,
       last_error_message: args.error_message ?? null,
       completed_at_ms:
         args.status === "completed" || args.status === "failed" || args.status === "cancelled"

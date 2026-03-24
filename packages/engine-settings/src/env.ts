@@ -18,8 +18,10 @@ export const ENGINE_ENV_KEYS = {
   temporalTestServerExecutable: "TEMPORAL_TEST_SERVER_EXECUTABLE",
   openaiApiKey: "OPENAI_API_KEY",
   anthropicApiKey: "ANTHROPIC_API_KEY",
+  openrouterApiKey: "OPENROUTER_API_KEY",
   googleGenerativeAiApiKey: "GOOGLE_GENERATIVE_AI_API_KEY",
   firecrawlApiKey: "FIRECRAWL_API_KEY",
+  mediacloudApiKey: "MEDIACLOUD_API_KEY",
   axiomDataset: "AXIOM_DATASET",
   axiomToken: "AXIOM_TOKEN",
 } as const;

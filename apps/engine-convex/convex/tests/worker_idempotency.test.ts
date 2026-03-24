@@ -437,6 +437,47 @@ describe("worker mutation idempotency", () => {
     });
   });
 
+  test("persists provider-specific batch artifacts on the batch execution row", async () => {
+    const t = initTest();
+    const created = await t.mutation(api.packages.worker.ensureBatchExecution, {
+      batch_key: "batch:key:artifacts",
+      process_kind: "run",
+      process_id: "run_artifacts",
+      stage: "score_gen",
+      provider: "anthropic",
+      model: "claude-sonnet-4",
+      workflow_id: "run:run_artifacts",
+      item_count: 3,
+    });
+
+    await t.mutation(api.packages.worker.bindBatchExecutionSubmitted, {
+      batch_execution_id: created.batch_execution_id,
+      provider_batch_id: "msgbatch_artifacts",
+      provider_status: "in_progress",
+    });
+    await t.mutation(api.packages.worker.finalizeBatchExecution, {
+      batch_execution_id: created.batch_execution_id,
+      status: "completed",
+      provider_status: "ended",
+      provider_artifacts_json: JSON.stringify({
+        results_url: "https://api.anthropic.com/v1/messages/batches/msgbatch_artifacts/results",
+      }),
+    });
+
+    const queried = await t.query(api.packages.worker.getBatchExecution, {
+      batch_key: "batch:key:artifacts",
+    });
+
+    expect(queried).toMatchObject({
+      batch_execution_id: created.batch_execution_id,
+      provider_batch_id: "msgbatch_artifacts",
+      status: "completed",
+      provider_artifacts_json: JSON.stringify({
+        results_url: "https://api.anthropic.com/v1/messages/batches/msgbatch_artifacts/results",
+      }),
+    });
+  });
+
   test("infers process ids from workflow ids when snapshots omit processId", async () => {
     const t = initTest();
     const { window_run_id } = await seedWindow(t);

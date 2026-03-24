@@ -5,6 +5,17 @@ export const PROVIDERS = {
   openai: {
     id: "openai",
     env_var: "OPENAI_API_KEY",
+    batch_mode: "native",
+  },
+  anthropic: {
+    id: "anthropic",
+    env_var: "ANTHROPIC_API_KEY",
+    batch_mode: "native",
+  },
+  openrouter: {
+    id: "openrouter",
+    env_var: "OPENROUTER_API_KEY",
+    batch_mode: "none",
   },
 } as const;
 
@@ -17,6 +28,9 @@ export const providerTypeSchema = z.enum(PROVIDER_IDS);
 export type ProviderType = z.infer<typeof providerTypeSchema>;
 
 export type ProviderDefinition = (typeof PROVIDERS)[ProviderType];
+
+export const ProviderBatchModeSchema = z.enum(["native", "none"]);
+export type ProviderBatchMode = z.infer<typeof ProviderBatchModeSchema>;
 
 export const ProviderRateLimitSchema = z.object({
   requestsPerMinute: z.number().int().positive().optional(),
@@ -53,10 +67,23 @@ export const MODELS = [
     provider_model: "gpt-5.2-chat-latest",
     batchable: false,
   },
+  {
+    id: "claude-sonnet-4",
+    provider: "anthropic",
+    provider_model: "claude-sonnet-4-20250514",
+    batchable: true,
+  },
+  {
+    id: "claude-sonnet-4-openrouter",
+    provider: "openrouter",
+    provider_model: "anthropic/claude-sonnet-4",
+    batchable: false,
+  },
 ] as const;
 
 export type ModelDefinition = (typeof MODELS)[number];
 export type ModelType = ModelDefinition["id"];
+type OpenAiModelType = Extract<ModelDefinition, { provider: "openai" }>["id"];
 
 const MODEL_IDS = MODELS.map((model) => model.id) as [
   ModelType,
@@ -85,10 +112,22 @@ export function getProviderEnv(provider: ProviderType): string {
   return PROVIDERS[provider].env_var;
 }
 
+export function getProviderBatchMode(provider: ProviderType): ProviderBatchMode {
+  return PROVIDERS[provider].batch_mode;
+}
+
+export function providerSupportsBatching(provider: ProviderType): boolean {
+  return getProviderBatchMode(provider) === "native";
+}
+
 export const OpenAiTierSchema = z.enum(["tier_5"]);
 export type OpenAiTier = z.infer<typeof OpenAiTierSchema>;
 
-const OPENAI_TIER_5_MODEL_LIMITS: Record<ModelType, ProviderRateLimit> = {
+function isOpenAiModel(model: ModelType): model is OpenAiModelType {
+  return MODEL_BY_ID[model].provider === "openai";
+}
+
+const OPENAI_TIER_5_MODEL_LIMITS: Record<OpenAiModelType, ProviderRateLimit> = {
   "gpt-4.1": {
     requestsPerMinute: 10_000,
     inputTokensPerMinute: 30_000_000,
@@ -111,7 +150,10 @@ const OPENAI_TIER_5_MODEL_LIMITS: Record<ModelType, ProviderRateLimit> = {
   },
 };
 
-const OPENAI_TIER_LIMITS: Record<OpenAiTier, Record<ModelType, ProviderRateLimit>> = {
+const OPENAI_TIER_LIMITS: Record<
+  OpenAiTier,
+  Record<OpenAiModelType, ProviderRateLimit>
+> = {
   tier_5: OPENAI_TIER_5_MODEL_LIMITS,
 };
 
@@ -125,9 +167,33 @@ export const OpenAiProviderSettingsSchema = z.object({
 
 export type OpenAiProviderSettings = z.infer<typeof OpenAiProviderSettingsSchema>;
 
+export const AnthropicProviderSettingsSchema = z.object({
+  modelRateLimitOverrides: z.partialRecord(
+    modelTypeSchema,
+    ProviderRateLimitSchema,
+  ).default({}),
+});
+
+export type AnthropicProviderSettings = z.infer<typeof AnthropicProviderSettingsSchema>;
+
+export const OpenRouterProviderSettingsSchema = z.object({
+  modelRateLimitOverrides: z.partialRecord(
+    modelTypeSchema,
+    ProviderRateLimitSchema,
+  ).default({}),
+});
+
+export type OpenRouterProviderSettings = z.infer<typeof OpenRouterProviderSettingsSchema>;
+
 export const ProviderExecutionSettingsSchema = z.object({
   openai: OpenAiProviderSettingsSchema.default({
     tier: "tier_5",
+    modelRateLimitOverrides: {},
+  }),
+  anthropic: AnthropicProviderSettingsSchema.default({
+    modelRateLimitOverrides: {},
+  }),
+  openrouter: OpenRouterProviderSettingsSchema.default({
     modelRateLimitOverrides: {},
   }),
 });
@@ -151,17 +217,23 @@ export function resolveProviderRateLimit(
   provider: ProviderType,
   model: ModelType,
 ): ProviderRateLimit | null {
-  if (provider !== "openai") {
-    return null;
+  switch (provider) {
+    case "openai": {
+      if (!isOpenAiModel(model)) {
+        return null;
+      }
+      const tierLimits = OPENAI_TIER_LIMITS[providerSettings.openai.tier][model];
+      const override = providerSettings.openai.modelRateLimitOverrides[model];
+      return {
+        ...tierLimits,
+        ...(override ?? {}),
+      };
+    }
+    case "anthropic":
+      return providerSettings.anthropic.modelRateLimitOverrides[model] ?? null;
+    case "openrouter":
+      return providerSettings.openrouter.modelRateLimitOverrides[model] ?? null;
   }
-
-  const tierLimits = OPENAI_TIER_LIMITS[providerSettings.openai.tier][model];
-  const override = providerSettings.openai.modelRateLimitOverrides[model];
-
-  return {
-    ...tierLimits,
-    ...(override ?? {}),
-  };
 }
 
 export function rateLimitToTokenBucketPolicies(
