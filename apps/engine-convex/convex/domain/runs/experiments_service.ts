@@ -484,32 +484,46 @@ export const listExperimentEvidence = zInternalQuery({
   handler: async (ctx, { experiment_id }) => {
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
-    if (experiment.evidence_source_kind !== "pool" || !experiment.pool_id) {
-      return [];
+    if (experiment.evidence_source_kind !== "evidence_set" || !experiment.evidence_set_id) {
+      throw new Error(
+        "Greenfield V4 lab evidence listing now requires evidence-set-backed experiments.",
+      );
     }
-    const links = await listEvidenceLinks(ctx, experiment.pool_id);
+
+    const setItems = await ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", experiment.evidence_set_id!))
+      .collect();
     const evidenceRows: Array<{
-      evidence_id: Id<"evidences">;
-      window_id: Id<"windows">;
-      title: string;
-      url: string;
+      evidence_set_item_id: Id<"evidence_set_items">;
+      evidence_item_id: Id<"evidence_items">;
+      evidence_view_id: Id<"evidence_views"> | null;
+      title: string | null;
+      url: string | null;
+      source_name: string | null;
+      publish_date: string | null;
       created_at: number;
+      ordinal: number;
     }> = [];
 
-    for (const link of links) {
-      const evidence = await ctx.db.get(link.evidence_id);
-      if (!evidence) continue;
+    for (const setItem of setItems) {
+      const evidenceItem = await ctx.db.get(setItem.evidence_item_id);
+      if (!evidenceItem) continue;
 
       evidenceRows.push({
-        evidence_id: evidence._id,
-        window_id: evidence.window_id,
-        title: evidence.title,
-        url: evidence.url,
-        created_at: evidence._creationTime,
+        evidence_set_item_id: setItem._id,
+        evidence_item_id: evidenceItem._id,
+        evidence_view_id: setItem.pinned_view_id ?? null,
+        title: evidenceItem.title ?? null,
+        url: evidenceItem.source_url ?? null,
+        source_name: evidenceItem.source_name ?? null,
+        publish_date: evidenceItem.publish_date ?? null,
+        created_at: evidenceItem._creationTime,
+        ordinal: setItem.ordinal,
       });
     }
 
-    return evidenceRows.sort((a, b) => a.created_at - b.created_at);
+    return evidenceRows.sort((a, b) => a.ordinal - b.ordinal || a.created_at - b.created_at);
   },
 });
 

@@ -874,10 +874,14 @@ export const listExperimentEvidence: ReturnType<typeof zQuery> = zQuery({
   args: z.object({ experiment_id: zid("experiments") }),
   returns: z.array(
     z.object({
-      evidence_id: zid("evidences"),
-      window_id: zid("windows"),
-      title: z.string(),
-      url: z.string(),
+      evidence_set_item_id: zid("evidence_set_items"),
+      evidence_item_id: zid("evidence_items"),
+      evidence_view_id: zid("evidence_views").nullable(),
+      title: z.string().nullable(),
+      url: z.string().nullable(),
+      source_name: z.string().nullable(),
+      publish_date: z.string().nullable(),
+      ordinal: z.number(),
       created_at: z.number(),
     }),
   ),
