@@ -14,7 +14,7 @@ export {
 
 export const ProcessTypeSchema = ProcessKindSchema;
 
-export const TemporalTaskQueueKindSchema = z.enum(["run", "window"]);
+export const TemporalTaskQueueKindSchema = z.enum(["run"]);
 
 export const TemporalTaskQueuePollerSchema = z.object({
   identity: z.string(),

@@ -15,7 +15,6 @@ export const DiscoveryProviderSchema = z.enum([
 ]);
 
 export const HydratorKindSchema = z.enum([
-  "firecrawl",
   "manual",
   "none",
 ]);

@@ -18,8 +18,6 @@ import type {
   RunStageKey,
   RunWorkflowInput,
   SetPauseAfterInput,
-  WindowStageKey,
-  WindowWorkflowInput,
 } from "@judge-gym/engine-settings/process";
 import { DEFAULT_ENGINE_SETTINGS } from "@judge-gym/engine-settings";
 import type * as activities from "./activities";
@@ -29,12 +27,6 @@ const RUN_STAGES: RunStageKey[] = [
   "rubric_critic",
   "score_gen",
   "score_critic",
-];
-const WINDOW_STAGES: WindowStageKey[] = [
-  "collect",
-  "l1_cleaned",
-  "l2_neutralized",
-  "l3_abstracted",
 ];
 
 const {
@@ -48,7 +40,6 @@ const {
 
 const {
   runRunStage,
-  runWindowStage,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
   retry: {
@@ -85,32 +76,14 @@ async function projectSnapshotNonCancellable<TStage extends string>(
   return CancellationScope.nonCancellable(() => projectProcessState(snapshot));
 }
 
-async function runStageActivity<TStage extends string>(
-  snapshot: ProcessSnapshot<TStage>,
-  stage: TStage,
-) {
-  if (snapshot.processKind === "run") {
-    return runRunStage({
-      runId: snapshot.processId,
-      stage: stage as RunStageKey,
-    });
-  }
-
-  return runWindowStage({
-    windowRunId: snapshot.processId,
-    stage: stage as WindowStageKey,
-  });
-}
-
 function buildInitialSnapshot<TStage extends string>(args: {
-  processKind: "run" | "window";
   processId: string;
   workflowType: string;
   pauseAfter: TStage | null;
 }): ProcessSnapshot<TStage> {
   const info = workflowInfo();
   return {
-    processKind: args.processKind,
+    processKind: "run",
     processId: args.processId,
     workflowId: info.workflowId,
     workflowRunId: info.runId,
@@ -125,8 +98,7 @@ function buildInitialSnapshot<TStage extends string>(args: {
   };
 }
 
-async function executeProcessWorkflow<TStage extends string>(args: {
-  processKind: "run" | "window";
+async function executeRunWorkflow<TStage extends string>(args: {
   processId: string;
   workflowType: string;
   stages: TStage[];
@@ -251,7 +223,10 @@ async function executeProcessWorkflow<TStage extends string>(args: {
       snapshot.executionStatus = paused ? "paused" : "running";
       await projectSnapshot(snapshot);
 
-      const stageResult = await runStageActivity(snapshot, stage);
+      const stageResult = await runRunStage({
+        runId: snapshot.processId,
+        stage: stage as RunStageKey,
+      });
 
       snapshot.stageHistory = [...snapshot.stageHistory, stage];
       snapshot.stageStatus = "done";
@@ -300,28 +275,10 @@ async function executeProcessWorkflow<TStage extends string>(args: {
 export async function runWorkflow(
   input: RunWorkflowInput,
 ): Promise<ProcessSnapshot<RunStageKey>> {
-  return executeProcessWorkflow<RunStageKey>({
-    processKind: "run",
+  return executeRunWorkflow<RunStageKey>({
     processId: input.runId,
     workflowType: "RunWorkflow",
     stages: RUN_STAGES,
-    pauseAfter: input.pauseAfter ?? null,
-  });
-}
-
-export async function windowWorkflow(
-  input: WindowWorkflowInput,
-): Promise<ProcessSnapshot<WindowStageKey>> {
-  const terminalStage = input.targetStage ?? "l3_abstracted";
-  const terminalStageIndex = WINDOW_STAGES.indexOf(terminalStage);
-  return executeProcessWorkflow<WindowStageKey>({
-    processKind: "window",
-    processId: input.windowRunId,
-    workflowType: "WindowWorkflow",
-    stages:
-      terminalStageIndex >= 0
-        ? WINDOW_STAGES.slice(0, terminalStageIndex + 1)
-        : WINDOW_STAGES,
     pauseAfter: input.pauseAfter ?? null,
   });
 }

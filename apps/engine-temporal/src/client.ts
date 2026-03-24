@@ -1,21 +1,16 @@
 import { Client, Connection } from "@temporalio/client";
 import { nanoid } from "nanoid";
 import { getTemporalRuntimeConfig } from "./runtime";
-import { runWorkflow, windowWorkflow } from "./workflows";
-
-type ProcessKindArg = "run" | "window";
+import { runWorkflow } from "./workflows";
 
 function parseArgs() {
-  const [processKind = "run", processId = `local-${nanoid(8)}`] =
-    process.argv.slice(2) as [ProcessKindArg?, string?];
-  if (processKind !== "run" && processKind !== "window") {
-    throw new Error("Usage: bun run workflow [run|window] [processId]");
-  }
-  return { processKind, processId };
+  const [processId = `local-${nanoid(8)}`] =
+    process.argv.slice(2) as [string?];
+  return { processId };
 }
 
 async function run() {
-  const { processKind, processId } = parseArgs();
+  const { processId } = parseArgs();
   const config = getTemporalRuntimeConfig();
   const connection = await Connection.connect({
     address: config.address,
@@ -26,27 +21,14 @@ async function run() {
     namespace: config.namespace,
   });
 
-  const workflow =
-    processKind === "run" ? runWorkflow : windowWorkflow;
-  const taskQueue =
-    processKind === "run"
-      ? config.taskQueues.run
-      : config.taskQueues.window;
-  const workflowId = `${processKind}:${processId}`;
-  const handle =
-    processKind === "run"
-      ? await client.workflow.start(runWorkflow, {
-          taskQueue,
-          args: [{ runId: processId }],
-          workflowId,
-        })
-      : await client.workflow.start(windowWorkflow, {
-          taskQueue,
-          args: [{ windowRunId: processId }],
-          workflowId,
-        });
+  const workflowId = `run:${processId}`;
+  const handle = await client.workflow.start(runWorkflow, {
+    taskQueue: config.taskQueues.run,
+    args: [{ runId: processId }],
+    workflowId,
+  });
 
-  console.log(`Started ${processKind} workflow ${handle.workflowId}`);
+  console.log(`Started run workflow ${handle.workflowId}`);
   console.log(await handle.result());
 }
 

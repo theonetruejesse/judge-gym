@@ -1,7 +1,6 @@
 import z from "zod";
 
 export const TelemetryEntityTypeSchema = z.enum([
-  "window",
   "run",
   "batch",
   "job",
@@ -10,7 +9,6 @@ export const TelemetryEntityTypeSchema = z.enum([
 ]);
 
 export const ProcessTelemetryTypeSchema = z.enum([
-  "window",
   "run",
 ]);
 

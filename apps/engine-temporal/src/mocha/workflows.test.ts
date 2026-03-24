@@ -40,9 +40,6 @@ describe("run workflow", function () {
           stage,
           summary: `${runId}:${stage}`,
         }),
-        runWindowStage: async () => {
-          throw new Error("runWindowStage should not be used in run tests");
-        },
       },
     });
 

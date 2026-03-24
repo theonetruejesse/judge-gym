@@ -1,66 +1,54 @@
 # engine-temporal
 
-Temporal worker package for judge-gym. It now contains the greenfield Temporal-owned process runtime:
+Temporal worker package for the greenfield V4 runtime.
 
-- `RunWorkflow` with the canonical run stages (`rubric_gen`, `rubric_critic`, `score_gen`, `score_critic`)
-- `WindowWorkflow` with the canonical window stages (`collect`, `l1_cleaned`, `l2_neutralized`, `l3_abstracted`)
-- shared process control handlers for `pause_after`, `pause_now`, `resume`, cancellation-safe snapshot projection, and bounded repair operations (`reproject_snapshot`, `resume_if_paused`, `clear_pause_after`)
-- a dual-worker entrypoint that listens on separate run/window task queues
-- a local test harness helper that caches the Temporal CLI under `apps/engine-temporal/.temporal/test-server-downloads`
-- the live Redis quota/runtime layer for worker-side rate limiting on OpenAI chat paths
+## What Runs Here
 
-Prompt builders and experiment-config helpers are shared from `packages/engine-prompts`; this app owns execution, not prompt-definition state.
+Only `RunWorkflow` is live.
 
-The current code is in a mixed state:
+Stages:
 
-- the window path is live and calls Firecrawl + OpenAI through `src/window/service.ts`, with Convex worker-API writes for workflow binding, evidence insertion, attempt logging, stage result application, and window-level error/completion projection
-- the run path is also live and calls OpenAI through `src/run/service.ts`, with Convex worker-API writes for workflow binding, attempt logging, parsed artifact application, and stage finalization
-- the worker now enforces provider/model token buckets through Redis before OpenAI chat calls, then settles those reservations after each attempt finishes
-- batch-backed stages emit process heartbeats during batch submit/poll/completion so long rubric windows do not look stale purely because projection updates only happen at stage boundaries
+- `rubric_gen`
+- `rubric_critic`
+- `score_gen`
+- `score_critic`
 
-Use `bun install` from the repo root for dependency installation. The package executes on Node, but it is still managed through the Bun workspace. The repo root `.env.local` is the source of truth for local scripts, but the primary dev/runtime path is a Railway-hosted Temporal worker service.
+The worker executes provider-routed LLM calls, native batch flows, quota enforcement, and workflow snapshot/control handling.
 
-## Running it
+## Provider Support
 
-1. Install repo dependencies with `bun install` from the repo root.
-1. Deploy the package to Railway using the repo-root `railway.toml` and repo-root `Dockerfile`.
-1. Set the worker service env so `TEMPORAL_ADDRESS=temporalserver:7233` and `TEMPORAL_NAMESPACE=default`, unless your Railway Temporal template uses a different private frontend alias.
-1. Use `bun run workflow -- run my-run-id` or `bun run workflow -- window my-window-id` from `apps/engine-temporal` only for direct client-side workflow operations when needed.
+- OpenAI direct + native batch
+- Anthropic direct + native batch
+- OpenRouter direct
 
-The workflow returns the final process snapshot after running all stages:
+## Main Files
 
-```bash
-Started run workflow run:my-run-id
-{
-  processKind: "run",
-  processId: "my-run-id",
-  executionStatus: "completed",
-  stageHistory: ["rubric_gen", "rubric_critic", "score_gen", "score_critic"],
-  ...
-}
-```
+- `src/workflows.ts`: `RunWorkflow`
+- `src/activities.ts`: activity bindings
+- `src/run/service.ts`: run-stage execution
+- `src/llm/`: provider clients
+- `src/convex/client.ts`: worker-side Convex API client
+- `src/quota/`: Redis-backed quota logic
+
+## Commands
+
+- `bun run workflow -- run <run_id>`
+- `bun run test`
+- `bun run typecheck`
 
 ## Environment
 
-- Root `.env.local` is the authoritative env file for direct local package scripts.
-- `TEMPORAL_ADDRESS` defaults to `localhost:7233` for local-only scripts; the Railway worker should use `temporalserver:7233` unless your template used a different private alias
-- `TEMPORAL_NAMESPACE` defaults to `default`
-- `TEMPORAL_TLS_ENABLED=1` enables TLS for the worker/client connection to Temporal
-- `TEMPORAL_TLS_SERVER_NAME` optionally sets the TLS server-name override (useful for proxied frontends such as Railway TCP proxies)
-- `TEMPORAL_RUN_TASK_QUEUE` defaults to `judge-gym.run`
-- `TEMPORAL_WINDOW_TASK_QUEUE` defaults to `judge-gym.window`
-- `TEMPORAL_RETRY_DELAY_MS` defaults to `5000` for the dev worker retry loop
-- `TEMPORAL_TEST_SERVER_MODE=existing` can be used to point tests at an already-running local Temporal server instead of spawning an ephemeral one
-- `TEMPORAL_TEST_SERVER_DOWNLOAD_DIR` can override the default in-repo CLI cache directory used by the local test harness
-- `TEMPORAL_TEST_SERVER_EXECUTABLE` can point tests at a preinstalled Temporal CLI binary
-- `REDIS_URL` is the primary worker-side quota env var; `REDIS_KEY_PREFIX` optionally overrides the quota key prefix
+- `TEMPORAL_ADDRESS`
+- `TEMPORAL_NAMESPACE`
+- `TEMPORAL_TLS_ENABLED`
+- `TEMPORAL_TLS_SERVER_NAME`
+- `TEMPORAL_RUN_TASK_QUEUE` default: `judge-gym.run`
+- `REDIS_URL`
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `OPENROUTER_API_KEY`
 
-## Current implementation map
+## Notes
 
-- `src/workflows.ts`: generic process workflow shell plus the current `windowWorkflow` / `runWorkflow`
-- `src/window/service.ts`: live window activity implementation (collect + transform stages)
-- `src/run/service.ts`: live run activity implementation (rubric + score stages)
-- `src/convex/client.ts`: worker-side Convex HTTP client for the narrow worker API
-- `src/quota/`: provider-aware Redis quota reservation/settlement layer
-- `src/mocha/run-service.test.ts`: unit coverage for the run activity service
-- `src/mocha/window-service.test.ts`: unit coverage for the window activity service
+- The worker is run-only; the old window task queue and window activity path are removed.
+- The primary deployment target is Railway.

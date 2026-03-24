@@ -58,7 +58,7 @@ function getMediaCloudApiKey(): string {
 }
 
 export function buildMediaCloudStoryListUrl(args: z.infer<typeof MediaCloudDiscoveryArgsSchema>) {
-  const settings = DEFAULT_ENGINE_SETTINGS.window.mediacloud;
+  const settings = DEFAULT_ENGINE_SETTINGS.evidence.mediacloud;
   const url = new URL("search/story-list", settings.baseUrl);
   url.searchParams.set("q", args.query);
   url.searchParams.set("start", args.start_date);
@@ -107,7 +107,7 @@ export async function fetchMediaCloudStoryList(
   args: z.infer<typeof MediaCloudDiscoveryArgsSchema>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<z.infer<typeof MediaCloudDiscoveryResultSchema>> {
-  const settings = DEFAULT_ENGINE_SETTINGS.window.mediacloud;
+  const settings = DEFAULT_ENGINE_SETTINGS.evidence.mediacloud;
   const response = await fetchImpl(buildMediaCloudStoryListUrl(args), {
     headers: {
       Authorization: `Token ${getMediaCloudApiKey()}`,

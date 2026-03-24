@@ -31,6 +31,9 @@ const statusOrder = new Map(statuses.map((status, index) => [status, index]));
 type ExperimentListItem = {
   experiment_id: string;
   experiment_tag?: string;
+  evidence_set_tag: string | null;
+  evidence_set_quality_label: string;
+  evidence_set_source_kind: string;
   rubric_config: {
     model: string;
     scale_size: number;
@@ -45,7 +48,6 @@ type ExperimentListItem = {
   };
   total_count: number;
   evidence_selected_count: number;
-  window_count: number;
   status: string;
   latest_run?: {
     run_id: string;
@@ -65,20 +67,18 @@ type ExperimentListItem = {
   };
 };
 
-type EvidenceWindowItem = {
-  window_id: string;
-  start_date: string;
-  end_date: string;
-  country: string;
-  query: string;
-  model: string;
-  evidence_count: number;
-  evidence_status:
-    | "scraping"
-    | "cleaning"
-    | "neutralizing"
-    | "abstracting"
-    | "ready";
+type EvidenceUniverseItem = {
+  universe_id: string;
+  universe_tag: string;
+  kind: string;
+  title: string;
+  status: string;
+  acquisition_spec_count: number;
+  acquisition_run_count: number;
+  evidence_set_count: number;
+  candidate_count: number;
+  item_count: number;
+  latest_run_status: string | null;
 };
 
 export default function EvidenceHomePage() {
@@ -88,8 +88,8 @@ export default function EvidenceHomePage() {
   const experiments = useQuery(api.packages.lab.listExperiments, {}) as
     | ExperimentListItem[]
     | undefined;
-  const windows = useQuery(api.packages.lab.listEvidenceWindows, {}) as
-    | EvidenceWindowItem[]
+  const universes = useQuery(api.packages.evidence.listEvidenceUniverses, {}) as
+    | EvidenceUniverseItem[]
     | undefined;
 
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -99,35 +99,24 @@ export default function EvidenceHomePage() {
   const filteredBase =
     statusFilter.length === 0
       ? experimentRows
-      : experimentRows.filter((e) => statusFilter.includes(e.status));
+      : experimentRows.filter((experiment) => statusFilter.includes(experiment.status));
   const filtered = filteredBase
     .slice()
     .sort(
-      (a, b) =>
-        (statusOrder.get(a.status) ?? statuses.length) -
-        (statusOrder.get(b.status) ?? statuses.length),
+      (left, right) =>
+        (statusOrder.get(left.status) ?? statuses.length) -
+        (statusOrder.get(right.status) ?? statuses.length),
     );
 
-  const windowsLoading = windows === undefined;
-  const windowRows = windows ?? [];
+  const universesLoading = universes === undefined;
+  const universeRows = universes ?? [];
 
   const toggleFilter = (status: string) => {
     setStatusFilter((prev) =>
       prev.includes(status)
-        ? prev.filter((s) => s !== status)
+        ? prev.filter((value) => value !== status)
         : [...prev, status],
     );
-  };
-
-  const buildWindowCloneHref = (window: EvidenceWindowItem) => {
-    const params = new URLSearchParams({
-      query: window.query,
-      country: window.country,
-      start_date: window.start_date,
-      end_date: window.end_date,
-      model: window.model,
-    });
-    return `/editor/window?${params.toString()}`;
   };
 
   const promptForTargetCount = () => {
@@ -207,8 +196,7 @@ export default function EvidenceHomePage() {
             {statuses.map((status) => {
               const active = statusFilter.includes(status);
               const activeColor =
-                STATUS_COLORS[status as keyof typeof STATUS_COLORS] ??
-                "#6b7280";
+                STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
               const mutedColor =
                 STATUS_COLORS_MUTED[
                   status as keyof typeof STATUS_COLORS_MUTED
@@ -246,6 +234,7 @@ export default function EvidenceHomePage() {
                   <TableHead>Rubric</TableHead>
                   <TableHead>Scoring</TableHead>
                   <TableHead>Concept</TableHead>
+                  <TableHead>Evidence Set</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Evidence</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -254,102 +243,103 @@ export default function EvidenceHomePage() {
               <TableBody>
                 {experimentsLoading && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-xs opacity-50">
+                    <TableCell colSpan={10} className="text-xs opacity-50">
                       Loading experiments...
                     </TableCell>
                   </TableRow>
                 )}
                 {!experimentsLoading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-xs opacity-50">
+                    <TableCell colSpan={10} className="text-xs opacity-50">
                       No experiments found.
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.map((exp) => (
-                  <TableRow
-                    key={exp.experiment_id}
-                    className="cursor-pointer"
-                    onClick={() =>
-                      router.push(`/experiment/${exp.experiment_id}`)
-                    }
-                  >
-                    <TableCell className="text-center">
-                      <span
-                        className="inline-flex items-center justify-center"
-                        title={exp.status}
-                      >
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{
-                            backgroundColor:
-                              STATUS_COLORS[
-                                exp.status as keyof typeof STATUS_COLORS
-                              ] ?? "#6b7280",
-                          }}
-                        />
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      {exp.experiment_tag ?? exp.experiment_id}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {renderRunSummary(exp.latest_run)}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {exp.rubric_config.model}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {exp.scoring_config.model}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {exp.rubric_config.concept}
-                    </TableCell>
-                    <TableCell className="text-right opacity-70">
-                      {exp.total_count ?? 0}
-                    </TableCell>
-                    <TableCell className="text-right opacity-70">
-                      {exp.evidence_selected_count ?? 0}
-                    </TableCell>
-                    <TableCell
-                      className="text-right"
-                      onClick={(event) => event.stopPropagation()}
+                {filtered.map((row) => {
+                  const statusColor =
+                    STATUS_COLORS[row.status as keyof typeof STATUS_COLORS] ??
+                    "#6b7280";
+                  return (
+                    <TableRow
+                      key={row.experiment_id}
+                      className="cursor-pointer hover:bg-muted/30"
+                      onClick={() => router.push(`/experiment/${row.experiment_id}`)}
                     >
-                      <div className="flex items-center justify-end gap-2">
-                        {exp.status !== "running" &&
-                          exp.status !== "paused" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-[10px] uppercase tracking-wider"
-                              onClick={() => handleStart(exp.experiment_id)}
-                            >
-                              Start
-                            </Button>
-                          )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell className="text-center">
+                        <span
+                          className="inline-block rounded px-2 py-1 text-[10px] uppercase tracking-wider"
+                          style={{
+                            backgroundColor: `${statusColor}20`,
+                            color: statusColor,
+                          }}
+                        >
+                          {row.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {row.experiment_tag ?? row.experiment_id}
+                      </TableCell>
+                      <TableCell>{renderRunSummary(row.latest_run)}</TableCell>
+                      <TableCell className="text-xs">
+                        {row.rubric_config.model} · {row.rubric_config.scale_size}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {row.scoring_config.model} · {row.scoring_config.method}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {row.rubric_config.concept}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div className="space-y-0.5">
+                          <div>{row.evidence_set_tag ?? "—"}</div>
+                          <div className="text-[10px] opacity-45">
+                            {row.evidence_set_source_kind} · {row.evidence_set_quality_label}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {row.total_count}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {row.evidence_selected_count}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleStart(row.experiment_id);
+                            }}
+                            className="h-8 px-2 text-[10px] uppercase tracking-wider"
+                          >
+                            Start
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         </section>
 
         <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-widest opacity-50">
-                Evidence Windows
+                Evidence Universes
               </p>
-              <p className="text-xs opacity-60">{windowRows.length} windows</p>
+              <p className="text-xs opacity-60">{universeRows.length} universes</p>
             </div>
             <Button
               asChild
               variant="outline"
               className="text-[10px] uppercase tracking-wider"
             >
-              <Link href="/editor/window">New Window</Link>
+              <Link href="/editor/evidence">New Media Cloud Query</Link>
             </Button>
           </div>
 
@@ -357,67 +347,88 @@ export default function EvidenceHomePage() {
             <Table>
               <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 <TableRow>
-                  <TableHead>Tag</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Model</TableHead>
-                  <TableHead>Window</TableHead>
+                  <TableHead>Universe</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead className="text-right">Candidates</TableHead>
+                  <TableHead className="text-right">Items</TableHead>
+                  <TableHead className="text-right">Sets</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Evidence</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {windowsLoading && (
+                {universesLoading && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-xs opacity-50">
-                      Loading evidence windows...
+                      Loading evidence universes...
                     </TableCell>
                   </TableRow>
                 )}
-                {!windowsLoading && windowRows.length === 0 && (
+                {!universesLoading && universeRows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-xs opacity-50">
-                      No evidence windows found.
+                      No evidence universes found.
                     </TableCell>
                   </TableRow>
                 )}
-                {windowRows.map((window) => (
-                  <TableRow
-                    key={window.window_id}
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/evidence/${window.window_id}`)}
-                  >
-                    <TableCell className="font-medium text-foreground">
-                      {window.query ?? "—"}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {window.country}
-                    </TableCell>
-                    <TableCell className="opacity-70">{window.model}</TableCell>
-                    <TableCell className="opacity-70">
-                      {`${window.start_date} -> ${window.end_date}`}
-                    </TableCell>
-                    <TableCell className="opacity-70">
-                      {window.evidence_status ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right opacity-70">
-                      {window.evidence_count ?? 0}
-                    </TableCell>
-                    <TableCell
-                      className="text-right"
-                      onClick={(event) => event.stopPropagation()}
+                {universeRows.map((universe) => {
+                  const status = universe.latest_run_status ?? universe.status;
+                  const statusColor =
+                    STATUS_COLORS[status as keyof typeof STATUS_COLORS] ?? "#6b7280";
+                  const mutedColor =
+                    STATUS_COLORS_MUTED[status as keyof typeof STATUS_COLORS_MUTED]
+                    ?? "#6b7280";
+                  return (
+                    <TableRow
+                      key={universe.universe_id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => router.push(`/evidence/${universe.universe_id}`)}
                     >
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[10px] uppercase tracking-wider"
-                      >
-                        <Link href={buildWindowCloneHref(window)}>Clone</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-medium">{universe.title}</div>
+                          <div className="text-[10px] opacity-45">
+                            {universe.universe_tag}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">{universe.kind}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {universe.candidate_count}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {universe.item_count}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {universe.evidence_set_count}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <span
+                          className="rounded px-2 py-1 text-[10px] uppercase tracking-wider"
+                          style={{
+                            backgroundColor: `${mutedColor}20`,
+                            color: statusColor,
+                          }}
+                        >
+                          {status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            router.push(`/evidence/${universe.universe_id}`);
+                          }}
+                          className="h-8 px-2 text-[10px] uppercase tracking-wider"
+                        >
+                          Open
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

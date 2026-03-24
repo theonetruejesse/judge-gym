@@ -272,7 +272,7 @@ async function hydrateCandidateInternal(
     },
     method: "GET",
     redirect: "follow",
-    signal: AbortSignal.timeout(DEFAULT_ENGINE_SETTINGS.window.mediacloud.requestTimeoutMs),
+    signal: AbortSignal.timeout(DEFAULT_ENGINE_SETTINGS.evidence.mediacloud.requestTimeoutMs),
   });
 
   if (!response.ok) {

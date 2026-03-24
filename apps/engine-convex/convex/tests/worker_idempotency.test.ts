@@ -9,33 +9,6 @@ function initTest() {
   return convexTest(schema, buildModules());
 }
 
-async function seedWindow(t: ReturnType<typeof convexTest>) {
-  const { window_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindow,
-    {
-      window_tag: "idempotency_window",
-      country: "USA",
-      start_date: "2026-03-01",
-      end_date: "2026-03-02",
-      query: "idempotency",
-      default_target_count: 1,
-      default_target_stage: "l3_abstracted",
-    },
-  );
-
-  const { window_run_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindowRun,
-    {
-      window_id,
-      model: "gpt-4.1-mini",
-      target_count: 1,
-      target_stage: "l3_abstracted",
-    },
-  );
-
-  return { window_id, window_run_id };
-}
-
 async function seedRun(t: ReturnType<typeof convexTest>) {
   const { universe_id } = await t.mutation(
     internal.domain.evidence.evidence_repo.createUniverse,
@@ -92,7 +65,7 @@ async function seedRun(t: ReturnType<typeof convexTest>) {
         model: "gpt-4.1",
         method: "subset",
         abstain_enabled: true,
-        evidence_view: "l2_neutralized",
+        evidence_view: "l0_raw",
         randomizations: [],
         evidence_bundle_size: 1,
       },
@@ -175,37 +148,21 @@ describe("worker mutation idempotency", () => {
 
   test("reuses attempt rows for the same attempt key and finish is idempotent", async () => {
     const t = initTest();
-    const { window_run_id } = await seedWindow(t);
+    const { run_id, sample_id } = await seedRun(t);
 
-    const first = await t.mutation(api.packages.worker.recordLlmAttemptStart, {
-      attempt_key: "window:test:l1:evidence_1:attempt:1",
-      process_kind: "window",
-      process_id: String(window_run_id),
-      target_type: "evidence",
-      target_id: "evidence_1",
-      stage: "l1_cleaned",
-      provider: "openai",
-      model: "gpt-4.1-mini",
-      operation_type: "chat",
-      workflow_id: `window:${window_run_id}`,
-      system_prompt: "system",
-      user_prompt: "user",
-      metadata_json: null,
+    const first = await startRunAttempt(t, {
+      run_id,
+      target_type: "sample",
+      target_id: String(sample_id),
+      stage: "rubric_gen",
+      attempt_key: "run:test:rubric_gen:sample_1:attempt:1",
     });
-    const second = await t.mutation(api.packages.worker.recordLlmAttemptStart, {
-      attempt_key: "window:test:l1:evidence_1:attempt:1",
-      process_kind: "window",
-      process_id: String(window_run_id),
-      target_type: "evidence",
-      target_id: "evidence_1",
-      stage: "l1_cleaned",
-      provider: "openai",
-      model: "gpt-4.1-mini",
-      operation_type: "chat",
-      workflow_id: `window:${window_run_id}`,
-      system_prompt: "system",
-      user_prompt: "user",
-      metadata_json: null,
+    const second = await startRunAttempt(t, {
+      run_id,
+      target_type: "sample",
+      target_id: String(sample_id),
+      stage: "rubric_gen",
+      attempt_key: "run:test:rubric_gen:sample_1:attempt:1",
     });
 
     expect(second.attempt_id).toBe(first.attempt_id);
@@ -232,23 +189,15 @@ describe("worker mutation idempotency", () => {
 
   test("drops late attempt finish callbacks after reset cleanup removes the attempt row", async () => {
     const t = initTest();
-    const { window_run_id } = await seedWindow(t);
+    const { run_id, sample_id } = await seedRun(t);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const attempt = await t.mutation(api.packages.worker.recordLlmAttemptStart, {
-      attempt_key: "window:test:l1:evidence_1:late_finish",
-      process_kind: "window",
-      process_id: String(window_run_id),
-      target_type: "evidence",
-      target_id: "evidence_1",
-      stage: "l1_cleaned",
-      provider: "openai",
-      model: "gpt-4.1-mini",
-      operation_type: "chat",
-      workflow_id: `window:${window_run_id}`,
-      system_prompt: "system",
-      user_prompt: "user",
-      metadata_json: null,
+    const attempt = await startRunAttempt(t, {
+      run_id,
+      target_type: "sample",
+      target_id: String(sample_id),
+      stage: "rubric_gen",
+      attempt_key: "run:test:rubric_gen:sample_1:late_finish",
     });
 
     await t.run(async (ctx) => {
@@ -269,101 +218,6 @@ describe("worker mutation idempotency", () => {
       expect.stringContaining(String(attempt.attempt_id)),
     );
     warnSpy.mockRestore();
-  });
-
-  test("dedupes repeated evidence inserts for the same window run", async () => {
-    const t = initTest();
-    const { window_run_id } = await seedWindow(t);
-
-    const first = await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-      window_run_id,
-      evidences: [{
-        title: "Story 1",
-        url: "https://example.com/story-1",
-        raw_content: "raw 1",
-      }],
-    });
-    const second = await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-      window_run_id,
-      evidences: [{
-        title: "Story 1",
-        url: "https://example.com/story-1",
-        raw_content: "raw 1",
-      }],
-    });
-
-    expect(first.inserted).toBe(1);
-    expect(second.inserted).toBe(0);
-    expect(second.total).toBe(1);
-  });
-
-  test("returns null instead of throwing for malformed window execution context queries", async () => {
-    const t = initTest();
-    const { window_id, window_run_id } = await seedWindow(t);
-
-    await expect(t.query(api.packages.worker.getWindowExecutionContext, {} as never)).resolves.toBeNull();
-    await expect(t.query(api.packages.worker.getWindowExecutionContext, {
-      window_run_id: String(window_id) as never,
-    })).resolves.toBeNull();
-    await expect(t.query(api.packages.worker.getWindowExecutionContext, {
-      window_run_id: String(window_run_id) as never,
-    })).resolves.toMatchObject({
-      window_run_id,
-      window_id,
-    });
-  });
-
-  test("applying l3 twice is a no-op and does not double-increment completed_count", async () => {
-    const t = initTest();
-    const { window_run_id } = await seedWindow(t);
-    await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-      window_run_id,
-      evidences: [{
-        title: "Story 1",
-        url: "https://example.com/story-1",
-        raw_content: "raw 1",
-      }],
-    });
-
-    const evidenceRows = await t.query(api.packages.lab.listEvidenceByWindowRun, {
-      window_run_id,
-    });
-    const evidence_id = evidenceRows[0]!.evidence_id as Id<"evidences">;
-    const attempt = await t.mutation(api.packages.worker.recordLlmAttemptStart, {
-      attempt_key: "window:test:l3:evidence_1:attempt:1",
-      process_kind: "window",
-      process_id: String(window_run_id),
-      target_type: "evidence",
-      target_id: String(evidence_id),
-      stage: "l3_abstracted",
-      provider: "openai",
-      model: "gpt-4.1-mini",
-      operation_type: "chat",
-      workflow_id: `window:${window_run_id}`,
-      system_prompt: "system",
-      user_prompt: "user",
-      metadata_json: null,
-    });
-
-    await t.mutation(api.packages.worker.applyWindowStageResult, {
-      window_run_id,
-      evidence_id,
-      stage: "l3_abstracted",
-      attempt_id: attempt.attempt_id,
-      output: "abstracted",
-    });
-    await t.mutation(api.packages.worker.applyWindowStageResult, {
-      window_run_id,
-      evidence_id,
-      stage: "l3_abstracted",
-      attempt_id: attempt.attempt_id,
-      output: "abstracted",
-    });
-
-    const windowRun = await t.query(internal.domain.window.window_repo.getWindowRun, {
-      window_run_id,
-    });
-    expect(windowRun.completed_count).toBe(1);
   });
 
   test("reuses batch execution rows for the same batch key", async () => {
@@ -485,50 +339,47 @@ describe("worker mutation idempotency", () => {
     });
   });
 
-  test("infers process ids from workflow ids when snapshots omit processId", async () => {
+  test("infers run ids from workflow ids when snapshots omit processId", async () => {
     const t = initTest();
-    const { window_run_id } = await seedWindow(t);
+    const { run_id } = await seedRun(t);
 
     await expect(t.mutation(api.packages.worker.projectProcessState, {
-      processKind: "window",
-      workflowId: `window:${window_run_id}`,
+      processKind: "run",
+      workflowId: `run:${run_id}`,
       workflowRunId: "inferred-process-id-test",
-      workflowType: "WindowWorkflow",
+      workflowType: "RunWorkflow",
       executionStatus: "running",
-      stage: "l1_cleaned",
+      stage: "rubric_gen",
       stageStatus: "running",
       pauseAfter: null,
-      stageHistory: ["collect", "l1_cleaned"],
+      stageHistory: ["rubric_gen"],
       lastControlCommandId: null,
       lastErrorMessage: null,
     })).resolves.toBeNull();
 
-    const windowRun = await t.query(internal.domain.window.window_repo.getWindowRun, {
-      window_run_id,
-    });
-
-    expect(windowRun.status).toBe("running");
-    expect(windowRun.current_stage).toBe("l1_cleaned");
+    const run = await t.query(internal.domain.runs.run_repo.getRun, { run_id });
+    expect(run.status).toBe("running");
+    expect(run.current_stage).toBe("rubric_gen");
   });
 
-  test("drops late process projection callbacks after reset cleanup removes the window run row", async () => {
+  test("drops late process projection callbacks after reset cleanup removes the run row", async () => {
     const t = initTest();
-    const { window_run_id } = await seedWindow(t);
+    const { run_id } = await seedRun(t);
 
     await t.run(async (ctx) => {
-      await ctx.db.delete(window_run_id);
+      await ctx.db.delete(run_id);
     });
 
     await expect(t.mutation(api.packages.worker.projectProcessState, {
-      processKind: "window",
-      workflowId: `window:${window_run_id}`,
+      processKind: "run",
+      workflowId: `run:${run_id}`,
       workflowRunId: "late-callback-test",
-      workflowType: "WindowWorkflow",
+      workflowType: "RunWorkflow",
       executionStatus: "running",
-      stage: "l1_cleaned",
+      stage: "rubric_gen",
       stageStatus: "running",
       pauseAfter: null,
-      stageHistory: ["collect", "l1_cleaned"],
+      stageHistory: ["rubric_gen"],
       lastControlCommandId: null,
       lastErrorMessage: null,
     })).resolves.toBeNull();
@@ -536,14 +387,14 @@ describe("worker mutation idempotency", () => {
     const observability = await t.query(
       internal.domain.telemetry.events.getProcessObservability,
       {
-        process_type: "window",
-        process_id: String(window_run_id),
+        process_type: "run",
+        process_id: String(run_id),
       },
     );
 
     expect(observability?.last_event_name).toBe("process_projection_skipped_missing_target");
     expect(observability?.last_status).toBe("error");
-    expect(observability?.recent_events.at(-1)?.payload_json).toContain("\"reason\":\"window_run_missing\"");
+    expect(observability?.recent_events.at(-1)?.payload_json).toContain("\"reason\":\"run_missing\"");
   });
 
   test("drops late run-stage apply callbacks after reset cleanup removes the run row", async () => {

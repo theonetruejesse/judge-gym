@@ -1,7 +1,9 @@
 import {
   DEFAULT_ENGINE_SETTINGS,
   classifyTaskFailure,
+  getModelConfig,
   isBatchableModel,
+  type ModelType,
   resolveAttemptLimitForFailureClass,
   shouldUseBatching,
   type EngineSettings,
@@ -20,12 +22,11 @@ import {
   type ChatResult,
 } from "../llm/client";
 import { estimateTextTokens, getQuotaStore, type QuotaStore } from "../quota";
-import { getModelConfig } from "../window/model_registry";
 
 type RunStageInput = {
   target_type: "sample" | "sample_score_target";
   target_id: string;
-  model: string;
+  model: ModelType;
   system_prompt: string;
   user_prompt: string;
   metadata_json: string | null;
@@ -521,7 +522,7 @@ export async function runRunStageActivityWithDeps(
   let successCount = 0;
   let failureCount = 0;
 
-  const groups = new Map<string, RunStageInput[]>();
+  const groups = new Map<ModelType, RunStageInput[]>();
   for (const input of inputs) {
     const key = input.model;
     const group = groups.get(key) ?? [];
@@ -888,7 +889,7 @@ async function processRunStageBatchChunk(
     runId: string;
     stage: RunStageKey;
     workflowId: string;
-    model: string;
+    model: ModelType;
     inputs: RunStageInput[];
   },
 ): Promise<{ successCount: number; failureCount: number }> {

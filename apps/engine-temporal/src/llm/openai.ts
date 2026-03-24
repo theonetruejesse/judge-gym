@@ -1,5 +1,6 @@
 import type { BatchSettings } from "@judge-gym/engine-settings/batch";
-import { getModelConfig } from "../window/model_registry";
+import { getModelConfig } from "@judge-gym/engine-settings/provider";
+import type { ModelType } from "@judge-gym/engine-settings/provider";
 
 export type ChatResult = {
   assistant_output: string;
@@ -10,7 +11,7 @@ export type ChatResult = {
 
 export type BatchChatRequest<TMetadata = Record<string, unknown>> = {
   customId: string;
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
   metadata: TMetadata;
@@ -99,7 +100,7 @@ export function parseAssistantOutput(content: unknown): string {
 }
 
 function buildChatCompletionBody(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
 }) {
@@ -121,7 +122,7 @@ function buildChatCompletionBody(args: {
 }
 
 export async function runOpenAiChat(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
   timeoutMs?: number;
@@ -286,7 +287,7 @@ function describeBatchLineError(line: Record<string, unknown>): string {
 }
 
 export async function runOpenAiBatchChat<TMetadata>(args: {
-  model: string;
+  model: ModelType;
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
   timeoutMs?: number;

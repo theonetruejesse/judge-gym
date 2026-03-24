@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 type Args = {
   command: "watch" | "stuck" | "heal" | "tail" | "analyze" | "inspect" | "control" | "queues" | "campaign";
-  processType?: "run" | "window";
+  processType?: "run";
   processId?: string;
   traceId?: string;
   action?: "set_pause_after" | "pause_now" | "resume" | "cancel" | "repair_bounded";
@@ -50,12 +50,6 @@ function parseArgs(argv: string[]): Args {
     const arg = argv[i];
     if (arg === "--run" && argv[i + 1]) {
       processType = "run";
-      processId = argv[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--window" && argv[i + 1]) {
-      processType = "window";
       processId = argv[i + 1];
       i += 1;
       continue;
@@ -209,7 +203,7 @@ function runConvex(functionName: string, payload: object) {
 
 function requireProcess(args: Args) {
   if (!args.processType || !args.processId) {
-    throw new Error("Expected one of --run <id> or --window <id>");
+    throw new Error("Expected --run <id>.");
   }
 }
 
@@ -282,7 +276,7 @@ function runTail(args: Args) {
   const trace = args.traceId
     ?? (args.processType && args.processId ? `${args.processType}:${args.processId}` : null);
   if (!trace) {
-    throw new Error("Expected --trace <trace_id> or --run/--window");
+    throw new Error("Expected --trace <trace_id> or --run <id>.");
   }
 
   const result = runConvex("packages/codex:tailTrace", {

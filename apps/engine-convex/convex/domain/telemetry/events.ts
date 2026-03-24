@@ -106,7 +106,7 @@ export function buildEventSeq(ts_ms: number) {
 
 export function parseProcessRefFromTraceId(traceId: string): z.infer<typeof ProcessRefSchema> | null {
   const [processType, processId] = traceId.split(":");
-  if ((processType === "run" || processType === "window") && processId) {
+  if (processType === "run" && processId) {
     return {
       process_type: processType,
       process_id: processId,

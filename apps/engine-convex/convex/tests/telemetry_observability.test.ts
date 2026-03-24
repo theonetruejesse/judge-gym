@@ -109,20 +109,20 @@ describe("telemetry observability", () => {
     }
   });
 
-  test("summarizes batch reconciliation state for a process", async () => {
+  test("summarizes batch reconciliation state for a run", async () => {
     const t = initTest();
 
     const attemptOne = await t.run(async (ctx) => ctx.db.insert("llm_attempts", {
       attempt_key: "batch_summary:1",
-      process_kind: "window",
-      process_id: "window_run_1",
-      target_type: "evidence",
+      process_kind: "run",
+      process_id: "run_1",
+      target_type: "sample",
       target_id: "evidence_1",
-      stage: "l1_cleaned",
+      stage: "rubric_gen",
       provider: "openai",
       model: "gpt-4.1",
       operation_type: "batch",
-      workflow_id: "window:window_run_1",
+      workflow_id: "run:run_1",
       prompt_template_id: null,
       user_prompt_payload_id: null,
       assistant_output_payload_id: null,
@@ -134,15 +134,15 @@ describe("telemetry observability", () => {
     }));
     const attemptTwo = await t.run(async (ctx) => ctx.db.insert("llm_attempts", {
       attempt_key: "batch_summary:2",
-      process_kind: "window",
-      process_id: "window_run_1",
-      target_type: "evidence",
+      process_kind: "run",
+      process_id: "run_1",
+      target_type: "sample",
       target_id: "evidence_2",
-      stage: "l1_cleaned",
+      stage: "rubric_gen",
       provider: "openai",
       model: "gpt-4.1",
       operation_type: "batch",
-      workflow_id: "window:window_run_1",
+      workflow_id: "run:run_1",
       prompt_template_id: null,
       user_prompt_payload_id: null,
       assistant_output_payload_id: null,
@@ -156,12 +156,12 @@ describe("telemetry observability", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("llm_batch_executions", {
         batch_key: "batch_key_1",
-        process_kind: "window",
-        process_id: "window_run_1",
-        stage: "l1_cleaned",
+        process_kind: "run",
+        process_id: "run_1",
+        stage: "rubric_gen",
         provider: "openai",
         model: "gpt-4.1",
-        workflow_id: "window:window_run_1",
+        workflow_id: "run:run_1",
         item_count: 20,
         provider_batch_id: "batch_1",
         input_file_id: null,
@@ -175,12 +175,12 @@ describe("telemetry observability", () => {
       });
       await ctx.db.insert("llm_batch_executions", {
         batch_key: "batch_key_2",
-        process_kind: "window",
-        process_id: "window_run_1",
-        stage: "l1_cleaned",
+        process_kind: "run",
+        process_id: "run_1",
+        stage: "rubric_gen",
         provider: "openai",
         model: "gpt-4.1",
-        workflow_id: "window:window_run_1",
+        workflow_id: "run:run_1",
         item_count: 15,
         provider_batch_id: "batch_2",
         input_file_id: null,
@@ -197,9 +197,9 @@ describe("telemetry observability", () => {
     });
 
     const status = await t.query(api.packages.codex.listBatchReconciliationStatus, {
-      process_kind: "window",
-      process_id: "window_run_1",
-      stage: "l1_cleaned",
+      process_kind: "run",
+      process_id: "run_1",
+      stage: "rubric_gen",
     });
 
     expect(status.summary.batch_count).toBe(2);

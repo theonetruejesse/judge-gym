@@ -31,10 +31,8 @@ describe("evidence repository", () => {
           start_date: "2026-03-01",
           end_date: "2026-03-07",
         }),
-        hydrator_kind: "firecrawl",
-        hydrator_config_json: JSON.stringify({
-          formats: ["markdown"],
-        }),
+        hydrator_kind: "manual",
+        hydrator_config_json: null,
       },
     );
 

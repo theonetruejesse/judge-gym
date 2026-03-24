@@ -36,17 +36,17 @@ export default function EditorLandingPage() {
           <Card className="border-border bg-card/80 p-6">
             <div>
               <p className="text-[10px] uppercase tracking-widest opacity-50">
-                Evidence Window
+                Media Cloud Query
               </p>
               <p className="mt-1 text-xs opacity-60">
-                Define a scraping window and model for evidence collection.
+                Create a reusable evidence universe from Media Cloud discovery and hydration.
               </p>
             </div>
             <Button
               asChild
               className="mt-4 w-full text-[10px] uppercase tracking-wider"
             >
-              <Link href="/editor/window">New Window</Link>
+              <Link href="/editor/evidence">New Query</Link>
             </Button>
           </Card>
         </div>

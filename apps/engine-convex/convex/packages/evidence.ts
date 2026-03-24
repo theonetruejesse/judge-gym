@@ -1,5 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import type { ActionCtx } from "../_generated/server";
 import { zAction, zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import {
@@ -133,6 +134,19 @@ const CreateEvidenceSetResultSchema = z.object({
   evidence_set_id: zid("evidence_sets"),
 });
 
+const CreateEvidenceSetFromAcquisitionRunArgsSchema = z.object({
+  acquisition_run_id: zid("acquisition_runs"),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  quality_label: EvidenceSetsTableSchema.shape.quality_label.optional(),
+});
+
+const CreateEvidenceSetFromAcquisitionRunResultSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  item_count: z.number(),
+});
+
 const UpsertEvidenceSetItemsResultSchema = z.object({
   inserted: z.number(),
   updated: z.number(),
@@ -149,6 +163,14 @@ const EvidenceUniverseSummarySchema = z.object({
   evidence_set_count: z.number(),
   candidate_count: z.number(),
   item_count: z.number(),
+});
+
+const EvidenceUniverseCatalogEntrySchema = EvidenceUniverseSummarySchema.extend({
+  latest_acquisition_run_id: zid("acquisition_runs").nullable(),
+  latest_acquisition_spec_id: zid("acquisition_specs").nullable(),
+  latest_spec_tag: z.string().nullable(),
+  latest_run_status: z.string().nullable(),
+  acquisition_run_count: z.number(),
 });
 
 const EvidenceSetSummarySchema = z.object({
@@ -206,6 +228,54 @@ const AcquisitionRunSummarySchema = z.object({
   candidate_count: z.number(),
   item_count: z.number(),
 });
+
+const AcquisitionRunCatalogEntrySchema = AcquisitionRunSummarySchema.extend({
+  started_at_ms: z.number().nullable(),
+  finished_at_ms: z.number().nullable(),
+});
+
+const EvidenceUniverseItemSummarySchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  universe_id: zid("evidence_universes"),
+  canonical_key: z.string(),
+  title: EvidenceItemsTableSchema.shape.title.nullable(),
+  source_url: EvidenceItemsTableSchema.shape.source_url.nullable(),
+  source_name: EvidenceItemsTableSchema.shape.source_name.nullable(),
+  publish_date: EvidenceItemsTableSchema.shape.publish_date.nullable(),
+  language: EvidenceItemsTableSchema.shape.language.nullable(),
+  hydration_status: EvidenceItemsTableSchema.shape.hydration_status,
+  created_at_ms: z.number(),
+});
+
+const EvidenceItemContentSchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  canonical_key: z.string(),
+  title: EvidenceItemsTableSchema.shape.title.nullable(),
+  source_url: EvidenceItemsTableSchema.shape.source_url.nullable(),
+  source_name: EvidenceItemsTableSchema.shape.source_name.nullable(),
+  publish_date: EvidenceItemsTableSchema.shape.publish_date.nullable(),
+  raw_text: z.string().nullable(),
+  raw_html: z.string().nullable(),
+  views: z.array(z.object({
+    evidence_view_id: zid("evidence_views"),
+    view_kind: z.string(),
+    pipeline_kind: z.string(),
+    pipeline_version: z.string(),
+    content: z.string().nullable(),
+  })),
+});
+
+async function readStorageText(ctx: ActionCtx, storageId: string) {
+  const url = await ctx.storage.getUrl(storageId);
+  if (!url) {
+    throw new Error(`Storage asset URL not available for ${storageId}`);
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch storage asset ${storageId}: ${response.status}`);
+  }
+  return response.text();
+}
 
 export const createEvidenceUniverse: ReturnType<typeof zMutation> = zMutation({
   args: EvidenceUniverseInputSchema,
@@ -292,6 +362,93 @@ export const createEvidenceSet: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
+export const createEvidenceSetFromAcquisitionRun: ReturnType<typeof zMutation> = zMutation({
+  args: CreateEvidenceSetFromAcquisitionRunArgsSchema,
+  returns: CreateEvidenceSetFromAcquisitionRunResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof CreateEvidenceSetFromAcquisitionRunResultSchema>> => {
+    const acquisitionRun = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionRun,
+      { acquisition_run_id: args.acquisition_run_id },
+    );
+    if (!acquisitionRun) {
+      throw new Error("Acquisition run not found.");
+    }
+    const acquisitionSpec = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionSpec,
+      { acquisition_spec_id: acquisitionRun.acquisition_spec_id },
+    );
+    if (!acquisitionSpec) {
+      throw new Error("Acquisition spec not found.");
+    }
+    const runCandidates = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.listRunCandidates,
+      { acquisition_run_id: acquisitionRun._id },
+    );
+    const hydratedItems = await Promise.all(
+      runCandidates.map(async (candidate) => {
+        const item = await ctx.runQuery(
+          internal.domain.evidence.evidence_repo.getItemByCandidate,
+          { candidate_id: candidate._id },
+        );
+        if (!item || item.hydration_status !== "hydrated") {
+          return null;
+        }
+        return item;
+      }),
+    );
+    const orderedItems = hydratedItems
+      .filter((item): item is NonNullable<typeof item> => item != null)
+      .sort((left, right) => {
+        const leftDate = left.publish_date ?? "";
+        const rightDate = right.publish_date ?? "";
+        if (leftDate !== rightDate) {
+          return leftDate.localeCompare(rightDate);
+        }
+        return (left.title ?? left.canonical_key).localeCompare(
+          right.title ?? right.canonical_key,
+        );
+      });
+    if (orderedItems.length === 0) {
+      throw new Error("Acquisition run has no hydrated evidence items.");
+    }
+
+    const selectionConfig = JSON.stringify({
+      acquisition_run_id: acquisitionRun._id,
+      acquisition_spec_id: acquisitionSpec._id,
+      discovery_provider: acquisitionSpec.discovery_provider,
+    });
+    const { evidence_set_id } = await ctx.runMutation(
+      internal.domain.evidence.evidence_repo.createEvidenceSet,
+      {
+        universe_id: acquisitionSpec.universe_id,
+        evidence_set_tag: args.evidence_set_tag,
+        title: args.title,
+        description: args.description ?? null,
+        source_kind: "universe_slice",
+        quality_label: args.quality_label ?? "high",
+        selection_config_json: selectionConfig,
+      },
+    );
+
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
+      evidence_set_id,
+      items: orderedItems.map((item, index) => ({
+        evidence_item_id: item._id,
+        ordinal: index,
+        quality_label: args.quality_label ?? "high",
+      })),
+    });
+
+    return {
+      evidence_set_id,
+      item_count: orderedItems.length,
+    };
+  },
+});
+
 export const addEvidenceSetItems: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     evidence_set_id: zid("evidence_sets"),
@@ -341,6 +498,58 @@ export const getEvidenceUniverseSummary: ReturnType<typeof zQuery> = zQuery({
       candidate_count: candidates.length,
       item_count: items.length,
     };
+  },
+});
+
+export const listEvidenceUniverses: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({}),
+  returns: z.array(EvidenceUniverseCatalogEntrySchema),
+  handler: async (ctx): Promise<Array<z.infer<typeof EvidenceUniverseCatalogEntrySchema>>> => {
+    const universes = await ctx.db.query("evidence_universes").collect();
+    const rows = await Promise.all(
+      universes.map(async (universe) => {
+        const [acquisitionSpecs, acquisitionRuns, evidenceSets, candidates, items] = await Promise.all([
+          ctx.db
+            .query("acquisition_specs")
+            .withIndex("by_universe", (q) => q.eq("universe_id", universe._id))
+            .collect(),
+          ctx.db.query("acquisition_runs").collect(),
+          ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseEvidenceSets, {
+            universe_id: universe._id,
+          }),
+          ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseCandidates, {
+            universe_id: universe._id,
+          }),
+          ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseItems, {
+            universe_id: universe._id,
+          }),
+        ]);
+        const specIds = new Set(acquisitionSpecs.map((spec) => String(spec._id)));
+        const latestRun = acquisitionRuns
+          .filter((run) => specIds.has(String(run.acquisition_spec_id)))
+          .sort((left, right) => right._creationTime - left._creationTime)[0] ?? null;
+        const latestSpec = latestRun
+          ? acquisitionSpecs.find((spec) => spec._id === latestRun.acquisition_spec_id) ?? null
+          : null;
+        return {
+          universe_id: universe._id,
+          universe_tag: universe.universe_tag,
+          kind: universe.kind,
+          title: universe.title,
+          status: universe.status,
+          acquisition_spec_count: acquisitionSpecs.length,
+          acquisition_run_count: latestRun ? acquisitionRuns.filter((run) => specIds.has(String(run.acquisition_spec_id))).length : 0,
+          evidence_set_count: evidenceSets.length,
+          candidate_count: candidates.length,
+          item_count: items.length,
+          latest_acquisition_run_id: latestRun?._id ?? null,
+          latest_acquisition_spec_id: latestSpec?._id ?? null,
+          latest_spec_tag: latestSpec?.spec_tag ?? null,
+          latest_run_status: latestRun?.status ?? null,
+        };
+      }),
+    );
+    return rows.sort((left, right) => left.universe_tag.localeCompare(right.universe_tag));
   },
 });
 
@@ -395,6 +604,59 @@ export const getAcquisitionRunSummary: ReturnType<typeof zQuery> = zQuery({
   },
 });
 
+export const listAcquisitionRuns: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes").optional(),
+  }),
+  returns: z.array(AcquisitionRunCatalogEntrySchema),
+  handler: async (ctx, args): Promise<Array<z.infer<typeof AcquisitionRunCatalogEntrySchema>>> => {
+    const acquisitionRuns = await ctx.db.query("acquisition_runs").collect();
+    const rows = await Promise.all(
+      acquisitionRuns.map(async (run) => {
+        const spec = await ctx.runQuery(
+          internal.domain.evidence.evidence_repo.getAcquisitionSpec,
+          { acquisition_spec_id: run.acquisition_spec_id },
+        );
+        if (!spec) {
+          throw new Error(`Acquisition spec missing for run ${run._id}`);
+        }
+        if (args.universe_id && spec.universe_id !== args.universe_id) {
+          return null;
+        }
+        const [candidateRows, itemRows] = await Promise.all([
+          ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
+            acquisition_run_id: run._id,
+          }),
+          ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseItems, {
+            universe_id: spec.universe_id,
+          }),
+        ]);
+        return {
+          acquisition_run_id: run._id,
+          acquisition_spec_id: spec._id,
+          universe_id: spec.universe_id,
+          spec_tag: spec.spec_tag,
+          discovery_provider: spec.discovery_provider,
+          hydrator_kind: spec.hydrator_kind,
+          status: run.status,
+          cursor_json: run.cursor_json ?? null,
+          discovered_count: run.discovered_count,
+          hydrated_count: run.hydrated_count,
+          error_count: run.error_count,
+          last_error_message: run.last_error_message ?? null,
+          candidate_count: candidateRows.length,
+          item_count: itemRows.length,
+          started_at_ms: run.started_at_ms ?? null,
+          finished_at_ms: run.finished_at_ms ?? null,
+        };
+      }),
+    );
+    return rows
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .sort((left, right) => (right.started_at_ms ?? 0) - (left.started_at_ms ?? 0));
+  },
+});
+
 export const getEvidenceSetSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({
     evidence_set_id: zid("evidence_sets"),
@@ -418,6 +680,42 @@ export const getEvidenceSetSummary: ReturnType<typeof zQuery> = zQuery({
       item_count: evidenceSet.item_count,
       status: evidenceSet.status,
     };
+  },
+});
+
+export const listUniverseItems: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes"),
+  }),
+  returns: z.array(EvidenceUniverseItemSummarySchema),
+  handler: async (ctx, args): Promise<Array<z.infer<typeof EvidenceUniverseItemSummarySchema>>> => {
+    const items = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.listUniverseItems,
+      { universe_id: args.universe_id },
+    );
+    return items
+      .map((item) => ({
+        evidence_item_id: item._id,
+        universe_id: item.universe_id,
+        canonical_key: item.canonical_key,
+        title: item.title ?? null,
+        source_url: item.source_url ?? null,
+        source_name: item.source_name ?? null,
+        publish_date: item.publish_date ?? null,
+        language: item.language ?? null,
+        hydration_status: item.hydration_status,
+        created_at_ms: item.created_at_ms,
+      }))
+      .sort((left, right) => {
+        const leftDate = left.publish_date ?? "";
+        const rightDate = right.publish_date ?? "";
+        if (leftDate !== rightDate) {
+          return rightDate.localeCompare(leftDate);
+        }
+        return (left.title ?? left.canonical_key).localeCompare(
+          right.title ?? right.canonical_key,
+        );
+      });
   },
 });
 
@@ -462,6 +760,69 @@ export const listEvidenceSets: ReturnType<typeof zQuery> = zQuery({
       }
       return left.evidence_set_tag.localeCompare(right.evidence_set_tag);
     });
+  },
+});
+
+export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
+  args: z.object({
+    evidence_item_id: zid("evidence_items"),
+  }),
+  returns: EvidenceItemContentSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof EvidenceItemContentSchema>> => {
+    const item = await ctx.runQuery(internal.domain.evidence.evidence_repo.getItem, {
+      evidence_item_id: args.evidence_item_id,
+    });
+    if (!item) {
+      throw new Error("Evidence item not found.");
+    }
+    const [rawTextAsset, rawHtmlAsset, views] = await Promise.all([
+      item.raw_text_asset_id
+        ? ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
+          asset_id: item.raw_text_asset_id,
+        })
+        : Promise.resolve(null),
+      item.raw_html_asset_id
+        ? ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
+          asset_id: item.raw_html_asset_id,
+        })
+        : Promise.resolve(null),
+      ctx.runQuery(internal.domain.evidence.evidence_repo.listItemViews, {
+        evidence_item_id: item._id,
+      }),
+    ]);
+
+    const [rawText, rawHtml, renderedViews] = await Promise.all([
+      rawTextAsset ? readStorageText(ctx, rawTextAsset.storage_id) : Promise.resolve(null),
+      rawHtmlAsset ? readStorageText(ctx, rawHtmlAsset.storage_id) : Promise.resolve(null),
+      Promise.all(
+        views.map(async (view) => {
+          const asset = view.asset_id
+            ? await ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
+              asset_id: view.asset_id,
+            })
+            : null;
+          return {
+            evidence_view_id: view._id,
+            view_kind: view.view_kind,
+            pipeline_kind: view.pipeline_kind,
+            pipeline_version: view.pipeline_version,
+            content: asset ? await readStorageText(ctx, asset.storage_id) : null,
+          };
+        }),
+      ),
+    ]);
+
+    return {
+      evidence_item_id: item._id,
+      canonical_key: item.canonical_key,
+      title: item.title ?? null,
+      source_url: item.source_url ?? null,
+      source_name: item.source_name ?? null,
+      publish_date: item.publish_date ?? null,
+      raw_text: rawText,
+      raw_html: rawHtml,
+      views: renderedViews.sort((left, right) => left.view_kind.localeCompare(right.view_kind)),
+    };
   },
 });
 

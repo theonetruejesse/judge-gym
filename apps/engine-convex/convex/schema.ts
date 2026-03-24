@@ -6,7 +6,6 @@ import {
   LlmAttemptsTableSchema,
 } from "./models/attempts";
 import { LlmBatchExecutionsTableSchema } from "./models/batches";
-import { EvidencesTableSchema, WindowRunsTableSchema, WindowsTableSchema } from "./models/window";
 import {
   ExperimentsTableSchema,
   RunsTableSchema,
@@ -83,15 +82,6 @@ export default defineSchema({
     .index("by_item", ["evidence_item_id"])
     .index("by_item_view", ["evidence_item_id", "view_kind"])
     .index("by_attempt", ["attempt_id"]),
-  windows: defineTable(zodOutputToConvex(WindowsTableSchema))
-    .index("by_window_tag", ["window_tag"]),
-  window_runs: defineTable(zodOutputToConvex(WindowRunsTableSchema))
-    .index("by_status", ["status"])
-    .index("by_window", ["window_id"]),
-  evidences: defineTable(zodOutputToConvex(EvidencesTableSchema))
-    .index("by_window_id", ["window_id"])
-    .index("by_window_run_id", ["window_run_id"])
-    .index("by_window_run_url", ["window_run_id", "url"]),
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
     .index("by_experiment_tag", ["experiment_tag"])
     .index("by_evidence_set", ["evidence_set_id"]),

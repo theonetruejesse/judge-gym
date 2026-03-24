@@ -24,14 +24,14 @@ export const LlmPromptTemplatesTableSchema = z.object({
 
 export const LlmAttemptsTableSchema = z.object({
   attempt_key: z.string().nullable().optional(),
-  process_kind: z.enum(["window", "run"]),
+  process_kind: z.enum(["run"]),
   process_id: z.string(),
-  target_type: z.enum(["evidence", "sample", "sample_score_target"]),
+  target_type: z.enum(["sample", "sample_score_target"]),
   target_id: z.string(),
   stage: z.string(),
   provider: providerTypeSchema,
   model: modelTypeSchema,
-  operation_type: z.enum(["chat", "batch", "search"]),
+  operation_type: z.enum(["chat", "batch"]),
   workflow_id: z.string(),
   prompt_template_id: zid("llm_prompt_templates").nullable(),
   user_prompt_payload_id: zid("llm_attempt_payloads").nullable(),
@@ -48,7 +48,7 @@ export const LlmAttemptsTableSchema = z.object({
 
 export const LlmAttemptPayloadsTableSchema = z.object({
   attempt_id: zid("llm_attempts"),
-  process_kind: z.enum(["window", "run"]).optional(),
+  process_kind: z.enum(["run"]).optional(),
   process_id: z.string().optional(),
   kind: LlmAttemptPayloadKindSchema,
   content_text: z.string(),

@@ -4,10 +4,6 @@ import {
   DEFAULT_BATCH_SETTINGS,
 } from "./batch";
 import {
-  DEFAULT_FIRECRAWL_SETTINGS,
-  FirecrawlSettingsSchema,
-} from "./firecrawl";
-import {
   DEFAULT_MEDIACLOUD_SETTINGS,
   MediaCloudSettingsSchema,
 } from "./mediacloud";
@@ -29,7 +25,6 @@ export const EngineSettingsSchema = z.object({
     stageActivityMaxAttempts: z.number().int().min(1).default(1),
     taskQueues: z.object({
       run: z.string().min(1).default(TEMPORAL_TASK_QUEUES.run),
-      window: z.string().min(1).default(TEMPORAL_TASK_QUEUES.window),
     }),
   }).default({
     retryDelayMs: 5_000,
@@ -38,7 +33,6 @@ export const EngineSettingsSchema = z.object({
     stageActivityMaxAttempts: 1,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
-      window: TEMPORAL_TASK_QUEUES.window,
     },
   }),
   quota: z.object({
@@ -69,14 +63,10 @@ export const EngineSettingsSchema = z.object({
     },
     retries: DEFAULT_RETRY_SETTINGS,
   }),
-  window: z.object({
-    firecrawl: FirecrawlSettingsSchema.default(DEFAULT_FIRECRAWL_SETTINGS),
+  evidence: z.object({
     mediacloud: MediaCloudSettingsSchema.default(DEFAULT_MEDIACLOUD_SETTINGS),
-    maxStageInputChars: z.number().int().positive().default(20_000),
   }).default({
-    firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
     mediacloud: DEFAULT_MEDIACLOUD_SETTINGS,
-    maxStageInputChars: 20_000,
   }),
   run: z.object({
     maxScoreTargetEstimatedInputTokens: z.number().int().positive().default(20_000),
@@ -95,7 +85,6 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
     stageActivityMaxAttempts: 1,
     taskQueues: {
       run: TEMPORAL_TASK_QUEUES.run,
-      window: TEMPORAL_TASK_QUEUES.window,
     },
   },
   quota: {
@@ -123,10 +112,8 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
     },
     retries: DEFAULT_RETRY_SETTINGS,
   },
-  window: {
-    firecrawl: DEFAULT_FIRECRAWL_SETTINGS,
+  evidence: {
     mediacloud: DEFAULT_MEDIACLOUD_SETTINGS,
-    maxStageInputChars: 20_000,
   },
   run: {
     maxScoreTargetEstimatedInputTokens: 20_000,
@@ -147,7 +134,6 @@ export function resolveEngineSettings(
 }
 
 export * from "./batch";
-export * from "./firecrawl";
 export * from "./mediacloud";
 export * from "./provider";
 export * from "./retry";

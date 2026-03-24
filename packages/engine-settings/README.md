@@ -9,7 +9,7 @@ This package is intentionally runtime-agnostic:
 - no Temporal client or worker wiring
 
 It is the place for shared config schemas, defaults, queue names, provider-tier
-metadata, batch policy, retry budgets, Firecrawl collection policy, and env-key
+metadata, batch policy, retry budgets, Media Cloud policy, and env-key
 constants that both `engine-convex` and `engine-temporal` can consume without
 leaking runtime-specific code across the boundary.
 
@@ -28,7 +28,7 @@ Important timeout split:
 
 - `llm.preflightTimeoutMs` bounds quota reservation and batch-registration work before
   provider dispatch so stalled local preamble calls fail fast instead of leaving
-  active runs/window stages looking stale
+  active runs looking stale
 - `llm.direct.requestTimeoutMs` is the per-request timeout for normal chat calls
 - `llm.batching.requestTimeoutMs` is the transport timeout for each Batch API
   request

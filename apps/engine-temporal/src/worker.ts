@@ -80,14 +80,9 @@ export async function runWorkers() {
   process.once("SIGUSR2", handleSignal);
 
   try {
-    for (const taskQueue of [
-      config.taskQueues.run,
-      config.taskQueues.window,
-    ]) {
-      const worker = await createWorker(connection, taskQueue);
-      workers.push(worker);
-      runPromises.push(worker.run());
-    }
+    const worker = await createWorker(connection, config.taskQueues.run);
+    workers.push(worker);
+    runPromises.push(worker.run());
 
     try {
       await Promise.all(runPromises);

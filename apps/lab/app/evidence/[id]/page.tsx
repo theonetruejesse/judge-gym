@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@judge-gym/engine-convex";
-import { NORMALIZATION_LEVELS, VIEW_LABELS } from "@/lib/ui-maps";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -16,44 +15,79 @@ import {
 } from "@/components/ui/table";
 import LabNavbar from "@/components/lab_navbar";
 
-type EvidenceWindowItem = {
-  window_id: string;
-  start_date: string;
-  end_date: string;
-  country: string;
-  query: string;
-  model: string;
-  evidence_count: number;
+type EvidenceUniverseSummary = {
+  universe_id: string;
+  universe_tag: string;
+  kind: string;
+  title: string;
+  status: string;
+  acquisition_spec_count: number;
+  evidence_set_count: number;
+  candidate_count: number;
+  item_count: number;
 };
 
-type EvidenceItem = {
-  evidence_id: string;
+type AcquisitionRunItem = {
+  acquisition_run_id: string;
+  spec_tag: string;
+  discovery_provider: string;
+  status: string;
+  candidate_count: number;
+  item_count: number;
+  started_at_ms: number | null;
+};
+
+type EvidenceSetItem = {
+  evidence_set_id: string;
+  evidence_set_tag: string;
   title: string;
-  url: string;
-  created_at: number;
+  source_kind: string;
+  quality_label: string;
+  item_count: number;
+  status: string;
+};
+
+type UniverseItem = {
+  evidence_item_id: string;
+  canonical_key: string;
+  title: string | null;
+  source_url: string | null;
+  source_name: string | null;
+  publish_date: string | null;
+  language: string | null;
+  hydration_status: string;
 };
 
 type EvidenceContent = {
-  evidence_id: string;
-  window_id: string;
-  title: string;
-  url: string;
-  raw_content: string;
-  cleaned_content?: string;
-  neutralized_content?: string;
-  abstracted_content?: string;
+  evidence_item_id: string;
+  canonical_key: string;
+  title: string | null;
+  source_url: string | null;
+  source_name: string | null;
+  publish_date: string | null;
+  raw_text: string | null;
+  raw_html: string | null;
+  views: Array<{
+    evidence_view_id: string;
+    view_kind: string;
+    pipeline_kind: string;
+    pipeline_version: string;
+    content: string | null;
+  }>;
 };
 
-export default function EvidenceWindowPage({
+export default function EvidenceUniversePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(
-    null,
-  );
+  const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("");
-  const [selectedLevel, setSelectedLevel] = useState<string>("l0_raw");
+  const [selectedTab, setSelectedTab] = useState<string>("raw_text");
+  const [content, setContent] = useState<EvidenceContent | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+
+  const getEvidenceItemContent = useAction(api.packages.evidence.getEvidenceItemContent);
 
   useEffect(() => {
     const maybePromise = params as unknown as {
@@ -66,211 +100,329 @@ export default function EvidenceWindowPage({
     }
   }, [params]);
 
-  const windows = useQuery(api.packages.lab.listEvidenceWindows, {}) as
-    | EvidenceWindowItem[]
-    | undefined;
-
+  const universe = useQuery(
+    api.packages.evidence.getEvidenceUniverseSummary,
+    resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
+  ) as EvidenceUniverseSummary | undefined;
+  const acquisitionRuns = useQuery(
+    api.packages.evidence.listAcquisitionRuns,
+    resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
+  ) as AcquisitionRunItem[] | undefined;
+  const evidenceSets = useQuery(
+    api.packages.evidence.listEvidenceSets,
+    resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
+  ) as EvidenceSetItem[] | undefined;
   const evidenceItems = useQuery(
-    api.packages.lab.listEvidenceByWindow,
-    resolvedParams ? { window_id: resolvedParams.id } : "skip",
-  ) as EvidenceItem[] | undefined;
+    api.packages.evidence.listUniverseItems,
+    resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
+  ) as UniverseItem[] | undefined;
 
-  const evidenceContent = useQuery(
-    api.packages.lab.getEvidenceContent,
-    selectedEvidenceId ? { evidence_id: selectedEvidenceId } : "skip",
-  ) as EvidenceContent | null | undefined;
-
-  const windowsLoading = windows === undefined;
+  const universeLoading = !!resolvedParams && universe === undefined;
   const evidenceLoading = !!resolvedParams && evidenceItems === undefined;
-  const windowRows = windows ?? [];
-  const matchedWindow = windowRows.find(
-    (window) => window.window_id === resolvedParams?.id,
-  );
-  const selectedWindow = matchedWindow;
-
   const evidenceRows = evidenceItems ?? [];
 
   useEffect(() => {
     if (!selectedEvidenceId && evidenceRows.length > 0) {
-      setSelectedEvidenceId(evidenceRows[0].evidence_id);
+      setSelectedEvidenceId(evidenceRows[0].evidence_item_id);
     }
   }, [evidenceRows, selectedEvidenceId]);
 
-  const activeEvidence = evidenceContent ?? null;
+  useEffect(() => {
+    if (!selectedEvidenceId) {
+      setContent(null);
+      return;
+    }
+
+    let cancelled = false;
+    setContentLoading(true);
+    void getEvidenceItemContent({ evidence_item_id: selectedEvidenceId as never })
+      .then((result) => {
+        if (cancelled) return;
+        const typed = result as EvidenceContent;
+        setContent(typed);
+        const firstTab = typed.raw_text
+          ? "raw_text"
+          : typed.raw_html
+            ? "raw_html"
+            : (typed.views[0]?.view_kind ?? "raw_text");
+        setSelectedTab(firstTab);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setContent(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setContentLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getEvidenceItemContent, selectedEvidenceId]);
 
   if (!resolvedParams) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <LabNavbar />
         <div className="px-6 py-12">
-          <p className="text-sm">Loading evidence window...</p>
+          <p className="text-sm">Loading evidence universe...</p>
         </div>
       </div>
     );
   }
 
-  if (!selectedWindow && !windowsLoading) {
+  if (!universeLoading && !universe) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <LabNavbar />
         <div className="px-6 py-12">
-          <p className="text-sm">Evidence window not found.</p>
+          <p className="text-sm">Evidence universe not found.</p>
         </div>
       </div>
     );
   }
 
-  if (windowsLoading) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <LabNavbar />
-        <div className="px-6 py-12">
-          <p className="text-sm">Loading evidence window...</p>
-        </div>
-      </div>
-    );
-  }
+  const selectedItem =
+    evidenceRows.find((item) => item.evidence_item_id === selectedEvidenceId) ?? null;
+  const previewTabs = [
+    ...(content?.raw_text
+      ? [{ key: "raw_text", label: "Raw Text", content: content.raw_text }]
+      : []),
+    ...(content?.raw_html
+      ? [{ key: "raw_html", label: "Raw HTML", content: content.raw_html }]
+      : []),
+    ...((content?.views ?? []).map((view) => ({
+      key: view.view_kind,
+      label: view.view_kind,
+      content: view.content ?? "",
+    }))),
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <LabNavbar />
 
-      <div className="w-full max-w-full px-6 py-6">
-        <div className="mb-6">
+      <div className="mx-auto max-w-7xl space-y-6 px-6 py-6">
+        <div className="space-y-1">
           <p className="text-[10px] uppercase tracking-widest opacity-50">
-            Evidence Window
+            Evidence Universe
           </p>
           <h1
             className="text-lg font-semibold"
             style={{ fontFamily: "var(--font-1-serif)", color: "#ff6b35" }}
           >
-            {(selectedWindow?.query ??
-              "Evidence Window") + ` (${selectedWindow?.evidence_count ?? 0})`}
+            {universe?.title ?? "Evidence Universe"}
           </h1>
           <p className="text-[11px] opacity-50">
-            {selectedWindow?.country ?? "—"} ·{" "}
-            {selectedWindow?.start_date ?? "—"} -{" "}
-            {selectedWindow?.end_date ?? "—"} ·{" "}
-            {selectedWindow?.model ?? "—"}
+            {universe?.universe_tag ?? "—"} · {universe?.kind ?? "—"} · candidates{" "}
+            {universe?.candidate_count ?? 0} · items {universe?.item_count ?? 0} · sets{" "}
+            {universe?.evidence_set_count ?? 0}
           </p>
         </div>
 
-        <div className="flex w-full flex-col gap-6 lg:flex-row lg:items-start">
-          <section className="min-w-0 flex-1 space-y-4 lg:basis-[38%] lg:max-w-[38%]">
-            <Card className="w-full border-border bg-card/80">
-              <Table className="w-full table-fixed">
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            <Card className="border-border bg-card/80">
+              <div className="border-b border-border px-5 py-4">
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Universe Items
+                </p>
+              </div>
+              <Table>
                 <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   <TableRow>
-                    <TableHead className="w-16">#</TableHead>
-                    <TableHead className="w-full">Evidence Items</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {evidenceLoading && evidenceRows.length === 0 && (
+                  {evidenceLoading && (
                     <TableRow>
-                      <TableCell colSpan={2} className="text-xs opacity-50">
+                      <TableCell colSpan={4} className="text-xs opacity-50">
                         Loading evidence items...
                       </TableCell>
                     </TableRow>
                   )}
                   {!evidenceLoading && evidenceRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={2} className="text-xs opacity-50">
-                        No evidence items found.
+                      <TableCell colSpan={4} className="text-xs opacity-50">
+                        No hydrated evidence items found.
                       </TableCell>
                     </TableRow>
                   )}
-                  {evidenceRows.map((item, index) => {
-                    const selected = item.evidence_id === selectedEvidenceId;
-                    return (
-                      <TableRow
-                        key={item.evidence_id}
-                        className={selected ? "bg-muted/60" : undefined}
-                        onClick={() => setSelectedEvidenceId(item.evidence_id)}
-                      >
-                        <TableCell className="opacity-50">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell>
-                          <div
-                            className="break-words font-medium"
-                            style={{ color: selected ? "#ff6b35" : "#e8eaed" }}
-                          >
-                            {item.title}
+                  {evidenceRows.map((item) => (
+                    <TableRow
+                      key={item.evidence_item_id}
+                      className={
+                        item.evidence_item_id === selectedEvidenceId
+                          ? "bg-muted/60"
+                          : "cursor-pointer hover:bg-muted/30"
+                      }
+                      onClick={() => setSelectedEvidenceId(item.evidence_item_id)}
+                    >
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-medium">
+                            {item.title ?? item.canonical_key}
                           </div>
-                          <div className="break-all text-[10px] opacity-50">
-                            {item.url}
+                          <div className="text-[10px] opacity-45">
+                            {item.canonical_key}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div>{item.source_name ?? "—"}</div>
+                        <div className="max-w-[18rem] truncate text-[10px] opacity-45">
+                          {item.source_url ?? "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {item.publish_date ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {item.hydration_status}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </Card>
-          </section>
 
-          <section className="min-w-0 flex-1 space-y-4 lg:basis-[62%]">
-            {!selectedEvidenceId && (
-              <Card className="border-border px-6 py-10 text-center text-xs opacity-50">
-                Select an evidence item to preview.
-              </Card>
-            )}
-            {selectedEvidenceId && !activeEvidence && (
-              <Card className="border-border px-6 py-10 text-center text-xs opacity-50">
-                Loading evidence content...
-              </Card>
-            )}
-            {selectedEvidenceId && activeEvidence && (
-              <>
-                <Card className="w-full border-border bg-card/80 p-5">
-                  <h2 className="break-words text-sm font-semibold text-foreground">
-                    {activeEvidence.title}
-                  </h2>
-                  <p className="break-all text-[11px] opacity-50">
-                    {activeEvidence.url}
-                  </p>
+            <Card className="border-border bg-card/80 p-5">
+              <p className="text-[10px] uppercase tracking-widest opacity-50">
+                Evidence Preview
+              </p>
+              {!selectedEvidenceId && (
+                <p className="mt-4 text-xs opacity-50">
+                  Select an item to inspect its stored content.
+                </p>
+              )}
+              {selectedEvidenceId && contentLoading && (
+                <p className="mt-4 text-xs opacity-50">
+                  Loading stored evidence content...
+                </p>
+              )}
+              {selectedEvidenceId && !contentLoading && content && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <h2 className="text-sm font-semibold">
+                      {selectedItem?.title ?? content.canonical_key}
+                    </h2>
+                    <p className="break-all text-[11px] opacity-50">
+                      {selectedItem?.source_url ?? content.source_url ?? "—"}
+                    </p>
+                  </div>
 
-                  <Tabs
-                    className="mt-4"
-                    value={selectedLevel}
-                    onValueChange={setSelectedLevel}
-                  >
+                  <Tabs value={selectedTab} onValueChange={setSelectedTab}>
                     <TabsList className="h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
-                      {NORMALIZATION_LEVELS.map((level) => (
-                        <TabsTrigger
-                          key={level.key}
-                          value={level.key}
-                          className="text-xs"
-                        >
-                          {VIEW_LABELS[level.key]}
+                      {previewTabs.map((tab) => (
+                        <TabsTrigger key={tab.key} value={tab.key} className="text-xs">
+                          {tab.label}
                         </TabsTrigger>
                       ))}
                     </TabsList>
-
-                    {(() => {
-                      const contentMap: Record<string, string | undefined> = {
-                        l0_raw: activeEvidence.raw_content,
-                        l1_cleaned: activeEvidence.cleaned_content,
-                        l2_neutralized: activeEvidence.neutralized_content,
-                        l3_abstracted: activeEvidence.abstracted_content,
-                      };
-                      return NORMALIZATION_LEVELS.map((level) => {
-                        const value = contentMap[level.key];
-                        return (
-                          <TabsContent key={level.key} value={level.key}>
-                            <div className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed">
-                              {value?.trim().length ? value : "—"}
-                            </div>
-                          </TabsContent>
-                        );
-                      });
-                    })()}
+                    {previewTabs.map((tab) => (
+                      <TabsContent key={tab.key} value={tab.key}>
+                        <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap rounded border border-border bg-muted/20 p-4 text-xs leading-5">
+                          {tab.content || "No stored content."}
+                        </pre>
+                      </TabsContent>
+                    ))}
                   </Tabs>
-                </Card>
-              </>
-            )}
-          </section>
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-border bg-card/80">
+              <div className="border-b border-border px-5 py-4">
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Acquisition Runs
+                </p>
+              </div>
+              <Table>
+                <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TableRow>
+                    <TableHead>Spec</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Candidates</TableHead>
+                    <TableHead className="text-right">Items</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(acquisitionRuns ?? []).map((run) => (
+                    <TableRow key={run.acquisition_run_id}>
+                      <TableCell className="text-xs">{run.spec_tag}</TableCell>
+                      <TableCell className="text-xs">{run.status}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {run.candidate_count}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {run.item_count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(acquisitionRuns ?? []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-xs opacity-50">
+                        No acquisition runs found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            <Card className="border-border bg-card/80">
+              <div className="border-b border-border px-5 py-4">
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Evidence Sets
+                </p>
+              </div>
+              <Table>
+                <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TableRow>
+                    <TableHead>Set</TableHead>
+                    <TableHead>Quality</TableHead>
+                    <TableHead className="text-right">Items</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(evidenceSets ?? []).map((setRow) => (
+                    <TableRow key={setRow.evidence_set_id}>
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-medium">{setRow.title}</div>
+                          <div className="text-[10px] opacity-45">
+                            {setRow.evidence_set_tag}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {setRow.quality_label} · {setRow.source_kind}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {setRow.item_count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(evidenceSets ?? []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-xs opacity-50">
+                        No evidence sets found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

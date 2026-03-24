@@ -454,7 +454,7 @@ async function buildEvidenceContext(
 }
 
 function buildBundleSignature(
-  evidenceIds: Array<Id<"evidences"> | Id<"evidence_items">>,
+  evidenceIds: Array<Id<"evidence_items">>,
 ) {
   return evidenceIds
     .map((evidenceId) => String(evidenceId))

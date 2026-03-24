@@ -4,7 +4,6 @@ import { zAction, zInternalQuery, zMutation, zQuery } from "../utils/custom_fns"
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, MutationCtx } from "../_generated/server";
-import { WindowRunsTableSchema } from "../models/window";
 import { RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import { ProcessSnapshotSchema } from "../domain/temporal/schemas";
@@ -34,7 +33,6 @@ import { generateLabelMapping } from "../utils/randomize";
 import { syncExperimentTotalCount } from "../domain/runs/experiment_progress";
 import { incrementSampleScoreCounter } from "../domain/runs/sample_progress";
 
-const StageInputSchema = z.enum(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
 const RunStageInputSchema = RunStageSchema;
 
 function stableHash(content: string): string {
@@ -45,17 +43,7 @@ function stableHash(content: string): string {
   return `h_${(hash >>> 0).toString(16)}`;
 }
 
-function mapWindowStage(stage: string | null | undefined): Doc<"window_runs">["current_stage"] {
-  if (!stage || stage === "collect") {
-    return "l0_raw";
-  }
-  if (stage === "l1_cleaned" || stage === "l2_neutralized" || stage === "l3_abstracted") {
-    return stage;
-  }
-  return "l0_raw";
-}
-
-function mapExecutionStatus(status: z.infer<typeof ProcessSnapshotSchema>["executionStatus"]): Doc<"window_runs">["status"] {
+function mapExecutionStatus(status: z.infer<typeof ProcessSnapshotSchema>["executionStatus"]): Doc<"runs">["status"] {
   switch (status) {
     case "failed":
       return "error";
@@ -85,32 +73,6 @@ function processIdFromSnapshot(
   );
 }
 
-function windowStageFields(stage: z.infer<typeof StageInputSchema>) {
-  switch (stage) {
-    case "l1_cleaned":
-      return {
-        inputField: "l0_raw_content" as const,
-        outputField: "l1_cleaned_content" as const,
-        attemptField: "l1_attempt_id" as const,
-        errorField: "l1_error_message" as const,
-      };
-    case "l2_neutralized":
-      return {
-        inputField: "l1_cleaned_content" as const,
-        outputField: "l2_neutralized_content" as const,
-        attemptField: "l2_attempt_id" as const,
-        errorField: "l2_error_message" as const,
-      };
-    case "l3_abstracted":
-      return {
-        inputField: "l2_neutralized_content" as const,
-        outputField: "l3_abstracted_content" as const,
-        attemptField: "l3_attempt_id" as const,
-        errorField: "l3_error_message" as const,
-      };
-  }
-}
-
 function mapRunStage(
   stage: string | null | undefined,
 ): Doc<"runs">["current_stage"] {
@@ -129,7 +91,7 @@ async function emitSkippedProcessProjection(
   ctx: MutationCtx,
   args: z.infer<typeof ProcessSnapshotSchema>,
   process_id: string,
-  reason: "run_missing" | "window_run_missing",
+  reason: "run_missing",
 ) {
   await emitTraceEvent(ctx, {
     trace_id: `${args.processKind}:${process_id}`,
@@ -137,7 +99,7 @@ async function emitSkippedProcessProjection(
     entity_id: process_id,
     event_name: "process_projection_skipped_missing_target",
     status: "error",
-    stage: args.stage ?? (args.processKind === "run" ? "rubric_gen" : "l0_raw"),
+    stage: args.stage ?? "rubric_gen",
     payload_json: JSON.stringify({
       reason,
       execution_status: args.executionStatus,
@@ -494,136 +456,6 @@ async function getRunStageProgressDirect(
     hasPending: completed + failed < scoreTargets.length,
   };
 }
-
-export const getWindowExecutionContext = zQuery({
-  args: z.object({
-    window_run_id: z.string().optional(),
-  }),
-  returns: z.object({
-    window_run_id: zid("window_runs"),
-    window_id: zid("windows"),
-    workflow_id: z.string().nullable(),
-    workflow_run_id: z.string().nullable(),
-    status: WindowRunsTableSchema.shape.status,
-    current_stage: WindowRunsTableSchema.shape.current_stage,
-    pause_after: WindowRunsTableSchema.shape.pause_after,
-    target_stage: WindowRunsTableSchema.shape.target_stage,
-    target_count: WindowRunsTableSchema.shape.target_count,
-    completed_count: WindowRunsTableSchema.shape.completed_count,
-    model: WindowRunsTableSchema.shape.model,
-    start_date: z.string(),
-    end_date: z.string(),
-    country: z.string(),
-    query: z.string(),
-  }).nullable(),
-  handler: async (ctx, { window_run_id }) => {
-    if (typeof window_run_id !== "string" || window_run_id.trim().length === 0) {
-      return null;
-    }
-
-    let windowRun:
-      | Doc<"window_runs">
-      | null;
-    try {
-      windowRun = await ctx.db.get(window_run_id as Id<"window_runs">);
-    } catch {
-      return null;
-    }
-    if (!windowRun) {
-      return null;
-    }
-    const parsedWindowRun = WindowRunsTableSchema.safeParse(windowRun);
-    if (!parsedWindowRun.success) {
-      return null;
-    }
-    const normalizedWindowRun = parsedWindowRun.data;
-    const normalizedWindowRunId = windowRun._id as Id<"window_runs">;
-    const window = await ctx.db.get(normalizedWindowRun.window_id);
-    if (!window) {
-      return null;
-    }
-    return {
-      window_run_id: normalizedWindowRunId,
-      window_id: normalizedWindowRun.window_id,
-      workflow_id: normalizedWindowRun.workflow_id ?? null,
-      workflow_run_id: normalizedWindowRun.workflow_run_id ?? null,
-      status: normalizedWindowRun.status,
-      current_stage: normalizedWindowRun.current_stage,
-      pause_after: normalizedWindowRun.pause_after ?? null,
-      target_stage: normalizedWindowRun.target_stage,
-      target_count: normalizedWindowRun.target_count,
-      completed_count: normalizedWindowRun.completed_count,
-      model: normalizedWindowRun.model,
-      start_date: window.start_date,
-      end_date: window.end_date,
-      country: window.country,
-      query: window.query,
-    };
-  },
-});
-
-export const bindWindowWorkflow = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    workflow_id: z.string(),
-    workflow_run_id: z.string(),
-  }),
-  returns: z.null(),
-  handler: async (ctx, args) => {
-    const windowRun = await ctx.db.get(args.window_run_id);
-    if (!windowRun) {
-      throw new Error("Window run not found");
-    }
-    await ctx.db.patch(args.window_run_id, {
-      workflow_id: args.workflow_id,
-      workflow_run_id: args.workflow_run_id,
-      status: "queued",
-      last_error_message: null,
-    });
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_workflow_bound",
-      status: "queued",
-      stage: "l0_raw",
-      payload_json: JSON.stringify({
-        window_id: windowRun.window_id,
-        workflow_id: args.workflow_id,
-        workflow_run_id: args.workflow_run_id,
-      }),
-    });
-    return null;
-  },
-});
-
-export const searchWindowEvidence: ReturnType<typeof zAction> = zAction({
-  args: z.object({
-    query: z.string(),
-    country: z.string(),
-    start_date: z.string(),
-    end_date: z.string(),
-    limit: z.number(),
-  }),
-  returns: z.array(z.object({
-    title: z.string(),
-    url: z.string(),
-    raw_content: z.string(),
-  })),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<Array<{
-    title: string;
-    url: string;
-    raw_content: string;
-  }>> => {
-    return await ctx.runAction(
-      internal.domain.window.evidence_search.searchNews,
-      args,
-    );
-  },
-});
 
 export const getRunExecutionContext = zQuery({
   args: z.object({
@@ -1034,65 +866,29 @@ export const projectProcessState = zMutation({
   returns: z.null(),
   handler: async (ctx, args) => {
     const process_id = processIdFromSnapshot(args);
-    if (args.processKind === "run") {
-      const run_id = process_id as Id<"runs">;
-      const run = await ctx.db.get(run_id);
-      if (!run) {
-        await emitSkippedProcessProjection(ctx, args, process_id, "run_missing");
-        return null;
-      }
-
-      await ctx.db.patch(run_id, {
-        workflow_id: args.workflowId,
-        workflow_run_id: args.workflowRunId,
-        status: mapExecutionStatus(args.executionStatus),
-        current_stage: mapRunStage(args.stage),
-        pause_after: (args.pauseAfter as Doc<"runs">["pause_after"]) ?? null,
-        last_error_message: args.lastErrorMessage ?? null,
-      });
-      await emitTraceEvent(ctx, {
-        trace_id: `run:${run_id}`,
-        entity_type: "run",
-        entity_id: String(run_id),
-        event_name: "run_snapshot_projected",
-        status: mapExecutionStatus(args.executionStatus),
-        stage: args.stage ?? "rubric_gen",
-        payload_json: JSON.stringify({
-          stage_status: args.stageStatus,
-          pause_after: args.pauseAfter,
-          last_control_command_id: args.lastControlCommandId,
-          stage_history: args.stageHistory,
-          workflow_id: args.workflowId,
-          workflow_run_id: args.workflowRunId,
-        }),
-      });
+    const run_id = process_id as Id<"runs">;
+    const run = await ctx.db.get(run_id);
+    if (!run) {
+      await emitSkippedProcessProjection(ctx, args, process_id, "run_missing");
       return null;
     }
 
-    const window_run_id = process_id as Id<"window_runs">;
-    const windowRun = await ctx.db.get(window_run_id);
-    if (!windowRun) {
-      await emitSkippedProcessProjection(ctx, args, process_id, "window_run_missing");
-      return null;
-    }
-
-    await ctx.db.patch(window_run_id, {
+    await ctx.db.patch(run_id, {
       workflow_id: args.workflowId,
       workflow_run_id: args.workflowRunId,
       status: mapExecutionStatus(args.executionStatus),
-      current_stage: mapWindowStage(args.stage),
-      pause_after: (args.pauseAfter as Doc<"window_runs">["pause_after"]) ?? null,
+      current_stage: mapRunStage(args.stage),
+      pause_after: (args.pauseAfter as Doc<"runs">["pause_after"]) ?? null,
       last_error_message: args.lastErrorMessage ?? null,
     });
     await emitTraceEvent(ctx, {
-      trace_id: `window:${window_run_id}`,
-      entity_type: "window",
-      entity_id: String(window_run_id),
-      event_name: "window_snapshot_projected",
+      trace_id: `run:${run_id}`,
+      entity_type: "run",
+      entity_id: String(run_id),
+      event_name: "run_snapshot_projected",
       status: mapExecutionStatus(args.executionStatus),
-      stage: args.stage ?? "l0_raw",
+      stage: args.stage ?? "rubric_gen",
       payload_json: JSON.stringify({
-        window_id: windowRun.window_id,
         stage_status: args.stageStatus,
         pause_after: args.pauseAfter,
         last_control_command_id: args.lastControlCommandId,
@@ -1105,100 +901,17 @@ export const projectProcessState = zMutation({
   },
 });
 
-export const insertWindowEvidenceBatch = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    evidences: z.array(z.object({
-      title: z.string(),
-      url: z.string(),
-      raw_content: z.string(),
-    })),
-  }),
-  returns: z.object({
-    inserted: z.number(),
-    total: z.number(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    inserted: number;
-    total: number;
-  }> => {
-    const result: {
-      inserted: number;
-      total: number;
-    } = await ctx.runMutation(
-      internal.domain.window.window_repo.insertEvidenceBatch,
-      args,
-    );
-    const windowRun = await ctx.db.get(args.window_run_id);
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_evidence_collected",
-      status: "running",
-      stage: "collect",
-      payload_json: JSON.stringify({
-        ...result,
-        window_id: windowRun?.window_id ?? null,
-      }),
-    });
-    return result;
-  },
-});
-
-export const listWindowStageInputs = zQuery({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    stage: StageInputSchema,
-  }),
-  returns: z.array(z.object({
-    evidence_id: zid("evidences"),
-    title: z.string(),
-    url: z.string(),
-    input: z.string(),
-  })),
-  handler: async (ctx, args) => {
-    const fields = windowStageFields(args.stage);
-    const evidences = await ctx.db
-      .query("evidences")
-      .withIndex("by_window_run_id", (q) => q.eq("window_run_id", args.window_run_id))
-      .collect();
-
-    return evidences.flatMap((evidence) => {
-      const input = evidence[fields.inputField];
-      if (typeof input !== "string" || input.length === 0) {
-        return [];
-      }
-      if (evidence[fields.outputField] !== null) {
-        return [];
-      }
-      if (evidence[fields.errorField] !== null && evidence[fields.errorField] !== undefined) {
-        return [];
-      }
-      return [{
-        evidence_id: evidence._id,
-        title: evidence.title,
-        url: evidence.url,
-        input,
-      }];
-    });
-  },
-});
-
 export const recordLlmAttemptStart = zMutation({
   args: z.object({
     attempt_key: z.string().optional(),
-    process_kind: z.enum(["window", "run"]),
+    process_kind: z.enum(["run"]),
     process_id: z.string(),
-    target_type: z.enum(["evidence", "sample", "sample_score_target"]),
+    target_type: z.enum(["sample", "sample_score_target"]),
     target_id: z.string(),
     stage: z.string(),
     provider: providerTypeSchema,
     model: modelTypeSchema,
-    operation_type: z.enum(["chat", "batch", "search"]),
+    operation_type: z.enum(["chat", "batch"]),
     workflow_id: z.string(),
     system_prompt: z.string(),
     user_prompt: z.string(),
@@ -1355,7 +1068,7 @@ export const recordLlmAttemptFinish = zMutation({
 
 export const recordProcessHeartbeat = zMutation({
   args: z.object({
-    process_kind: z.enum(["window", "run"]),
+    process_kind: z.enum(["run"]),
     process_id: z.string(),
     stage: z.string(),
     event_name: z.string().default("stage_activity_heartbeat"),
@@ -1376,177 +1089,6 @@ export const recordProcessHeartbeat = zMutation({
   },
 });
 
-export const applyWindowStageResult = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    evidence_id: zid("evidences"),
-    stage: StageInputSchema,
-    attempt_id: zid("llm_attempts"),
-    output: z.string(),
-    input_tokens: z.number().nullable().optional(),
-    output_tokens: z.number().nullable().optional(),
-    total_tokens: z.number().nullable().optional(),
-  }),
-  returns: z.null(),
-  handler: async (ctx, args) => {
-    const fields = windowStageFields(args.stage);
-    const evidence = await ctx.db.get(args.evidence_id);
-    if (!evidence || evidence.window_run_id !== args.window_run_id) {
-      throw new Error("Evidence not found for window run");
-    }
-
-    if (evidence[fields.outputField] !== null) {
-      return null;
-    }
-
-    await ctx.db.patch(args.evidence_id, {
-      [fields.outputField]: args.output,
-      [fields.attemptField]: args.attempt_id,
-      [fields.errorField]: null,
-    } as Partial<Doc<"evidences">>);
-
-    if (args.stage === "l3_abstracted") {
-      const windowRun = await ctx.db.get(args.window_run_id);
-      if (windowRun) {
-        await ctx.db.patch(args.window_run_id, {
-          completed_count: Math.min(
-            windowRun.target_count,
-            (windowRun.completed_count ?? 0) + 1,
-          ),
-        });
-      }
-    }
-
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_stage_result_applied",
-      status: "running",
-      stage: args.stage,
-      payload_json: JSON.stringify({
-        window_id: evidence.window_id,
-        evidence_id: args.evidence_id,
-        attempt_id: args.attempt_id,
-        input_tokens: args.input_tokens ?? null,
-        output_tokens: args.output_tokens ?? null,
-        total_tokens: args.total_tokens ?? null,
-      }),
-    });
-    return null;
-  },
-});
-
-export const markWindowStageFailure = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    evidence_id: zid("evidences"),
-    stage: StageInputSchema,
-    attempt_id: zid("llm_attempts"),
-    error_message: z.string(),
-  }),
-  returns: z.null(),
-  handler: async (ctx, args) => {
-    const fields = windowStageFields(args.stage);
-    const evidence = await ctx.db.get(args.evidence_id);
-    if (!evidence || evidence.window_run_id !== args.window_run_id) {
-      throw new Error("Evidence not found for window run");
-    }
-
-    if (evidence[fields.outputField] !== null) {
-      return null;
-    }
-    if (evidence[fields.errorField] === args.error_message) {
-      return null;
-    }
-
-    await ctx.db.patch(args.evidence_id, {
-      [fields.attemptField]: args.attempt_id,
-      [fields.errorField]: args.error_message,
-    } as Partial<Doc<"evidences">>);
-
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_stage_attempt_failed",
-      status: "error",
-      stage: args.stage,
-      payload_json: JSON.stringify({
-        window_id: evidence.window_id,
-        evidence_id: args.evidence_id,
-        attempt_id: args.attempt_id,
-        error_message: args.error_message,
-      }),
-    });
-    return null;
-  },
-});
-
-export const markWindowNoEvidence = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-  }),
-  returns: z.null(),
-  handler: async (ctx, args) => {
-    const windowRun = await ctx.db.get(args.window_run_id);
-    if (!windowRun) {
-      throw new Error("Window run not found");
-    }
-    await ctx.db.patch(args.window_run_id, {
-      status: "completed",
-      current_stage: "l0_raw",
-      target_count: 0,
-      completed_count: 0,
-      last_error_message: null,
-    });
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_completed_no_evidence",
-      status: "completed",
-      stage: "l0_raw",
-      payload_json: JSON.stringify({
-        window_id: windowRun.window_id,
-      }),
-    });
-    return null;
-  },
-});
-
-export const markWindowProcessError = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    stage: z.string().nullable(),
-    error_message: z.string(),
-  }),
-  returns: z.null(),
-  handler: async (ctx, args) => {
-    const windowRun = await ctx.db.get(args.window_run_id);
-    if (!windowRun) {
-      throw new Error("Window run not found");
-    }
-    await ctx.db.patch(args.window_run_id, {
-      status: "error",
-      current_stage: mapWindowStage(args.stage),
-      last_error_message: args.error_message,
-    });
-    await emitTraceEvent(ctx, {
-      trace_id: `window:${args.window_run_id}`,
-      entity_type: "window",
-      entity_id: String(args.window_run_id),
-      event_name: "window_process_failed",
-      status: "error",
-      stage: args.stage ?? "l0_raw",
-      payload_json: JSON.stringify({
-        window_id: windowRun.window_id,
-        error_message: args.error_message,
-      }),
-    });
-    return null;
-  },
-});
 
 export const applyRunStageResult = zMutation({
   args: z.object({
@@ -2016,7 +1558,7 @@ export const getBatchExecution = zQuery({
 export const ensureBatchExecution = zMutation({
   args: z.object({
     batch_key: z.string(),
-    process_kind: z.enum(["window", "run"]),
+    process_kind: z.enum(["run"]),
     process_id: z.string(),
     stage: z.string(),
     provider: z.string(),
@@ -2192,7 +1734,7 @@ export const reserveQuota = zMutation({
       total_tokens: z.number().optional(),
       batch_enqueued_input_tokens: z.number().optional(),
     }),
-    processKind: z.enum(["window", "run"]).optional(),
+    processKind: z.enum(["run"]).optional(),
     processId: z.string().optional(),
     workflowId: z.string().optional(),
   }),

@@ -665,6 +665,15 @@ export const getAsset = zInternalQuery({
   },
 });
 
+export const getItem = zInternalQuery({
+  args: z.object({
+    evidence_item_id: zid("evidence_items"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.evidence_item_id);
+  },
+});
+
 export const listUniverseCandidates = zInternalQuery({
   args: z.object({
     universe_id: zid("evidence_universes"),
@@ -697,6 +706,18 @@ export const listUniverseItems = zInternalQuery({
     return ctx.db
       .query("evidence_items")
       .withIndex("by_universe", (q) => q.eq("universe_id", args.universe_id))
+      .collect();
+  },
+});
+
+export const listItemViews = zInternalQuery({
+  args: z.object({
+    evidence_item_id: zid("evidence_items"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("evidence_views")
+      .withIndex("by_item", (q) => q.eq("evidence_item_id", args.evidence_item_id))
       .collect();
   },
 });

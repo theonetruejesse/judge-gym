@@ -9,7 +9,6 @@ import {
   providerSupportsBatching,
 } from "@judge-gym/engine-settings/provider";
 import { runModelBatchChat, runModelChat } from "../llm/client";
-import { getModelConfig } from "../window/model_registry";
 
 const originalFetch = globalThis.fetch;
 
@@ -41,10 +40,7 @@ describe("provider routing", () => {
     assert.equal(getProviderForModel("claude-sonnet-4"), "anthropic");
     assert.equal(getProviderForModel("claude-sonnet-4-openrouter"), "openrouter");
     assert.equal(getProviderModel("claude-sonnet-4-openrouter"), "anthropic/claude-sonnet-4");
-
-    const anthropicConfig = getModelConfig("claude-sonnet-4");
-    assert.equal(anthropicConfig.provider, "anthropic");
-    assert.equal(anthropicConfig.providerModel, "claude-sonnet-4-20250514");
+    assert.equal(getProviderModel("claude-sonnet-4"), "claude-sonnet-4-20250514");
   });
 
   it("tracks provider-native batching separately from current model batchability", () => {

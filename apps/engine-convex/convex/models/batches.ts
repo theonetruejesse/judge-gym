@@ -10,7 +10,7 @@ export const LlmBatchExecutionStatusSchema = z.enum([
 
 export const LlmBatchExecutionsTableSchema = z.object({
   batch_key: z.string(),
-  process_kind: z.enum(["window", "run"]),
+  process_kind: z.enum(["run"]),
   process_id: z.string(),
   stage: z.string(),
   provider: z.string(),

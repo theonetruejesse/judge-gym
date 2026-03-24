@@ -28,7 +28,6 @@
     ]
   },
   "dependencies": {
-    "@mendable/firecrawl-js": "^4.12.0",
     "@judge-gym/engine-prompts": "workspace:*",
     "@judge-gym/engine-settings": "workspace:*",
     "@temporalio/activity": "^1.15.0",

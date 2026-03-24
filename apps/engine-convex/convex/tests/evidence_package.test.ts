@@ -188,4 +188,106 @@ describe("evidence package", () => {
     expect(setItems[0]?.title).toBe("Annotated article excerpt");
     expect(setItems[0]?.pinned_view_id).toBe(imported.evidence_view_id);
   });
+
+  test("lists universes and acquisition runs, snapshots a run into an evidence set, and loads content", async () => {
+    const t = initTest();
+
+    const { universe_id } = await t.mutation(api.packages.evidence.createEvidenceUniverse, {
+      universe_tag: "mediacloud-lab",
+      kind: "news",
+      title: "Media Cloud lab",
+    });
+    const { acquisition_spec_id } = await t.mutation(api.packages.evidence.createAcquisitionSpec, {
+      universe_id,
+      spec_tag: "mediacloud-lab-spec",
+      discovery_provider: "mediacloud",
+      discovery_config_json: JSON.stringify({
+        query: "democratic erosion",
+        start_date: "2026-03-01",
+        end_date: "2026-03-05",
+        collection_ids: [34412234],
+      }),
+      hydrator_kind: "manual",
+      active: true,
+    });
+    const { acquisition_run_id } = await t.mutation(api.packages.evidence.createAcquisitionRun, {
+      acquisition_spec_id,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("search/story-list")) {
+          return new Response(
+            JSON.stringify({
+              stories: [
+                {
+                  id: 101,
+                  url: "https://example.com/story-101",
+                  title: "Story One Zero One",
+                  publish_date: "2026-03-03",
+                  indexed_date: "2026-03-03T09:00:00Z",
+                  media_name: "Example Outlet",
+                  media_url: "https://example.com",
+                  language: "en",
+                },
+              ],
+              pagination_token: null,
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
+        if (url.includes("example.com/story-101")) {
+          return new Response(
+            "<html><body><article><p>Hydrated Media Cloud story.</p></article></body></html>",
+            {
+              status: 200,
+              headers: { "content-type": "text/html; charset=utf-8" },
+            },
+          );
+        }
+        return new Response("Stored evidence text.", { status: 200 });
+      }),
+    );
+
+    await t.action(api.packages.evidence.ingestAcquisitionRun, {
+      acquisition_run_id,
+    });
+    await t.action(api.packages.evidence.hydrateAcquisitionRun, {
+      acquisition_run_id,
+      limit: 5,
+    });
+
+    const universes = await t.query(api.packages.evidence.listEvidenceUniverses, {});
+    expect(universes).toHaveLength(1);
+    expect(universes[0]?.latest_acquisition_run_id).toBe(acquisition_run_id);
+
+    const runs = await t.query(api.packages.evidence.listAcquisitionRuns, {
+      universe_id,
+    });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.spec_tag).toBe("mediacloud-lab-spec");
+
+    const setSnapshot = await t.mutation(api.packages.evidence.createEvidenceSetFromAcquisitionRun, {
+      acquisition_run_id,
+      evidence_set_tag: "mediacloud-lab-set",
+      title: "Media Cloud lab set",
+    });
+    expect(setSnapshot.item_count).toBe(1);
+
+    const universeItems = await t.query(api.packages.evidence.listUniverseItems, {
+      universe_id,
+    });
+    expect(universeItems).toHaveLength(1);
+    expect(universeItems[0]?.title).toBe("Story One Zero One");
+
+    const content = await t.action(api.packages.evidence.getEvidenceItemContent, {
+      evidence_item_id: universeItems[0]!.evidence_item_id,
+    });
+    expect(content.raw_text).toBe("Stored evidence text.");
+  });
 });

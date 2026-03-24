@@ -101,5 +101,4 @@ export async function createTemporalTestWorkflowEnvironment() {
 
 export const TEST_TASK_QUEUES = {
   run: `${TEMPORAL_TASK_QUEUES.run}.test`,
-  window: `${TEMPORAL_TASK_QUEUES.window}.test`,
 } as const;

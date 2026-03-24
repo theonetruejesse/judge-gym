@@ -109,6 +109,19 @@ export function getProviderModel(model: ModelType): string {
   return MODEL_BY_ID[model].provider_model;
 }
 
+export function getModelConfig(model: ModelType): {
+  provider: ProviderType;
+  providerModel: string;
+  batchable: boolean;
+} {
+  const definition = MODEL_BY_ID[model];
+  return {
+    provider: definition.provider,
+    providerModel: definition.provider_model,
+    batchable: definition.batchable,
+  };
+}
+
 export function getProviderEnv(provider: ProviderType): string {
   return PROVIDERS[provider].env_var;
 }

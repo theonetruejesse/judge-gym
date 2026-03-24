@@ -1,343 +1,150 @@
 # judge-gym
 
-An open-source LLM-as-Judge design space engine. judge-gym focuses on how rubric design, scoring models, scoring methods, and evidence presentation affect LLM evaluation of contested political concepts.
+Open-source LLM-as-judge regime engine.
 
-This README documents the **current implementation in `judge-gym/` only** and is intentionally self-contained. It does not assume features that exist only in `v0-old/` or `v1-target/`.
+The repo is now a greenfield V4 system. The old window / `window_runs` / `evidences` / Firecrawl path is gone. Evidence acquisition is Media Cloud-first, storage-backed, and evidence-set-driven.
 
-**Prerequisites**
+## Stack
 
-- Node.js `>=22.12.0`
-- Bun `>=1.1.27`
+- `apps/engine-convex`: Convex backend, schema, worker APIs, evidence acquisition, experiment/run orchestration
+- `apps/engine-temporal`: Temporal worker for `RunWorkflow`
+- `apps/lab`: Next.js UI for evidence universes, evidence sets, and experiments
+- `packages/engine-settings`: shared provider/runtime settings
+- `packages/engine-prompts`: shared run prompt/config contracts
+- `apps/analysis`: Python analysis/export consumers
 
-**Node version management (nvm)**
-This repo pins Node via `.nvmrc` to keep all packages on the same version.
+## Current Architecture
 
-1. `nvm install 22.12.0`
-2. `nvm use 22.12.0`
-3. `nvm alias default 22.12.0`
+### Evidence
 
-**Validation routine**
+The evidence path is:
 
-- After Convex schema or function changes, run `bun run validate:convex` from the repo root.
-- That routine runs `npx convex codegen` in `apps/engine-convex` and then the root TypeScript typecheck.
-- After runtime-affecting worker changes, deploy the Railway worker and verify live queue readiness before resuming a real V3 pass.
+1. create an `evidence_universe`
+2. define an `acquisition_spec`
+3. execute an `acquisition_run`
+4. ingest Media Cloud discovery into `evidence_candidates`
+5. hydrate candidates into canonical `evidence_items`
+6. generate versioned `evidence_views`
+7. freeze reusable `evidence_sets`
 
-**JavaScript install flow**
+Large payloads live in Convex storage and are referenced through `evidence_assets`.
 
-- Use `bun install` from the repo root as the only supported JavaScript dependency install flow.
-- Workspace packages should not keep independent npm lockfiles.
+Core tables:
 
-**Bootstrap**
+- `evidence_universes`
+- `acquisition_specs`
+- `acquisition_runs`
+- `evidence_candidates`
+- `evidence_items`
+- `evidence_views`
+- `evidence_assets`
+- `evidence_sets`
+- `evidence_set_items`
 
-- Contributor setup lives in `docs/setup.md`.
-- Railway-specific deployment details live in `docs/railway.md`.
-- Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
-- The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
-- Use `./scripts/deploy_railway_worker.sh` for the current manual worker deploy flow when `apps/engine-temporal`, `packages/engine-settings`, `packages/engine-prompts`, `Dockerfile`, or `railway.toml` change.
-- After the stack is configured, `bun run v4:smoke` is the recommended first end-to-end validation path.
+### Experiments
 
-**Environment source of truth**
+Experiments are evidence-set-native.
 
-- The repo root `.env.local` is the source of truth for shared runtime configuration.
-- Package-local env files are optional convenience copies only; the live package scripts now source the root `.env.local`.
+- `packages/lab:initExperiment` requires `evidence_set_id`
+- experiments store V4 study metadata:
+  - `study_kind`
+  - `evidence_source_kind`
+  - `rubric_source_kind`
+  - `compatibility_mode`
+  - `task_contract`
+  - `output_contract`
+- run creation freezes score-target inputs from `evidence_set_items`
+- score-stage prompt building reads storage-backed content assets
 
-**What exists today**
+### Runtime
 
-- Evidence windows are now started from the Convex engine and executed by a Temporal-owned `WindowWorkflow` with the same 3-stage LLM pipeline (clean → neutralize → abstract).
-- Window state is now split cleanly between reusable `windows` definitions and executable `window_runs`, so one search slice can be rerun with different cleaning targets or models without redefining the window itself.
-- A new V4 evidence substrate now exists alongside the legacy window path: `evidence_universes`, `acquisition_specs`, `acquisition_runs`, `evidence_candidates`, `evidence_items`, `evidence_views`, and `evidence_assets`.
-- The V4 evidence path now separates discovery from hydration: Media Cloud-backed discovery writes reusable candidate metadata first, then hydration creates canonical evidence items and rendered views later.
-- V4 evidence items now carry generic source metadata (`title`, `source_url`, `source_name`, `publish_date`, `language`) so imported literature datasets and discovered news evidence share one canonical item surface.
-- Curated `evidence_sets` now sit on top of universes/items/views, so imported audit rows and Media Cloud-hydrated items can be assembled into one reusable study selection without any pool indirection.
-- Raw provider payloads, hydrated HTML, hydrated text, and derived evidence views in the V4 path are now stored as Convex storage-backed assets referenced from metadata rows instead of being embedded directly into one table shape.
-- The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
-- Experiment runs are now also started from the Convex engine and executed by a Temporal-owned `RunWorkflow` across `rubric_gen`, `rubric_critic`, `score_gen`, and `score_critic`.
-- Experiment definitions now carry explicit V4 study metadata: `study_kind`, `evidence_source_kind`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, and `output_contract`.
-- Experiment initialization is now evidence-set-first: `packages/lab:initExperiment` requires `evidence_set_id`, engine-prompt defaults now normalize to `evidence_source_kind = "evidence_set"`, and pool/bundle-plan arguments are rejected on the live V4 path.
-- The public lab control plane no longer exposes `createPool`, `createPoolFromWindowRun`, `createBundlePlan`, or `listBundlePlans`; curated evidence sets are now the only supported experiment input surface.
-- The Temporal run path now persists workflow bindings on `runs`, per-stage attempt/error refs on `samples` and `sample_score_targets`, and writes run artifacts against the `llm_attempts` ledger instead of the legacy request queue.
-- Score parsing now dispatches through `output_contract.parser_key`, so the backend can handle legacy `VERDICT:` lines plus new `LABEL:` and structured-JSON scoring outputs for compatibility studies.
-- Greenfield run materialization is now evidence-set-native: `createRun` resolves each score-target item to an `evidence_item`, the exact `evidence_view` (when pinned/resolved), and the concrete storage-backed content asset that will be judged.
-- Run-stage prompt preparation for score stages is now storage-backed as well: Convex reads the frozen content assets for each `sample_score_target_item`, reconstructs bundled evidence text, and returns final prompts to Temporal without depending on legacy inline `evidences` rows.
-- The lab inspection layer now treats V4 evidence sets as first-class too: experiment evidence listing returns `evidence_set_item` / `evidence_item` / `evidence_view` metadata instead of requiring legacy window evidence rows.
-- The analysis/export contract is now V4-native as well: Convex exports schema version `4`, manifests are `evidence_set`-backed, response bundles carry `evidence_set_item_ids` / `evidence_item_ids` / `evidence_view_ids`, and the Python cache resets on schema-version drift instead of migrating old pool/window layouts.
-- Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
-- Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
-- The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
-- The current V3 cohort uses `scoring_config.evidence_bundle_size` as the only experiment-side bundle control (`1` = single evidence; `5` = the current bundle ablation), and the live `experiments` table is the config source of truth.
-- The V3 cohort control plane now lives in:
-  - `packages/codex:getV3CampaignSnapshot`
-  - `packages/codex:getV3CampaignStatus`
-  - `packages/codex:getTemporalTaskQueueHealth`
-  - `packages/codex:resetV3Campaign`
-  - `packages/codex:startV3Campaign`
-- `packages/codex:resetV3Campaign` now performs run-workflow cancellation first and then delegates deletion to the paged `resetRuns` mutation path, so live cohort resets preserve reusable evidence sources while avoiding the old monolithic cleanup bottleneck.
-- Process snapshot projection now accepts callbacks that omit `processId` and infers the target from `workflowId`, which keeps older or partial Temporal snapshots compatible with the current Convex worker contract.
-- Late Temporal callbacks that arrive after reset cleanup has removed a run/window/attempt/score-target target now degrade to safe worker-side no-ops: snapshot projection emits a `process_projection_skipped_missing_target` breadcrumb on the known process trace, late attempt-finish callbacks log a warning instead of crashing the Convex mutation, and late run-stage apply/failure callbacks emit run-trace skip breadcrumbs instead of throwing on deleted rows.
-- Added `apps/engine-convex/convex/tests/v3_campaign_control_plane.test.ts` coverage to ensure `resetRuns` reports deleted counts and handles chunked cleanup per-experiment, keeping the control plane honest when the cohort spans many artifacts.
-- The active V3 finish-pass manifest now targets the current reduced viability cohort from `docs/pilots/v3_gpt_ablations.md`, still sourced from the corrected V3 experiment families and still excluding the legacy invalid `a6` / `a7` bundle families from scientific interpretation.
-- The current ownDev pool-tag bindings are still captured in `_campaigns/v3_finish_pass/manifest.json`:
-  - `p1_us_contested_trial_2026_01_01`
-  - `p2_no_election_reporting_control_2025_09_08`
-- The current pre-reset forensic save state for the live V3 system audit is captured in `_blueprints/p1-p3-pre-nuke-final-audit/`, including the final bug ledger, evidence bundle, and prebuilt fix plan for the next clean deployment.
-- Active experiment runs now patch persisted `runs.status` to `running` as soon as `rubric_gen` is enqueued, so live engine state matches actual in-flight work.
-- Runs now persist both `target_count` and `completed_count`, plus per-stage completed counters (`rubric_gen_count`, `rubric_critic_count`, `score_gen_count`, `score_critic_count`) for live monitoring.
-- Runs also support `pause_after`, which pauses the run after the requested stage settles instead of automatically enqueueing the next stage.
-- Windows now persist both `target_count` and `completed_count`; `target_count` is the requested scrape cap from window creation, while `completed_count` tracks how many evidence rows actually reached `l3`.
-- Experiments now persist `total_count`, which aggregates the `completed_count` of all runs for that experiment and powers the experiment-level completed total in the lab UI.
-- Pools now persist `evidence_count`, which records the number of evidence rows frozen into the pool.
-- Samples now persist `score_count` and `score_critic_count`, and score fanout is stored in generalized `sample_score_targets` / `sample_score_target_items` rows so both single-evidence and bundled-evidence runs share one scoring model.
-- `getRunSummary`, `getExperimentSummary`, and `listExperiments` now expose `has_failures` and real per-stage failed counts, so partial-success runs remain `completed` but are visibly distinguishable from clean runs.
-- Window and run execution now both launch through Temporal workflows; the legacy Convex scheduler/batch/job engine has been removed from the live schema and active code paths.
-- The engine now exports Temporal-owned process and worker telemetry best-effort to Axiom, while keeping only a tiny local `process_observability` mirror in Convex for the live debug loop.
-- Score-stage payload building now preloads rubric/evidence/score documents per run stage to avoid repeated per-unit reads that could trigger Convex single-function read limits.
-- Subset score parsing now tolerates markdown-decorated and comma-separated multi-label verdict lines (for example `**VERDICT: X, Y**`) instead of requiring one extremely brittle verdict-line shape.
-- Engine maintenance helpers now include targeted run cleanup (`deleteRunData`) and chunked table deletion (`nukeTableChunk`) for large-table recovery without read-limit failures.
-- Targeted run cleanup (`deleteRunData`) now blocks active runs by default and requires an explicit `allow_active=true` override for destructive active-run deletion.
-- Experiment-scoped run cleanup (`deleteExperimentRunData`) removes all run-scoped artifacts for one experiment while leaving reusable evidence sources and the experiment config intact.
-- The engine includes a Bun telemetry checker (`bun run telemetry:check` in `apps/engine-convex`) to run an Axiom ingest smoke test through Convex.
-- The engine now includes a codex live-debug surface (`apps/engine-convex/convex/domain/maintenance/process_debug.ts`) with Temporal-aware process health, local recent-event tailing, Axiom trace references, and bounded repair actions for run/window flows.
-- `getProcessHealth` now derives live health from persisted run/window state, `process_observability`, and `llm_attempts` instead of the legacy request/batch snapshot tables.
-- The codex surface now also exposes direct Temporal inspection/control actions: `inspectProcessExecution` and `controlProcessExecution`, so agents can query live workflow state and send explicit `pause_now`, `resume`, `cancel`, `set_pause_after`, or bounded repair commands without relying on queue-era heuristics.
-- Run diagnostics now read run-scoped artifacts and `llm_attempts` directly, separating terminal failed targets from historical attempt failures, surfacing real per-target `attempt_count` / `retry_count`, and including a short failed-output preview for Temporal-owned forensics.
-- Score-critic prompts now mirror the exact randomized rubric surface shown to `score_gen` (same identifiers, label hiding, and rubric order) instead of leaking decoded canonical stage labels back into the critic.
-- Run prompts now use a structured XML-style prompt family with explicit task/requirements/output sections, and the score-stage prompts split evidence into the system prompt while passing rubric/verdict payloads in the user prompt.
-- Non-abstain score prompts now use an explicit forced-choice fallback: if no stronger stage is supported, the model must emit the weakest displayed stage identifier instead of `None`, blank verdicts, or other out-of-contract text.
-- System prompts are now deduplicated in `llm_prompt_templates`, and Temporal-owned execution references those templates through the append-only `llm_attempts` ledger.
-- Codex maintenance/debug queries now use bounded scans (`take` caps) across large tables and the local `process_observability` mirror to prevent read-limit failures when historical telemetry/backlog is large.
-- Codex health/stuck surfaces now flag `retryable_stage_failure`, `missing_workflow_binding`, and `stale_projection` directly from Temporal bindings, artifact state, and recent process projection freshness.
-- `autoHealProcess` now executes bounded action pages (`cursor` + `max_actions`) and returns scan/action metadata, so large-backlog heals can run in resumable passes.
-- Local telemetry diagnostics summarize the capped Convex recent-events mirror; the mirror now persists `external_trace_ref` plus truncated event payloads for local failure triage, while full event history lives in Axiom.
-- The engine includes Bun live-debug commands in `apps/engine-convex`: `bun run debug:watch`, `bun run debug:stuck`, `bun run debug:heal`, `bun run debug:tail`, `bun run debug:inspect`, and `bun run debug:control`.
-- The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
-- For raw live Convex function calls that do not already have a dedicated debug wrapper, use `./scripts/run_convex.sh <functionName> '<jsonArgs>'`; it resolves the local Convex CLI through the repo's supported Node 22 runtime instead of relying on ad hoc `nvm` shell prefixes.
-- `packages/codex:listBatchReconciliationStatus` plus `bun run debug:batches -- --run <run_id> [--stage <stage>]` expose per-stage `llm_batch_executions`, showing if each provider batch chunk is submitted, polling, completed, failed, or still applying before the next stage runs.
-- The engine includes a scripted Railway-backed smoke test at `bun run v4:smoke`, which checks Temporal queue readiness, creates a tiny direct-import evidence universe + evidence set, launches a one-sample run, and prints a compact workflow/artifact summary.
-- The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
-- V3 campaign status reads are now cohort-scoped by explicit manifest tags instead of global experiment/run scans, so `packages/codex:getV3CampaignSnapshot` stays usable during large score stages.
-- Temporal stage activities now use bounded retries from `packages/engine-settings`, while projection updates keep a separate longer timeout budget and single-attempt semantics to avoid duplicate projection churn.
-- Run-stage preflight now heartbeats and timeboxes quota reservation plus batch-execution registration before provider work begins, so a stalled Redis/Convex preamble fails fast instead of silently aging active runs into `stale_projection`.
-- Score-stage batch preamble now records `recordLlmAttemptStart` in page-bounded segments with `batch_preamble:record_attempt_starts` heartbeats, so large score batches no longer treat the full attempt-start fanout as one 60-second preflight window and pre-batch failures can be diagnosed without collapsing immediately into a raw Temporal activity error.
-- Score-stage batch preparation now creates the `llm_batch_executions` row before attempt-start fanout and checkpoints `attempt_recorded_count` plus `attempt_records_json` as each page completes, so large `score_gen` batches can resume pre-submit preparation after a replay instead of redoing the entire attempt-start preamble.
-- Temporal run/window stage bootstrap now validates required process ids locally before issuing Convex stage-context queries, so malformed runtime state fails in worker logs instead of surfacing only as opaque Convex validator spam.
-- The Temporal activity boundary and Convex worker client now both reject missing process ids before any HTTP request is made, and `packages/worker:getWindowExecutionContext` now degrades missing or wrong-table ids to `null` instead of validator failures; together, that suppresses malformed orphan retry noise while preserving explicit local worker errors for real run/window lookups.
-- Run-stage activity crashes now call `markRunProcessError` with the concrete worker failure message before halting the workflow, so live process inspection surfaces the actual stage error instead of only a generic Temporal `Activity task failed`.
-- OpenAI batch execution now uses explicit transport retries for batch/file polling, and batch chunks persist provider batch lifecycle through `llm_batch_executions` so batch-backed stages can resume polling instead of blindly resubmitting on every replay.
-- OpenAI batch-backed score stages now align their wait budget with the provider's `24h` completion window, and the Temporal stage activity timeout stays above that window so true long-tail provider stalls still fail with an explicit batch-timeout error instead of a shorter workflow ceiling.
-- Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
-- Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
-- Experiment initialization now targets reusable `evidence_sets` via `evidence_set_id`.
-- `packages/codex:getV3MatrixContract` remains only as a historical contract artifact for the old V3 matrix.
-- The lab UI now creates experiments from curated evidence sets, inspects evidence-set membership directly, and starts runs against that frozen V4 evidence contract.
-- The lab experiment surfaces now expose `latest_run.current_stage_progress`, so the runs table shows partial current-stage progress instead of only coarse finalized run counters.
-- Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
-- Lab window form fields are composed from reusable input, calendar, and select components.
-- Lab window editor syncs form state to URL params (debounced) and restores defaults on refresh.
-- Lab experiment editor uses TanStack Form with server-parsed defaults and debounced URL param sync.
-- Lab App Router editor pages resolve promise-based `searchParams` before deriving form defaults (Next 15 compatible typing).
-- Lab experiment detail now fetches by route id directly (no list-first experiment fetch).
-- `listEvidenceWindows` now aggregates evidence in one query pass instead of per-window lookups.
+The only live workflow is `RunWorkflow` with:
 
-**What does not exist yet (in this repo)**
+- `rubric_gen`
+- `rubric_critic`
+- `score_gen`
+- `score_critic`
 
-- An implementation of `data:exportExperimentBundle` used by the analysis client.
-- An operator-editable runtime settings surface; engine defaults currently live in `packages/engine-settings`.
+Provider support:
 
----
+- OpenAI direct + native batch
+- Anthropic direct + native batch
+- OpenRouter direct
 
-## Repo Organization
+Batch/provider lifecycle is persisted in `llm_batch_executions`, including provider-specific artifacts such as Anthropic batch `results_url`.
 
-**Top-level apps and packages**
-| Path | Role |
-| --- | --- |
-| `apps/engine-convex` | Convex backend: schema, domain state, lab APIs, Temporal start hooks, maintenance surfaces, and worker-facing write surfaces |
-| `apps/engine-temporal` | Temporal worker app with live `WindowWorkflow` and `RunWorkflow` execution, local test harness, and Redis-backed quota enforcement |
-| `apps/lab` | Next.js app (UI for evidence windows + experiments) |
-| `apps/analysis` | Python client for pulling experiment data from Convex |
-| `packages/engine-settings` | Pure shared settings/contracts package for engine defaults, provider tiers, batch routing policy, retry budgets, Firecrawl collection policy, Temporal activity budgets, queue names, env-key names, and workflow/quota schemas |
-| `packages/engine-prompts` | Shared prompt/config package for run/window prompt builders, display/randomization helpers, and experiment-config schemas |
-| `paper.md` | Research framing |
+## Lab UI
 
-**Local development**
+The lab now has two primary authoring surfaces:
 
-- `bun dev` from the repo root starts the local UI and Convex development surfaces only (`apps/lab` + `apps/engine-convex`). The Temporal cluster and worker run on Railway in the primary dev path.
-- `turbo.json` is intentionally pinned to `ui: "stream"` so local Turbo/Convex logs stay readable and capturable during agent-led debugging; when local Convex log monitoring matters, let the agent own the root `bun dev` session.
-- `apps/engine-temporal` runs on a Node runtime, but dependencies are still installed through the root Bun workspace.
-- When using Railway-hosted Temporal, the Convex deployment should point `TEMPORAL_ADDRESS` at the public TCP proxy for the Temporal frontend service, while the Railway-hosted `engine-temporal` worker should use the private service alias `temporalserver:7233` unless your Railway template used a different private name.
-- The Railway worker deploy path for `apps/engine-temporal` is pinned in repo via `railway.toml` plus the repo-root `Dockerfile`, which installs the Bun workspace and runs the Temporal worker from `apps/engine-temporal`.
-- Quota state now assumes a standard Redis service on Railway for the worker runtime instead of Upstash.
-- Prompt ownership now lives in `packages/engine-prompts`; Convex builds prompt-ready inputs and Temporal executes them.
+- `/editor/evidence`: Media Cloud query form for creating evidence universes and frozen evidence sets
+- `/editor/experiment`: experiment creation from curated evidence sets
 
-**Engine internals (`apps/engine-convex/convex/`)**
-| Path | Role |
-| --- | --- |
-| `domain/runs/` | Experiment creation + pool binding + run launch/reporting |
-| `domain/evidence/` | V4 evidence acquisition, Media Cloud discovery, storage-backed hydration, and evidence repo functions |
-| `domain/exports/` | Convex-owned export/reporting surfaces consumed by the analysis package |
-| `domain/temporal/` | Convex-side Temporal client/start helpers |
-| `domain/window/` | Evidence window setup + search |
-| `domain/maintenance/` | Debug, reset, and campaign control surfaces |
-| `models/` | Zod schemas for tables and shared enums |
-| `packages/` | Public Convex API surfaces (e.g. `lab.ts`, `worker.ts`) |
-| `utils/` | Zod helpers, tags, and shared runtime helpers |
-| `schema.ts` | Convex table definitions + indexes |
+The home page lists:
 
-**Key submodules**
-| Path | What it contains |
-| --- | --- |
-| `domain/runs/experiments_service.ts` | Experiment creation, summary reads, and pool binding orchestration |
-| `domain/runs/experiments_repo.ts` | Experiment storage |
-| `domain/runs/pool_repo.ts` | Pool storage and pool-evidence binding |
-| `domain/runs/bundle_plan_materializer.ts` | Bundle-plan materialization helpers |
-| `domain/runs/run_service.ts` | Run lifecycle and Temporal launch/resume path |
-| `domain/runs/run_repo.ts` | Run persistence and sample seeding at run creation |
-| `domain/evidence/evidence_repo.ts` | V4 evidence-universe, candidate, item, view, and asset persistence |
-| `domain/evidence/evidence_service.ts` | Storage-backed asset writes, Media Cloud discovery ingest, and candidate hydration |
-| `domain/evidence/mediacloud.ts` | Media Cloud story-list client + candidate normalization |
-| `domain/temporal/temporal_client.ts` | Convex-side Temporal workflow start actions for windows and runs |
-| `domain/window/window_repo.ts` | Evidence search + insert + queries |
-| `domain/window/evidence_search.ts` | Firecrawl-based news search with bounded timeout/retry policy from `engine-settings` |
-| `domain/exports/analysis_export.ts` | Evidence-set-native analysis/export read surfaces for the Python package |
-| `domain/maintenance/process_debug.ts` | Temporal-aware health, stuck-work detection, and bounded repair helpers |
-| `domain/maintenance/danger.ts` | Run-scoped destructive maintenance and table-prune helpers |
-| `packages/worker.ts` | Narrow worker-facing Convex API for Temporal activities |
-| `models/*` | Table schemas and shared enums |
+- experiments
+- evidence universes
 
----
+The evidence detail page inspects:
 
-## Data Model (Core Tables)
+- acquisition runs
+- evidence sets
+- universe items
+- raw/storage-backed content
+- generated views
 
-**V4 evidence acquisition tables**
-| Table | Purpose | Key fields |
-| --- | --- | --- |
-| `evidence_universes` | Reusable corpus boundary for V4 studies and imported audit datasets | `universe_tag`, `kind`, `title`, `status` |
-| `acquisition_specs` | Frozen acquisition definition for one universe | `universe_id`, `spec_tag`, `discovery_provider`, `discovery_config_json`, `hydrator_kind` |
-| `acquisition_runs` | One execution of an acquisition spec | `acquisition_spec_id`, `status`, `cursor_json`, `discovered_count`, `hydrated_count`, `last_error_message` |
-| `evidence_candidates` | Discovery-stage metadata before hydration | `universe_id`, `acquisition_run_id`, `discovery_provider`, `external_id`, `url`, `publish_date`, `metadata_json`, `provider_payload_asset_id` |
-| `evidence_items` | Canonical hydrated or directly imported evidence items | `universe_id`, `candidate_id`, `canonical_key`, `title`, `source_url`, `source_name`, `publish_date`, `language`, `hydration_status`, `raw_text_asset_id`, `raw_html_asset_id`, `content_hash` |
-| `evidence_sets` | Curated reusable study selections over evidence items | `universe_id`, `evidence_set_tag`, `source_kind`, `quality_label`, `item_count`, `selection_config_json` |
-| `evidence_set_items` | Membership rows for one curated evidence set | `evidence_set_id`, `evidence_item_id`, `pinned_view_id`, `ordinal`, `quality_label`, `inclusion_reason` |
-| `evidence_views` | Versioned rendered representations of an evidence item | `evidence_item_id`, `view_kind`, `pipeline_kind`, `pipeline_version`, `asset_id`, `status` |
-| `evidence_assets` | Convex storage-backed payload metadata | `storage_id`, `role`, `mime_type`, `byte_size`, `content_hash` |
+## Validation
 
-**Window definition + execution tables**
-| Table | Purpose | Key fields |
-| --- | --- | --- |
-| `windows` | Reusable evidence collection definitions | `window_tag`, `source_provider`, `query`, `country`, `start_date`, `end_date`, `default_target_count`, `default_target_stage` |
-| `window_runs` | One executable window process over a definition | `window_id`, `status`, `current_stage`, `target_stage`, `target_count`, `completed_count`, `model`, `workflow_id`, `workflow_run_id`, `last_error_message` |
-| `evidences` | Evidence items collected by a window run | `window_id`, `window_run_id`, `l0_raw_content`, `l1/l2/l3_*_content`, `l1/l2/l3_attempt_id`, `l1/l2/l3_error_message` |
-| `llm_prompt_templates` | Deduplicated system prompt cache | `content_hash`, `content` |
-| `llm_attempts` | Append-only worker-side LLM attempt ledger | `process_kind`, `process_id`, `target_type`, `target_id`, `stage`, `provider`, `model`, `workflow_id`, `status`, `started_at`, `finished_at`, `input_tokens`, `output_tokens`, `total_tokens` |
-| `llm_attempt_payloads` | Prompt/output/error payload blobs for attempts | `attempt_id`, `kind`, `content_text`, `content_hash`, `byte_size`, `content_type` |
-| `process_observability` | Local Temporal-era process observability mirror for debug surfaces and agent triage | `process_type`, `process_id`, `trace_id`, `last_*`, `recent_events`, `external_trace_ref` |
+After Convex changes:
 
-**Experiment and run tables (orchestrated)**
-| Table | Purpose | Key fields |
-| --- | --- | --- |
-| `experiments` | Experiment configs for V4 evidence sets | `experiment_tag`, `study_kind`, `evidence_source_kind`, `evidence_set_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
-| `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters, `workflow_id`, `workflow_run_id`, `last_error_message` |
-| `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count`, `rubric_gen_*`, `rubric_critic_*` |
-| `sample_score_targets` | Frozen run score targets | `run_id`, `sample_id`, `score_id`, `score_critic_id`, `score_gen_*`, `score_critic_*` |
-| `sample_score_target_items` | Frozen V4 evidence bindings for each score target | `score_target_id`, `evidence_set_item_id`, `evidence_item_id`, `evidence_view_id`, `content_asset_id`, `position` |
-| `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | `llm_attempt_id`, parsed artifact payloads, and run/sample bindings |
+- `bun run validate:convex`
 
-**Indexes that drive orchestration**
+Useful checks:
 
-- `llm_attempts.by_process`, `by_process_stage`, and `by_target` support Temporal window/run audit/debug lookups.
-- `sample_score_targets.by_run` and `sample_score_target_items.by_score_target` support direct stage progress and deletion walks without queue-shaped snapshots.
+- `bun run typecheck`
+- `cd apps/engine-convex && bun run test -- evidence_package evidence_repo worker_idempotency telemetry_observability`
+- `cd apps/engine-temporal && bun run test`
 
----
+Smoke flow:
 
-## Orchestration Flow (End-to-End)
+- `cd apps/engine-convex && bun run v4:smoke`
 
-**High-level path**
+## Development Notes
 
-1. A reusable window definition is created via `window_repo.createWindow` / `upsertWindow`.
-2. `startWindowRunFlow` creates a `window_runs` row, starts a Temporal `windowWorkflow` through `domain/temporal/temporal_client.ts`, and binds the returned `workflow_id` / `workflow_run_id` onto the window run through `packages/worker.ts`.
-3. The Temporal worker runs the `collect` stage, calls Firecrawl search, and inserts `evidences` with `l0_raw_content` through the Convex worker API.
-4. If search returns zero results, the worker marks the window `completed` with zero counts and halts the workflow cleanly.
-5. For each transform stage (`l1_cleaned`, `l2_neutralized`, `l3_abstracted`), the worker lists pending evidence inputs, records a new `llm_attempt`, calls OpenAI chat, stores payloads, and applies the transformed content back onto the evidence row.
-6. Stage failures are tracked per evidence row (`*_attempt_id`, `*_error_message`), and a stage that exhausts every pending item marks the whole window `error`.
-7. The workflow projects snapshot state back into Convex as it advances, keeping `window_runs.status`, `current_stage`, and workflow bindings aligned with Temporal execution.
+- Root `.env.local` is the source of truth
+- Use `bun install` from repo root
+- Deploy the Temporal worker after runtime-affecting worker changes before resuming real external runs
 
-**Run flow (experiment)**
+## Debug Surfaces
 
-1. `initExperiment` creates an experiment that references a curated evidence set (`evidence_set_id`).
-2. `startRunFlow` creates a run, seeds `samples` with zeroed `score_count` / `score_critic_count`, materializes `sample_score_targets` (+ `sample_score_target_items`) from the frozen evidence-set items and chunks them by `scoring_config.evidence_bundle_size`, then schedules a Temporal `runWorkflow`.
-3. The Temporal worker lists prompt-ready stage inputs from the Convex worker API, records `llm_attempts`, calls OpenAI chat, and applies parsed artifacts back into `rubrics`, `rubric_critics`, `scores`, and `score_critics`.
-4. Stage failures are tracked directly on `samples` and `sample_score_targets`, and stage finalization updates run counters, terminal status, and experiment totals without going through the legacy request queue.
-5. `pause_after` is now enforced by the Temporal workflow shell itself, while Convex remains the source of truth for run state, artifacts, and reporting.
+Convex debug packages:
 
-**Architecture overview**
+- `packages/codex:getProcessHealth`
+- `packages/codex:getStuckWork`
+- `packages/codex:autoHealProcess`
+- `packages/codex:tailTrace`
+- `packages/codex:analyzeProcessTelemetry`
+- `packages/codex:listBatchReconciliationStatus`
 
-```mermaid
-flowchart TD
-  Lab[Convex lab API] --> StartWindow[startWindowFlow]
-  StartWindow --> TemporalStart[temporal_client.startWindowWorkflow]
-  TemporalStart --> WindowWorkflow[Temporal WindowWorkflow]
-  WindowWorkflow --> WindowActivities[Window activities]
-  WindowActivities --> Firecrawl[Firecrawl search]
-  WindowActivities --> OpenAI[OpenAI chat]
-  WindowActivities --> WorkerApi[Convex packages/worker API]
-  WorkerApi --> WindowTables[windows/evidences/llm_attempts]
-  Lab --> StartRun[startRunFlow]
-  StartRun --> RunTemporalStart[temporal_client.startRunWorkflow]
-  RunTemporalStart --> RunWorkflow[Temporal RunWorkflow]
-  RunWorkflow --> RunActivities[Run activities]
-  RunActivities --> OpenAI
-  RunActivities --> WorkerApi
-  WorkerApi --> RunTables[runs/samples/targets/rubrics/scores]
-```
+CLI wrappers:
 
-Window and run execution are now Temporal-owned, and the old Convex queue substrate has been pruned from the live engine path.
+- `bun run debug:watch -- --run <run_id>`
+- `bun run debug:stuck`
+- `bun run debug:heal -- --run <run_id>`
+- `bun run debug:tail -- --run <run_id>`
+- `bun run debug:analyze -- --run <run_id>`
+- `bun run debug:batches -- --run <run_id>`
 
-## Provider Layer
+## What Was Removed
 
-**Provider configuration**
+Removed from the live repo path:
 
-- `packages/engine-settings` now owns the developer-facing runtime policy surface: provider tiers and per-model rate-limit defaults, batch-routing thresholds, live batch polling limits, LLM retry budgets, Firecrawl collection timeouts/retries, Temporal activity timeout budgets, queue names, and env-key constants.
-- The current default batch policy is intentionally conservative: work stays on direct jobs below `llm.batching.minBatchSize = 35`, then batches are chunked by both `maxBatchSize` and `maxBatchRequestBytes` so provider batch size is bounded by payload size as well as item count.
-- The timeout split is intentional: direct chat requests use `llm.direct.requestTimeoutMs`, batch transport calls use `llm.batching.requestTimeoutMs`, batch poll/wait uses `llm.batching.maxWaitMs`, and Temporal stage activities use the larger `temporal.activityStartToCloseMs` budget.
-- OpenAI and Anthropic now both support native batch execution in the Temporal worker path; OpenRouter remains direct-only and will not enter the batch lane even when the provider supports the same underlying model family.
-- OpenAI still ships a bundled `tier_5` rate-limit table. Anthropic settings now carry explicit tier selection as well; the repo bundles `tier_1` defaults for `claude-sonnet-4`, while higher Anthropic tiers are representable in settings and currently rely on per-model overrides until their default tables are added.
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `OPENROUTER_API_KEY` are the provider-side runtime keys for direct or batch LLM execution.
-- `MEDIACLOUD_API_KEY` is required for V4 discovery. Firecrawl is no longer the search layer in the V4 evidence path; it can still be used as a URL hydrator while Media Cloud owns candidate discovery.
-- Worker-side provider execution lives under `apps/engine-temporal/src/*`; Convex no longer owns the provider call path.
+- `windows`
+- `window_runs`
+- `evidences`
+- Firecrawl-backed discovery
+- pool and bundle-plan experiment inputs
+- `WindowWorkflow`
+- window-specific lab/editor flows
 
----
-
-## Known Gaps and Caveats
-
-- `data:exportExperimentBundle` is referenced by the analysis client but not implemented here.
-- Engine settings currently resolve from the code-defined `ENGINE_SETTINGS_CONFIG` object in `packages/engine-settings/src/index.ts`; there is no persisted operator-editable settings table yet, but batching thresholds, retry budgets, provider-tier quota defaults, Firecrawl collection behavior, and Temporal activity budgets now live in one shared package instead of being hardcoded across Convex and Temporal.
-- Temporal now routes eligible run/window LLM work through provider-native batching when the centralized batch policy allows it. OpenAI and Anthropic use their native batch APIs; OpenRouter stays on direct chat requests and failed batch items still fall back to direct per-item retries so retry semantics stay per-target instead of per-batch.
-- Control-plane actions are split by weight: `repair_bounded` still uses acknowledged Temporal updates, while routine operator actions like `resume`, `pause_now`, and `set_pause_after` now default to async command sends instead of waiting on full snapshot projection before returning.
-- Batch-backed stage execution now uses deterministic attempt keys plus a durable `llm_batch_executions` registry in Convex so activity replay can resume/poll an existing batch instead of blindly submitting a second one.
-- Run stages now emit periodic process heartbeats while long direct requests or batch waits are still in flight, and batch-backed stages still emit milestone heartbeats during submit/poll/completion, so the control plane does not misclassify live work as stalled just because stage-boundary projections are sparse.
-- `packages/codex:listBatchReconciliationStatus` now returns stage-level batch, attempt, and target summary counts so the operator/debug layer can see where completed provider batches are still waiting on apply/reconciliation.
-- V3 campaign reset now backfills run ownership onto `sample_score_target_items` before deletion so large rubric-gate cohorts can be reset without hitting Convex read limits from per-target cleanup queries.
-- Window and run execution are now split across Convex + Temporal; provider quota reservation/settlement is generic across the routed provider/model pair, but `llm_batch_executions` still store OpenAI-shaped artifact fields (`input_file_id`, `output_file_id`, `error_file_id`) so non-OpenAI batch artifact references are not yet normalized into a provider-agnostic schema.
-- Window evidence collection and `l3` application are replay-safe: repeated inserts dedupe by URL within a run, and repeated result application no-ops once the evidence output is already present.
-- `llm_attempt_payloads` currently store inline text in Convex rather than file-storage blobs.
-- Temporal-window and Temporal-run quota enforcement currently lives in `apps/engine-temporal/src/quota/*` and talks directly to Redis from the worker runtime.
-- For large active deployments, use the codex debug surface (`getProcessHealth`, `getStuckWork`, paged `autoHealProcess`) as the operational gate; Lab summary endpoints are reporting-oriented and not the primary live-heal path.
-- `getProcessHealth.error_summary` is terminal-state oriented; use `historical_error_summary` and `getRunDiagnostics.failed_requests` when you need retry/attempt history rather than terminal truth.
-- For large failed runs, prefer `packages/lab:listRunScoreTargetsPage` over the full `listRunScoreTargets` dump so target-level bundle forensics stay within Convex read limits.
-- Parser-originated target failures such as unrecognized verdict labels now classify under the shared `parse_error` retry budget, so batch reconciliation falls back to the per-target retry path before a unit is marked terminal.
-
----
-
-## Key Files to Trace
-
-- Window Temporal starter: `apps/engine-convex/convex/domain/temporal/temporal_client.ts`
-- Window worker API: `apps/engine-convex/convex/packages/worker.ts`
-- Window Temporal service: `apps/engine-temporal/src/window/service.ts`
-- Window Temporal workflow: `apps/engine-temporal/src/workflows.ts`
-- Run Temporal service: `apps/engine-temporal/src/run/service.ts`
-- Run report/progress helpers: `apps/engine-convex/convex/domain/runs/run_progress.ts`, `apps/engine-convex/convex/domain/runs/experiments_service.ts`
-- Process debug surface: `apps/engine-convex/convex/domain/maintenance/process_debug.ts`
-- Destructive maintenance: `apps/engine-convex/convex/domain/maintenance/danger.ts`
-- Quota layer: `apps/engine-temporal/src/quota/*`
-- Prompt builders/config: `packages/engine-prompts/src/run/*`, `packages/engine-prompts/src/window/index.ts`
-- Provider metadata and quota defaults: `packages/engine-settings/src/provider.ts`
-- Schema and models: `apps/engine-convex/convex/schema.ts`, `apps/engine-convex/convex/models/*`
+Historical V3 materials still exist under docs, campaigns, and analysis artifacts where they are part of research history, but they are no longer runtime dependencies.

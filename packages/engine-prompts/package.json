@@ -4,8 +4,7 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./run": "./src/run/index.ts",
-    "./window": "./src/window/index.ts"
+    "./run": "./src/run/index.ts"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",

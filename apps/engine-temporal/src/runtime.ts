@@ -15,7 +15,6 @@ export type TemporalRuntimeConfig = {
   retryDelayMs: number;
   taskQueues: {
     run: string;
-    window: string;
   };
 };
 
@@ -50,10 +49,6 @@ export function getTemporalRuntimeConfig(): TemporalRuntimeConfig {
         process.env[ENGINE_ENV_KEYS.temporalRunTaskQueue]
         ?? DEFAULT_ENGINE_SETTINGS.temporal.taskQueues.run
         ?? TEMPORAL_TASK_QUEUES.run,
-      window:
-        process.env[ENGINE_ENV_KEYS.temporalWindowTaskQueue]
-        ?? DEFAULT_ENGINE_SETTINGS.temporal.taskQueues.window
-        ?? TEMPORAL_TASK_QUEUES.window,
     },
   };
 }

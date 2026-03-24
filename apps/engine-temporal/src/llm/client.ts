@@ -1,4 +1,5 @@
-import { getModelConfig } from "../window/model_registry";
+import { getModelConfig } from "@judge-gym/engine-settings/provider";
+import type { ModelType } from "@judge-gym/engine-settings/provider";
 import { runAnthropicBatchChat, runAnthropicChat } from "./anthropic";
 import {
   runOpenAiBatchChat,
@@ -31,7 +32,7 @@ export type {
 };
 
 export async function runModelChat(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
   timeoutMs?: number;
@@ -44,11 +45,13 @@ export async function runModelChat(args: {
       return runAnthropicChat(args);
     case "openrouter":
       return runOpenRouterChat(args);
+    default:
+      throw new Error(`Chat is not implemented for provider ${provider}.`);
   }
 }
 
 export async function runModelBatchChat<TMetadata>(args: {
-  model: string;
+  model: ModelType;
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
   timeoutMs?: number;

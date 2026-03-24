@@ -5,27 +5,19 @@ const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const ENGINE_CONVEX_ROOT = path.resolve(SCRIPT_DIR, "..");
 
 type ParsedArgs = {
-  process_kind: "run" | "window";
+  process_kind: "run";
   process_id: string;
   stage?: string;
 };
 
 function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
-  let process_kind: ParsedArgs["process_kind"] = "run";
   let process_id = "";
   let stage: string | undefined;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--run" && args[i + 1]) {
-      process_kind = "run";
-      process_id = args[i + 1];
-      i += 1;
-      continue;
-    }
-    if (arg === "--window" && args[i + 1]) {
-      process_kind = "window";
       process_id = args[i + 1];
       i += 1;
       continue;
@@ -38,10 +30,10 @@ function parseArgs(): ParsedArgs {
   }
 
   if (!process_id) {
-    throw new Error("Specify either --run <runId> or --window <windowRunId>");
+    throw new Error("Specify --run <runId>.");
   }
 
-  return { process_kind, process_id, stage };
+  return { process_kind: "run", process_id, stage };
 }
 
 function runConvexQuery(payload: object) {

@@ -261,10 +261,9 @@ function incrementCount(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
 
-function isTerminalEvent(processType: "run" | "window", eventName: string) {
+function isTerminalEvent(processType: "run", eventName: string) {
   return processType === "run"
-    ? eventName === "run_completed" || eventName === "run_process_failed"
-    : eventName === "window_completed" || eventName === "window_process_failed";
+    && (eventName === "run_completed" || eventName === "run_process_failed");
 }
 
 export const tailTrace = zQuery({
@@ -410,29 +409,16 @@ export const listResettableProcesses = zInternalQuery({
   returns: z.array(ResettableProcessRowSchema),
   handler: async (ctx) => {
     const activeStatuses = new Set(["start", "queued", "running", "paused"]);
-    const [runs, windowRuns] = await Promise.all([
-      ctx.db.query("runs").collect(),
-      ctx.db.query("window_runs").collect(),
-    ]);
+    const runs = await ctx.db.query("runs").collect();
 
-    return [
-      ...runs
-        .filter((run) => activeStatuses.has(run.status))
-        .map((run) => ({
-          process_type: "run" as const,
-          process_id: String(run._id),
-          workflow_id: run.workflow_id ?? null,
-          status: run.status,
-        })),
-      ...windowRuns
-        .filter((windowRun) => activeStatuses.has(windowRun.status))
-        .map((windowRun) => ({
-          process_type: "window" as const,
-          process_id: String(windowRun._id),
-          workflow_id: windowRun.workflow_id ?? null,
-          status: windowRun.status,
-        })),
-    ];
+    return runs
+      .filter((run) => activeStatuses.has(run.status))
+      .map((run) => ({
+        process_type: "run" as const,
+        process_id: String(run._id),
+        workflow_id: run.workflow_id ?? null,
+        status: run.status,
+      }));
   },
 });
 
@@ -457,7 +443,7 @@ export const resetProjectState: ReturnType<typeof zAction> = zAction({
     );
 
     const cancelled_processes: Array<{
-      process_type: "run" | "window";
+      process_type: "run";
       process_id: string;
       workflow_id: string | null;
       action: "cancelled" | "skipped";

@@ -20,12 +20,6 @@ const RunPauseAfterSchema = z.enum([
   "score_gen",
   "score_critic",
 ]);
-const WindowPauseAfterSchema = z.enum([
-  "collect",
-  "l1_cleaned",
-  "l2_neutralized",
-  "l3_abstracted",
-]);
 const TemporalWorkflowInspectionSchema = z.object({
   process_type: ProcessTypeSchema,
   process_id: z.string(),
@@ -81,8 +75,6 @@ function getTemporalConfig() {
     taskQueues: {
       run:
         process.env.TEMPORAL_RUN_TASK_QUEUE ?? "judge-gym.run",
-      window:
-        process.env.TEMPORAL_WINDOW_TASK_QUEUE ?? "judge-gym.window",
     },
   };
 }
@@ -238,42 +230,6 @@ async function safeQuerySnapshot(
   }
 }
 
-export async function startWindowWorkflowExecution(args: {
-  window_run_id: string;
-  target_stage?: z.infer<typeof WindowPauseAfterSchema> | null;
-  pause_after?: z.infer<typeof WindowPauseAfterSchema> | null;
-}) {
-  const config = getTemporalConfig();
-  const connection = await Connection.connect({
-    address: config.address,
-    tls: config.tls,
-  });
-
-  try {
-    const client = new Client({
-      connection,
-      namespace: config.namespace,
-    });
-
-    const handle = await client.workflow.start("windowWorkflow", {
-      args: [{
-        windowRunId: args.window_run_id,
-        targetStage: args.target_stage ?? "l3_abstracted",
-        pauseAfter: args.pause_after ?? null,
-      }],
-      taskQueue: config.taskQueues.window,
-      workflowId: `window:${args.window_run_id}`,
-    });
-
-    return {
-      workflow_id: handle.workflowId,
-      workflow_run_id: handle.firstExecutionRunId,
-    };
-  } finally {
-    await connection.close();
-  }
-}
-
 export async function startRunWorkflowExecution(args: {
   run_id: string;
   pause_after?: "rubric_gen" | "rubric_critic" | "score_gen" | "score_critic" | null;
@@ -393,7 +349,7 @@ export async function inspectTemporalTaskQueuesExecution(args?: {
   try {
     const requestedQueueKinds = args?.queue_kinds?.length
       ? args.queue_kinds
-      : ["run", "window"] as Array<z.infer<typeof TemporalTaskQueueKindSchema>>;
+      : ["run"] as Array<z.infer<typeof TemporalTaskQueueKindSchema>>;
     const checked_at_ms = Date.now();
     const queues = await Promise.all(requestedQueueKinds.map(async (queue_kind) => {
       const task_queue = config.taskQueues[queue_kind];
@@ -580,46 +536,6 @@ export async function resumeRunWorkflowExecution(args: {
   });
 }
 
-export async function resumeWindowWorkflowExecution(args: {
-  window_run_id: string;
-  pause_after?: z.infer<typeof WindowPauseAfterSchema> | null;
-  cmd_id?: string;
-}) {
-  return withTemporalClient(async (client) => {
-    const handle = client.workflow.getHandle(`window:${args.window_run_id}`);
-    const cmd_id = args.cmd_id ?? buildCmdId("resume", "window", args.window_run_id);
-    if (args.pause_after !== undefined) {
-      await handle.signal("setPauseAfterAsync", {
-        cmdId: buildCmdId("set_pause_after", "window", args.window_run_id),
-        pauseAfter: args.pause_after ?? null,
-      });
-    }
-    await handle.signal("resumeAsync", {
-      cmdId: cmd_id,
-    });
-    return { accepted: true, cmd_id };
-  });
-}
-
-export const startWindowWorkflow = zInternalAction({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    target_stage: WindowPauseAfterSchema.nullable().optional(),
-    pause_after: WindowPauseAfterSchema.nullable().optional(),
-  }),
-  returns: z.object({
-    workflow_id: z.string(),
-    workflow_run_id: z.string(),
-  }),
-  handler: async (_ctx, args) => {
-    return startWindowWorkflowExecution({
-      window_run_id: String(args.window_run_id),
-      target_stage: args.target_stage ?? "l3_abstracted",
-      pause_after: args.pause_after ?? null,
-    });
-  },
-});
-
 export const startRunWorkflow = zInternalAction({
   args: z.object({
     run_id: zid("runs"),
@@ -647,22 +563,6 @@ export const resumeRunWorkflow = zInternalAction({
     return resumeRunWorkflowExecution({
       run_id: String(args.run_id),
       pause_after: args.pause_after,
-    });
-  },
-});
-
-export const resumeWindowWorkflow = zInternalAction({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    pause_after: WindowPauseAfterSchema.nullable().optional(),
-    cmd_id: z.string().optional(),
-  }),
-  returns: z.any(),
-  handler: async (_ctx, args) => {
-    return resumeWindowWorkflowExecution({
-      window_run_id: String(args.window_run_id),
-      pause_after: args.pause_after,
-      cmd_id: args.cmd_id,
     });
   },
 });

@@ -1,4 +1,5 @@
-import { getModelConfig } from "../window/model_registry";
+import { getModelConfig } from "@judge-gym/engine-settings/provider";
+import type { ModelType } from "@judge-gym/engine-settings/provider";
 import { parseAssistantOutput, type ChatResult } from "./openai";
 
 const OPENROUTER_API_BASE = "https://openrouter.ai/api/v1";
@@ -35,7 +36,7 @@ async function openRouterRequest(
 }
 
 export async function runOpenRouterChat(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
   timeoutMs?: number;

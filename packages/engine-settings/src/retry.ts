@@ -37,7 +37,6 @@ const PROVIDER_ERROR_PATTERNS = [
   "provider failed",
   "timeout",
   "timed out",
-  "firecrawl",
   "rate limit",
   "service unavailable",
   "bad gateway",

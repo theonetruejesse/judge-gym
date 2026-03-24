@@ -1,5 +1,6 @@
 import type { BatchSettings } from "@judge-gym/engine-settings/batch";
-import { getModelConfig } from "../window/model_registry";
+import { getModelConfig } from "@judge-gym/engine-settings/provider";
+import type { ModelType } from "@judge-gym/engine-settings/provider";
 import type {
   BatchChatCreatedEvent,
   BatchChatFailure,
@@ -99,7 +100,7 @@ function parseAnthropicTextContent(content: unknown): string {
 }
 
 function buildAnthropicMessageBody(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
 }) {
@@ -157,7 +158,7 @@ function parseJsonl(text: string): Array<Record<string, unknown>> {
 }
 
 async function createAnthropicBatch<TMetadata>(args: {
-  model: string;
+  model: ModelType;
   items: Array<BatchChatRequest<TMetadata>>;
   timeoutMs?: number;
 }): Promise<AnthropicBatchLifecycle> {
@@ -241,7 +242,7 @@ function describeAnthropicBatchResult(line: Record<string, unknown>): string {
 }
 
 export async function runAnthropicChat(args: {
-  model: string;
+  model: ModelType;
   systemPrompt: string;
   userPrompt: string;
   timeoutMs?: number;
@@ -274,7 +275,7 @@ export async function runAnthropicChat(args: {
 }
 
 export async function runAnthropicBatchChat<TMetadata>(args: {
-  model: string;
+  model: ModelType;
   items: Array<BatchChatRequest<TMetadata>>;
   settings: BatchSettings;
   timeoutMs?: number;

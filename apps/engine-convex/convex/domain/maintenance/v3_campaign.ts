@@ -52,7 +52,6 @@ const V3ExperimentStatusRowSchema = z.object({
   experiment_tag: z.string(),
   total_count: z.number(),
   evidence_selected_count: z.number(),
-  window_count: z.number(),
   score_target_estimate: ScoreTargetEstimateSchema,
   status: StateStatusSchema,
   latest_run: z.object({
@@ -87,7 +86,7 @@ const CampaignStuckSummaryRowSchema = z.object({
 });
 
 const CampaignStuckItemSchema = z.object({
-  process_type: z.enum(["run", "window"]),
+  process_type: z.literal("run"),
   process_id: z.string(),
   reason: StuckReasonSchema,
   entity_type: z.string(),
@@ -545,7 +544,6 @@ function toCampaignExperimentRow(experiment: RawListedExperiment): ListedExperim
     experiment_tag: experiment.experiment_tag,
     total_count: experiment.total_count,
     evidence_selected_count: experiment.evidence_selected_count,
-    window_count: experiment.window_count,
     score_target_estimate: {
       per_sample: perSample,
       total_for_latest_run: experiment.latest_run
