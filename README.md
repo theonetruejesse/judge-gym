@@ -48,6 +48,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Window state is now split cleanly between reusable `windows` definitions and executable `window_runs`, so one search slice can be rerun with different cleaning targets or models without redefining the window itself.
 - A new V4 evidence substrate now exists alongside the legacy window path: `evidence_universes`, `acquisition_specs`, `acquisition_runs`, `evidence_candidates`, `evidence_items`, `evidence_views`, and `evidence_assets`.
 - The V4 evidence path now separates discovery from hydration: Media Cloud-backed discovery writes reusable candidate metadata first, then hydration creates canonical evidence items and rendered views later.
+- V4 evidence items now carry generic source metadata (`title`, `source_url`, `source_name`, `publish_date`, `language`) so imported literature datasets and discovered news evidence share one canonical item surface.
+- Curated `evidence_sets` now sit on top of universes/items/views, so imported audit rows and Media Cloud-hydrated items can be assembled into one reusable study pool without going through the legacy `pools` path.
 - Raw provider payloads, hydrated HTML, hydrated text, and derived evidence views in the V4 path are now stored as Convex storage-backed assets referenced from metadata rows instead of being embedded directly into one table shape.
 - The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
 - Experiment runs are now also started from the Convex engine and executed by a Temporal-owned `RunWorkflow` across `rubric_gen`, `rubric_critic`, `score_gen`, and `score_critic`.
@@ -205,7 +207,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | `acquisition_specs` | Frozen acquisition definition for one universe | `universe_id`, `spec_tag`, `discovery_provider`, `discovery_config_json`, `hydrator_kind` |
 | `acquisition_runs` | One execution of an acquisition spec | `acquisition_spec_id`, `status`, `cursor_json`, `discovered_count`, `hydrated_count`, `last_error_message` |
 | `evidence_candidates` | Discovery-stage metadata before hydration | `universe_id`, `acquisition_run_id`, `discovery_provider`, `external_id`, `url`, `publish_date`, `metadata_json`, `provider_payload_asset_id` |
-| `evidence_items` | Canonical hydrated evidence items | `universe_id`, `candidate_id`, `canonical_key`, `hydration_status`, `raw_text_asset_id`, `raw_html_asset_id`, `content_hash` |
+| `evidence_items` | Canonical hydrated or directly imported evidence items | `universe_id`, `candidate_id`, `canonical_key`, `title`, `source_url`, `source_name`, `publish_date`, `language`, `hydration_status`, `raw_text_asset_id`, `raw_html_asset_id`, `content_hash` |
+| `evidence_sets` | Curated reusable study selections over evidence items | `universe_id`, `evidence_set_tag`, `source_kind`, `quality_label`, `item_count`, `selection_config_json` |
+| `evidence_set_items` | Membership rows for one curated evidence set | `evidence_set_id`, `evidence_item_id`, `pinned_view_id`, `ordinal`, `quality_label`, `inclusion_reason` |
 | `evidence_views` | Versioned rendered representations of an evidence item | `evidence_item_id`, `view_kind`, `pipeline_kind`, `pipeline_version`, `asset_id`, `status` |
 | `evidence_assets` | Convex storage-backed payload metadata | `storage_id`, `role`, `mime_type`, `byte_size`, `content_hash` |
 

@@ -112,6 +112,11 @@ describe("evidence repository", () => {
         universe_id,
         candidate_id: candidates[0]!._id,
         canonical_key: "mediacloud:story-001",
+        title: "Story One",
+        source_url: "https://example.com/story-001",
+        source_name: "Example News",
+        publish_date: "2026-03-03T12:00:00Z",
+        language: "en",
         hydration_status: "hydrated",
         raw_text_asset_id,
         content_hash: "raw_text_hash",
@@ -152,6 +157,53 @@ describe("evidence repository", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.hydration_status).toBe("hydrated");
     expect(items[0]?.raw_text_asset_id).toBe(raw_text_asset_id);
+    expect(items[0]?.title).toBe("Story One");
+    expect(items[0]?.source_url).toBe("https://example.com/story-001");
+    expect(items[0]?.source_name).toBe("Example News");
+
+    const { evidence_set_id } = await t.mutation(
+      internal.domain.evidence.evidence_repo.createEvidenceSet,
+      {
+        universe_id,
+        evidence_set_tag: "quality-core",
+        title: "Quality core set",
+        source_kind: "universe_slice",
+        quality_label: "high",
+      },
+    );
+
+    const setResult = await t.mutation(
+      internal.domain.evidence.evidence_repo.upsertEvidenceSetItems,
+      {
+        evidence_set_id,
+        items: [
+          {
+            evidence_item_id,
+            pinned_view_id: viewResult.evidence_view_id,
+            ordinal: 0,
+            inclusion_reason: "Representative sample",
+            quality_label: "high",
+          },
+        ],
+      },
+    );
+
+    expect(setResult.inserted).toBe(1);
+
+    const evidenceSets = await t.query(
+      internal.domain.evidence.evidence_repo.listUniverseEvidenceSets,
+      {
+        universe_id,
+      },
+    );
+    expect(evidenceSets).toHaveLength(1);
+    expect(evidenceSets[0]?.item_count).toBe(1);
+
+    const setItems = await t.query(internal.domain.evidence.evidence_repo.listEvidenceSetItems, {
+      evidence_set_id,
+    });
+    expect(setItems).toHaveLength(1);
+    expect(setItems[0]?.pinned_view_id).toBe(viewResult.evidence_view_id);
   });
 
   test("upsertCandidates dedupes by universe, provider, and external id", async () => {

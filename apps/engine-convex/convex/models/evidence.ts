@@ -27,6 +27,19 @@ export const EvidenceAssetRoleSchema = z.enum([
   "view_text",
 ]);
 
+export const EvidenceSetSourceKindSchema = z.enum([
+  "universe_slice",
+  "manual_import",
+  "literature_dataset",
+]);
+
+export const EvidenceQualityLabelSchema = z.enum([
+  "unknown",
+  "high",
+  "medium",
+  "low",
+]);
+
 export const EvidenceHydrationStatusSchema = z.enum([
   "pending",
   "hydrated",
@@ -105,6 +118,11 @@ export const EvidenceItemsTableSchema = z.object({
   universe_id: zid("evidence_universes"),
   candidate_id: zid("evidence_candidates").nullable().optional(),
   canonical_key: z.string(),
+  title: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  source_name: z.string().nullable().optional(),
+  publish_date: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
   hydration_status: EvidenceHydrationStatusSchema,
   raw_text_asset_id: zid("evidence_assets").nullable().optional(),
   raw_html_asset_id: zid("evidence_assets").nullable().optional(),
@@ -112,6 +130,32 @@ export const EvidenceItemsTableSchema = z.object({
   char_count: z.number().nullable().optional(),
   token_estimate: z.number().nullable().optional(),
   extraction_version: z.string().nullable().optional(),
+  metadata_json: z.string().nullable().optional(),
+  created_at_ms: z.number(),
+  updated_at_ms: z.number(),
+});
+
+export const EvidenceSetsTableSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  source_kind: EvidenceSetSourceKindSchema,
+  quality_label: EvidenceQualityLabelSchema,
+  selection_config_json: z.string().nullable().optional(),
+  item_count: z.number(),
+  status: StateStatusSchema,
+  created_at_ms: z.number(),
+  updated_at_ms: z.number(),
+});
+
+export const EvidenceSetItemsTableSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  evidence_item_id: zid("evidence_items"),
+  pinned_view_id: zid("evidence_views").nullable().optional(),
+  ordinal: z.number(),
+  inclusion_reason: z.string().nullable().optional(),
+  quality_label: EvidenceQualityLabelSchema,
   metadata_json: z.string().nullable().optional(),
   created_at_ms: z.number(),
   updated_at_ms: z.number(),

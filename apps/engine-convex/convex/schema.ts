@@ -25,6 +25,8 @@ import {
   EvidenceAssetsTableSchema,
   EvidenceCandidatesTableSchema,
   EvidenceItemsTableSchema,
+  EvidenceSetItemsTableSchema,
+  EvidenceSetsTableSchema,
   EvidenceUniverseTableSchema,
   EvidenceViewsTableSchema,
 } from "./models/evidence";
@@ -77,6 +79,14 @@ export default defineSchema({
     .index("by_candidate", ["candidate_id"])
     .index("by_canonical_key", ["canonical_key"])
     .index("by_hydration_status", ["hydration_status"]),
+  evidence_sets: defineTable(zodOutputToConvex(EvidenceSetsTableSchema))
+    .index("by_universe", ["universe_id"])
+    .index("by_evidence_set_tag", ["evidence_set_tag"])
+    .index("by_universe_tag", ["universe_id", "evidence_set_tag"]),
+  evidence_set_items: defineTable(zodOutputToConvex(EvidenceSetItemsTableSchema))
+    .index("by_set", ["evidence_set_id"])
+    .index("by_item", ["evidence_item_id"])
+    .index("by_set_item", ["evidence_set_id", "evidence_item_id"]),
   evidence_views: defineTable(zodOutputToConvex(EvidenceViewsTableSchema))
     .index("by_item", ["evidence_item_id"])
     .index("by_item_view", ["evidence_item_id", "view_kind"])

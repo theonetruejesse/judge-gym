@@ -221,4 +221,40 @@ describe("evidence service", () => {
     expect(items[0]?.raw_text_asset_id).toBe(result.raw_text_asset_id);
     expect(items[0]?.hydration_status).toBe("hydrated");
   });
+
+  test("importEvidenceItem stores direct text imports as hydrated evidence plus a pinned view", async () => {
+    const t = initTest();
+    const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
+      universe_tag: "direct-import",
+      kind: "paper_audit",
+      title: "Direct import universe",
+    });
+
+    const result = await t.action(internal.domain.evidence.evidence_service.importEvidenceItem, {
+      universe_id,
+      canonical_key: "direct-import:001",
+      title: "Imported excerpt",
+      source_url: "https://example.com/direct-import/001",
+      source_name: "Replication archive",
+      publish_date: "2024-08-20",
+      language: "en",
+      raw_text: "Imported raw text for regime compatibility testing.",
+      raw_html: "<article><p>Imported raw text for regime compatibility testing.</p></article>",
+      view_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "paper-import-v1",
+    });
+
+    expect(result.action).toBe("created");
+    expect(result.raw_html_asset_id).toBeTruthy();
+
+    const items = await t.query(internal.domain.evidence.evidence_repo.listUniverseItems, {
+      universe_id,
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]?.title).toBe("Imported excerpt");
+    expect(items[0]?.source_url).toBe("https://example.com/direct-import/001");
+    expect(items[0]?.source_name).toBe("Replication archive");
+    expect(items[0]?.hydration_status).toBe("hydrated");
+  });
 });

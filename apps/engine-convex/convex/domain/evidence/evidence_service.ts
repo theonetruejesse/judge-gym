@@ -70,6 +70,30 @@ const HydrateRunCandidatesResultSchema = z.object({
   items: z.array(HydrateCandidateResultSchema),
 });
 
+const ImportEvidenceItemArgsSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  canonical_key: z.string(),
+  title: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  source_name: z.string().nullable().optional(),
+  publish_date: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  raw_text: z.string().min(1),
+  raw_html: z.string().nullable().optional(),
+  metadata_json: z.string().nullable().optional(),
+  view_kind: z.string().optional(),
+  pipeline_kind: z.string().optional(),
+  pipeline_version: z.string().optional(),
+});
+
+const ImportEvidenceItemResultSchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  raw_text_asset_id: zid("evidence_assets"),
+  raw_html_asset_id: zid("evidence_assets").nullable(),
+  evidence_view_id: zid("evidence_views"),
+  action: z.enum(["created", "updated"]),
+});
+
 function hex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((value) => value.toString(16).padStart(2, "0"))
@@ -290,6 +314,11 @@ async function hydrateCandidateInternal(
       universe_id: candidate.universe_id,
       candidate_id: candidate._id,
       canonical_key: buildCanonicalKey(candidate),
+      title: candidate.title ?? null,
+      source_url: candidate.url,
+      source_name: candidate.media_name ?? null,
+      publish_date: candidate.publish_date ?? null,
+      language: candidate.language ?? null,
       hydration_status: "hydrated",
       raw_text_asset_id: rawTextAsset.asset_id,
       raw_html_asset_id,
@@ -499,6 +528,80 @@ export const hydrateRunCandidates = zInternalAction({
       hydrated: items.length,
       skipped,
       items,
+    };
+  },
+});
+
+export const importEvidenceItem = zInternalAction({
+  args: ImportEvidenceItemArgsSchema,
+  returns: ImportEvidenceItemResultSchema,
+  handler: async (
+    ctx,
+    args,
+  ): Promise<z.infer<typeof ImportEvidenceItemResultSchema>> => {
+    const rawText = normalizeWhitespace(args.raw_text);
+    if (rawText.length === 0) {
+      throw new Error("Imported raw_text must contain non-whitespace content.");
+    }
+
+    let raw_html_asset_id: Id<"evidence_assets"> | null = null;
+    if ((args.raw_html ?? null) != null) {
+      const rawHtmlAsset = await storeTextAssetInternal(ctx, {
+        content: args.raw_html ?? "",
+        role: "raw_html",
+        mime_type: "text/html",
+        encoding: "utf-8",
+      });
+      raw_html_asset_id = rawHtmlAsset.asset_id;
+    }
+
+    const rawTextAsset = await storeTextAssetInternal(ctx, {
+      content: rawText,
+      role: "raw_text",
+      mime_type: "text/plain",
+      encoding: "utf-8",
+    });
+
+    const itemResult = await ctx.runMutation(
+      internal.domain.evidence.evidence_repo.upsertImportedItem,
+      {
+        universe_id: args.universe_id,
+        canonical_key: args.canonical_key,
+        title: args.title ?? null,
+        source_url: args.source_url ?? null,
+        source_name: args.source_name ?? null,
+        publish_date: args.publish_date ?? null,
+        language: args.language ?? null,
+        hydration_status: "hydrated",
+        raw_text_asset_id: rawTextAsset.asset_id,
+        raw_html_asset_id,
+        content_hash: rawTextAsset.content_hash,
+        char_count: rawText.length,
+        token_estimate: approximateTokenCount(rawText),
+        extraction_version: args.pipeline_version ?? "manual-import-v1",
+        metadata_json: args.metadata_json ?? null,
+      },
+    );
+
+    const viewResult = await ctx.runMutation(internal.domain.evidence.evidence_repo.upsertView, {
+      evidence_item_id: itemResult.evidence_item_id,
+      view_kind: args.view_kind ?? "raw",
+      pipeline_kind: args.pipeline_kind ?? "import",
+      pipeline_version: args.pipeline_version ?? "manual-import-v1",
+      asset_id: rawTextAsset.asset_id,
+      status: "completed",
+      metadata_json: JSON.stringify({
+        source: "direct_import",
+        canonical_key: args.canonical_key,
+      }),
+    });
+
+    return {
+      evidence_item_id: itemResult.evidence_item_id,
+      raw_text_asset_id: rawTextAsset.asset_id,
+      raw_html_asset_id,
+      evidence_view_id: viewResult.evidence_view_id,
+      action: itemResult.action,
     };
   },
 });

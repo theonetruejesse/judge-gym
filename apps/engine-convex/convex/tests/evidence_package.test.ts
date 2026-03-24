@@ -109,11 +109,78 @@ describe("evidence package", () => {
     });
     expect(universeSummary.candidate_count).toBe(1);
     expect(universeSummary.item_count).toBe(1);
+    expect(universeSummary.evidence_set_count).toBe(0);
 
     const runSummary = await t.query(api.packages.evidence.getAcquisitionRunSummary, {
       acquisition_run_id,
     });
     expect(runSummary.discovered_count).toBe(1);
     expect(runSummary.hydrated_count).toBe(1);
+  });
+
+  test("imports direct evidence items and curates them into an evidence set", async () => {
+    const t = initTest();
+
+    const { universe_id } = await t.mutation(api.packages.evidence.createEvidenceUniverse, {
+      universe_tag: "paper-audit-import",
+      kind: "paper_audit",
+      title: "Paper audit import",
+    });
+
+    const imported = await t.action(api.packages.evidence.importEvidenceItem, {
+      universe_id,
+      canonical_key: "gilardi:dataset:row-001",
+      title: "Annotated article excerpt",
+      source_url: "https://example.com/paper-audit/row-001",
+      source_name: "Gilardi replication bundle",
+      publish_date: "2024-01-10",
+      language: "en",
+      raw_text: "A coded excerpt for compatibility testing.",
+      view_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "paper-audit-v1",
+    });
+
+    const { evidence_set_id } = await t.mutation(api.packages.evidence.createEvidenceSet, {
+      universe_id,
+      evidence_set_tag: "gilardi-core",
+      title: "Gilardi core audit set",
+      source_kind: "literature_dataset",
+      quality_label: "high",
+    });
+
+    const addResult = await t.mutation(api.packages.evidence.addEvidenceSetItems, {
+      evidence_set_id,
+      items: [
+        {
+          evidence_item_id: imported.evidence_item_id,
+          pinned_view_id: imported.evidence_view_id,
+          ordinal: 0,
+          inclusion_reason: "Core compatibility row",
+          quality_label: "high",
+        },
+      ],
+    });
+
+    expect(addResult.inserted).toBe(1);
+
+    const universeSummary = await t.query(api.packages.evidence.getEvidenceUniverseSummary, {
+      universe_id,
+    });
+    expect(universeSummary.item_count).toBe(1);
+    expect(universeSummary.evidence_set_count).toBe(1);
+
+    const evidenceSetSummary = await t.query(api.packages.evidence.getEvidenceSetSummary, {
+      evidence_set_id,
+    });
+    expect(evidenceSetSummary.item_count).toBe(1);
+    expect(evidenceSetSummary.source_kind).toBe("literature_dataset");
+
+    const setItems = await t.query(api.packages.evidence.listEvidenceSetItems, {
+      evidence_set_id,
+    });
+    expect(setItems).toHaveLength(1);
+    expect(setItems[0]?.title).toBe("Annotated article excerpt");
+    expect(setItems[0]?.pinned_view_id).toBe(imported.evidence_view_id);
   });
 });

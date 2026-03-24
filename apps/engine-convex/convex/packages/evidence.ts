@@ -4,6 +4,9 @@ import { zAction, zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import {
   AcquisitionSpecsTableSchema,
+  EvidenceItemsTableSchema,
+  EvidenceSetItemsTableSchema,
+  EvidenceSetsTableSchema,
   EvidenceUniverseTableSchema,
 } from "../models/evidence";
 
@@ -82,6 +85,60 @@ const HydrateAcquisitionRunResultSchema = z.object({
   items: z.array(HydrateCandidateItemSchema),
 });
 
+const ImportEvidenceItemArgsSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  canonical_key: z.string(),
+  title: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  source_name: z.string().nullable().optional(),
+  publish_date: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  raw_text: z.string().min(1),
+  raw_html: z.string().nullable().optional(),
+  metadata_json: z.string().nullable().optional(),
+  view_kind: z.string().optional(),
+  pipeline_kind: z.string().optional(),
+  pipeline_version: z.string().optional(),
+});
+
+const ImportEvidenceItemResultSchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  raw_text_asset_id: zid("evidence_assets"),
+  raw_html_asset_id: zid("evidence_assets").nullable(),
+  evidence_view_id: zid("evidence_views"),
+  action: z.enum(["created", "updated"]),
+});
+
+const EvidenceSetInputSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  source_kind: EvidenceSetsTableSchema.shape.source_kind,
+  quality_label: EvidenceSetsTableSchema.shape.quality_label.optional(),
+  selection_config_json: z.string().nullable().optional(),
+  status: EvidenceSetsTableSchema.shape.status.optional(),
+});
+
+const EvidenceSetItemInputSchema = z.object({
+  evidence_item_id: zid("evidence_items"),
+  pinned_view_id: zid("evidence_views").nullable().optional(),
+  ordinal: z.number().optional(),
+  inclusion_reason: z.string().nullable().optional(),
+  quality_label: EvidenceSetItemsTableSchema.shape.quality_label.optional(),
+  metadata_json: z.string().nullable().optional(),
+});
+
+const CreateEvidenceSetResultSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+});
+
+const UpsertEvidenceSetItemsResultSchema = z.object({
+  inserted: z.number(),
+  updated: z.number(),
+  total: z.number(),
+});
+
 const EvidenceUniverseSummarySchema = z.object({
   universe_id: zid("evidence_universes"),
   universe_tag: z.string(),
@@ -89,8 +146,35 @@ const EvidenceUniverseSummarySchema = z.object({
   title: z.string(),
   status: z.string(),
   acquisition_spec_count: z.number(),
+  evidence_set_count: z.number(),
   candidate_count: z.number(),
   item_count: z.number(),
+});
+
+const EvidenceSetSummarySchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  universe_id: zid("evidence_universes"),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  source_kind: EvidenceSetsTableSchema.shape.source_kind,
+  quality_label: EvidenceSetsTableSchema.shape.quality_label,
+  item_count: z.number(),
+  status: z.string(),
+});
+
+const EvidenceSetItemSummarySchema = z.object({
+  evidence_set_item_id: zid("evidence_set_items"),
+  evidence_item_id: zid("evidence_items"),
+  pinned_view_id: zid("evidence_views").nullable(),
+  ordinal: z.number(),
+  inclusion_reason: z.string().nullable(),
+  quality_label: EvidenceSetItemsTableSchema.shape.quality_label,
+  title: EvidenceItemsTableSchema.shape.title.nullable(),
+  source_url: EvidenceItemsTableSchema.shape.source_url.nullable(),
+  source_name: EvidenceItemsTableSchema.shape.source_name.nullable(),
+  publish_date: EvidenceItemsTableSchema.shape.publish_date.nullable(),
+  language: EvidenceItemsTableSchema.shape.language.nullable(),
+  canonical_key: EvidenceItemsTableSchema.shape.canonical_key,
 });
 
 const AcquisitionRunSummarySchema = z.object({
@@ -179,6 +263,33 @@ export const hydrateAcquisitionRun: ReturnType<typeof zAction> = zAction({
   },
 });
 
+export const importEvidenceItem: ReturnType<typeof zAction> = zAction({
+  args: ImportEvidenceItemArgsSchema,
+  returns: ImportEvidenceItemResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof ImportEvidenceItemResultSchema>> => {
+    return ctx.runAction(internal.domain.evidence.evidence_service.importEvidenceItem, args);
+  },
+});
+
+export const createEvidenceSet: ReturnType<typeof zMutation> = zMutation({
+  args: EvidenceSetInputSchema,
+  returns: CreateEvidenceSetResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof CreateEvidenceSetResultSchema>> => {
+    return ctx.runMutation(internal.domain.evidence.evidence_repo.createEvidenceSet, args);
+  },
+});
+
+export const addEvidenceSetItems: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+    items: z.array(EvidenceSetItemInputSchema),
+  }),
+  returns: UpsertEvidenceSetItemsResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof UpsertEvidenceSetItemsResultSchema>> => {
+    return ctx.runMutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, args);
+  },
+});
+
 export const getEvidenceUniverseSummary: ReturnType<typeof zQuery> = zQuery({
   args: z.object({
     universe_id: zid("evidence_universes"),
@@ -190,11 +301,14 @@ export const getEvidenceUniverseSummary: ReturnType<typeof zQuery> = zQuery({
       throw new Error("Evidence universe not found.");
     }
 
-    const [acquisitionSpecs, candidates, items] = await Promise.all([
+    const [acquisitionSpecs, evidenceSets, candidates, items] = await Promise.all([
       ctx.db
         .query("acquisition_specs")
         .withIndex("by_universe", (q) => q.eq("universe_id", universe._id))
         .collect(),
+      ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseEvidenceSets, {
+        universe_id: universe._id,
+      }),
       ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseCandidates, {
         universe_id: universe._id,
       }),
@@ -210,6 +324,7 @@ export const getEvidenceUniverseSummary: ReturnType<typeof zQuery> = zQuery({
       title: universe.title,
       status: universe.status,
       acquisition_spec_count: acquisitionSpecs.length,
+      evidence_set_count: evidenceSets.length,
       candidate_count: candidates.length,
       item_count: items.length,
     };
@@ -264,5 +379,71 @@ export const getAcquisitionRunSummary: ReturnType<typeof zQuery> = zQuery({
       candidate_count: candidateRows.length,
       item_count: itemRows.length,
     };
+  },
+});
+
+export const getEvidenceSetSummary: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  returns: EvidenceSetSummarySchema,
+  handler: async (ctx, args): Promise<z.infer<typeof EvidenceSetSummarySchema>> => {
+    const evidenceSet = await ctx.runQuery(internal.domain.evidence.evidence_repo.getEvidenceSet, {
+      evidence_set_id: args.evidence_set_id,
+    });
+    if (!evidenceSet) {
+      throw new Error("Evidence set not found.");
+    }
+
+    return {
+      evidence_set_id: evidenceSet._id,
+      universe_id: evidenceSet.universe_id,
+      evidence_set_tag: evidenceSet.evidence_set_tag,
+      title: evidenceSet.title,
+      source_kind: evidenceSet.source_kind,
+      quality_label: evidenceSet.quality_label,
+      item_count: evidenceSet.item_count,
+      status: evidenceSet.status,
+    };
+  },
+});
+
+export const listEvidenceSetItems: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  returns: z.array(EvidenceSetItemSummarySchema),
+  handler: async (ctx, args): Promise<Array<z.infer<typeof EvidenceSetItemSummarySchema>>> => {
+    const evidenceSetItems = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.listEvidenceSetItems,
+      {
+        evidence_set_id: args.evidence_set_id,
+      },
+    );
+
+    const rows = await Promise.all(
+      evidenceSetItems.map(async (row) => {
+        const item = await ctx.db.get(row.evidence_item_id);
+        if (!item) {
+          throw new Error(`Evidence item missing for set membership ${row._id}`);
+        }
+        return {
+          evidence_set_item_id: row._id,
+          evidence_item_id: row.evidence_item_id,
+          pinned_view_id: row.pinned_view_id ?? null,
+          ordinal: row.ordinal,
+          inclusion_reason: row.inclusion_reason ?? null,
+          quality_label: row.quality_label,
+          title: item.title ?? null,
+          source_url: item.source_url ?? null,
+          source_name: item.source_name ?? null,
+          publish_date: item.publish_date ?? null,
+          language: item.language ?? null,
+          canonical_key: item.canonical_key,
+        };
+      }),
+    );
+
+    return rows.sort((a, b) => a.ordinal - b.ordinal);
   },
 });

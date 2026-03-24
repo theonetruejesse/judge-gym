@@ -9,6 +9,8 @@ import {
   EvidenceCandidatesTableSchema,
   EvidenceHydrationStatusSchema,
   EvidenceItemsTableSchema,
+  EvidenceSetItemsTableSchema,
+  EvidenceSetsTableSchema,
   EvidenceUniverseTableSchema,
   EvidenceViewsTableSchema,
 } from "../../models/evidence";
@@ -74,6 +76,29 @@ const UpsertItemFromCandidateArgsSchema = z.object({
   universe_id: zid("evidence_universes"),
   candidate_id: zid("evidence_candidates"),
   canonical_key: EvidenceItemsTableSchema.shape.canonical_key,
+  title: EvidenceItemsTableSchema.shape.title.optional(),
+  source_url: EvidenceItemsTableSchema.shape.source_url.optional(),
+  source_name: EvidenceItemsTableSchema.shape.source_name.optional(),
+  publish_date: EvidenceItemsTableSchema.shape.publish_date.optional(),
+  language: EvidenceItemsTableSchema.shape.language.optional(),
+  hydration_status: EvidenceHydrationStatusSchema,
+  raw_text_asset_id: EvidenceItemsTableSchema.shape.raw_text_asset_id.optional(),
+  raw_html_asset_id: EvidenceItemsTableSchema.shape.raw_html_asset_id.optional(),
+  content_hash: EvidenceItemsTableSchema.shape.content_hash.optional(),
+  char_count: EvidenceItemsTableSchema.shape.char_count.optional(),
+  token_estimate: EvidenceItemsTableSchema.shape.token_estimate.optional(),
+  extraction_version: EvidenceItemsTableSchema.shape.extraction_version.optional(),
+  metadata_json: EvidenceItemsTableSchema.shape.metadata_json.optional(),
+});
+
+const UpsertImportedItemArgsSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  canonical_key: EvidenceItemsTableSchema.shape.canonical_key,
+  title: EvidenceItemsTableSchema.shape.title.optional(),
+  source_url: EvidenceItemsTableSchema.shape.source_url.optional(),
+  source_name: EvidenceItemsTableSchema.shape.source_name.optional(),
+  publish_date: EvidenceItemsTableSchema.shape.publish_date.optional(),
+  language: EvidenceItemsTableSchema.shape.language.optional(),
   hydration_status: EvidenceHydrationStatusSchema,
   raw_text_asset_id: EvidenceItemsTableSchema.shape.raw_text_asset_id.optional(),
   raw_html_asset_id: EvidenceItemsTableSchema.shape.raw_html_asset_id.optional(),
@@ -93,6 +118,29 @@ const UpsertViewArgsSchema = z.object({
   status: EvidenceViewsTableSchema.shape.status,
   attempt_id: EvidenceViewsTableSchema.shape.attempt_id.optional(),
   metadata_json: EvidenceViewsTableSchema.shape.metadata_json.optional(),
+});
+
+const CreateEvidenceSetArgsSchema = z.object({
+  universe_id: zid("evidence_universes"),
+  evidence_set_tag: EvidenceSetsTableSchema.shape.evidence_set_tag,
+  title: EvidenceSetsTableSchema.shape.title,
+  description: EvidenceSetsTableSchema.shape.description.optional(),
+  source_kind: EvidenceSetsTableSchema.shape.source_kind,
+  quality_label: EvidenceSetsTableSchema.shape.quality_label.optional(),
+  selection_config_json: EvidenceSetsTableSchema.shape.selection_config_json.optional(),
+  status: EvidenceSetsTableSchema.shape.status.optional(),
+});
+
+const UpsertEvidenceSetItemsArgsSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  items: z.array(z.object({
+    evidence_item_id: EvidenceSetItemsTableSchema.shape.evidence_item_id,
+    pinned_view_id: EvidenceSetItemsTableSchema.shape.pinned_view_id.optional(),
+    ordinal: EvidenceSetItemsTableSchema.shape.ordinal.optional(),
+    inclusion_reason: EvidenceSetItemsTableSchema.shape.inclusion_reason.optional(),
+    quality_label: EvidenceSetItemsTableSchema.shape.quality_label.optional(),
+    metadata_json: EvidenceSetItemsTableSchema.shape.metadata_json.optional(),
+  })),
 });
 
 export const createUniverse = zInternalMutation({
@@ -305,6 +353,11 @@ export const upsertItemFromCandidate = zInternalMutation({
       await ctx.db.patch(existing._id, {
         universe_id: args.universe_id,
         candidate_id: args.candidate_id,
+        title: args.title ?? null,
+        source_url: args.source_url ?? null,
+        source_name: args.source_name ?? null,
+        publish_date: args.publish_date ?? null,
+        language: args.language ?? null,
         hydration_status: args.hydration_status,
         raw_text_asset_id: args.raw_text_asset_id ?? null,
         raw_html_asset_id: args.raw_html_asset_id ?? null,
@@ -322,6 +375,69 @@ export const upsertItemFromCandidate = zInternalMutation({
       universe_id: args.universe_id,
       candidate_id: args.candidate_id,
       canonical_key: args.canonical_key,
+      title: args.title ?? null,
+      source_url: args.source_url ?? null,
+      source_name: args.source_name ?? null,
+      publish_date: args.publish_date ?? null,
+      language: args.language ?? null,
+      hydration_status: args.hydration_status,
+      raw_text_asset_id: args.raw_text_asset_id ?? null,
+      raw_html_asset_id: args.raw_html_asset_id ?? null,
+      content_hash: args.content_hash ?? null,
+      char_count: args.char_count ?? null,
+      token_estimate: args.token_estimate ?? null,
+      extraction_version: args.extraction_version ?? null,
+      metadata_json: args.metadata_json ?? null,
+      created_at_ms: now,
+      updated_at_ms: now,
+    });
+    return { evidence_item_id, action: "created" as const };
+  },
+});
+
+export const upsertImportedItem = zInternalMutation({
+  args: UpsertImportedItemArgsSchema,
+  returns: z.object({
+    evidence_item_id: zid("evidence_items"),
+    action: z.enum(["created", "updated"]),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("evidence_items")
+      .withIndex("by_canonical_key", (q) => q.eq("canonical_key", args.canonical_key))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        universe_id: args.universe_id,
+        candidate_id: null,
+        title: args.title ?? null,
+        source_url: args.source_url ?? null,
+        source_name: args.source_name ?? null,
+        publish_date: args.publish_date ?? null,
+        language: args.language ?? null,
+        hydration_status: args.hydration_status,
+        raw_text_asset_id: args.raw_text_asset_id ?? null,
+        raw_html_asset_id: args.raw_html_asset_id ?? null,
+        content_hash: args.content_hash ?? null,
+        char_count: args.char_count ?? null,
+        token_estimate: args.token_estimate ?? null,
+        extraction_version: args.extraction_version ?? null,
+        metadata_json: args.metadata_json ?? null,
+        updated_at_ms: now,
+      });
+      return { evidence_item_id: existing._id, action: "updated" as const };
+    }
+
+    const evidence_item_id = await ctx.db.insert("evidence_items", {
+      universe_id: args.universe_id,
+      candidate_id: null,
+      canonical_key: args.canonical_key,
+      title: args.title ?? null,
+      source_url: args.source_url ?? null,
+      source_name: args.source_name ?? null,
+      publish_date: args.publish_date ?? null,
+      language: args.language ?? null,
       hydration_status: args.hydration_status,
       raw_text_asset_id: args.raw_text_asset_id ?? null,
       raw_html_asset_id: args.raw_html_asset_id ?? null,
@@ -379,6 +495,93 @@ export const upsertView = zInternalMutation({
   },
 });
 
+export const createEvidenceSet = zInternalMutation({
+  args: CreateEvidenceSetArgsSchema,
+  returns: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const evidence_set_id = await ctx.db.insert("evidence_sets", {
+      universe_id: args.universe_id,
+      evidence_set_tag: args.evidence_set_tag,
+      title: args.title,
+      description: args.description ?? null,
+      source_kind: args.source_kind,
+      quality_label: args.quality_label ?? "unknown",
+      selection_config_json: args.selection_config_json ?? null,
+      item_count: 0,
+      status: args.status ?? "start",
+      created_at_ms: now,
+      updated_at_ms: now,
+    });
+    return { evidence_set_id };
+  },
+});
+
+export const upsertEvidenceSetItems = zInternalMutation({
+  args: UpsertEvidenceSetItemsArgsSchema,
+  returns: z.object({
+    inserted: z.number(),
+    updated: z.number(),
+    total: z.number(),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const existingRows = await ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", args.evidence_set_id))
+      .collect();
+    const existingByItemId = new Map(
+      existingRows.map((row) => [String(row.evidence_item_id), row]),
+    );
+
+    let inserted = 0;
+    let updated = 0;
+
+    for (const [index, item] of args.items.entries()) {
+      const current = existingByItemId.get(String(item.evidence_item_id));
+      const ordinal = item.ordinal ?? index;
+      if (current) {
+        await ctx.db.patch(current._id, {
+          pinned_view_id: item.pinned_view_id ?? null,
+          ordinal,
+          inclusion_reason: item.inclusion_reason ?? null,
+          quality_label: item.quality_label ?? "unknown",
+          metadata_json: item.metadata_json ?? null,
+          updated_at_ms: now,
+        });
+        updated += 1;
+        continue;
+      }
+
+      await ctx.db.insert("evidence_set_items", {
+        evidence_set_id: args.evidence_set_id,
+        evidence_item_id: item.evidence_item_id,
+        pinned_view_id: item.pinned_view_id ?? null,
+        ordinal,
+        inclusion_reason: item.inclusion_reason ?? null,
+        quality_label: item.quality_label ?? "unknown",
+        metadata_json: item.metadata_json ?? null,
+        created_at_ms: now,
+        updated_at_ms: now,
+      });
+      inserted += 1;
+    }
+
+    await ctx.db.patch(args.evidence_set_id, {
+      item_count: existingRows.length + inserted,
+      updated_at_ms: now,
+    });
+
+    return {
+      inserted,
+      updated,
+      total: args.items.length,
+    };
+  },
+});
+
 export const getUniverse = zInternalQuery({
   args: z.object({
     universe_id: zid("evidence_universes"),
@@ -412,6 +615,15 @@ export const getCandidate = zInternalQuery({
   }),
   handler: async (ctx, args) => {
     return ctx.db.get(args.candidate_id);
+  },
+});
+
+export const getEvidenceSet = zInternalQuery({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.evidence_set_id);
   },
 });
 
@@ -476,6 +688,30 @@ export const listUniverseItems = zInternalQuery({
     return ctx.db
       .query("evidence_items")
       .withIndex("by_universe", (q) => q.eq("universe_id", args.universe_id))
+      .collect();
+  },
+});
+
+export const listUniverseEvidenceSets = zInternalQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("evidence_sets")
+      .withIndex("by_universe", (q) => q.eq("universe_id", args.universe_id))
+      .collect();
+  },
+});
+
+export const listEvidenceSetItems = zInternalQuery({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", args.evidence_set_id))
       .collect();
   },
 });
