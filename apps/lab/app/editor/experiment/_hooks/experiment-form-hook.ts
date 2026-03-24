@@ -13,17 +13,18 @@ import {
 
 interface UseExperimentFormProps {
   defaultValues?: ExperimentFormDefaults;
-  selectedEvidenceIds: string[];
+  selectedEvidenceSetId: string;
+  selectedEvidenceCount: number;
   onStatusChange?: (status: string | null) => void;
 }
 
 export function useExperimentForm({
   defaultValues,
-  selectedEvidenceIds,
+  selectedEvidenceSetId,
+  selectedEvidenceCount,
   onStatusChange,
 }: UseExperimentFormProps) {
   const router = useRouter();
-  const createPool = useMutation(api.packages.lab.createPool);
   const initExperiment = useMutation(api.packages.lab.initExperiment);
 
   const form = useForm({
@@ -51,15 +52,16 @@ export function useExperimentForm({
     },
     onSubmit: async ({ value }) => {
       onStatusChange?.(null);
-      if (selectedEvidenceIds.length === 0) {
-        onStatusChange?.("Select at least one evidence item.");
+      if (!selectedEvidenceSetId) {
+        onStatusChange?.("Select an evidence set.");
+        return;
+      }
+      if (selectedEvidenceCount === 0) {
+        onStatusChange?.("Selected evidence set has no items.");
         return;
       }
 
       try {
-        const pool = await createPool({
-          evidence_ids: selectedEvidenceIds,
-        });
         const result = await initExperiment({
           experiment_config: {
             rubric_config: {
@@ -75,7 +77,7 @@ export function useExperimentForm({
               randomizations: value.randomizations,
             },
           },
-          pool_id: pool.pool_id,
+          evidence_set_id: selectedEvidenceSetId,
         });
         onStatusChange?.("Experiment created.");
         router.replace(`/experiment/${result.experiment_id}`);

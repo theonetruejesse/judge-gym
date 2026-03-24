@@ -168,15 +168,15 @@ The Temporal cluster and the Temporal worker should already be running on Railwa
 Recommended smoke test:
 
 ```bash
-bun run pilot:smoke
+bun run v4:smoke
 ```
 
 That smoke script:
 
 1. checks Temporal queue readiness
-2. creates a tiny window
-3. waits for the window workflow to finish
-4. creates a pool + experiment from the collected evidence
+2. creates a tiny direct-import evidence universe
+3. curates those imported rows into an evidence set
+4. creates an experiment from that evidence set
 5. launches a one-sample run
 6. waits for the run workflow to finish
 7. prints a compact JSON summary with workflow ids, counts, and diagnostic totals
@@ -185,24 +185,7 @@ If the smoke fails, the first follow-up checks are:
 
 1. Railway worker logs for `judge-gym.window` / `judge-gym.run`
 2. `bun run debug:queues`
-3. `bun run debug:inspect --window <window_id>` or `--run <run_id>`
-
-## 9. Initialize the V3 cohort from a completed window run
-
-Once you have a large evidence collection window run that finished successfully, create the shared pool plus the current manifest-selected V3 cohort with:
-
-```bash
-bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>
-```
-
-That command:
-
-1. validates the machine-readable V3 matrix contract in the backend
-2. creates one reusable pool from the completed `window_run`
-3. materializes the manifest-selected V3 experiments against that pool
-4. reuses existing matching bundle plans and experiment tags on repeated runs instead of creating duplicates
-
-Pass `--all-experiments` if you want the full in-engine corrected matrix instead of the current manifest subset.
+3. `bun run debug:inspect --run <run_id>`
 
 ## Deployment model
 

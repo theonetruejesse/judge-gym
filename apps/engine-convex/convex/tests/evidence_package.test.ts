@@ -176,6 +176,11 @@ describe("evidence package", () => {
     expect(evidenceSetSummary.item_count).toBe(1);
     expect(evidenceSetSummary.source_kind).toBe("literature_dataset");
 
+    const catalog = await t.query(api.packages.evidence.listEvidenceSets, {});
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]?.evidence_set_id).toBe(evidence_set_id);
+    expect(catalog[0]?.universe_tag).toBe("paper-audit-import");
+
     const setItems = await t.query(api.packages.evidence.listEvidenceSetItems, {
       evidence_set_id,
     });

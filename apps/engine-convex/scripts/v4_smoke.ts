@@ -3,35 +3,22 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "../convex/_generated/api";
 
 type QueueHealth = FunctionReturnType<typeof api.packages.codex.getTemporalTaskQueueHealth>;
-type WindowSummary = FunctionReturnType<typeof api.packages.lab.getWindowSummary>;
 type RunSummary = FunctionReturnType<typeof api.packages.lab.getRunSummary>;
 type ProcessInspection = FunctionReturnType<typeof api.packages.codex.inspectProcessExecution>;
 
 type Args = {
-  query: string;
-  country: string;
-  startDate: string;
-  endDate: string;
-  evidenceLimit: number;
-  model: "gpt-4.1" | "gpt-4.1-mini" | "gpt-5.2" | "gpt-5.2-chat";
+  model: "gpt-4.1" | "gpt-4.1-mini" | "gpt-5.2" | "gpt-5.2-chat" | "claude-sonnet-4";
   targetCount: number;
   pollMs: number;
   queueTimeoutMs: number;
-  windowTimeoutMs: number;
   runTimeoutMs: number;
 };
 
 const DEFAULTS: Args = {
-  query: "United States democracy election courts press freedom",
-  country: "USA",
-  startDate: "2025-10-01",
-  endDate: "2026-03-15",
-  evidenceLimit: 2,
   model: "gpt-4.1-mini",
   targetCount: 1,
   pollMs: 5_000,
   queueTimeoutMs: 60_000,
-  windowTimeoutMs: 10 * 60_000,
   runTimeoutMs: 15 * 60_000,
 };
 
@@ -40,31 +27,6 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const next = argv[i + 1];
-    if (arg === "--query" && next) {
-      args.query = next;
-      i += 1;
-      continue;
-    }
-    if (arg === "--country" && next) {
-      args.country = next;
-      i += 1;
-      continue;
-    }
-    if (arg === "--start-date" && next) {
-      args.startDate = next;
-      i += 1;
-      continue;
-    }
-    if (arg === "--end-date" && next) {
-      args.endDate = next;
-      i += 1;
-      continue;
-    }
-    if (arg === "--evidence-limit" && next) {
-      args.evidenceLimit = Number(next) || args.evidenceLimit;
-      i += 1;
-      continue;
-    }
     if (arg === "--model" && next) {
       args.model = next as Args["model"];
       i += 1;
@@ -82,11 +44,6 @@ function parseArgs(argv: string[]): Args {
     }
     if (arg === "--queue-timeout-ms" && next) {
       args.queueTimeoutMs = Number(next) || args.queueTimeoutMs;
-      i += 1;
-      continue;
-    }
-    if (arg === "--window-timeout-ms" && next) {
-      args.windowTimeoutMs = Number(next) || args.windowTimeoutMs;
       i += 1;
       continue;
     }
@@ -138,51 +95,12 @@ async function waitForQueueReadiness(
       return health;
     }
     console.log(
-      `[pilot-smoke] waiting for Temporal queue readiness (${formatMs(Date.now() - startedAt)})`,
+      `[v4-smoke] waiting for Temporal queue readiness (${formatMs(Date.now() - startedAt)})`,
       JSON.stringify(health.queues.map(summarizeQueue), null, 2),
     );
     await sleep(args.pollMs);
   }
   throw new Error("Timed out waiting for Temporal task queues to become ready");
-}
-
-async function waitForWindowCompletion(
-  client: ConvexHttpClient,
-  windowRunId: string,
-  args: Args,
-): Promise<{ summary: WindowSummary; inspection: ProcessInspection }> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < args.windowTimeoutMs) {
-    const [summary, inspection] = await Promise.all([
-      client.query(api.packages.lab.getWindowSummary, { window_run_id: windowRunId as never }),
-      client.action(api.packages.codex.inspectProcessExecution, {
-        process_type: "window",
-        process_id: windowRunId,
-      }),
-    ]);
-
-    console.log(
-      `[pilot-smoke] window run ${windowRunId} status=${summary.status} stage=${summary.current_stage} completed=${summary.completed_count}/${summary.target_count}`,
-    );
-
-    if (
-      inspection.temporal.temporal_status === "FAILED"
-      || inspection.temporal.temporal_status === "TERMINATED"
-      || summary.status === "error"
-      || summary.status === "canceled"
-    ) {
-      throw new Error(
-        `Window failed: status=${summary.status} temporal=${inspection.temporal.temporal_status} error=${inspection.temporal.snapshot?.lastErrorMessage ?? inspection.temporal.snapshot_query_error ?? "unknown"}`,
-      );
-    }
-
-    if (summary.status === "completed") {
-      return { summary, inspection };
-    }
-
-    await sleep(args.pollMs);
-  }
-  throw new Error(`Timed out waiting for window run ${windowRunId} to complete`);
 }
 
 async function waitForRunCompletion(
@@ -201,7 +119,7 @@ async function waitForRunCompletion(
     ]);
 
     console.log(
-      `[pilot-smoke] run ${runId} status=${summary.status} stage=${summary.current_stage} completed=${summary.completed_count}/${summary.target_count}`,
+      `[v4-smoke] run ${runId} status=${summary.status} stage=${summary.current_stage} completed=${summary.completed_count}/${summary.target_count}`,
     );
 
     if (
@@ -229,58 +147,80 @@ async function main() {
   const convexUrl = requireEnv("CONVEX_URL");
   const client = new ConvexHttpClient(convexUrl);
   const seed = Date.now();
-  const runTag = `pilot_smoke_${seed}`;
+  const runTag = `v4_smoke_${seed}`;
 
-  console.log("[pilot-smoke] checking Temporal queue readiness");
+  console.log("[v4-smoke] checking Temporal queue readiness");
   const queueHealth = await waitForQueueReadiness(client, args);
 
-  console.log("[pilot-smoke] creating window");
-  const createdWindow = await client.mutation(api.packages.lab.createWindowForm, {
-    evidence_window: {
-      query: args.query,
-      country: args.country,
-      start_date: args.startDate,
-      end_date: args.endDate,
-    },
-    evidence_limit: args.evidenceLimit,
+  const universe = await client.mutation(api.packages.evidence.createEvidenceUniverse, {
+    universe_tag: `${runTag}_universe`,
+    kind: "paper_audit",
+    title: `${runTag} universe`,
   });
 
-  const windowId = String(createdWindow.window_id);
-  const startedWindowRun = await client.mutation(api.packages.lab.startWindowRunForm, {
-    window_id: createdWindow.window_id,
-    model: args.model,
-    target_stage: "l3_abstracted",
-    evidence_limit: args.evidenceLimit,
-  });
-  const windowRunId = String(startedWindowRun.window_run_id);
-  const completedWindow = await waitForWindowCompletion(client, windowRunId, args);
-  const evidenceRows = await client.query(api.packages.lab.listEvidenceByWindowRun, {
-    window_run_id: startedWindowRun.window_run_id,
-  });
-  if (evidenceRows.length === 0) {
-    throw new Error(`Window run ${windowRunId} completed without evidence rows`);
-  }
+  const importedItems = await Promise.all([
+    client.action(api.packages.evidence.importEvidenceItem, {
+      universe_id: universe.universe_id,
+      canonical_key: `${runTag}:001`,
+      title: "Canary evidence one",
+      source_url: "https://example.com/v4-smoke/1",
+      source_name: "V4 Smoke Fixture",
+      publish_date: "2026-03-24",
+      raw_text: "Institutional conflict, judicial independence, and election oversight.",
+      view_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "v4-smoke-v1",
+    }),
+    client.action(api.packages.evidence.importEvidenceItem, {
+      universe_id: universe.universe_id,
+      canonical_key: `${runTag}:002`,
+      title: "Canary evidence two",
+      source_url: "https://example.com/v4-smoke/2",
+      source_name: "V4 Smoke Fixture",
+      publish_date: "2026-03-24",
+      raw_text: "Executive pressure on media systems and administrative oversight bodies.",
+      view_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "v4-smoke-v1",
+    }),
+  ]);
 
-  console.log("[pilot-smoke] creating pool and experiment");
-  const pool = await client.mutation(api.packages.lab.createPool, {
-    evidence_ids: evidenceRows.map((row) => row.evidence_id),
-    pool_tag: `${runTag}_pool`,
+  const evidenceSet = await client.mutation(api.packages.evidence.createEvidenceSet, {
+    universe_id: universe.universe_id,
+    evidence_set_tag: `${runTag}_set`,
+    title: `${runTag} evidence set`,
+    source_kind: "manual_import",
+    quality_label: "high",
+  });
+
+  await client.mutation(api.packages.evidence.addEvidenceSetItems, {
+    evidence_set_id: evidenceSet.evidence_set_id,
+    items: importedItems.map((item, index) => ({
+      evidence_item_id: item.evidence_item_id,
+      pinned_view_id: item.evidence_view_id,
+      ordinal: index,
+      quality_label: "high" as const,
+      inclusion_reason: "V4 smoke canary fixture",
+    })),
   });
 
   const experiment = await client.mutation(api.packages.lab.initExperiment, {
     experiment_tag: `${runTag}_experiment`,
-    pool_id: pool.pool_id,
+    evidence_set_id: evidenceSet.evidence_set_id,
     experiment_config: {
+      study_kind: "paper_audit",
+      rubric_source_kind: "generate",
+      compatibility_mode: "native",
       rubric_config: {
         model: args.model,
         scale_size: 4,
-        concept: "fascism",
+        concept: "institutional democratic erosion",
       },
       scoring_config: {
         model: args.model,
         method: "subset",
         abstain_enabled: true,
-        evidence_view: "l2_neutralized",
+        evidence_view: "l0_raw",
         randomizations: [
           "anonymize_stages",
           "hide_label_text",
@@ -291,7 +231,7 @@ async function main() {
     },
   });
 
-  console.log("[pilot-smoke] starting run");
+  console.log("[v4-smoke] starting run");
   const startedRun = await client.mutation(api.packages.lab.startExperimentRun, {
     experiment_id: experiment.experiment_id,
     target_count: args.targetCount,
@@ -309,20 +249,15 @@ async function main() {
       checked_at_ms: queueHealth.checked_at_ms,
       queues: queueHealth.queues.map(summarizeQueue),
     },
-    window: {
-      window_id: windowId,
-      window_run_id: windowRunId,
-      status: completedWindow.summary.status,
-      current_stage: completedWindow.summary.current_stage,
-      completed_count: completedWindow.summary.completed_count,
-      evidence_count: evidenceRows.length,
-      workflow_id: completedWindow.inspection.temporal.workflow_id,
-      workflow_run_id: completedWindow.inspection.temporal.workflow_run_id,
+    evidence: {
+      universe_id: String(universe.universe_id),
+      evidence_set_id: String(evidenceSet.evidence_set_id),
+      imported_count: importedItems.length,
     },
     experiment: {
       experiment_id: String(experiment.experiment_id),
       experiment_tag: `${runTag}_experiment`,
-      pool_id: String(pool.pool_id),
+      evidence_set_id: String(evidenceSet.evidence_set_id),
     },
     run: {
       run_id: runId,
@@ -341,7 +276,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("[pilot-smoke] failed");
+  console.error("[v4-smoke] failed");
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exit(1);
 });

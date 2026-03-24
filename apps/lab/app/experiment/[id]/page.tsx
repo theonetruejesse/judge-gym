@@ -28,6 +28,14 @@ import LabNavbar from "@/components/lab_navbar";
 type ExperimentSummary = {
   experiment_id: string;
   experiment_tag?: string;
+  study_kind: string;
+  evidence_source_kind: string;
+  evidence_set_id: string;
+  evidence_set_tag: string | null;
+  evidence_set_quality_label: string;
+  evidence_set_source_kind: string;
+  rubric_source_kind: string;
+  compatibility_mode: string;
   rubric_config: {
     model: string;
     scale_size: number;
@@ -42,7 +50,6 @@ type ExperimentSummary = {
   };
   total_count: number;
   evidence_selected_count: number;
-  window_count: number;
   run_count: number;
   status: string;
   latest_run?: {
@@ -71,10 +78,14 @@ type ExperimentSummary = {
 };
 
 type EvidenceItem = {
-  evidence_id: string;
-  window_id: string;
-  title: string;
-  url: string;
+  evidence_set_item_id: string;
+  evidence_item_id: string;
+  evidence_view_id: string | null;
+  title: string | null;
+  url: string | null;
+  source_name: string | null;
+  publish_date: string | null;
+  ordinal: number;
   created_at: number;
 };
 
@@ -232,8 +243,7 @@ export default function ExperimentDetailPage({
                 {summaryData.experiment_tag ?? summaryData.experiment_id}
               </h1>
               <p className="mt-1 text-[11px] opacity-50">
-                {summaryData.experiment_id} · {summaryData.window_count}{" "}
-                windows
+                {summaryData.experiment_id} · {summaryData.evidence_set_tag ?? summaryData.evidence_set_id}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -333,6 +343,13 @@ function ConfigPanel({ summary }: { summary: ExperimentSummary | undefined }) {
     ["Scoring Model", summary.scoring_config.model],
     ["Concept", summary.rubric_config.concept],
     ["Scale Size", `${summary.rubric_config.scale_size}-point`],
+    ["Study Kind", summary.study_kind],
+    ["Evidence Source", summary.evidence_source_kind],
+    ["Evidence Set", summary.evidence_set_tag ?? summary.evidence_set_id],
+    ["Evidence Set Source", summary.evidence_set_source_kind],
+    ["Evidence Quality", summary.evidence_set_quality_label],
+    ["Rubric Source", summary.rubric_source_kind],
+    ["Compatibility Mode", summary.compatibility_mode],
     ["Evidence View", VIEW_LABELS[summary.scoring_config.evidence_view]],
     [
       "Scoring Method",
@@ -350,7 +367,7 @@ function ConfigPanel({ summary }: { summary: ExperimentSummary | undefined }) {
           Evidence Selection
         </span>
         <div className="mt-2 flex flex-wrap gap-3">
-          <span>Windows: {summary.window_count}</span>
+          <span>Evidence Set: {summary.evidence_set_tag ?? summary.evidence_set_id}</span>
           <span>Selected Evidence: {summary.evidence_selected_count}</span>
           <span>Completed Samples: {summary.total_count}</span>
         </div>
@@ -508,20 +525,26 @@ function EvidencePanel({ evidenceItems }: { evidenceItems: EvidenceItem[] }) {
       <Table>
         <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
           <TableRow>
+            <TableHead className="w-20">Ordinal</TableHead>
             <TableHead>Title</TableHead>
-            <TableHead>Window</TableHead>
+            <TableHead>Source</TableHead>
             <TableHead className="text-right">Created</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {evidenceItems.map((item) => (
-            <TableRow key={item.evidence_id}>
+            <TableRow key={item.evidence_set_item_id}>
+              <TableCell className="text-xs opacity-70">
+                #{item.ordinal + 1}
+              </TableCell>
               <TableCell className="text-xs">
-                <div className="text-foreground">{item.title}</div>
+                <div className="text-foreground">
+                  {item.title ?? item.evidence_item_id}
+                </div>
                 <div className="text-[10px] opacity-50">{item.url}</div>
               </TableCell>
               <TableCell className="text-xs opacity-70">
-                {item.window_id}
+                {item.source_name ?? item.publish_date ?? "Unknown"}
               </TableCell>
               <TableCell className="text-right text-xs opacity-60">
                 {new Date(item.created_at).toLocaleDateString()}

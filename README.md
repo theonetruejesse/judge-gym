@@ -34,8 +34,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Railway worker deployment is pinned in repo via `railway.toml` + the repo-root `Dockerfile`.
 - The supported primary dev path is Railway-hosted Temporal plus local UI/Convex tooling.
 - Use `./scripts/deploy_railway_worker.sh` for the current manual worker deploy flow when `apps/engine-temporal`, `packages/engine-settings`, `packages/engine-prompts`, `Dockerfile`, or `railway.toml` change.
-- After the stack is configured, `bun run pilot:smoke` is the recommended first end-to-end validation path.
-- After a large evidence collection window completes, `bun run v3:init -- --window-run-id <window_run_id> --pool-tag <pool_tag>` is the supported path for creating the single pool plus the current manifest-selected V3 matrix cohort.
+- After the stack is configured, `bun run v4:smoke` is the recommended first end-to-end validation path.
 
 **Environment source of truth**
 
@@ -112,7 +111,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The engine also includes `bun run debug:queues` for Temporal task-queue readiness and `bun run debug:campaign` for the manifest-scoped V3 cohort snapshot.
 - For raw live Convex function calls that do not already have a dedicated debug wrapper, use `./scripts/run_convex.sh <functionName> '<jsonArgs>'`; it resolves the local Convex CLI through the repo's supported Node 22 runtime instead of relying on ad hoc `nvm` shell prefixes.
 - `packages/codex:listBatchReconciliationStatus` plus `bun run debug:batches -- --run <run_id> [--stage <stage>]` expose per-stage `llm_batch_executions`, showing if each provider batch chunk is submitted, polling, completed, failed, or still applying before the next stage runs.
-- The engine includes a scripted Railway-backed smoke test at `bun run pilot:smoke`, which checks Temporal queue readiness, runs a tiny window to completion, creates a pool + experiment, launches a one-sample run, and prints a compact workflow/artifact summary.
+- The engine includes a scripted Railway-backed smoke test at `bun run v4:smoke`, which checks Temporal queue readiness, creates a tiny direct-import evidence universe + evidence set, launches a one-sample run, and prints a compact workflow/artifact summary.
 - The engine includes Bun process telemetry analysis in `apps/engine-convex`: `bun run debug:analyze --run <run_id>` / `--window <window_id>` for bounded, paginated trace diagnostics.
 - V3 campaign status reads are now cohort-scoped by explicit manifest tags instead of global experiment/run scans, so `packages/codex:getV3CampaignSnapshot` stays usable during large score stages.
 - Temporal stage activities now use bounded retries from `packages/engine-settings`, while projection updates keep a separate longer timeout budget and single-attempt semantics to avoid duplicate projection churn.
@@ -128,7 +127,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
 - Experiment initialization now targets reusable `evidence_sets` via `evidence_set_id`.
 - `packages/codex:getV3MatrixContract` remains as a historical contract artifact, but `packages/codex:initV3MatrixFromPool` is no longer part of the greenfield V4 execution path.
-- The lab UI supports creating experiments, selecting evidence, and starting runs.
+- The lab UI now creates experiments from curated evidence sets, inspects evidence-set membership directly, and starts runs against that frozen V4 evidence contract.
 - The lab experiment surfaces now expose `latest_run.current_stage_progress`, so the runs table shows partial current-stage progress instead of only coarse finalized run counters.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
 - Lab window form fields are composed from reusable input, calendar, and select components.
@@ -234,9 +233,9 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 **Experiment and run tables (orchestrated)**
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `pools` | Reusable evidence pools | `pool_tag`, `evidence_count` |
-| `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
-| `experiments` | Experiment configs for V4 evidence sets | `experiment_tag`, `study_kind`, `evidence_source_kind`, `pool_id`, `evidence_set_id`, `bundle_plan_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
+| `pools` | Legacy evidence-pool rows pending full removal | `pool_tag`, `evidence_count` |
+| `pool_evidences` | Legacy evidence membership rows pending full removal | `pool_id`, `evidence_id` |
+| `experiments` | Experiment configs for V4 evidence sets | `experiment_tag`, `study_kind`, `evidence_source_kind`, `evidence_set_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters, `workflow_id`, `workflow_run_id`, `last_error_message` |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count`, `rubric_gen_*`, `rubric_critic_*` |
 | `sample_score_targets` | Frozen run score targets | `run_id`, `sample_id`, `score_id`, `score_critic_id`, `score_gen_*`, `score_critic_*` |

@@ -162,6 +162,19 @@ const EvidenceSetSummarySchema = z.object({
   status: z.string(),
 });
 
+const EvidenceSetCatalogEntrySchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  universe_id: zid("evidence_universes"),
+  universe_tag: z.string(),
+  universe_title: z.string(),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  source_kind: EvidenceSetsTableSchema.shape.source_kind,
+  quality_label: EvidenceSetsTableSchema.shape.quality_label,
+  item_count: z.number(),
+  status: z.string(),
+});
+
 const EvidenceSetItemSummarySchema = z.object({
   evidence_set_item_id: zid("evidence_set_items"),
   evidence_item_id: zid("evidence_items"),
@@ -405,6 +418,50 @@ export const getEvidenceSetSummary: ReturnType<typeof zQuery> = zQuery({
       item_count: evidenceSet.item_count,
       status: evidenceSet.status,
     };
+  },
+});
+
+export const listEvidenceSets: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes").optional(),
+  }),
+  returns: z.array(EvidenceSetCatalogEntrySchema),
+  handler: async (ctx, args): Promise<Array<z.infer<typeof EvidenceSetCatalogEntrySchema>>> => {
+    const evidenceSets = args.universe_id
+      ? await ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseEvidenceSets, {
+        universe_id: args.universe_id,
+      })
+      : await ctx.db.query("evidence_sets").collect();
+
+    const rows = await Promise.all(
+      evidenceSets.map(async (evidenceSet) => {
+        const universe = await ctx.runQuery(internal.domain.evidence.evidence_repo.getUniverse, {
+          universe_id: evidenceSet.universe_id,
+        });
+        if (!universe) {
+          throw new Error(`Evidence universe missing for set ${evidenceSet._id}`);
+        }
+        return {
+          evidence_set_id: evidenceSet._id,
+          universe_id: universe._id,
+          universe_tag: universe.universe_tag,
+          universe_title: universe.title,
+          evidence_set_tag: evidenceSet.evidence_set_tag,
+          title: evidenceSet.title,
+          source_kind: evidenceSet.source_kind,
+          quality_label: evidenceSet.quality_label,
+          item_count: evidenceSet.item_count,
+          status: evidenceSet.status,
+        };
+      }),
+    );
+
+    return rows.sort((left, right) => {
+      if (left.universe_tag !== right.universe_tag) {
+        return left.universe_tag.localeCompare(right.universe_tag);
+      }
+      return left.evidence_set_tag.localeCompare(right.evidence_set_tag);
+    });
   },
 });
 

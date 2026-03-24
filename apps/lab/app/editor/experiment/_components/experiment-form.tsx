@@ -27,7 +27,8 @@ import type {
 
 interface ExperimentFormProps {
   defaultValues?: ExperimentFormDefaults;
-  selectedEvidenceIds: string[];
+  selectedEvidenceSetId: string;
+  selectedEvidenceCount: number;
   onStatusChange?: (status: string | null) => void;
 }
 
@@ -52,12 +53,14 @@ function ExperimentFormParamsSync({ values }: { values: ExperimentFormValues }) 
 
 export function ExperimentForm({
   defaultValues,
-  selectedEvidenceIds,
+  selectedEvidenceSetId,
+  selectedEvidenceCount,
   onStatusChange,
 }: ExperimentFormProps) {
   const form = useExperimentForm({
     defaultValues,
-    selectedEvidenceIds,
+    selectedEvidenceSetId,
+    selectedEvidenceCount,
     onStatusChange,
   });
 

@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
-import { useRouter } from "next/navigation";
 import { api } from "@judge-gym/engine-convex";
 import LabNavbar from "@/components/lab_navbar";
 import { ExperimentForm } from "./experiment-form";
 import {
   EvidenceSelector,
-  type EvidenceItem,
-  type EvidenceWindowItem,
+  type EvidenceSetCatalogItem,
+  type EvidenceSetItem,
 } from "./evidence-selector";
 import type { ExperimentFormDefaults } from "../_utils/experiment-form-schema";
 
@@ -18,72 +17,23 @@ interface ExperimentEditorProps {
 }
 
 export function ExperimentEditor({ defaultValues }: ExperimentEditorProps) {
-  const router = useRouter();
-  const windows = useQuery(api.packages.lab.listEvidenceWindows, {}) as
-    | EvidenceWindowItem[]
+  const evidenceSets = useQuery(api.packages.evidence.listEvidenceSets, {}) as
+    | EvidenceSetCatalogItem[]
     | undefined;
-  const [selectedWindowId, setSelectedWindowId] = useState<string>("");
-  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
+  const [selectedEvidenceSetId, setSelectedEvidenceSetId] = useState<string>("");
   const [experimentStatus, setExperimentStatus] = useState<string | null>(null);
-  const createWindowValue = "__create_window__";
   const initializedRef = useRef(false);
 
-  const evidenceItems = useQuery(
-    api.packages.lab.listEvidenceByWindow,
-    selectedWindowId ? { window_id: selectedWindowId } : "skip",
-  ) as EvidenceItem[] | undefined;
+  const evidenceItems = useQuery(api.packages.evidence.listEvidenceSetItems, selectedEvidenceSetId
+    ? { evidence_set_id: selectedEvidenceSetId }
+    : "skip") as EvidenceSetItem[] | undefined;
 
   useEffect(() => {
     if (initializedRef.current) return;
-    if (!windows || windows.length === 0) return;
-    setSelectedWindowId(windows[0].window_id);
+    if (!evidenceSets || evidenceSets.length === 0) return;
+    setSelectedEvidenceSetId(evidenceSets[0].evidence_set_id);
     initializedRef.current = true;
-  }, [windows]);
-
-  const handleWindowChange = (value: string) => {
-    if (value === createWindowValue) {
-      router.push("/editor/window");
-      return;
-    }
-    setSelectedWindowId(value);
-  };
-
-  const evidenceRows = evidenceItems ?? [];
-
-  useEffect(() => {
-    if (!selectedWindowId || !evidenceItems) return;
-    const newIds = evidenceItems.map((item) => item.evidence_id);
-    setSelectedEvidenceIds((prev) => {
-      const merged = new Set(prev);
-      for (const id of newIds) merged.add(id);
-      return Array.from(merged);
-    });
-  }, [selectedWindowId, evidenceItems]);
-
-  const toggleEvidence = (id: string) => {
-    setSelectedEvidenceIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  };
-
-  const selectWindowEvidence = () => {
-    const ids = evidenceRows.map((row) => row.evidence_id);
-    setSelectedEvidenceIds((prev) => Array.from(new Set([...prev, ...ids])));
-  };
-
-  const clearWindowEvidence = () => {
-    const ids = new Set(evidenceRows.map((row) => row.evidence_id));
-    setSelectedEvidenceIds((prev) => prev.filter((id) => !ids.has(id)));
-  };
-
-  const clearAllEvidence = () => {
-    setSelectedEvidenceIds([]);
-  };
-
-  const sortedEvidence = useMemo(
-    () => evidenceRows.slice().sort((a, b) => a.created_at - b.created_at),
-    [evidenceRows],
-  );
+  }, [evidenceSets]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -95,7 +45,7 @@ export function ExperimentEditor({ defaultValues }: ExperimentEditorProps) {
             Experiment Editor
           </p>
           <p className="text-xs opacity-60">
-            Configure rubric/scoring stages and freeze evidence selections.
+            Configure rubric/scoring stages and bind the run to a curated evidence set.
           </p>
         </div>
 
@@ -103,7 +53,8 @@ export function ExperimentEditor({ defaultValues }: ExperimentEditorProps) {
           <div className="space-y-3">
             <ExperimentForm
               defaultValues={defaultValues}
-              selectedEvidenceIds={selectedEvidenceIds}
+              selectedEvidenceSetId={selectedEvidenceSetId}
+              selectedEvidenceCount={evidenceItems?.length ?? 0}
               onStatusChange={setExperimentStatus}
             />
             {experimentStatus && (
@@ -114,16 +65,10 @@ export function ExperimentEditor({ defaultValues }: ExperimentEditorProps) {
           </div>
 
           <EvidenceSelector
-            windows={windows ?? []}
-            selectedWindowId={selectedWindowId}
-            onWindowChange={handleWindowChange}
-            createWindowValue={createWindowValue}
-            evidenceItems={sortedEvidence}
-            selectedEvidenceIds={selectedEvidenceIds}
-            onToggleEvidence={toggleEvidence}
-            onSelectWindowEvidence={selectWindowEvidence}
-            onClearWindowEvidence={clearWindowEvidence}
-            onClearAllEvidence={clearAllEvidence}
+            evidenceSets={evidenceSets ?? []}
+            selectedEvidenceSetId={selectedEvidenceSetId}
+            onEvidenceSetChange={setSelectedEvidenceSetId}
+            evidenceItems={evidenceItems ?? []}
           />
         </div>
       </div>
