@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-readiness-prune-session",
+    "objective": "Define the implementation agenda for the current judge-gym work session before V4 matrix specification: simplify and generalize the evidence pipeline around ingest->views->analysis, identify legacy schema/runtime surfaces to prune, add provider-tier policy support including Anthropic tier handling, define the remaining experiment/config work required for literature-compatibility and regime checks, and produce a validated deep-workflow artifact plus synthesis deliverables that can drive the next coding phase with commit discipline in a dirty worktree.",
+    "objectiveClass": "optimization",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_only"
+  },
+  "status": {
+    "workflow": "compiled",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed",
+      "N06": "completed",
+      "N07": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "id": "D1",
+      "title": "Treat this turn as a pre-matrix readiness compile, not matrix design",
+      "rationale": "The remaining blockers are evidence curation, experiment contracts, parser/output flexibility, provider-tier policy, and legacy-surface pruning."
+    },
+    {
+      "id": "D2",
+      "title": "Evidence should collapse toward ingest -> evidence sets -> views -> analysis",
+      "rationale": "The V4 objective needs direct imports, curated high-quality pools, and reusable rendered views more than separate legacy window-era indirection."
+    },
+    {
+      "id": "D3",
+      "title": "Provider-tier support must become generic across providers",
+      "rationale": "Current engine-settings model OpenAI tiers explicitly but Anthropic and OpenRouter only as raw overrides, which is insufficient for V4 runtime policy."
+    },
+    {
+      "id": "D4",
+      "title": "Commit in validated slices while excluding unrelated campaign deletions",
+      "rationale": "The worktree is already dirty with non-V4 deletions, so commit boundaries must be explicit."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

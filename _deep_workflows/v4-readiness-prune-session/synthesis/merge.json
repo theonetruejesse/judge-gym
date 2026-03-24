@@ -1,0 +1,16 @@
+{
+  "status": "completed",
+  "leadDecision": "pre_matrix_gates_defined",
+  "mustHaveBeforeMatrix": [
+    "evidence_set_and_view_contracts",
+    "provider_tier_policy_generalization",
+    "v4_experiment_contract_rewrite",
+    "parser_and_output_contract_generalization",
+    "export_and_operator_surface_alignment"
+  ],
+  "deferUntilAfterMatrix": [
+    "presentation_heavy_lab_polish",
+    "full_legacy_cleanup_not_on_execution_path",
+    "advanced_provider_optimization_surfaces"
+  ]
+}

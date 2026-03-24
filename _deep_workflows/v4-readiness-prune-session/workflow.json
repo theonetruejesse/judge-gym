@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "name": "V4 Readiness Prune Session",
+    "slug": "v4-readiness-prune-session",
+    "objective": "Define the implementation agenda for the current judge-gym work session before V4 matrix specification: simplify and generalize the evidence pipeline around ingest->views->analysis, identify legacy schema/runtime surfaces to prune, add provider-tier policy support including Anthropic tier handling, define the remaining experiment/config work required for literature-compatibility and regime checks, and produce a validated deep-workflow artifact plus synthesis deliverables that can drive the next coding phase with commit discipline in a dirty worktree.",
+    "objectiveClass": "optimization",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_only",
+    "status": "compiled",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-readiness-prune-session"
+  },
+  "compile": {
+    "baseHint": "Treat this as a pre-matrix readiness and pruning session. The evidence substrate and provider canaries are already live-tested, so the goal is to identify what still blocks V4 matrix definition and what should be simplified before another round of implementation. Favor fewer first-class concepts, stronger experiment contracts, provider-tier policy parity, and explicit commit boundaries while the worktree contains unrelated legacy deletions.",
+    "taskSignals": [
+      "User wants a full rethink of the evidence process around ingest, views, regime checks, and analysis rather than preserving the old window-heavy flow.",
+      "The lab UI is intended to become an end-to-end regime-check surface, but UI work should follow the right backend contracts instead of defining them.",
+      "The repo now has a large number of tables and dual-era surfaces, so infrastructure pruning is a first-class goal.",
+      "Provider support now includes Anthropic and OpenRouter, and the user explicitly called out provider-tier support with Anthropic tier 1 as a required configuration surface.",
+      "The user wants git commits to begin as work continues, but the worktree already contains unrelated deleted campaign artifacts that should not be swept into V4 commits."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "seq",
+      "parallel",
+      "analyze",
+      "agent",
+      "synthesize",
+      "validate"
+    ],
+    "notes": [
+      "Compile only in this turn. The artifact should define the next implementation session, not mutate code directly.",
+      "The major readiness question is not provider plumbing anymore; it is experiment expression, evidence-set curation, parser/output flexibility, and legacy-surface pruning.",
+      "The workflow should explicitly separate what must land before V4 matrix specs from what can wait until after the matrix is frozen."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/dev/research/jg/judge-gym/README.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v3_gpt_ablations.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-full-implementation-plan/synthesis/final_report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/models/evidence.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/models/experiments.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/domain/runs/run_repo.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-prompts/src/run/config.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-settings/src/provider.ts"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.mcp__convex__status",
+      "web.run"
+    ],
+    "sharedScripts": [
+      "/Users/jesselee/.codex/skills/deep-workflow/scripts/validate_workflow.py"
+    ],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "analyze",
+        "role": "readiness-baseline-and-prune-criteria"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "evidence-domain-simplification"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "provider-tier-and-runtime-policy"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "agent",
+        "role": "experiment-contract-and-parser-generalization"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "agent",
+        "role": "ui-analysis-ops-and-commit-boundaries"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "synthesize",
+        "role": "pre-matrix-implementation-gates"
+      },
+      {
+        "nodeId": "N07",
+        "kind": "validate",
+        "role": "workflow-and-session-validation"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N07",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/readiness_baseline.md",
+      "agents/N02/evidence_simplification.md",
+      "agents/N03/provider_tier_policy.md",
+      "agents/N04/experiment_contracts.md",
+      "agents/N05/ui_ops_commit_boundaries.md",
+      "agents/N06/pre_matrix_gates.md",
+      "validation/validation_report.md"
+    ],
+    "artifactTypes": [
+      "finding",
+      "decision",
+      "report",
+      "validation_result"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop after the workflow artifact, synthesis report, and validation report are compiled in this turn.",
+      "Do not start defining the V4 experimental matrix until the pre-matrix readiness gates are explicit and accepted.",
+      "Do not let V4 commits include the unrelated deleted `_campaigns/v3_finish_pass/*` files unless the user explicitly asks for that cleanup."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "majorPreMatrixTracks": 5,
+      "commitDiscipline": "Commit only validated, coherent V4 slices and exclude unrelated campaign deletions from pathspecs.",
+      "schemaDiscipline": "Prefer additive contracts first, then prune redundant legacy tables only after the replacement path exists."
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "nodeId": "N06",
+  "kind": "synthesize",
+  "role": "pre-matrix-implementation-gates",
+  "objective": "Merge the readiness findings into one phased pre-matrix implementation agenda that clearly separates must-have work from deferrable cleanup.",
+  "inputs": [
+    "agents/N01/readiness_baseline.md",
+    "agents/N02/evidence_simplification.md",
+    "agents/N03/provider_tier_policy.md",
+    "agents/N04/experiment_contracts.md",
+    "agents/N05/ui_ops_commit_boundaries.md"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04",
+    "N05"
+  ],
+  "effects": [
+    "write_private_artifacts",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N06",
+  "requiredOutputs": [
+    "pre_matrix_gates.md"
+  ],
+  "completionCriteria": [
+    "Produce a clear ordered implementation agenda before V4 matrix specification.",
+    "Mark each major area as must-have before matrix, strongly recommended before matrix, or post-matrix.",
+    "Define the first commit slices implied by the plan."
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "nodeId": "N04",
+  "kind": "agent",
+  "role": "experiment-contract-and-parser-generalization",
+  "objective": "Define the experiment, prompt, task, and parser changes required to support literature-compatibility studies, imported codebooks, regime checks, and multiple output contracts before V4 matrix work begins.",
+  "inputs": [
+    "apps/engine-convex/convex/models/experiments.ts",
+    "apps/engine-convex/convex/domain/runs/experiments_repo.ts",
+    "apps/engine-convex/convex/domain/runs/run_repo.ts",
+    "packages/engine-prompts/src/run/config.ts",
+    "packages/engine-prompts/src/run/builders.ts",
+    "apps/engine-convex/convex/domain/runs/run_parsers.ts"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04",
+  "requiredOutputs": [
+    "experiment_contracts.md"
+  ],
+  "completionCriteria": [
+    "Specify the V4 experiment contract additions.",
+    "Specify the rubric/task/output contract generalizations needed for literature compatibility.",
+    "Specify which parser families must exist before the matrix can be defined confidently."
+  ]
+}

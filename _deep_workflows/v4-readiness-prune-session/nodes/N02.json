@@ -1,0 +1,32 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "evidence-domain-simplification",
+  "objective": "Reduce the V4 evidence system to the minimum durable concepts needed for imports, curated pools, rendered views, and analysis while identifying which legacy window/pool abstractions should remain transitional only.",
+  "inputs": [
+    "apps/engine-convex/convex/models/evidence.ts",
+    "apps/engine-convex/convex/domain/evidence/evidence_repo.ts",
+    "apps/engine-convex/convex/packages/evidence.ts",
+    "apps/engine-convex/convex/domain/runs/run_repo.ts"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02",
+  "requiredOutputs": [
+    "evidence_simplification.md"
+  ],
+  "completionCriteria": [
+    "Propose the streamlined evidence model for V4.",
+    "Identify which current tables are durable, transitional, or removable.",
+    "Call out the missing code needed for curated high-quality evidence sets and direct literature imports."
+  ]
+}

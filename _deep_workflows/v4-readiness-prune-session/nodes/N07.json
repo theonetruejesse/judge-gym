@@ -1,0 +1,38 @@
+{
+  "nodeId": "N07",
+  "kind": "validate",
+  "role": "workflow-and-session-validation",
+  "objective": "Validate the workflow artifact and confirm that the synthesis report answers the session objective directly.",
+  "inputs": [
+    "workflow.json",
+    "worldview.json",
+    "nodes/N01.json",
+    "nodes/N02.json",
+    "nodes/N03.json",
+    "nodes/N04.json",
+    "nodes/N05.json",
+    "nodes/N06.json",
+    "synthesis/final_report.md"
+  ],
+  "dependencies": [
+    "N06"
+  ],
+  "effects": [
+    "run_local_scripts",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [
+    "/Users/jesselee/.codex/skills/deep-workflow/scripts/validate_workflow.py"
+  ],
+  "writeScope": "validation",
+  "requiredOutputs": [
+    "validation_report.md"
+  ],
+  "completionCriteria": [
+    "Workflow validation passes.",
+    "Validation report records the validator result and any remaining known limitation."
+  ]
+}

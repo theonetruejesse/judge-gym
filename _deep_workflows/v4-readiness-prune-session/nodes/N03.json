@@ -1,0 +1,34 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "provider-tier-and-runtime-policy",
+  "objective": "Define the provider/runtime policy work needed before V4 matrix design, including generic tier support across providers, current capability gaps, and the minimum runtime settings surface needed for reproducible multi-provider studies.",
+  "inputs": [
+    "packages/engine-settings/src/provider.ts",
+    "packages/engine-settings/src/index.ts",
+    "apps/engine-temporal/src/llm/client.ts",
+    "apps/engine-temporal/src/llm/anthropic.ts",
+    "apps/engine-temporal/src/llm/openrouter.ts"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03",
+  "requiredOutputs": [
+    "provider_tier_policy.md"
+  ],
+  "completionCriteria": [
+    "State the current provider-tier mismatch clearly.",
+    "Define the generic provider-tier/settings model required for V4.",
+    "Separate must-have runtime policy work from optional later optimizations."
+  ]
+}
