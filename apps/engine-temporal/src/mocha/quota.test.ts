@@ -1,6 +1,10 @@
 import assert from "assert";
 import { describe, it } from "mocha";
 import {
+  resolveProviderRateLimit,
+  type ProviderExecutionSettings,
+} from "@judge-gym/engine-settings/provider";
+import {
   buildQuotaBucketRefs,
   estimateTextTokens,
   resolveQuotaBucketPolicy,
@@ -40,6 +44,65 @@ describe("quota helpers", () => {
 
     assert.equal(policy?.capacity, 30_000);
     assert.equal(policy?.rate, 30_000);
+  });
+
+  it("ships Anthropic Tier 1 defaults for Claude Sonnet 4", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "anthropic",
+      "claude-sonnet-4",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 50,
+      inputTokensPerMinute: 30_000,
+      outputTokensPerMinute: 8_000,
+    });
+  });
+
+  it("lets Anthropic overrides win over bundled tier defaults", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {
+          "claude-sonnet-4": {
+            requestsPerMinute: 70,
+            inputTokensPerMinute: 60_000,
+          },
+        },
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "anthropic",
+      "claude-sonnet-4",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 70,
+      inputTokensPerMinute: 60_000,
+      outputTokensPerMinute: 8_000,
+    });
   });
 
   it("uses a stable text-to-token heuristic", () => {

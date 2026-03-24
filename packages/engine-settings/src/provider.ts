@@ -84,6 +84,7 @@ export const MODELS = [
 export type ModelDefinition = (typeof MODELS)[number];
 export type ModelType = ModelDefinition["id"];
 type OpenAiModelType = Extract<ModelDefinition, { provider: "openai" }>["id"];
+type AnthropicModelType = Extract<ModelDefinition, { provider: "anthropic" }>["id"];
 
 const MODEL_IDS = MODELS.map((model) => model.id) as [
   ModelType,
@@ -122,9 +123,21 @@ export function providerSupportsBatching(provider: ProviderType): boolean {
 
 export const OpenAiTierSchema = z.enum(["tier_5"]);
 export type OpenAiTier = z.infer<typeof OpenAiTierSchema>;
+export const AnthropicTierSchema = z.enum([
+  "tier_1",
+  "tier_2",
+  "tier_3",
+  "tier_4",
+  "custom",
+]);
+export type AnthropicTier = z.infer<typeof AnthropicTierSchema>;
 
 function isOpenAiModel(model: ModelType): model is OpenAiModelType {
   return MODEL_BY_ID[model].provider === "openai";
+}
+
+function isAnthropicModel(model: ModelType): model is AnthropicModelType {
+  return MODEL_BY_ID[model].provider === "anthropic";
 }
 
 const OPENAI_TIER_5_MODEL_LIMITS: Record<OpenAiModelType, ProviderRateLimit> = {
@@ -157,6 +170,24 @@ const OPENAI_TIER_LIMITS: Record<
   tier_5: OPENAI_TIER_5_MODEL_LIMITS,
 };
 
+// Anthropic publishes Tier 1 standard limits for Sonnet 4 at 50 RPM,
+// 30k input TPM, and 8k output TPM. Higher standard tiers are representable
+// in settings but currently rely on explicit overrides until their defaults
+// are bundled into the repo policy table.
+const ANTHROPIC_TIER_1_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimit> = {
+  "claude-sonnet-4": {
+    requestsPerMinute: 50,
+    inputTokensPerMinute: 30_000,
+    outputTokensPerMinute: 8_000,
+  },
+};
+
+const ANTHROPIC_TIER_LIMITS: Partial<
+  Record<AnthropicTier, Partial<Record<AnthropicModelType, ProviderRateLimit>>>
+> = {
+  tier_1: ANTHROPIC_TIER_1_MODEL_LIMITS,
+};
+
 export const OpenAiProviderSettingsSchema = z.object({
   tier: OpenAiTierSchema.default("tier_5"),
   modelRateLimitOverrides: z.partialRecord(
@@ -168,6 +199,7 @@ export const OpenAiProviderSettingsSchema = z.object({
 export type OpenAiProviderSettings = z.infer<typeof OpenAiProviderSettingsSchema>;
 
 export const AnthropicProviderSettingsSchema = z.object({
+  tier: AnthropicTierSchema.default("tier_1"),
   modelRateLimitOverrides: z.partialRecord(
     modelTypeSchema,
     ProviderRateLimitSchema,
@@ -191,6 +223,7 @@ export const ProviderExecutionSettingsSchema = z.object({
     modelRateLimitOverrides: {},
   }),
   anthropic: AnthropicProviderSettingsSchema.default({
+    tier: "tier_1",
     modelRateLimitOverrides: {},
   }),
   openrouter: OpenRouterProviderSettingsSchema.default({
@@ -230,7 +263,13 @@ export function resolveProviderRateLimit(
       };
     }
     case "anthropic":
-      return providerSettings.anthropic.modelRateLimitOverrides[model] ?? null;
+      if (!isAnthropicModel(model)) {
+        return null;
+      }
+      return {
+        ...(ANTHROPIC_TIER_LIMITS[providerSettings.anthropic.tier]?.[model] ?? {}),
+        ...(providerSettings.anthropic.modelRateLimitOverrides[model] ?? {}),
+      };
     case "openrouter":
       return providerSettings.openrouter.modelRateLimitOverrides[model] ?? null;
   }
