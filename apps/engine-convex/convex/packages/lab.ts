@@ -529,35 +529,60 @@ export const listEvidenceByWindowRun: ReturnType<typeof zQuery> = zQuery({
 });
 
 const ExperimentConfigInputSchema = ExperimentsTableSchema.pick({
+  study_kind: true,
+  evidence_source_kind: true,
+  rubric_source_kind: true,
+  compatibility_mode: true,
+  task_contract: true,
+  output_contract: true,
   rubric_config: true,
   scoring_config: true,
+}).partial({
+  study_kind: true,
+  evidence_source_kind: true,
+  rubric_source_kind: true,
+  compatibility_mode: true,
+  task_contract: true,
+  output_contract: true,
 });
 
 export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_tag: z.string().optional(),
     experiment_config: ExperimentConfigInputSchema,
-    pool_id: zid("pools"),
+    pool_id: zid("pools").optional(),
+    evidence_set_id: zid("evidence_sets").optional(),
     bundle_plan_id: zid("bundle_plans").optional(),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const { experiment_config, pool_id, bundle_plan_id } = args;
+    const { experiment_config, pool_id, evidence_set_id, bundle_plan_id } = args;
 
     const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
       {
         experiment_tag: args.experiment_tag,
         ...experiment_config,
         pool_id,
+        evidence_set_id,
         bundle_plan_id,
       }
     );
-    const poolLinks = await ctx.runQuery(
-      internal.domain.runs.pool_repo.listPoolEvidenceLinks,
-      { pool_id },
-    );
+    const evidenceCount = pool_id
+      ? (
+        await ctx.runQuery(
+          internal.domain.runs.pool_repo.listPoolEvidenceLinks,
+          { pool_id },
+        )
+      ).length
+      : evidence_set_id
+        ? (
+          await ctx.runQuery(internal.domain.evidence.evidence_repo.listEvidenceSetItems, {
+            evidence_set_id,
+          })
+        ).length
+        : 0;
     await emitTraceEvent(ctx, {
       trace_id: `experiment:${experiment_id}`,
       entity_type: "run",
@@ -565,7 +590,7 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       event_name: "experiment_initialized",
       status: "start",
       payload_json: JSON.stringify({
-        evidence_count: poolLinks.length,
+        evidence_count: evidenceCount,
         scoring_model: experiment_config.scoring_config.model,
       }),
     });
@@ -734,7 +759,15 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
     z.object({
       experiment_id: zid("experiments"),
       experiment_tag: z.string(),
+      study_kind: ExperimentsTableSchema.shape.study_kind,
+      evidence_source_kind: ExperimentsTableSchema.shape.evidence_source_kind,
+      pool_id: zid("pools").optional(),
+      evidence_set_id: zid("evidence_sets").optional(),
       bundle_plan_id: zid("bundle_plans").optional(),
+      rubric_source_kind: ExperimentsTableSchema.shape.rubric_source_kind,
+      compatibility_mode: ExperimentsTableSchema.shape.compatibility_mode,
+      task_contract: ExperimentsTableSchema.shape.task_contract,
+      output_contract: ExperimentsTableSchema.shape.output_contract,
       rubric_config: ExperimentsTableSchema.shape.rubric_config,
       scoring_config: ExperimentsTableSchema.shape.scoring_config,
       total_count: z.number(),
@@ -781,7 +814,15 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
   returns: z.object({
     experiment_id: zid("experiments"),
     experiment_tag: z.string(),
+    study_kind: ExperimentsTableSchema.shape.study_kind,
+    evidence_source_kind: ExperimentsTableSchema.shape.evidence_source_kind,
+    pool_id: zid("pools").optional(),
+    evidence_set_id: zid("evidence_sets").optional(),
     bundle_plan_id: zid("bundle_plans").optional(),
+    rubric_source_kind: ExperimentsTableSchema.shape.rubric_source_kind,
+    compatibility_mode: ExperimentsTableSchema.shape.compatibility_mode,
+    task_contract: ExperimentsTableSchema.shape.task_contract,
+    output_contract: ExperimentsTableSchema.shape.output_contract,
     rubric_config: ExperimentsTableSchema.shape.rubric_config,
     scoring_config: ExperimentsTableSchema.shape.scoring_config,
     total_count: z.number(),
@@ -956,10 +997,12 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.experiments_service.getRunSummary,
       { run_id },
     );
-    const evidenceLinks = await ctx.db
-      .query("pool_evidences")
-      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
-      .collect();
+    const evidenceLinks = experiment.pool_id
+      ? await ctx.db
+        .query("pool_evidences")
+        .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id!))
+        .collect()
+      : [];
     const scoreTargetsPerSample = evidenceLinks.length > 0
       ? Math.ceil(
         evidenceLinks.length

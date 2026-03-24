@@ -2,12 +2,27 @@ import z from "zod";
 import { RubricStageConfigSchema, ScoringStageConfigSchema, StateStatusSchema } from "./_shared";
 import { zid } from "convex-helpers/server/zod4";
 import { RunStageKeySchema } from "@judge-gym/engine-settings/process";
+import {
+  CompatibilityModeSchema,
+  EvidenceSourceKindSchema,
+  OutputContractSchema,
+  RubricSourceKindSchema,
+  StudyKindSchema,
+  TaskContractSchema,
+} from "@judge-gym/engine-prompts/run";
 
 
 export const ExperimentsTableSchema = z.object({
     experiment_tag: z.string(),
-    pool_id: zid("pools"),
-    bundle_plan_id: zid("bundle_plans").optional(),
+    study_kind: StudyKindSchema,
+    evidence_source_kind: EvidenceSourceKindSchema,
+    pool_id: zid("pools").nullable().optional(),
+    evidence_set_id: zid("evidence_sets").nullable().optional(),
+    bundle_plan_id: zid("bundle_plans").nullable().optional(),
+    rubric_source_kind: RubricSourceKindSchema,
+    compatibility_mode: CompatibilityModeSchema,
+    task_contract: TaskContractSchema,
+    output_contract: OutputContractSchema,
     rubric_config: RubricStageConfigSchema,
     scoring_config: ScoringStageConfigSchema,
     total_count: z.number(),

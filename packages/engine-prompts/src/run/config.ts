@@ -25,6 +25,65 @@ export const RandomizationModeSchema = z.enum([
   "hide_label_text",
 ]);
 
+export const StudyKindSchema = z.enum([
+  "pilot",
+  "paper_audit",
+  "benchmark",
+  "regime_check",
+]);
+
+export type StudyKind = z.infer<typeof StudyKindSchema>;
+
+export const EvidenceSourceKindSchema = z.enum([
+  "pool",
+  "evidence_set",
+]);
+
+export type EvidenceSourceKind = z.infer<typeof EvidenceSourceKindSchema>;
+
+export const RubricSourceKindSchema = z.enum([
+  "generate",
+  "imported_rubric",
+  "imported_codebook",
+  "direct_labels",
+]);
+
+export type RubricSourceKind = z.infer<typeof RubricSourceKindSchema>;
+
+export const CompatibilityModeSchema = z.enum([
+  "native",
+  "paper_faithful",
+  "paper_translated",
+  "stress_test",
+]);
+
+export type CompatibilityMode = z.infer<typeof CompatibilityModeSchema>;
+
+export const TaskContractSchema = z.object({
+  task_kind: z.enum([
+    "stage_judgment",
+    "label_classification",
+    "ordinal_scoring",
+  ]),
+  label_space_json: z.string().nullable().optional(),
+  instructions_json: z.string().nullable().optional(),
+  prompt_template_id: z.string().nullable().optional(),
+});
+
+export type TaskContract = z.infer<typeof TaskContractSchema>;
+
+export const OutputContractSchema = z.object({
+  kind: z.enum([
+    "verdict_line",
+    "structured_json",
+    "label",
+  ]),
+  schema_version: z.string(),
+  parser_key: z.string(),
+});
+
+export type OutputContract = z.infer<typeof OutputContractSchema>;
+
 export const RubricStageConfigSchema = z.object({
   model: modelTypeSchema,
   scale_size: z.number(),
@@ -60,6 +119,12 @@ export type ExperimentConfig = {
     bundle_strategy_version?: string;
     clustering_seed?: number;
   };
+  study_kind?: StudyKind;
+  evidence_source_kind?: EvidenceSourceKind;
+  rubric_source_kind?: RubricSourceKind;
+  compatibility_mode?: CompatibilityMode;
+  task_contract?: TaskContract;
+  output_contract?: OutputContract;
 };
 
 export function normalizeExperimentConfig<T extends {
@@ -79,10 +144,33 @@ export function normalizeExperimentConfig<T extends {
     bundle_strategy_version?: string;
     clustering_seed?: number;
   };
+  study_kind?: StudyKind;
+  evidence_source_kind?: EvidenceSourceKind;
+  rubric_source_kind?: RubricSourceKind;
+  compatibility_mode?: CompatibilityMode;
+  task_contract?: TaskContract;
+  output_contract?: OutputContract;
 }>(config: T): ExperimentConfig {
   return {
     rubric_config: config.rubric_config,
     scoring_config: config.scoring_config,
+    study_kind: config.study_kind ?? "pilot",
+    evidence_source_kind: config.evidence_source_kind ?? "pool",
+    rubric_source_kind: config.rubric_source_kind ?? "generate",
+    compatibility_mode: config.compatibility_mode ?? "native",
+    task_contract: config.task_contract ?? {
+      task_kind: "stage_judgment",
+      label_space_json: null,
+      instructions_json: null,
+      prompt_template_id: null,
+    },
+    output_contract: config.output_contract ?? {
+      kind: "verdict_line",
+      schema_version: "v1",
+      parser_key: config.scoring_config.method === "subset"
+        ? "subset_verdict"
+        : "single_verdict",
+    },
   };
 }
 

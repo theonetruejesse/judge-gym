@@ -159,6 +159,13 @@ export const createRun = zInternalMutation({
     const { experiment_id, target_count } = args;
     const rawExperiment = await ctx.db.get(experiment_id);
     if (!rawExperiment) throw new Error("Experiment not found");
+    if (rawExperiment.evidence_source_kind !== "pool" || !rawExperiment.pool_id) {
+      throw new Error(
+        "Run materialization currently supports only pool-backed experiments. "
+        + "Evidence-set-backed V4 experiments need the next run-materialization rewrite.",
+      );
+    }
+    const poolId = rawExperiment.pool_id;
     const experiment = rawExperiment;
     const experimentConfig = normalizeExperimentConfig(rawExperiment);
 
@@ -196,7 +203,7 @@ export const createRun = zInternalMutation({
 
     const evidenceLinks = await ctx.db
       .query("pool_evidences")
-      .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
+      .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
       .collect();
     const orderedLinks = evidenceLinks
       .slice()

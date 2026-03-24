@@ -139,7 +139,41 @@ async function listEvidenceLinks(
   return ctx.db
     .query("pool_evidences")
     .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
-    .collect();
+      .collect();
+}
+
+async function getEvidenceSelectionSummary(
+  ctx: QueryCtx,
+  experiment: Doc<"experiments">,
+  evidenceCache: Map<Id<"evidences">, Doc<"evidences">>,
+) {
+  if (experiment.evidence_source_kind === "pool" && experiment.pool_id) {
+    const links = await listEvidenceLinks(ctx, experiment.pool_id);
+    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+    return {
+      evidence_selected_count: links.length,
+      window_count: windowIds.size,
+      window_ids: Array.from(windowIds),
+    };
+  }
+
+  if (experiment.evidence_source_kind === "evidence_set" && experiment.evidence_set_id) {
+    const setItems = await ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", experiment.evidence_set_id!))
+      .collect();
+    return {
+      evidence_selected_count: setItems.length,
+      window_count: 0,
+      window_ids: [] as string[],
+    };
+  }
+
+  return {
+    evidence_selected_count: 0,
+    window_count: 0,
+    window_ids: [] as string[],
+  };
 }
 
 async function collectWindowIdsForLinks(
@@ -172,7 +206,15 @@ async function buildExperimentRows(
   const results = [] as Array<{
     experiment_id: Id<"experiments">;
     experiment_tag: string;
+    study_kind: Doc<"experiments">["study_kind"];
+    evidence_source_kind: Doc<"experiments">["evidence_source_kind"];
+    pool_id?: Id<"pools">;
+    evidence_set_id?: Id<"evidence_sets">;
     bundle_plan_id?: Id<"bundle_plans">;
+    rubric_source_kind: Doc<"experiments">["rubric_source_kind"];
+    compatibility_mode: Doc<"experiments">["compatibility_mode"];
+    task_contract: Doc<"experiments">["task_contract"];
+    output_contract: Doc<"experiments">["output_contract"];
     rubric_config: Doc<"experiments">["rubric_config"];
     scoring_config: Doc<"experiments">["scoring_config"];
     total_count: number;
@@ -209,8 +251,7 @@ async function buildExperimentRows(
       .query("runs")
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
-    const links = await listEvidenceLinks(ctx, experiment.pool_id);
-    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment, evidenceCache);
     const latest = latestRun(experimentRuns);
     const totalCount = typeof experiment.total_count === "number"
       ? experiment.total_count
@@ -229,12 +270,20 @@ async function buildExperimentRows(
     results.push({
       experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
-      bundle_plan_id: experiment.bundle_plan_id,
+      study_kind: experiment.study_kind,
+      evidence_source_kind: experiment.evidence_source_kind,
+      pool_id: experiment.pool_id ?? undefined,
+      evidence_set_id: experiment.evidence_set_id ?? undefined,
+      bundle_plan_id: experiment.bundle_plan_id ?? undefined,
+      rubric_source_kind: experiment.rubric_source_kind,
+      compatibility_mode: experiment.compatibility_mode,
+      task_contract: experiment.task_contract,
+      output_contract: experiment.output_contract,
       rubric_config: experiment.rubric_config,
       scoring_config: experiment.scoring_config,
       total_count: totalCount,
-      evidence_selected_count: links.length,
-      window_count: windowIds.size,
+      evidence_selected_count: evidenceSelection.evidence_selected_count,
+      window_count: evidenceSelection.window_count,
       status: deriveExperimentStatus(experimentRuns),
       latest_run: latest
         ? {
@@ -301,9 +350,8 @@ export const getExperimentSummary = zInternalQuery({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
 
-    const links = await listEvidenceLinks(ctx, experiment.pool_id);
     const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
-    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
+    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment, evidenceCache);
     const runArtifacts = await Promise.all(
       runs.map(async (run) => {
         const samples = await ctx.db
@@ -352,13 +400,21 @@ export const getExperimentSummary = zInternalQuery({
     return {
       experiment_id: experiment._id,
       experiment_tag: experiment.experiment_tag,
-      bundle_plan_id: experiment.bundle_plan_id,
+      study_kind: experiment.study_kind,
+      evidence_source_kind: experiment.evidence_source_kind,
+      pool_id: experiment.pool_id ?? undefined,
+      evidence_set_id: experiment.evidence_set_id ?? undefined,
+      bundle_plan_id: experiment.bundle_plan_id ?? undefined,
+      rubric_source_kind: experiment.rubric_source_kind,
+      compatibility_mode: experiment.compatibility_mode,
+      task_contract: experiment.task_contract,
+      output_contract: experiment.output_contract,
       rubric_config: experiment.rubric_config,
       scoring_config: experiment.scoring_config,
       total_count: totalCount,
-      evidence_selected_count: links.length,
-      window_count: windowIds.size,
-      window_ids: Array.from(windowIds),
+      evidence_selected_count: evidenceSelection.evidence_selected_count,
+      window_count: evidenceSelection.window_count,
+      window_ids: evidenceSelection.window_ids,
       run_count: runs.length,
       status: deriveExperimentStatus(runs),
       latest_run: latest
@@ -428,6 +484,9 @@ export const listExperimentEvidence = zInternalQuery({
   handler: async (ctx, { experiment_id }) => {
     const experiment = await ctx.db.get(experiment_id);
     if (!experiment) throw new Error("Experiment not found");
+    if (experiment.evidence_source_kind !== "pool" || !experiment.pool_id) {
+      return [];
+    }
     const links = await listEvidenceLinks(ctx, experiment.pool_id);
     const evidenceRows: Array<{
       evidence_id: Id<"evidences">;

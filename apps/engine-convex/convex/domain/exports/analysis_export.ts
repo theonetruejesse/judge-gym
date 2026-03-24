@@ -174,6 +174,18 @@ export function analysisPageResultSchema<T extends z.ZodTypeAny>(item: T) {
 type NormalizedExperiment = z.infer<typeof NormalizedExperimentSchema>;
 type AnalysisRunSummary = z.infer<typeof AnalysisRunSummarySchema>;
 
+function requirePoolBackedExperiment(
+  experiment: Doc<"experiments">,
+): Id<"pools"> {
+  if (!experiment.pool_id) {
+    throw new Error(
+      `Analysis exports currently require a pool-backed experiment. `
+      + `Experiment "${experiment.experiment_tag}" uses source "${experiment.evidence_source_kind}".`,
+    );
+  }
+  return experiment.pool_id;
+}
+
 function normalizePageArgs(args: z.infer<typeof AnalysisPaginationArgsSchema>) {
   const limit = args.limit ?? DEFAULT_PAGE_LIMIT;
   const offset = args.cursor == null || args.cursor === ""
@@ -280,7 +292,8 @@ async function normalizeExperiment(
   ctx: QueryCtx,
   experiment: Doc<"experiments">,
 ): Promise<NormalizedExperiment> {
-  const poolTag = await getPoolTag(ctx, experiment.pool_id);
+  const poolId = requirePoolBackedExperiment(experiment);
+  const poolTag = await getPoolTag(ctx, poolId);
   const bundlePlan = experiment.bundle_plan_id
     ? await ctx.db.get(experiment.bundle_plan_id)
     : null;
@@ -290,7 +303,7 @@ async function normalizeExperiment(
   return {
     experiment_id: experiment._id,
     experiment_tag: experiment.experiment_tag,
-    pool_id: experiment.pool_id,
+    pool_id: poolId,
     pool_tag: poolTag,
     bundle_plan_id: experiment.bundle_plan_id ?? null,
     bundle_plan_tag: bundlePlan?.bundle_plan_tag ?? null,
@@ -305,7 +318,7 @@ async function normalizeExperiment(
     evidence_count: experiment.total_count > 0 ? experiment.total_count : (
       await ctx.db
         .query("pool_evidences")
-        .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id))
+        .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
         .collect()
     ).length,
     model_id: experiment.scoring_config.model,
@@ -364,6 +377,7 @@ async function resolveManifest(
   }
 
   const normalizedExperiment = await normalizeExperiment(ctx, experiment);
+  const poolId = requirePoolBackedExperiment(experiment);
   const samples = await ctx.db
     .query("samples")
     .withIndex("by_run", (q) => q.eq("run_id", run._id))
@@ -376,7 +390,7 @@ async function resolveManifest(
     .query("scores")
     .withIndex("by_run", (q) => q.eq("run_id", run._id))
     .collect();
-  const poolEvidenceRows = await getPoolEvidenceRows(ctx, experiment.pool_id);
+  const poolEvidenceRows = await getPoolEvidenceRows(ctx, poolId);
 
   return {
     experiment,
@@ -441,7 +455,10 @@ async function buildEvidenceContext(
   ctx: QueryCtx,
   experiment: Doc<"experiments">,
 ) {
-  const poolEvidenceRows = await getPoolEvidenceRows(ctx, experiment.pool_id);
+  const poolEvidenceRows = await getPoolEvidenceRows(
+    ctx,
+    requirePoolBackedExperiment(experiment),
+  );
   const evidenceLabelById = new Map<string, string>();
   const evidenceById = new Map<string, Doc<"evidences">>();
   poolEvidenceRows.forEach(({ evidence }, index) => {
@@ -681,7 +698,7 @@ export const listAnalysisEvidence = zInternalQuery({
     const manifest = await resolveManifest(ctx, { run_id: args.run_id });
     const { experiment, run } = manifest;
     const pagination = args.pagination ?? {};
-    const poolTag = await getPoolTag(ctx, experiment.pool_id);
+    const poolTag = await getPoolTag(ctx, requirePoolBackedExperiment(experiment));
     const { poolEvidenceRows } = await buildEvidenceContext(ctx, experiment);
     const rows = poolEvidenceRows.map(({ evidence }, index) => ({
       evidence_id: evidence._id,
