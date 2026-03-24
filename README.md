@@ -54,6 +54,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - The Temporal window path now persists workflow bindings on `windows`, stage-scoped attempt/error refs on `evidences`, and an append-only `llm_attempts` / `llm_attempt_payloads` ledger for prompt + response audit.
 - Experiment runs are now also started from the Convex engine and executed by a Temporal-owned `RunWorkflow` across `rubric_gen`, `rubric_critic`, `score_gen`, and `score_critic`.
 - Experiment definitions now carry explicit V4 study metadata: `study_kind`, `evidence_source_kind`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, and `output_contract`.
+- Experiment initialization is now evidence-set-first: `packages/lab:initExperiment` requires `evidence_set_id`, engine-prompt defaults now normalize to `evidence_source_kind = "evidence_set"`, and pool/bundle-plan arguments are rejected on the live V4 path.
 - The Temporal run path now persists workflow bindings on `runs`, per-stage attempt/error refs on `samples` and `sample_score_targets`, and writes run artifacts against the `llm_attempts` ledger instead of the legacy request queue.
 - Score parsing now dispatches through `output_contract.parser_key`, so the backend can handle legacy `VERDICT:` lines plus new `LABEL:` and structured-JSON scoring outputs for compatibility studies.
 - Greenfield run materialization is now evidence-set-native: `createRun` resolves each score-target item to an `evidence_item`, the exact `evidence_view` (when pinned/resolved), and the concrete storage-backed content asset that will be judged.
@@ -125,8 +126,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - OpenAI batch-backed score stages now align their wait budget with the provider's `24h` completion window, and the Temporal stage activity timeout stays above that window so true long-tail provider stalls still fail with an explicit batch-timeout error instead of a shorter workflow ceiling.
 - Synthetic fault injection was used for temporary stress testing and is now removed from runtime settings. Historical matrix reports remain under `apps/engine-convex/docs/`.
 - Convex engine tests include a full-run orchestration telemetry case for reproducing and verifying fixes for duplicate apply behavior.
-- Experiment initialization now targets reusable evidence pools via `pool_id` + `pool_evidences`.
-- The corrected V3 matrix is now codified in-engine and can be materialized deterministically from a single pool through `packages/codex:getV3MatrixContract` and `packages/codex:initV3MatrixFromPool`; the init script defaults to the manifest’s explicit experiment tags unless you pass `--all-experiments`.
+- Experiment initialization now targets reusable `evidence_sets` via `evidence_set_id`.
+- `packages/codex:getV3MatrixContract` remains as a historical contract artifact, but `packages/codex:initV3MatrixFromPool` is no longer part of the greenfield V4 execution path.
 - The lab UI supports creating experiments, selecting evidence, and starting runs.
 - The lab experiment surfaces now expose `latest_run.current_stage_progress`, so the runs table shows partial current-stage progress instead of only coarse finalized run counters.
 - Lab UI form controls (selects and date pickers) are Radix-based and wired through shadcn `FormControl`.
@@ -235,7 +236,7 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- | --- |
 | `pools` | Reusable evidence pools | `pool_tag`, `evidence_count` |
 | `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
-| `experiments` | Experiment configs for V4 evidence sets, plus transitional pool fields still present in schema | `experiment_tag`, `study_kind`, `evidence_source_kind`, `pool_id`, `evidence_set_id`, `bundle_plan_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
+| `experiments` | Experiment configs for V4 evidence sets | `experiment_tag`, `study_kind`, `evidence_source_kind`, `pool_id`, `evidence_set_id`, `bundle_plan_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters, `workflow_id`, `workflow_run_id`, `last_error_message` |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count`, `rubric_gen_*`, `rubric_critic_*` |
 | `sample_score_targets` | Frozen run score targets | `run_id`, `sample_id`, `score_id`, `score_critic_id`, `score_gen_*`, `score_critic_*` |

@@ -132,68 +132,29 @@ function currentStageProgressFromSnapshot(
   };
 }
 
-async function listEvidenceLinks(
-  ctx: QueryCtx,
-  poolId: Id<"pools">,
-) {
-  return ctx.db
-    .query("pool_evidences")
-    .withIndex("by_pool", (q) => q.eq("pool_id", poolId))
-      .collect();
-}
-
 async function getEvidenceSelectionSummary(
   ctx: QueryCtx,
   experiment: Doc<"experiments">,
-  evidenceCache: Map<Id<"evidences">, Doc<"evidences">>,
 ) {
-  if (experiment.evidence_source_kind === "pool" && experiment.pool_id) {
-    const links = await listEvidenceLinks(ctx, experiment.pool_id);
-    const windowIds = await collectWindowIdsForLinks(ctx, links, evidenceCache);
-    return {
-      evidence_selected_count: links.length,
-      window_count: windowIds.size,
-      window_ids: Array.from(windowIds),
-    };
+  if (!experiment.evidence_set_id) {
+    throw new Error("Greenfield V4 experiments require evidence_set_id");
   }
 
-  if (experiment.evidence_source_kind === "evidence_set" && experiment.evidence_set_id) {
-    const setItems = await ctx.db
-      .query("evidence_set_items")
-      .withIndex("by_set", (q) => q.eq("evidence_set_id", experiment.evidence_set_id!))
-      .collect();
-    return {
-      evidence_selected_count: setItems.length,
-      window_count: 0,
-      window_ids: [] as string[],
-    };
+  const evidenceSet = await ctx.db.get(experiment.evidence_set_id);
+  if (!evidenceSet) {
+    throw new Error("Evidence set not found for experiment");
   }
 
+  const setItems = await ctx.db
+    .query("evidence_set_items")
+    .withIndex("by_set", (q) => q.eq("evidence_set_id", experiment.evidence_set_id!))
+    .collect();
   return {
-    evidence_selected_count: 0,
-    window_count: 0,
-    window_ids: [] as string[],
+    evidence_selected_count: setItems.length,
+    evidence_set_tag: evidenceSet.evidence_set_tag,
+    evidence_set_quality_label: evidenceSet.quality_label,
+    evidence_set_source_kind: evidenceSet.source_kind,
   };
-}
-
-async function collectWindowIdsForLinks(
-  ctx: QueryCtx,
-  links: Doc<"pool_evidences">[],
-  evidenceCache: Map<Id<"evidences">, Doc<"evidences">>,
-) {
-  const windowIds = new Set<string>();
-  for (const link of links) {
-    let evidence = evidenceCache.get(link.evidence_id);
-    if (!evidence) {
-      const fetched = await ctx.db.get(link.evidence_id);
-      if (fetched) {
-        evidence = fetched;
-        evidenceCache.set(link.evidence_id, fetched);
-      }
-    }
-    if (evidence) windowIds.add(String(evidence.window_id));
-  }
-  return windowIds;
 }
 
 async function buildExperimentRows(
@@ -202,15 +163,15 @@ async function buildExperimentRows(
 ) {
   experiments.sort((a, b) => a.experiment_tag.localeCompare(b.experiment_tag));
 
-  const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
   const results = [] as Array<{
     experiment_id: Id<"experiments">;
     experiment_tag: string;
     study_kind: Doc<"experiments">["study_kind"];
     evidence_source_kind: Doc<"experiments">["evidence_source_kind"];
-    pool_id?: Id<"pools">;
-    evidence_set_id?: Id<"evidence_sets">;
-    bundle_plan_id?: Id<"bundle_plans">;
+    evidence_set_id: Id<"evidence_sets">;
+    evidence_set_tag: string | null;
+    evidence_set_quality_label: Doc<"evidence_sets">["quality_label"];
+    evidence_set_source_kind: Doc<"evidence_sets">["source_kind"];
     rubric_source_kind: Doc<"experiments">["rubric_source_kind"];
     compatibility_mode: Doc<"experiments">["compatibility_mode"];
     task_contract: Doc<"experiments">["task_contract"];
@@ -219,7 +180,6 @@ async function buildExperimentRows(
     scoring_config: Doc<"experiments">["scoring_config"];
     total_count: number;
     evidence_selected_count: number;
-    window_count: number;
     status: z.infer<typeof StateStatusSchema>;
     latest_run?: {
       run_id: Id<"runs">;
@@ -247,11 +207,16 @@ async function buildExperimentRows(
   }>;
 
   for (const experiment of experiments) {
+    if (!experiment.evidence_set_id) {
+      throw new Error(
+        `Greenfield V4 experiment summary requires evidence_set_id for ${experiment.experiment_tag}`,
+      );
+    }
     const experimentRuns = await ctx.db
       .query("runs")
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
-    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment, evidenceCache);
+    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment);
     const latest = latestRun(experimentRuns);
     const totalCount = typeof experiment.total_count === "number"
       ? experiment.total_count
@@ -272,9 +237,10 @@ async function buildExperimentRows(
       experiment_tag: experiment.experiment_tag,
       study_kind: experiment.study_kind,
       evidence_source_kind: experiment.evidence_source_kind,
-      pool_id: experiment.pool_id ?? undefined,
-      evidence_set_id: experiment.evidence_set_id ?? undefined,
-      bundle_plan_id: experiment.bundle_plan_id ?? undefined,
+      evidence_set_id: experiment.evidence_set_id,
+      evidence_set_tag: evidenceSelection.evidence_set_tag,
+      evidence_set_quality_label: evidenceSelection.evidence_set_quality_label,
+      evidence_set_source_kind: evidenceSelection.evidence_set_source_kind,
       rubric_source_kind: experiment.rubric_source_kind,
       compatibility_mode: experiment.compatibility_mode,
       task_contract: experiment.task_contract,
@@ -283,7 +249,6 @@ async function buildExperimentRows(
       scoring_config: experiment.scoring_config,
       total_count: totalCount,
       evidence_selected_count: evidenceSelection.evidence_selected_count,
-      window_count: evidenceSelection.window_count,
       status: deriveExperimentStatus(experimentRuns),
       latest_run: latest
         ? {
@@ -350,8 +315,12 @@ export const getExperimentSummary = zInternalQuery({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
 
-    const evidenceCache = new Map<Id<"evidences">, Doc<"evidences">>();
-    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment, evidenceCache);
+    if (!experiment.evidence_set_id) {
+      throw new Error(
+        `Greenfield V4 experiment summary requires evidence_set_id for ${experiment.experiment_tag}`,
+      );
+    }
+    const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment);
     const runArtifacts = await Promise.all(
       runs.map(async (run) => {
         const samples = await ctx.db
@@ -402,9 +371,10 @@ export const getExperimentSummary = zInternalQuery({
       experiment_tag: experiment.experiment_tag,
       study_kind: experiment.study_kind,
       evidence_source_kind: experiment.evidence_source_kind,
-      pool_id: experiment.pool_id ?? undefined,
-      evidence_set_id: experiment.evidence_set_id ?? undefined,
-      bundle_plan_id: experiment.bundle_plan_id ?? undefined,
+      evidence_set_id: experiment.evidence_set_id,
+      evidence_set_tag: evidenceSelection.evidence_set_tag,
+      evidence_set_quality_label: evidenceSelection.evidence_set_quality_label,
+      evidence_set_source_kind: evidenceSelection.evidence_set_source_kind,
       rubric_source_kind: experiment.rubric_source_kind,
       compatibility_mode: experiment.compatibility_mode,
       task_contract: experiment.task_contract,
@@ -413,8 +383,6 @@ export const getExperimentSummary = zInternalQuery({
       scoring_config: experiment.scoring_config,
       total_count: totalCount,
       evidence_selected_count: evidenceSelection.evidence_selected_count,
-      window_count: evidenceSelection.window_count,
-      window_ids: evidenceSelection.window_ids,
       run_count: runs.length,
       status: deriveExperimentStatus(runs),
       latest_run: latest

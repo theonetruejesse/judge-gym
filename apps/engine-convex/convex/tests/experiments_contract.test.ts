@@ -122,9 +122,9 @@ describe("experiment contract", () => {
     expect(summary.experiment_tag).toBe("v4_contract_experiment");
     expect(summary.evidence_source_kind).toBe("evidence_set");
     expect(summary.evidence_set_id).toBe(evidence_set_id);
-    expect(summary.pool_id).toBeUndefined();
+    expect(summary.evidence_set_tag).toBe("contract-set");
+    expect(summary.evidence_set_quality_label).toBe("high");
     expect(summary.evidence_selected_count).toBe(1);
-    expect(summary.window_count).toBe(0);
     expect(summary.rubric_source_kind).toBe("imported_codebook");
     expect(summary.compatibility_mode).toBe("paper_faithful");
     expect(summary.output_contract.parser_key).toBe("label_choice");

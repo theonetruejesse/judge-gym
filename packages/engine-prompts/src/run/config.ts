@@ -35,7 +35,6 @@ export const StudyKindSchema = z.enum([
 export type StudyKind = z.infer<typeof StudyKindSchema>;
 
 export const EvidenceSourceKindSchema = z.enum([
-  "pool",
   "evidence_set",
 ]);
 
@@ -154,8 +153,8 @@ export function normalizeExperimentConfig<T extends {
   return {
     rubric_config: config.rubric_config,
     scoring_config: config.scoring_config,
-    study_kind: config.study_kind ?? "pilot",
-    evidence_source_kind: config.evidence_source_kind ?? "pool",
+    study_kind: config.study_kind ?? "paper_audit",
+    evidence_source_kind: config.evidence_source_kind ?? "evidence_set",
     rubric_source_kind: config.rubric_source_kind ?? "generate",
     compatibility_mode: config.compatibility_mode ?? "native",
     task_contract: config.task_contract ?? {

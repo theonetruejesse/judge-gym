@@ -550,39 +550,39 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_tag: z.string().optional(),
     experiment_config: ExperimentConfigInputSchema,
-    pool_id: zid("pools").optional(),
     evidence_set_id: zid("evidence_sets").optional(),
+    pool_id: zid("pools").optional(),
     bundle_plan_id: zid("bundle_plans").optional(),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
   }),
   handler: async (ctx, args) => {
-    const { experiment_config, pool_id, evidence_set_id, bundle_plan_id } = args;
+    const { experiment_config, evidence_set_id } = args;
+    if (!evidence_set_id) {
+      throw new Error(
+        "Greenfield V4 experiments require evidence_set_id. "
+        + "Legacy pool-backed experiment initialization is removed.",
+      );
+    }
+    if (args.pool_id || args.bundle_plan_id) {
+      throw new Error(
+        "Greenfield V4 experiments no longer accept pool_id or bundle_plan_id.",
+      );
+    }
 
     const experiment_id: Id<"experiments"> = await ctx.runMutation(internal.domain.runs.experiments_repo.createExperiment,
       {
         experiment_tag: args.experiment_tag,
         ...experiment_config,
-        pool_id,
         evidence_set_id,
-        bundle_plan_id,
       }
     );
-    const evidenceCount = pool_id
-      ? (
-        await ctx.runQuery(
-          internal.domain.runs.pool_repo.listPoolEvidenceLinks,
-          { pool_id },
-        )
-      ).length
-      : evidence_set_id
-        ? (
-          await ctx.runQuery(internal.domain.evidence.evidence_repo.listEvidenceSetItems, {
-            evidence_set_id,
-          })
-        ).length
-        : 0;
+    const evidenceCount = (
+      await ctx.runQuery(internal.domain.evidence.evidence_repo.listEvidenceSetItems, {
+        evidence_set_id,
+      })
+    ).length;
     await emitTraceEvent(ctx, {
       trace_id: `experiment:${experiment_id}`,
       entity_type: "run",
@@ -761,9 +761,10 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       experiment_tag: z.string(),
       study_kind: ExperimentsTableSchema.shape.study_kind,
       evidence_source_kind: ExperimentsTableSchema.shape.evidence_source_kind,
-      pool_id: zid("pools").optional(),
-      evidence_set_id: zid("evidence_sets").optional(),
-      bundle_plan_id: zid("bundle_plans").optional(),
+      evidence_set_id: zid("evidence_sets"),
+      evidence_set_tag: z.string().nullable(),
+      evidence_set_quality_label: z.string(),
+      evidence_set_source_kind: z.string(),
       rubric_source_kind: ExperimentsTableSchema.shape.rubric_source_kind,
       compatibility_mode: ExperimentsTableSchema.shape.compatibility_mode,
       task_contract: ExperimentsTableSchema.shape.task_contract,
@@ -772,7 +773,6 @@ export const listExperiments: ReturnType<typeof zQuery> = zQuery({
       scoring_config: ExperimentsTableSchema.shape.scoring_config,
       total_count: z.number(),
       evidence_selected_count: z.number(),
-      window_count: z.number(),
       status: z.string(),
       latest_run: z
         .object({
@@ -816,9 +816,10 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
     experiment_tag: z.string(),
     study_kind: ExperimentsTableSchema.shape.study_kind,
     evidence_source_kind: ExperimentsTableSchema.shape.evidence_source_kind,
-    pool_id: zid("pools").optional(),
-    evidence_set_id: zid("evidence_sets").optional(),
-    bundle_plan_id: zid("bundle_plans").optional(),
+    evidence_set_id: zid("evidence_sets"),
+    evidence_set_tag: z.string().nullable(),
+    evidence_set_quality_label: z.string(),
+    evidence_set_source_kind: z.string(),
     rubric_source_kind: ExperimentsTableSchema.shape.rubric_source_kind,
     compatibility_mode: ExperimentsTableSchema.shape.compatibility_mode,
     task_contract: ExperimentsTableSchema.shape.task_contract,
@@ -827,8 +828,6 @@ export const getExperimentSummary: ReturnType<typeof zQuery> = zQuery({
     scoring_config: ExperimentsTableSchema.shape.scoring_config,
     total_count: z.number(),
     evidence_selected_count: z.number(),
-    window_count: z.number(),
-    window_ids: z.array(z.string()),
     run_count: z.number(),
     status: z.string(),
     latest_run: z.object({
@@ -1001,15 +1000,15 @@ export const getRunDiagnostics: ReturnType<typeof zQuery> = zQuery({
       internal.domain.runs.experiments_service.getRunSummary,
       { run_id },
     );
-    const evidenceLinks = experiment.pool_id
+    const evidenceSetItems = experiment.evidence_set_id
       ? await ctx.db
-        .query("pool_evidences")
-        .withIndex("by_pool", (q) => q.eq("pool_id", experiment.pool_id!))
+        .query("evidence_set_items")
+        .withIndex("by_set", (q) => q.eq("evidence_set_id", experiment.evidence_set_id!))
         .collect()
       : [];
-    const scoreTargetsPerSample = evidenceLinks.length > 0
+    const scoreTargetsPerSample = evidenceSetItems.length > 0
       ? Math.ceil(
-        evidenceLinks.length
+        evidenceSetItems.length
           / Math.max(1, experiment.scoring_config.evidence_bundle_size),
       )
       : 0;

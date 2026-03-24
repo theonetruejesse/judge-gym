@@ -8,9 +8,7 @@ export const CreateExperimentArgsSchema = ExperimentsTableSchema.pick({
   experiment_tag: true,
   study_kind: true,
   evidence_source_kind: true,
-  pool_id: true,
   evidence_set_id: true,
-  bundle_plan_id: true,
   rubric_source_kind: true,
   compatibility_mode: true,
   task_contract: true,
@@ -31,9 +29,9 @@ function resolveCreateArgs(
   args: z.infer<typeof CreateExperimentArgsSchema>,
 ) {
   const evidenceSourceKind = args.evidence_source_kind
-    ?? (args.evidence_set_id ? "evidence_set" : "pool");
+    ?? "evidence_set";
   const studyKind = args.study_kind
-    ?? (evidenceSourceKind === "evidence_set" ? "paper_audit" : "pilot");
+    ?? "paper_audit";
   const rubricSourceKind = args.rubric_source_kind ?? "generate";
   const compatibilityMode = args.compatibility_mode ?? "native";
   const taskContract = args.task_contract ?? {
@@ -50,27 +48,20 @@ function resolveCreateArgs(
       : "single_verdict",
   };
 
-  if (evidenceSourceKind === "pool") {
-    if (!args.pool_id) {
-      throw new Error("Pool-backed experiments require pool_id");
-    }
-  } else if (!args.evidence_set_id) {
-    throw new Error("Evidence-set-backed experiments require evidence_set_id");
+  if (evidenceSourceKind !== "evidence_set") {
+    throw new Error("Greenfield V4 experiments only support evidence_set sources");
   }
-
-  if (args.bundle_plan_id) {
-    if (!args.pool_id) {
-      throw new Error("Bundle plans require a pool-backed experiment");
-    }
+  if (!args.evidence_set_id) {
+    throw new Error("Evidence-set-backed experiments require evidence_set_id");
   }
 
   return {
     experiment_tag: args.experiment_tag ?? buildRandomTag(),
     study_kind: studyKind,
     evidence_source_kind: evidenceSourceKind,
-    pool_id: args.pool_id ?? null,
-    evidence_set_id: args.evidence_set_id ?? null,
-    bundle_plan_id: args.bundle_plan_id ?? null,
+    pool_id: null,
+    evidence_set_id: args.evidence_set_id,
+    bundle_plan_id: null,
     rubric_source_kind: rubricSourceKind,
     compatibility_mode: compatibilityMode,
     task_contract: taskContract,
@@ -85,12 +76,9 @@ export const createExperiment = zInternalMutation({
   returns: zid("experiments"),
   handler: async (ctx, args) => {
     const resolved = resolveCreateArgs(args);
-    if (args.bundle_plan_id) {
-      const bundlePlan = await ctx.db.get(args.bundle_plan_id);
-      if (!bundlePlan) throw new Error("Bundle plan not found");
-      if (bundlePlan.pool_id !== args.pool_id) {
-        throw new Error("Bundle plan pool does not match experiment pool");
-      }
+    const evidenceSet = await ctx.db.get(resolved.evidence_set_id);
+    if (!evidenceSet) {
+      throw new Error("Evidence set not found");
     }
     return ctx.db.insert("experiments", {
       ...resolved,
@@ -110,12 +98,9 @@ export const upsertExperimentByTag = zInternalMutation({
   }),
   handler: async (ctx, args) => {
     const resolved = resolveCreateArgs(args);
-    if (args.bundle_plan_id) {
-      const bundlePlan = await ctx.db.get(args.bundle_plan_id);
-      if (!bundlePlan) throw new Error("Bundle plan not found");
-      if (bundlePlan.pool_id !== args.pool_id) {
-        throw new Error("Bundle plan pool does not match experiment pool");
-      }
+    const evidenceSet = await ctx.db.get(resolved.evidence_set_id);
+    if (!evidenceSet) {
+      throw new Error("Evidence set not found");
     }
 
     const existing = await ctx.db
@@ -136,9 +121,7 @@ export const upsertExperimentByTag = zInternalMutation({
 
     const unchanged = existing.study_kind === resolved.study_kind
       && existing.evidence_source_kind === resolved.evidence_source_kind
-      && existing.pool_id === resolved.pool_id
       && existing.evidence_set_id === resolved.evidence_set_id
-      && existing.bundle_plan_id === resolved.bundle_plan_id
       && existing.rubric_source_kind === resolved.rubric_source_kind
       && existing.compatibility_mode === resolved.compatibility_mode
       && JSON.stringify(existing.task_contract) === JSON.stringify(resolved.task_contract)

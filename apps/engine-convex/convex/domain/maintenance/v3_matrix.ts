@@ -3,8 +3,6 @@ import { zid } from "convex-helpers/server/zod4";
 import { zMutation, zQuery } from "../../utils/custom_fns";
 import { ExperimentsTableSchema } from "../../models/experiments";
 import { BundleStrategySchema, SemanticLevelSchema } from "../../models/_shared";
-import { internal } from "../../_generated/api";
-import type { Id } from "../../_generated/dataModel";
 import type { ModelType } from "@judge-gym/engine-settings/provider";
 
 const DEFAULT_RANDOMIZATIONS = [
@@ -328,29 +326,6 @@ export const V3_MATRIX_EXPERIMENT_SPECS: V3MatrixExperimentSpec[] = [
   }),
 ];
 
-function deriveBundlePlanArgs(
-  poolId: Id<"pools">,
-  spec: V3MatrixExperimentSpec,
-) {
-  const strategy = spec.scoring_config.bundle_strategy ?? "window_round_robin";
-  return {
-    pool_id: poolId,
-    bundle_plan_tag: `${spec.experiment_tag}__plan`,
-    strategy,
-    strategy_version: spec.scoring_config.bundle_strategy_version
-      ?? (strategy === "window_round_robin" ? "legacy_v1" : "v1"),
-    source_view: strategy === "semantic_cluster_projected"
-      ? "l2_neutralized"
-      : strategy === "semantic_cluster"
-        ? spec.scoring_config.evidence_view
-        : null,
-    bundle_size: spec.scoring_config.evidence_bundle_size,
-    seed: strategy === "window_round_robin"
-      ? null
-      : spec.scoring_config.clustering_seed ?? CLUSTERING_SEED,
-  };
-}
-
 export const getV3MatrixContract = zQuery({
   args: z.object({}),
   returns: z.object({
@@ -384,56 +359,10 @@ export const initV3MatrixFromPool = zMutation({
       action: z.enum(["created", "updated", "unchanged", "conflict"]),
     })),
   }),
-  handler: async (ctx, args) => {
-    const selectedSpecs = args.experiment_tags?.length
-      ? V3_MATRIX_EXPERIMENT_SPECS.filter((spec) =>
-          args.experiment_tags?.includes(spec.experiment_tag),
-        )
-      : V3_MATRIX_EXPERIMENT_SPECS;
-    const foundTags = new Set(selectedSpecs.map((spec) => spec.experiment_tag));
-    const missingExperimentTags = (args.experiment_tags ?? []).filter(
-      (tag) => !foundTags.has(tag),
+  handler: async (_ctx, _args) => {
+    throw new Error(
+      "initV3MatrixFromPool is removed in the greenfield V4 engine. "
+      + "Create evidence-set-backed experiments instead.",
     );
-    const rows = [] as Array<{
-      experiment_tag: string;
-      family_slug: string;
-      experiment_id: Id<"experiments">;
-      bundle_plan_id: Id<"bundle_plans">;
-      bundle_plan_tag: string;
-      action: "created" | "updated" | "unchanged" | "conflict";
-    }>;
-
-    for (const spec of selectedSpecs) {
-      const bundlePlan = await ctx.runMutation(
-        internal.domain.runs.bundle_plan_repo.createBundlePlan,
-        deriveBundlePlanArgs(args.pool_id, spec),
-      );
-      const upserted = await ctx.runMutation(
-        internal.domain.runs.experiments_repo.upsertExperimentByTag,
-        {
-          experiment_tag: spec.experiment_tag,
-          pool_id: args.pool_id,
-          bundle_plan_id: bundlePlan.bundle_plan_id,
-          rubric_config: spec.rubric_config,
-          scoring_config: spec.scoring_config,
-          force_reconfigure: args.force_reconfigure,
-        },
-      );
-      rows.push({
-        experiment_tag: spec.experiment_tag,
-        family_slug: spec.family_slug,
-        experiment_id: upserted.experiment_id,
-        bundle_plan_id: bundlePlan.bundle_plan_id,
-        bundle_plan_tag: bundlePlan.bundle_plan_tag,
-        action: upserted.action,
-      });
-    }
-
-    return {
-      pool_id: args.pool_id,
-      experiment_count: rows.length,
-      missing_experiment_tags: missingExperimentTags,
-      rows,
-    };
   },
 });
