@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_v4_002",
+  "areaOfAnalysisID": "A_evidence_schema",
+  "statement": "Wave 1 should introduce a minimal evidence substrate for imported audit datasets rather than the full long-run universe/source/frame/import-job schema in one pass.",
+  "confidence": 0.8,
+  "rationale": "Evidence generalization is necessary, but the falsification pass shows that a maximal schema plus backfill and dual-write would likely become the critical path over the paper itself.",
+  "keyAssumptions": [
+    "Wave-1 audit targets can be served by a smaller invariant set.",
+    "Existing window flows can remain intact during the first audit build-out."
+  ],
+  "validationCriteria": [
+    "Imported audit items can be represented with stable IDs, immutable raw payloads, and explicit rendered views.",
+    "No wave-1 task requires richer structured payloads than the minimal substrate can support."
+  ],
+  "critiquePoints": [
+    "Could require a second refactor if comparator work re-enters quickly."
+  ],
+  "questions": [
+    "Does the chosen wave-1 target require pairwise or multi-turn evidence contracts?"
+  ]
+}

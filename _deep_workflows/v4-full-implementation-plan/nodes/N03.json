@@ -1,0 +1,30 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "runtime-provider-and-stage-engine-planner",
+  "objective": "Produce the implementation plan for the generic V4 stage engine, prompt/config system, provider capability layer, and Anthropic/OpenRouter adapters. Include ticket order and tests for every layer.",
+  "inputs": [
+    "agents/N01/greenfield_contract.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/02_provider_runtime_support_plan.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/03_experiment_prompt_surface_plan.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "requiredOutputs": [
+    "runtime_provider_stage_tickets.md"
+  ],
+  "completionCriteria": [
+    "Emit ordered implementation tickets for config schemas, stage execution, provider registry, adapters, and runtime validation.",
+    "Each ticket must include code surfaces, tests, and a validation command."
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "meta": {
+    "name": "V4 Full Implementation Plan",
+    "slug": "v4-full-implementation-plan",
+    "objective": "Compile a full deep-workflow implementation plan for judge-gym V4 as a greenfield rebuild that lands Media Cloud-centered acquisition, the V4 evidence substrate, prompt/config generalization, provider/runtime abstraction, observability, testing, and the actual V4 experiment setup, with Media Cloud API verification gated on a user-provided key.",
+    "objectiveClass": "greenfield_rebuild_execution_planning",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_only",
+    "status": "compiled",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-full-implementation-plan"
+  },
+  "compile": {
+    "baseHint": "Treat prior V4 research as architecture input, but compile this workflow under greenfield assumptions: compatibility shims are unnecessary, the full target architecture should be built in dependency order, and the actual V4 experiment remains the final epic. The only external dependency gate is a user-provided Media Cloud key for live verification.",
+    "taskSignals": [
+      "User explicitly requested a full implementation workflow plan.",
+      "The project is greenfield and sweeping changes are allowed.",
+      "Implementation should cover acquisition, schema, runtime, prompts, providers, observability, tests, and experiment setup.",
+      "The user explicitly instructed that development starts with an agent-owned `bun dev` session.",
+      "The only required user input should be the Media Cloud key before live API verification."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "seq",
+      "parallel",
+      "analyze",
+      "agent",
+      "patch",
+      "validate",
+      "synthesize"
+    ],
+    "notes": [
+      "This artifact is compile-only in the current turn and is meant to be the execution contract for the future buildout.",
+      "Observability and tests are first-class deliverables and should be implemented alongside feature epics.",
+      "Media Cloud replaces Firecrawl as the discovery layer, but the acquisition system remains split into discovery and hydration.",
+      "Do not begin the actual V4 experiment until the platform epics have passed their validation gates."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/blueprint.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/01_evidence_window_schema_plan.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/02_provider_runtime_support_plan.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/03_experiment_prompt_surface_plan.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/04_v4_self_contained_study_plan.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/05_phased_roadmap.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan/deliverables/07_mediacloud_source_replacement_plan.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-refactor-and-study-planning/synthesis/final_report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/README.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/architecture.md"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.spawn_agent",
+      "functions.send_input",
+      "functions.wait_agent",
+      "web.run"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "analyze",
+        "role": "greenfield-contract-and-acceptance-gates"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "acquisition-and-evidence-implementation-planner"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "runtime-provider-and-stage-engine-planner"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "agent",
+        "role": "observability-and-test-planner"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "agent",
+        "role": "experiment-setup-and-analysis-planner"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "synthesize",
+        "role": "ticket-sequencer-and-dependency-mapper"
+      },
+      {
+        "nodeId": "N07",
+        "kind": "analyze",
+        "role": "execution-gates-and-live-verification-policy"
+      },
+      {
+        "nodeId": "N08",
+        "kind": "synthesize",
+        "role": "lead-final-synthesizer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N07",
+        "to": "N08",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/greenfield_contract.md",
+      "agents/N02/acquisition_evidence_tickets.md",
+      "agents/N03/runtime_provider_stage_tickets.md",
+      "agents/N04/observability_test_tickets.md",
+      "agents/N05/experiment_setup_tickets.md",
+      "agents/N06/implementation_backlog.md",
+      "agents/N07/execution_gates.md",
+      "synthesis/final_report.md"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "decision",
+      "report",
+      "validation_result"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop after compilation in this turn because the user asked for the workflow plan, not immediate implementation.",
+      "When execution begins, stop before live Media Cloud verification until the user supplies the key.",
+      "Do not start the real V4 experiment until acquisition, schema, runtime, observability, and test epics are green."
+    ],
+    "approvalRequired": [
+      "Media Cloud API key before live discovery verification and end-to-end acquisition tests."
+    ],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxParallelPlanningLanes": 4,
+      "testDiscipline": "Every implementation ticket must define unit, integration, and smoke validation before patching begins.",
+      "observabilityDiscipline": "Every new runtime surface must emit traceable process artifacts and debug hooks."
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "nodeId": "N09",
+  "kind": "agent",
+  "role": "mediacloud-source-replacement-researcher",
+  "objective": "Evaluate whether judge-gym V4 should replace Firecrawl with Media Cloud for evidence discovery and ingestion, and specify the correct architecture if Media Cloud is used for query, source selection, and sampling. The analysis must distinguish Media Cloud as a search/discovery/archive surface from Media Cloud as a full raw-content acquisition surface.",
+  "inputs": [
+    "agents/N01/repo_baseline.md",
+    "apps/engine-convex/convex/models/window.ts",
+    "apps/engine-convex/convex/domain/window/evidence_search.ts",
+    "apps/engine-temporal/src/window/service.ts",
+    "README.md",
+    "docs/architecture.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N09/",
+  "requiredOutputs": [
+    "mediacloud_source_plan.md"
+  ],
+  "completionCriteria": [
+    "State whether Media Cloud can fully replace Firecrawl or whether it should be treated as a discovery/query layer with a separate content-acquisition step.",
+    "Produce a concrete recommended integration shape, migration plan, and schema/runtime implications."
+  ]
+}

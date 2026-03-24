@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_v4_005",
+  "areaOfAnalysisID": "A_source_replacement",
+  "statement": "Media Cloud should replace Firecrawl as the discovery and source-selection layer, while raw-content hydration remains a separate fetch capability in wave 1.",
+  "confidence": 0.84,
+  "rationale": "The focused source-replacement pass shows that the current Firecrawl contract conflates discovery and content acquisition, while Media Cloud is structurally stronger as a searchable archive and source-selection surface than as a drop-in raw-content scraper.",
+  "keyAssumptions": [
+    "Wave-1 evidence processing still requires durable raw text outside the discovery layer.",
+    "A separate hydration step can be introduced without collapsing the existing window pipeline."
+  ],
+  "validationCriteria": [
+    "The acquisition design can be expressed as discover, hydrate, then transform.",
+    "The engine preserves upstream discovery metadata alongside fetched content."
+  ],
+  "critiquePoints": [
+    "Retaining Firecrawl as a hydrator may prolong dependency on it longer than desired.",
+    "A better fetcher may need to replace Firecrawl shortly after the split lands."
+  ],
+  "questions": [
+    "Should Firecrawl remain the initial hydrator, or should wave 1 budget include a second fetcher immediately?"
+  ]
+}

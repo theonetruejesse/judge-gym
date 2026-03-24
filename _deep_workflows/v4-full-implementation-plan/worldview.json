@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-full-implementation-plan",
+    "objective": "Compile a full deep-workflow implementation plan for judge-gym V4 as a greenfield rebuild that lands Media Cloud-centered acquisition, the V4 evidence substrate, prompt/config generalization, provider/runtime abstraction, observability, testing, and the actual V4 experiment setup, with Media Cloud API verification gated on a user-provided key.",
+    "objectiveClass": "greenfield_rebuild_execution_planning",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_only"
+  },
+  "status": {
+    "workflow": "compiled",
+    "nodes": {
+      "N01": "planned",
+      "N02": "planned",
+      "N03": "planned",
+      "N04": "planned",
+      "N05": "planned",
+      "N06": "planned",
+      "N07": "planned",
+      "N08": "planned"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "statement": "Treat the V4 build as greenfield and land the full target architecture in dependency order rather than preserving legacy surfaces.",
+      "status": "locked"
+    },
+    {
+      "id": "D02",
+      "statement": "Replace Firecrawl as the search layer with Media Cloud-centered discovery, but keep discovery and hydration as separate acquisition capabilities.",
+      "status": "locked"
+    },
+    {
+      "id": "D03",
+      "statement": "Keep the actual V4 experiment as the final epic after acquisition, schema, runtime, observability, and tests are green.",
+      "status": "locked"
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  },
+  "mergeStatus": {
+    "contract": "planned",
+    "domainPlans": "planned",
+    "backlog": "planned",
+    "executionPolicy": "planned"
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "meta": {
+    "name": "V4 Refactor And Study Planning",
+    "slug": "v4-refactor-and-study-planning",
+    "objective": "Run a custom deep-search-style planning workflow for judge-gym V4 that produces a concrete refactor plan for evidence/window schemas, provider/runtime abstraction for Anthropic and OpenRouter, experiment and prompt-surface generalization, and a self-contained V4 paper/study specification with phased execution deliverables.",
+    "objectiveClass": "research_planning_and_architecture_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-refactor-and-study-planning"
+  },
+  "compile": {
+    "baseHint": "Treat this as a modified deep-search pass compiled through deep-workflow. The target is not implementation; it is a concrete, evidence-backed V4 planning package that covers data-model refactors, provider/runtime generalization for Anthropic and OpenRouter, experiment/prompt-surface redesign, and a self-contained paper program rather than a pilot continuation.",
+    "taskSignals": [
+      "User explicitly requested both deep-search and deep-workflow.",
+      "The first planning priority is the evidence/window schema system.",
+      "V4 should be framed as a self-contained research paper study, not a pilot follow-up.",
+      "Provider support must expand beyond OpenAI, starting with Anthropic and OpenRouter.",
+      "The output should include multiple planning deliverables, not just one memo."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq",
+      "parallel",
+      "search",
+      "agent",
+      "analyze",
+      "falsify",
+      "score",
+      "synthesize"
+    ],
+    "notes": [
+      "The workflow is operationally read-only. live_ops is used because the validator currently expects that mode for workflows with web-backed nodes.",
+      "The lead agent owns all shared artifacts, blueprint updates, and final sequencing decisions.",
+      "The main planning objects are EvidenceUniverse, import/adaptation flow, ScoringRegime generalization, and provider capability abstraction.",
+      "The final package should be immediately useful for scoping implementation work and for shaping the V4 paper."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "/Users/jesselee/dev/research/jg/judge-gym/README.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/architecture.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/paper.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v3_gpt_ablations.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/schema.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/models/window.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/models/bundles.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-convex/convex/models/experiments.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-settings/src/provider.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/packages/engine-prompts/src/run/config.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/runtime.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/llm/openai.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/apps/engine-temporal/src/window/model_registry.ts",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-resource-certainty/synthesis/final_report.md",
+      "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-target-resource-viability/blueprint.md",
+      "/Users/jesselee/Downloads/Threads Export Mar 23 2026.json"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.spawn_agent",
+      "functions.send_input",
+      "functions.wait_agent",
+      "web.run"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "analyze",
+        "role": "repo-baseline-and-criteria-mapper"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "agent",
+        "role": "evidence-schema-researcher"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "agent",
+        "role": "provider-runtime-researcher"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "agent",
+        "role": "experiment-and-prompt-surface-researcher"
+      },
+      {
+        "nodeId": "N05",
+        "kind": "agent",
+        "role": "self-contained-study-designer"
+      },
+      {
+        "nodeId": "N06",
+        "kind": "falsify",
+        "role": "scoping-and-risk-challenger"
+      },
+      {
+        "nodeId": "N07",
+        "kind": "score",
+        "role": "certainty-scorer"
+      },
+      {
+        "nodeId": "N09",
+        "kind": "agent",
+        "role": "mediacloud-source-replacement-researcher"
+      },
+      {
+        "nodeId": "N08",
+        "kind": "synthesize",
+        "role": "lead-synthesizer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N04",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N05",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N06",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N04",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N05",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N01",
+        "to": "N09",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N07",
+        "kind": "seq"
+      },
+      {
+        "from": "N09",
+        "to": "N08",
+        "kind": "seq"
+      },
+      {
+        "from": "N06",
+        "to": "N08",
+        "kind": "seq"
+      },
+      {
+        "from": "N07",
+        "to": "N08",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/repo_baseline.md",
+      "agents/N02/evidence_schema_plan.md",
+      "agents/N03/provider_runtime_plan.md",
+      "agents/N04/experiment_prompt_plan.md",
+      "agents/N05/study_design_plan.md",
+      "agents/N06/null_challenges.md",
+      "agents/N07/certainty_inputs.md",
+      "agents/N09/mediacloud_source_plan.md",
+      "synthesis/final_report.md"
+    ],
+    "artifactTypes": [
+      "evidence",
+      "finding",
+      "hypothesis",
+      "decision",
+      "report"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the workflow produces a concrete planning package for evidence schema refactor, provider support sequencing, prompt/config generalization, and a self-contained V4 study design.",
+      "Do not recommend implementation steps that depend on unsupported assumptions about provider capabilities or current repo abstractions."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "maxWebSearchRounds": 6,
+      "preferredPrimarySources": [
+        "official provider docs",
+        "repository source files",
+        "project docs",
+        "official paper or replication materials"
+      ]
+    }
+  }
+}

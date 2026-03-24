@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "originalQuestion": "Plan the judge-gym V4 refactor and self-contained study design, focusing on evidence/window schema redesign, support for Anthropic and OpenRouter as the first two non-OpenAI provider surfaces, experiment and prompt-surface generalization for paper-audit targets plus contested-concept studies, and the concrete next-step deliverables needed to execute this work.",
+    "runFolderPath": "/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v4-refactor-and-study-plan",
+    "finalPlanPath": "blueprint.md"
+  },
+  "agentRegistry": {
+    "lead": "Codex",
+    "researchers": [
+      {
+        "agentId": "019d20ac-0c72-72f0-abb2-92dcb9b21bfc",
+        "nickname": "Peirce",
+        "area": "A_evidence_schema"
+      },
+      {
+        "agentId": "019d20ac-0c8b-7ba0-8682-8cb23a6f85b0",
+        "nickname": "James",
+        "area": "A_provider_runtime"
+      },
+      {
+        "agentId": "019d20ac-0ca6-7351-a558-57b49bc54e83",
+        "nickname": "Raman",
+        "area": "A_experiment_prompt_surface"
+      },
+      {
+        "agentId": "019d20ac-0ce1-7343-aeab-88464ee68988",
+        "nickname": "Sartre",
+        "area": "A_self_contained_study_design"
+      },
+      {
+        "agentId": "019d2103-cc7f-74c0-b7f9-8d8b4c889813",
+        "nickname": "Wegener",
+        "area": "A_source_replacement"
+      }
+    ],
+    "falsifier": {
+      "agentId": "019d20b0-df1d-74f1-95e7-961def6f094e",
+      "nickname": "Pauli"
+    },
+    "certaintyScorer": {
+      "agentId": "019d20b3-8517-7530-9e8e-b49b8b3958b5",
+      "nickname": "Hypatia"
+    },
+    "synthesizer": "Codex"
+  },
+  "assignments": [
+    {
+      "areaOfAnalysisID": "A_evidence_schema",
+      "scope": "Generalize article windows into a V4 evidence substrate that can support paper imports without breaking current news workflows.",
+      "assignedTo": "Peirce",
+      "evidence": [
+        "knowledge/k_001_repo_baseline_evidence.md",
+        "knowledge/k_002_evidence_schema_evidence.md"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_provider_runtime",
+      "scope": "Plan Anthropic and OpenRouter support through provider capabilities, adapters, and phased rollout.",
+      "assignedTo": "James",
+      "evidence": [
+        "knowledge/k_001_repo_baseline_evidence.md",
+        "knowledge/k_003_provider_runtime_evidence.md"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_experiment_prompt_surface",
+      "scope": "Generalize the rubric/scoring surface for paper audits and contested-concept studies.",
+      "assignedTo": "Raman",
+      "evidence": [
+        "knowledge/k_001_repo_baseline_evidence.md",
+        "knowledge/k_004_experiment_surface_evidence.md"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_self_contained_study_design",
+      "scope": "Define V4 as a standalone paper with a wave-1 scope that does not depend on full platform generalization.",
+      "assignedTo": "Sartre",
+      "evidence": [
+        "knowledge/k_001_repo_baseline_evidence.md",
+        "knowledge/k_005_study_scope_evidence.md"
+      ]
+    },
+    {
+      "areaOfAnalysisID": "A_source_replacement",
+      "scope": "Determine whether Media Cloud should replace Firecrawl and specify the correct discovery-versus-hydration architecture.",
+      "assignedTo": "Wegener",
+      "evidence": [
+        "knowledge/k_001_repo_baseline_evidence.md",
+        "knowledge/k_006_mediacloud_source_evidence.md"
+      ]
+    }
+  ],
+  "knowledgeBase": {
+    "entries": [
+      "knowledge/k_001_repo_baseline_evidence.md",
+      "knowledge/k_002_evidence_schema_evidence.md",
+      "knowledge/k_003_provider_runtime_evidence.md",
+      "knowledge/k_004_experiment_surface_evidence.md",
+      "knowledge/k_005_study_scope_evidence.md",
+      "knowledge/k_006_mediacloud_source_evidence.md"
+    ]
+  },
+  "evidenceReviews": [
+    "null_challenges/nc_v4_scope_challenge.json"
+  ],
+  "certainty": {
+    "reportPath": "certainty/certainty_report.md",
+    "scores": [
+      {
+        "item": "minimal_evidence_substrate_direction",
+        "score": 0.8
+      },
+      {
+        "item": "capability_adapter_provider_layer",
+        "score": 0.85
+      },
+      {
+        "item": "generic_stageplan_in_wave_1",
+        "score": 0.4
+      },
+      {
+        "item": "wave_1_multi_provider_headline_claim",
+        "score": 0.35
+      },
+      {
+        "item": "mediacloud_as_discovery_not_literal_scraper_replacement",
+        "score": 0.84
+      }
+    ]
+  },
+  "areasOfAnalysis": [
+    "A_evidence_schema",
+    "A_provider_runtime",
+    "A_experiment_prompt_surface",
+    "A_self_contained_study_design",
+    "A_source_replacement"
+  ],
+  "microHypotheses": [
+    "hypotheses/hyp_v4_001_wave1_single_audit_spine.json",
+    "hypotheses/hyp_v4_002_minimal_evidence_substrate.json",
+    "hypotheses/hyp_v4_003_provider_capability_layer.json",
+    "hypotheses/hyp_v4_004_defer_generic_stageplan.json",
+    "hypotheses/hyp_v4_005_mediacloud_discovery_split.json"
+  ],
+  "hypothesisConflicts": [],
+  "synthesisOutput": "blueprint.md"
+}

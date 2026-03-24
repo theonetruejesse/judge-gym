@@ -1,0 +1,35 @@
+{
+  "nodeId": "N03",
+  "kind": "agent",
+  "role": "provider-runtime-researcher",
+  "objective": "Plan the provider abstraction and execution model for V4 with Anthropic and OpenRouter as first-class providers. Compare provider capabilities, batching assumptions, routing assumptions, and how the current OpenAI-specific runtime and settings layers should be decomposed into provider capabilities, transport adapters, and execution policies.",
+  "inputs": [
+    "agents/N01/repo_baseline.md",
+    "packages/engine-settings/src/provider.ts",
+    "apps/engine-temporal/src/runtime.ts",
+    "apps/engine-temporal/src/llm/openai.ts",
+    "apps/engine-temporal/src/window/model_registry.ts",
+    "docs/architecture.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "use_web",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "web.run"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "requiredOutputs": [
+    "provider_runtime_plan.md"
+  ],
+  "completionCriteria": [
+    "Document the current OpenAI-specific assumptions and propose a provider-capability matrix.",
+    "Produce a phased execution plan for Anthropic and OpenRouter with explicit tradeoffs."
+  ]
+}

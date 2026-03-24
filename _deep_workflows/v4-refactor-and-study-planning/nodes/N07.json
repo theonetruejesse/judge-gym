@@ -1,0 +1,37 @@
+{
+  "nodeId": "N07",
+  "kind": "score",
+  "role": "certainty-scorer",
+  "objective": "Assign certainty scores to the major V4 recommendations: the evidence-model direction, the provider abstraction direction, the prompt/config generalization direction, the launch paper bundle, and the phased roadmap steps.",
+  "inputs": [
+    "agents/N01/repo_baseline.md",
+    "agents/N02/evidence_schema_plan.md",
+    "agents/N03/provider_runtime_plan.md",
+    "agents/N04/experiment_prompt_plan.md",
+    "agents/N05/study_design_plan.md",
+    "agents/N06/null_challenges.md"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04",
+    "N05",
+    "N06"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N07/",
+  "requiredOutputs": [
+    "certainty_inputs.md"
+  ],
+  "completionCriteria": [
+    "Score the main decisions and the main implementation phases on a 0.0-1.0 scale with rationale.",
+    "Flag the lowest-confidence areas that should gate implementation."
+  ]
+}

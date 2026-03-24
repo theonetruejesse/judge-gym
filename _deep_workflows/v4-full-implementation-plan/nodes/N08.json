@@ -1,0 +1,29 @@
+{
+  "nodeId": "N08",
+  "kind": "synthesize",
+  "role": "lead-final-synthesizer",
+  "objective": "Write the final greenfield V4 implementation workflow plan with epics, ticket order, required tests, observability surfaces, the `bun dev` ownership model, and the external dependency gate for Media Cloud verification.",
+  "inputs": [
+    "agents/N01/greenfield_contract.md",
+    "agents/N06/implementation_backlog.md",
+    "agents/N07/execution_gates.md"
+  ],
+  "dependencies": [
+    "N07"
+  ],
+  "effects": [
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "synthesis/",
+  "requiredOutputs": [
+    "final_report.md"
+  ],
+  "completionCriteria": [
+    "The final report must be directly usable as the execution plan for the next implementation turn.",
+    "The report must include explicit test and observability expectations for each epic."
+  ]
+}

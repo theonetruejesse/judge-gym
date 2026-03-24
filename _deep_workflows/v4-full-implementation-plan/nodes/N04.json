@@ -1,0 +1,30 @@
+{
+  "nodeId": "N04",
+  "kind": "agent",
+  "role": "observability-and-test-planner",
+  "objective": "Produce the implementation plan for observability, diagnostics, fixtures, smoke tests, and operator-facing debug surfaces needed to make the greenfield rebuild safe and inspectable.",
+  "inputs": [
+    "agents/N01/greenfield_contract.md",
+    "README.md",
+    "docs/architecture.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "observability_test_tickets.md"
+  ],
+  "completionCriteria": [
+    "Emit ordered implementation tickets for traces, diagnostics, fixtures, smoke tests, and debug commands.",
+    "Each ticket must include validation and ownership rules."
+  ]
+}

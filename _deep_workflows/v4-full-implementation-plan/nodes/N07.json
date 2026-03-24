@@ -1,0 +1,27 @@
+{
+  "nodeId": "N07",
+  "kind": "analyze",
+  "role": "execution-gates-and-live-verification-policy",
+  "objective": "Specify the live execution policy for the future implementation run: when to start `bun dev`, how the dev session is owned, when to request the Media Cloud key, which live API checks happen before patching, and which validations gate merges between epics.",
+  "inputs": [
+    "agents/N06/implementation_backlog.md"
+  ],
+  "dependencies": [
+    "N06"
+  ],
+  "effects": [
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N07/",
+  "requiredOutputs": [
+    "execution_gates.md"
+  ],
+  "completionCriteria": [
+    "State the exact point where the user is asked for the Media Cloud key.",
+    "State the dev ownership model and the validation loop between implementation tickets."
+  ]
+}

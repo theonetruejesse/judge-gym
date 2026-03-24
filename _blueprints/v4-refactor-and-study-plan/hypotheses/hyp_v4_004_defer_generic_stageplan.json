@@ -1,0 +1,20 @@
+{
+  "microHypothesisID": "h_v4_004",
+  "areaOfAnalysisID": "A_experiment_prompt_surface",
+  "statement": "A fully generic StagePlan runner should be deferred out of wave 1; the first audit can be supported by a compatibility bridge on top of the fixed current runner.",
+  "confidence": 0.74,
+  "rationale": "The decomposition proposed by the prompt-surface lane is directionally right, but certainty is low that a generic stage runner is necessary or affordable in the first implementation wave.",
+  "keyAssumptions": [
+    "Wave-1 tasks can be expressed with imported or frozen rubric/codebook support plus stricter scoring outputs.",
+    "The existing fixed stage runner can stretch far enough for one paper-audit regime."
+  ],
+  "validationCriteria": [
+    "The chosen wave-1 audit does not require pairwise or multi-turn replay logic in the first release."
+  ],
+  "critiquePoints": [
+    "May accumulate awkward compatibility logic if the bridge lives too long."
+  ],
+  "questions": [
+    "What is the exact minimal set of new stage behaviors required for the chosen wave-1 audit?"
+  ]
+}

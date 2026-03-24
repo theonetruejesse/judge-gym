@@ -1,0 +1,41 @@
+{
+  "nodeId": "N01",
+  "kind": "analyze",
+  "role": "repo-baseline-and-criteria-mapper",
+  "objective": "Extract the current repo constraints that matter for V4 planning: the article-window-centric evidence model, the OpenAI-centric provider and batching surfaces, the current experiment prompt schema, and the V3-to-V4 research implications already encoded in docs and prior planning artifacts.",
+  "inputs": [
+    "README.md",
+    "docs/architecture.md",
+    "docs/pilots/paper.md",
+    "docs/pilots/v3_gpt_ablations.md",
+    "apps/engine-convex/convex/schema.ts",
+    "apps/engine-convex/convex/models/window.ts",
+    "apps/engine-convex/convex/models/bundles.ts",
+    "apps/engine-convex/convex/models/experiments.ts",
+    "packages/engine-settings/src/provider.ts",
+    "packages/engine-prompts/src/run/config.ts",
+    "apps/engine-temporal/src/runtime.ts",
+    "apps/engine-temporal/src/llm/openai.ts",
+    "apps/engine-temporal/src/window/model_registry.ts",
+    "_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+    "_deep_workflows/v4-resource-certainty/synthesis/final_report.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "repo_baseline.md"
+  ],
+  "completionCriteria": [
+    "Capture at least eight concrete current-state findings tied to files or docs.",
+    "State the four planning lanes that downstream nodes should use."
+  ]
+}

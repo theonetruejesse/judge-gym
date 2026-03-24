@@ -1,0 +1,30 @@
+{
+  "nodeId": "N02",
+  "kind": "agent",
+  "role": "acquisition-and-evidence-implementation-planner",
+  "objective": "Produce the implementation plan for Media Cloud-centered discovery, URL hydration, the acquisition pipeline, and the V4 evidence substrate under greenfield assumptions. Include exact ticket order, code surfaces, and tests.",
+  "inputs": [
+    "agents/N01/greenfield_contract.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/01_evidence_window_schema_plan.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/07_mediacloud_source_replacement_plan.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "requiredOutputs": [
+    "acquisition_evidence_tickets.md"
+  ],
+  "completionCriteria": [
+    "Emit ordered implementation tickets for discovery, hydration, acquisition orchestration, and evidence persistence.",
+    "Each ticket must include code surfaces, tests, and a validation command."
+  ]
+}

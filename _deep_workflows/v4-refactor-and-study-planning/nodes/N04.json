@@ -1,0 +1,35 @@
+{
+  "nodeId": "N04",
+  "kind": "agent",
+  "role": "experiment-and-prompt-surface-researcher",
+  "objective": "Generalize the current rubric and scoring configuration into a V4 experiment surface that can support contested-concept studies and paper-audit targets. The plan should define what becomes task-family-level configuration, what remains scoring-regime configuration, and how prompts/stages should evolve without hard-coding one research task.",
+  "inputs": [
+    "agents/N01/repo_baseline.md",
+    "packages/engine-prompts/src/run/config.ts",
+    "apps/engine-convex/convex/models/experiments.ts",
+    "docs/pilots/paper.md",
+    "docs/pilots/v3_gpt_ablations.md",
+    "_deep_workflows/v4-paper-target-viability/synthesis/final_report.md",
+    "_deep_workflows/v4-resource-certainty/synthesis/final_report.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "requiredOutputs": [
+    "experiment_prompt_plan.md"
+  ],
+  "completionCriteria": [
+    "Define a generalized V4 experiment surface with clear separation between evidence inputs, adjudication tasks, and provider execution settings.",
+    "Propose stage/prompt changes needed for paper audit targets without locking the engine to one study."
+  ]
+}

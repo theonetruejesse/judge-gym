@@ -1,0 +1,23 @@
+{
+  "challengeID": "nc_v4_scope",
+  "microHypothesisID": "h_v4_scope_bundle",
+  "falsificationAttempts": [
+    {
+      "targetDescription": "Challenge whether the broad V4 launch bundle and generalized engine plan are realistic for a first-wave paper.",
+      "falsificationQueries": [
+        "Does comparator support force structured evidence payloads or a generic stage runner?",
+        "Does Anthropic batching force schema and UI work beyond the stated provider-runtime scope?",
+        "Does a six-table evidence refactor plus backfill plus dual-write crowd out the first audit itself?"
+      ],
+      "falsificationEvidenceFound": [
+        "knowledge/k_002_evidence_schema_evidence.md",
+        "knowledge/k_003_provider_runtime_evidence.md",
+        "knowledge/k_004_experiment_surface_evidence.md",
+        "knowledge/k_005_study_scope_evidence.md"
+      ],
+      "falsificationAnalysis": "The falsifier found credible scope pressure on all three fronts. The broad V4 target architecture remains useful, but the first paper should likely narrow to one flagship audit, one or two perturbations, a minimal evidence substrate, and at most one direct-only non-OpenAI robustness slice.",
+      "outcome": "Passed with weakening"
+    }
+  ],
+  "overallOutcome": "Passed with weakening"
+}

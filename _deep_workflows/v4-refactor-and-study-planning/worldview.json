@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-refactor-and-study-planning",
+    "objective": "Run a custom deep-search-style planning workflow for judge-gym V4 that produces a concrete refactor plan for evidence/window schemas, provider/runtime abstraction for Anthropic and OpenRouter, experiment and prompt-surface generalization, and a self-contained V4 paper/study specification with phased execution deliverables.",
+    "objectiveClass": "research_planning_and_architecture_triage",
+    "operatingMode": "live_ops",
+    "executionMode": "compile_and_execute"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": "completed",
+      "N02": "completed",
+      "N03": "completed",
+      "N04": "completed",
+      "N05": "completed",
+      "N06": "completed",
+      "N07": "completed",
+      "N08": "completed",
+      "N09": "completed"
+    },
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "id": "D01",
+      "statement": "Treat V4 as a self-contained study with broader provider support and general evidence imports, not as a narrow pilot continuation.",
+      "status": "provisional"
+    },
+    {
+      "id": "D02",
+      "statement": "Prioritize the evidence/window data model before transport and prompt-layer changes.",
+      "status": "provisional"
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  },
+  "mergeStatus": {
+    "baseline": "completed",
+    "research": "completed",
+    "falsification": "completed",
+    "certainty": "completed",
+    "sourceReplacement": "completed"
+  }
+}

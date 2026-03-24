@@ -1,0 +1,21 @@
+{
+  "microHypothesisID": "h_v4_003",
+  "areaOfAnalysisID": "A_provider_runtime",
+  "statement": "The correct provider architecture for V4 is a capability matrix plus provider-owned transport adapters, but wave 1 should only require one non-OpenAI provider through direct execution.",
+  "confidence": 0.85,
+  "rationale": "The adapter boundary is strongly supported by current repo constraints and official-provider surface differences, while multi-provider batching and routing control remain low-certainty wave-1 dependencies.",
+  "keyAssumptions": [
+    "Direct execution is sufficient for the first non-OpenAI robustness slice.",
+    "Provider-native batching can be deferred without invalidating the first paper."
+  ],
+  "validationCriteria": [
+    "OpenAI behavior can be preserved behind the new adapter seam.",
+    "One non-OpenAI provider can run a small fixed subset without batch infrastructure."
+  ],
+  "critiquePoints": [
+    "May delay the stronger multi-provider claim the broader V4 vision wants."
+  ],
+  "questions": [
+    "Is Anthropic or OpenRouter the more valuable first non-OpenAI direct-only slice?"
+  ]
+}

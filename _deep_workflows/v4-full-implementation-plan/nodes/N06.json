@@ -1,0 +1,33 @@
+{
+  "nodeId": "N06",
+  "kind": "synthesize",
+  "role": "ticket-sequencer-and-dependency-mapper",
+  "objective": "Merge the parallel planning lanes into one ordered implementation backlog with dependencies, validations, and rollback boundaries.",
+  "inputs": [
+    "agents/N02/acquisition_evidence_tickets.md",
+    "agents/N03/runtime_provider_stage_tickets.md",
+    "agents/N04/observability_test_tickets.md",
+    "agents/N05/experiment_setup_tickets.md"
+  ],
+  "dependencies": [
+    "N02",
+    "N03",
+    "N04",
+    "N05"
+  ],
+  "effects": [
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N06/",
+  "requiredOutputs": [
+    "implementation_backlog.md"
+  ],
+  "completionCriteria": [
+    "Produce one ordered backlog with epics, tickets, dependencies, validation, and stop conditions.",
+    "The backlog must make it impossible to start the experiment before prerequisites pass."
+  ]
+}

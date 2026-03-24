@@ -1,0 +1,30 @@
+{
+  "nodeId": "N01",
+  "kind": "analyze",
+  "role": "greenfield-contract-and-acceptance-gates",
+  "objective": "Translate the V4 research package into a greenfield implementation contract: what must be built, what blocks the experiment, and which validation gates define progress between epics.",
+  "inputs": [
+    "_blueprints/v4-refactor-and-study-plan/blueprint.md",
+    "_deep_workflows/v4-refactor-and-study-planning/synthesis/final_report.md",
+    "README.md",
+    "docs/architecture.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "requiredOutputs": [
+    "greenfield_contract.md"
+  ],
+  "completionCriteria": [
+    "State the mandatory implementation epics in dependency order.",
+    "State the acceptance gates that block the actual V4 experiment."
+  ]
+}

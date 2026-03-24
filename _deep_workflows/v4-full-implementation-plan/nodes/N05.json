@@ -1,0 +1,30 @@
+{
+  "nodeId": "N05",
+  "kind": "agent",
+  "role": "experiment-setup-and-analysis-planner",
+  "objective": "Produce the implementation plan for the actual V4 experiment setup after the platform epics land: target import, bundle plans, run manifests, analysis outputs, and paper assets. The plan must keep this work last.",
+  "inputs": [
+    "agents/N01/greenfield_contract.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/04_v4_self_contained_study_plan.md",
+    "_blueprints/v4-refactor-and-study-plan/deliverables/05_phased_roadmap.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N05/",
+  "requiredOutputs": [
+    "experiment_setup_tickets.md"
+  ],
+  "completionCriteria": [
+    "Emit ordered implementation tickets for target ingestion, study matrix setup, analysis generation, and paper assets.",
+    "State the exact prerequisites that must pass before experiment work begins."
+  ]
+}

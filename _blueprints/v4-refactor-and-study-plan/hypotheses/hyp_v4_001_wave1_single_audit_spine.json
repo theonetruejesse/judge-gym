@@ -1,0 +1,22 @@
+{
+  "microHypothesisID": "h_v4_001",
+  "areaOfAnalysisID": "A_self_contained_study_design",
+  "statement": "The first V4 paper should be centered on one flagship paper-audit spine, with Gilardi as the most defensible wave-1 target, rather than a broad multi-target matrix.",
+  "confidence": 0.78,
+  "rationale": "The study-design lane favors a multi-target launch bundle, but the falsifier and certainty scorer both show that comparator pressure and provider sprawl make a single flagship audit plus narrow robustness checks more credible.",
+  "keyAssumptions": [
+    "Gilardi remains reconstructable enough for a fair audit.",
+    "A narrower first-wave paper is more valuable than a broader but fragile study."
+  ],
+  "validationCriteria": [
+    "Replication materials for Gilardi remain sufficient.",
+    "The wave-1 paper outline can be defended without comparator dependence."
+  ],
+  "critiquePoints": [
+    "May undershoot the broader V4 vision.",
+    "Could make Ziems feel unnecessarily deferred."
+  ],
+  "questions": [
+    "Does the team want wave 1 optimized for scientific clarity or platform breadth?"
+  ]
+}
