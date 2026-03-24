@@ -106,11 +106,11 @@ export const AnalysisResponseRowSchema = z.object({
   score_expert_agreement_prob: z.number().nullable(),
   rubric_observability_score: z.number().nullable(),
   rubric_discriminability_score: z.number().nullable(),
-  evidence_ids: z.array(zid("evidences")),
+  evidence_item_ids: z.array(zid("evidence_items")),
+  evidence_view_ids: z.array(zid("evidence_views").nullable()),
   evidence_labels: z.array(z.string()),
   evidence_titles: z.array(z.string()),
   evidence_urls: z.array(z.string()),
-  window_ids: z.array(zid("windows")),
   evidence_positions: z.array(z.number().int().nonnegative()),
 });
 
@@ -473,7 +473,7 @@ async function buildEvidenceContext(
 }
 
 function buildBundleSignature(
-  evidenceIds: Id<"evidences">[],
+  evidenceIds: Array<Id<"evidences"> | Id<"evidence_items">>,
 ) {
   return evidenceIds
     .map((evidenceId) => String(evidenceId))
@@ -572,7 +572,7 @@ export const listAnalysisResponses = zInternalQuery({
     for (const critic of scoreCritics) {
       scoreCriticByTargetId.set(String(critic.score_target_id), critic);
     }
-    const { evidenceLabelById, evidenceById } = await buildEvidenceContext(ctx, experiment);
+    const { evidenceLabelById } = await buildEvidenceContext(ctx, experiment);
     const { clusterIdBySignature } = await buildBundlePlanContext(
       ctx,
       experiment.bundle_plan_id,
@@ -592,13 +592,22 @@ export const listAnalysisResponses = zInternalQuery({
           .collect(),
       ).sort((a, b) => a.position - b.position);
 
-      const evidenceIds = items.map((item) => item.evidence_id);
-      const evidenceLabels = items.map((item) => evidenceLabelById.get(String(item.evidence_id)) ?? String(item.evidence_id));
-      const evidenceTitles = items.map((item) => evidenceById.get(String(item.evidence_id))?.title ?? "");
-      const evidenceUrls = items.map((item) => evidenceById.get(String(item.evidence_id))?.url ?? "");
-      const windowIds = items.map((item) => item.window_id);
+      const evidenceItems = await Promise.all(
+        items.map((item) => ctx.db.get(item.evidence_item_id)),
+      );
+      const evidenceItemIds = items.map((item) => item.evidence_item_id);
+      const evidenceViewIds = items.map((item) => item.evidence_view_id ?? null);
+      const evidenceLabels = items.map((item, index) => {
+        return evidenceLabelById.get(String(item.evidence_item_id)) ?? `I${index + 1}`;
+      });
+      const evidenceTitles = items.map((item, index) => {
+        return evidenceItems[index]?.title ?? "";
+      });
+      const evidenceUrls = items.map((item, index) => {
+        return evidenceItems[index]?.source_url ?? "";
+      });
       const evidencePositions = items.map((item) => item.position);
-      const bundleSignature = buildBundleSignature(evidenceIds);
+      const bundleSignature = buildBundleSignature(evidenceItemIds);
 
       return {
         response_id: score._id,
@@ -632,11 +641,11 @@ export const listAnalysisResponses = zInternalQuery({
         score_expert_agreement_prob: scoreCritic?.expert_agreement_prob ?? null,
         rubric_observability_score: rubricCritic?.expert_agreement_prob.observability_score ?? null,
         rubric_discriminability_score: rubricCritic?.expert_agreement_prob.discriminability_score ?? null,
-        evidence_ids: evidenceIds,
+        evidence_item_ids: evidenceItemIds,
+        evidence_view_ids: evidenceViewIds,
         evidence_labels: evidenceLabels,
         evidence_titles: evidenceTitles,
         evidence_urls: evidenceUrls,
-        window_ids: windowIds,
         evidence_positions: evidencePositions,
       };
     }));

@@ -1,9 +1,9 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
-import { zAction, zMutation, zQuery } from "../utils/custom_fns";
+import { zAction, zInternalQuery, zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { ActionCtx, MutationCtx } from "../_generated/server";
 import { WindowRunsTableSchema } from "../models/window";
 import { RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
@@ -377,45 +377,72 @@ function buildRunLabelMapping(
 }
 
 function renderBundledEvidence(
-  items: Array<{ evidence: Doc<"evidences"> }>,
-  config: ExperimentConfig,
+  items: Array<{ content: string }>,
 ) {
   return {
-    l0_raw_content: items.map(({ evidence }, index) => {
-      return [`EVIDENCE ${index + 1}`, evidence.l0_raw_content].join("\n");
+    l0_raw_content: items.map(({ content }, index) => {
+      return [`EVIDENCE ${index + 1}`, content].join("\n");
     }).join("\n\n"),
-    l1_cleaned_content: items.map(({ evidence }, index) => {
-      return [
-        `EVIDENCE ${index + 1}`,
-        evidence.l1_cleaned_content ?? evidence.l0_raw_content,
-      ].join("\n");
+    l1_cleaned_content: items.map(({ content }, index) => {
+      return [`EVIDENCE ${index + 1}`, content].join("\n");
     }).join("\n\n"),
-    l2_neutralized_content: items.map(({ evidence }, index) => {
-      return [
-        `EVIDENCE ${index + 1}`,
-        evidence.l2_neutralized_content
-          ?? evidence.l1_cleaned_content
-          ?? evidence.l0_raw_content,
-      ].join("\n");
+    l2_neutralized_content: items.map(({ content }, index) => {
+      return [`EVIDENCE ${index + 1}`, content].join("\n");
     }).join("\n\n"),
-    l3_abstracted_content: items.map(({ evidence }, index) => {
-      return [
-        `EVIDENCE ${index + 1}`,
-        evidence.l3_abstracted_content
-          ?? evidence.l2_neutralized_content
-          ?? evidence.l1_cleaned_content
-          ?? evidence.l0_raw_content,
-      ].join("\n");
+    l3_abstracted_content: items.map(({ content }, index) => {
+      return [`EVIDENCE ${index + 1}`, content].join("\n");
     }).join("\n\n"),
-    selected_content: items.map(({ evidence }, index) => {
-      const selectedContent =
-        evidence.l3_abstracted_content
-        ?? evidence.l2_neutralized_content
-        ?? evidence.l1_cleaned_content
-        ?? evidence.l0_raw_content;
-      return [`EVIDENCE ${index + 1}`, selectedContent].join("\n");
+    selected_content: items.map(({ content }, index) => {
+      return [`EVIDENCE ${index + 1}`, content].join("\n");
     }).join("\n\n"),
   };
+}
+
+const RunStageInputResultSchema = z.array(z.object({
+  target_type: z.enum(["sample", "sample_score_target"]),
+  target_id: z.string(),
+  model: modelTypeSchema,
+  system_prompt: z.string(),
+  user_prompt: z.string(),
+  metadata_json: z.string().nullable(),
+}));
+
+type RunStageInputResult = z.infer<typeof RunStageInputResultSchema>;
+
+type RunScoreStageTargetSeed = {
+  target_id: string;
+  sample_id: Id<"samples">;
+  model: Doc<"samples">["model"];
+  sample_seed: number;
+  rubric: {
+    stages: Array<{ label: string; criteria: string[] }>;
+    label_mapping: Record<string, number>;
+  };
+  score: {
+    score_id: Id<"scores">;
+    decoded_scores: number[];
+  } | null;
+  items: Array<{
+    position: number;
+    evidence_item_id: Id<"evidence_items">;
+    evidence_view_id: Id<"evidence_views"> | null;
+    content_asset_id: Id<"evidence_assets">;
+  }>;
+};
+
+async function readStoredTextAsset(
+  ctx: ActionCtx,
+  storageId: string,
+) {
+  const url = await ctx.storage.getUrl(storageId);
+  if (!url) {
+    throw new Error(`Storage asset URL not available for ${storageId}`);
+  }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch storage asset ${storageId}: ${response.status}`);
+  }
+  return response.text();
 }
 
 async function getRunStageProgressDirect(
@@ -663,19 +690,11 @@ export const bindRunWorkflow = zMutation({
   },
 });
 
-export const listRunStageInputs = zQuery({
+export const listRunStageInputSeed = zInternalQuery({
   args: z.object({
     run_id: zid("runs"),
     stage: RunStageInputSchema,
   }),
-  returns: z.array(z.object({
-    target_type: z.enum(["sample", "sample_score_target"]),
-    target_id: z.string(),
-    model: modelTypeSchema,
-    system_prompt: z.string(),
-    user_prompt: z.string(),
-    metadata_json: z.string().nullable(),
-  })),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.run_id);
     if (!run) {
@@ -754,7 +773,10 @@ export const listRunStageInputs = zQuery({
         });
       }
 
-      return results;
+      return {
+        kind: "prompt_inputs" as const,
+        inputs: results,
+      };
     }
 
     const samples = await ctx.db
@@ -791,24 +813,19 @@ export const listRunStageInputs = zQuery({
       .query("sample_score_target_items")
       .withIndex("by_run", (q) => q.eq("run_id", args.run_id))
       .collect();
-    const evidenceIds = Array.from(new Set(itemRows.map((item) => String(item.evidence_id))));
-    const evidences = await Promise.all(
-      evidenceIds.map((evidenceId) => ctx.db.get(evidenceId as Id<"evidences">)),
-    );
-    const evidenceById = new Map(
-      evidences.filter((evidence): evidence is Doc<"evidences"> => evidence != null)
-        .map((evidence) => [String(evidence._id), evidence] as const),
-    );
-    const itemsByTargetId = new Map<string, Array<{ position: number; evidence: Doc<"evidences"> }>>();
+    const itemsByTargetId = new Map<string, Array<{
+      position: number;
+      evidence_item_id: Id<"evidence_items">;
+      evidence_view_id: Id<"evidence_views"> | null;
+      content_asset_id: Id<"evidence_assets">;
+    }>>();
     for (const item of itemRows) {
-      const evidence = evidenceById.get(String(item.evidence_id));
-      if (!evidence) {
-        continue;
-      }
       const current = itemsByTargetId.get(String(item.score_target_id)) ?? [];
       current.push({
         position: item.position,
-        evidence,
+        evidence_item_id: item.evidence_item_id,
+        evidence_view_id: item.evidence_view_id ?? null,
+        content_asset_id: item.content_asset_id,
       });
       itemsByTargetId.set(String(item.score_target_id), current);
     }
@@ -821,14 +838,7 @@ export const listRunStageInputs = zQuery({
       ).map((score) => [String(score.score_target_id), score] as const),
     );
 
-    const results: Array<{
-      target_type: "sample_score_target";
-      target_id: string;
-      model: Doc<"samples">["model"];
-      system_prompt: string;
-      user_prompt: string;
-      metadata_json: string | null;
-    }> = [];
+    const targets: RunScoreStageTargetSeed[] = [];
 
     for (const target of scoreTargets) {
       const sample = samplesById.get(String(target.sample_id));
@@ -841,46 +851,26 @@ export const listRunStageInputs = zQuery({
       }
       const items = (itemsByTargetId.get(String(target._id)) ?? [])
         .slice()
-        .sort((left, right) => left.position - right.position)
-        .map((item) => ({ evidence: item.evidence }));
+        .sort((left, right) => left.position - right.position);
       if (items.length === 0) {
         continue;
       }
-
-      const renderedEvidence = renderBundledEvidence(items, config);
 
       if (args.stage === "score_gen") {
         if (target.score_id || target.score_gen_error_message) {
           continue;
         }
-        const prompt = buildScoreGenPrompt({
-          config,
-          evidence: {
-            l0_raw_content: renderedEvidence.l0_raw_content,
-            l1_cleaned_content: renderedEvidence.l1_cleaned_content,
-            l2_neutralized_content: renderedEvidence.l2_neutralized_content,
-            l3_abstracted_content: renderedEvidence.l3_abstracted_content,
-          },
+        targets.push({
+          target_id: String(target._id),
+          sample_id: sample._id,
+          model: sample.model,
+          sample_seed: sample.seed,
           rubric: {
             stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
-          },
-          sample: {
             label_mapping: rubric.label_mapping,
-            display_seed: sample.seed,
           },
-          evidence_item_count: items.length,
-        });
-        results.push({
-          target_type: "sample_score_target",
-          target_id: String(target._id),
-          model: sample.model,
-          system_prompt: prompt.system_prompt,
-          user_prompt: prompt.user_prompt,
-          metadata_json: JSON.stringify({
-            sample_id: sample._id,
-            score_target_id: target._id,
-            evidence_item_count: items.length,
-          }),
+          score: null,
+          items,
         });
         continue;
       }
@@ -895,39 +885,142 @@ export const listRunStageInputs = zQuery({
       if (!score || target.score_critic_id || target.score_critic_error_message) {
         continue;
       }
-
-      const prompt = buildScoreCriticPrompt({
-        config,
-        evidence: renderedEvidence.selected_content,
+      targets.push({
+        target_id: String(target._id),
+        sample_id: sample._id,
+        model: sample.model,
+        sample_seed: sample.seed,
         rubric: {
           stages: rubric.stages.map(({ label, criteria }) => ({ label, criteria })),
+          label_mapping: rubric.label_mapping,
+        },
+        score: {
+          score_id: score._id,
+          decoded_scores: score.decoded_scores,
+        },
+        items,
+      });
+    }
+
+    return {
+      kind: "score_stage_seed" as const,
+      config,
+      targets,
+    };
+  },
+});
+
+export const listRunStageInputs = zAction({
+  args: z.object({
+    run_id: zid("runs"),
+    stage: RunStageInputSchema,
+  }),
+  returns: RunStageInputResultSchema,
+  handler: async (ctx, args): Promise<RunStageInputResult> => {
+    const seed = await ctx.runQuery(internal.packages.worker.listRunStageInputSeed, args);
+    if (seed.kind === "prompt_inputs") {
+      return seed.inputs;
+    }
+
+    const assetContentCache = new Map<string, Promise<string>>();
+    const results: RunStageInputResult = [];
+
+    for (const target of seed.targets) {
+      const contents = await Promise.all(
+        target.items.map(async (item) => {
+          const cacheKey = String(item.content_asset_id);
+          let pending = assetContentCache.get(cacheKey);
+          if (!pending) {
+            const asset = await ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
+              asset_id: item.content_asset_id,
+            });
+            if (!asset) {
+              throw new Error(`Evidence asset not found for ${item.content_asset_id}`);
+            }
+            pending = readStoredTextAsset(ctx, asset.storage_id);
+            assetContentCache.set(cacheKey, pending);
+          }
+          return {
+            position: item.position,
+            content: await pending,
+          };
+        }),
+      );
+      const renderedEvidence = renderBundledEvidence(
+        contents
+          .slice()
+          .sort((left, right) => left.position - right.position)
+          .map(({ content }) => ({ content })),
+      );
+
+      if (args.stage === "score_gen") {
+        const prompt = buildScoreGenPrompt({
+          config: seed.config,
+          evidence: {
+            l0_raw_content: renderedEvidence.l0_raw_content,
+            l1_cleaned_content: renderedEvidence.l1_cleaned_content,
+            l2_neutralized_content: renderedEvidence.l2_neutralized_content,
+            l3_abstracted_content: renderedEvidence.l3_abstracted_content,
+          },
+          rubric: {
+            stages: target.rubric.stages,
+          },
+          sample: {
+            label_mapping: target.rubric.label_mapping,
+            display_seed: target.sample_seed,
+          },
+          evidence_item_count: target.items.length,
+        });
+        results.push({
+          target_type: "sample_score_target",
+          target_id: target.target_id,
+          model: target.model,
+          system_prompt: prompt.system_prompt,
+          user_prompt: prompt.user_prompt,
+          metadata_json: JSON.stringify({
+            sample_id: target.sample_id,
+            score_target_id: target.target_id,
+            evidence_item_count: target.items.length,
+          }),
+        });
+        continue;
+      }
+
+      if (!target.score) {
+        continue;
+      }
+      const prompt = buildScoreCriticPrompt({
+        config: seed.config,
+        evidence: renderedEvidence.selected_content,
+        rubric: {
+          stages: target.rubric.stages,
         },
         sample: {
-          label_mapping: rubric.label_mapping,
-          display_seed: sample.seed,
+          label_mapping: target.rubric.label_mapping,
+          display_seed: target.sample_seed,
         },
         verdict: buildScoreCriticVerdictSummary({
-          decoded_scores: score.decoded_scores,
-          displayed_identifiers_by_stage: rubric.label_mapping
-            ? Object.entries(rubric.label_mapping)
+          decoded_scores: target.score.decoded_scores,
+          displayed_identifiers_by_stage: target.rubric.label_mapping
+            ? Object.entries(target.rubric.label_mapping)
               .sort((left, right) => left[1] - right[1])
               .map(([token]) => token)
-            : rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
-          method: config.scoring_config.method,
+            : target.rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
+          method: seed.config.scoring_config.method,
         }),
-        evidence_item_count: items.length,
+        evidence_item_count: target.items.length,
       });
       results.push({
         target_type: "sample_score_target",
-        target_id: String(target._id),
-        model: sample.model,
+        target_id: target.target_id,
+        model: target.model,
         system_prompt: prompt.system_prompt,
         user_prompt: prompt.user_prompt,
         metadata_json: JSON.stringify({
-          sample_id: sample._id,
-          score_target_id: target._id,
-          score_id: score._id,
-          evidence_item_count: items.length,
+          sample_id: target.sample_id,
+          score_target_id: target.target_id,
+          score_id: target.score.score_id,
+          evidence_item_count: target.items.length,
         }),
       });
     }

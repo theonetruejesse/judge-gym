@@ -84,7 +84,9 @@ export const SampleScoreTargetsTableSchema = z.object({
 export const SampleScoreTargetItemsTableSchema = z.object({
     run_id: zid("runs").optional(),
     score_target_id: zid("sample_score_targets"),
-    evidence_id: zid("evidences"),
-    window_id: zid("windows"),
+    evidence_set_item_id: zid("evidence_set_items").nullable().optional(),
+    evidence_item_id: zid("evidence_items"),
+    evidence_view_id: zid("evidence_views").nullable().optional(),
+    content_asset_id: zid("evidence_assets"),
     position: z.number().int().min(0),
 });

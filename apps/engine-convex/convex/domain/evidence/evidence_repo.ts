@@ -656,6 +656,15 @@ export const getAssetByContentHash = zInternalQuery({
   },
 });
 
+export const getAsset = zInternalQuery({
+  args: z.object({
+    asset_id: zid("evidence_assets"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.asset_id);
+  },
+});
+
 export const listUniverseCandidates = zInternalQuery({
   args: z.object({
     universe_id: zid("evidence_universes"),

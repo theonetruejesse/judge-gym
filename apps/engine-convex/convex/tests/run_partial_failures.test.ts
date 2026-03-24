@@ -18,64 +18,94 @@ async function seedRun(
   sample_ids: Id<"samples">[];
   score_targets_by_sample: Map<string, string[]>;
 }> {
-  const { window_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindow,
+  const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
+    universe_tag: "partial-failure-universe",
+    kind: "paper_audit",
+    title: "partial-failure-universe",
+  });
+
+  const importedOne = await t.action(internal.domain.evidence.evidence_service.importEvidenceItem, {
+    universe_id,
+    canonical_key: "partial-failure:item:1",
+    title: "Evidence 1",
+    source_url: "https://example.com/e1",
+    raw_text: "Evidence one raw content.",
+    view_kind: "paper_original",
+    pipeline_kind: "import",
+    pipeline_version: "partial-failure-v1",
+  });
+  const importedTwo = await t.action(internal.domain.evidence.evidence_service.importEvidenceItem, {
+    universe_id,
+    canonical_key: "partial-failure:item:2",
+    title: "Evidence 2",
+    source_url: "https://example.com/e2",
+    raw_text: "Evidence two raw content.",
+    view_kind: "paper_original",
+    pipeline_kind: "import",
+    pipeline_version: "partial-failure-v1",
+  });
+
+  const { evidence_set_id } = await t.mutation(
+    internal.domain.evidence.evidence_repo.createEvidenceSet,
     {
-      country: "USA",
-      start_date: "2026-03-01",
-      end_date: "2026-03-02",
-      query: "partial-failure-cleanup",
-      default_target_count: 2,
-    },
-  );
-  const { window_run_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindowRun,
-    {
-      window_id,
-      model: "gpt-4.1-mini",
-      target_count: 2,
-      target_stage: "l3_abstracted",
+      universe_id,
+      evidence_set_tag: "partial-failure-set",
+      title: "partial-failure-set",
+      source_kind: "literature_dataset",
+      quality_label: "high",
     },
   );
 
-  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-    window_run_id,
-    evidences: [
+  await t.mutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
+    evidence_set_id,
+    items: [
       {
-        title: "Evidence 1",
-        url: "https://example.com/e1",
-        raw_content: "Evidence one raw content.",
+        evidence_item_id: importedOne.evidence_item_id,
+        pinned_view_id: importedOne.evidence_view_id,
+        ordinal: 0,
+        quality_label: "high",
       },
       {
-        title: "Evidence 2",
-        url: "https://example.com/e2",
-        raw_content: "Evidence two raw content.",
+        evidence_item_id: importedTwo.evidence_item_id,
+        pinned_view_id: importedTwo.evidence_view_id,
+        ordinal: 1,
+        quality_label: "high",
       },
     ],
   });
 
-  const evidenceRows = await t.query(api.packages.lab.listEvidenceByWindow, { window_id });
-  const pool = await t.mutation(api.packages.lab.createPool, {
-    evidence_ids: evidenceRows.map((row: { evidence_id: Id<"evidences"> }) => row.evidence_id),
-    pool_tag: "partial_failure_pool",
-  });
-
-  const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-    pool_id: pool.pool_id,
-    experiment_config: {
-      rubric_config: {
-        model: "gpt-4.1",
-        scale_size: 4,
-        concept: "fascism",
-      },
-      scoring_config: {
-        model: "gpt-4.1",
-        method: "subset",
-        abstain_enabled: true,
-        evidence_view: "l2_neutralized",
-        randomizations: [],
-        evidence_bundle_size: 1,
-      },
+  const experiment_id = await t.mutation(internal.domain.runs.experiments_repo.createExperiment, {
+    experiment_tag: "partial_failure_experiment",
+    evidence_set_id,
+    study_kind: "paper_audit",
+    evidence_source_kind: "evidence_set",
+    rubric_source_kind: "imported_codebook",
+    compatibility_mode: "paper_faithful",
+    task_contract: {
+      task_kind: "stage_judgment",
+      label_space_json: null,
+      instructions_json: JSON.stringify({
+        source: "test",
+      }),
+      prompt_template_id: "partial_failure_v4",
+    },
+    output_contract: {
+      kind: "verdict_line",
+      schema_version: "v1",
+      parser_key: "subset_verdict",
+    },
+    rubric_config: {
+      model: "gpt-4.1",
+      scale_size: 4,
+      concept: "fascism",
+    },
+    scoring_config: {
+      model: "gpt-4.1",
+      method: "subset",
+      abstain_enabled: true,
+      evidence_view: "l0_raw",
+      randomizations: [],
+      evidence_bundle_size: 1,
     },
   });
 
@@ -220,7 +250,7 @@ describe("run partial failure progression", () => {
     expect(finalized.has_pending).toBe(false);
     expect(finalized.halt_process).toBe(false);
 
-    const rubricCriticInputs = await t.query(api.packages.worker.listRunStageInputs, {
+    const rubricCriticInputs = await t.action(api.packages.worker.listRunStageInputs, {
       run_id,
       stage: "rubric_critic",
     });

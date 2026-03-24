@@ -169,7 +169,7 @@ const workerApi = {
   listWindowStageInputs: makeFunctionReference<"query">(
     "packages/worker:listWindowStageInputs",
   ),
-  listRunStageInputs: makeFunctionReference<"query">(
+  listRunStageInputs: makeFunctionReference<"action">(
     "packages/worker:listRunStageInputs",
   ),
   recordLlmAttemptStart: makeFunctionReference<"mutation">(
@@ -314,7 +314,7 @@ export class ConvexWorkerClient {
     run_id: string;
     stage: RunStageKey;
   }) {
-    return this.client.query(workerApi.listRunStageInputs, args) as Promise<
+    return this.client.action(workerApi.listRunStageInputs, args) as Promise<
       RunStageInput[]
     >;
   }

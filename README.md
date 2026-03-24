@@ -56,7 +56,8 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 - Experiment definitions now carry explicit V4 study metadata: `study_kind`, `evidence_source_kind`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, and `output_contract`.
 - The Temporal run path now persists workflow bindings on `runs`, per-stage attempt/error refs on `samples` and `sample_score_targets`, and writes run artifacts against the `llm_attempts` ledger instead of the legacy request queue.
 - Score parsing now dispatches through `output_contract.parser_key`, so the backend can handle legacy `VERDICT:` lines plus new `LABEL:` and structured-JSON scoring outputs for compatibility studies.
-- Evidence-set-backed experiments can now be registered and inspected through the backend contract, but run materialization still executes only legacy pool-backed experiments until `sample_score_target_items` is widened beyond `evidences` / `windows`.
+- Greenfield run materialization is now evidence-set-native: `createRun` resolves each score-target item to an `evidence_item`, the exact `evidence_view` (when pinned/resolved), and the concrete storage-backed content asset that will be judged.
+- Run-stage prompt preparation for score stages is now storage-backed as well: Convex reads the frozen content assets for each `sample_score_target_item`, reconstructs bundled evidence text, and returns final prompts to Temporal without depending on legacy inline `evidences` rows.
 - Window prompt policy now enforces strict L3 non-expansion with identity-prior abstraction by default (country/person/party/media tokens), while preserving governance structure, causality, and temporal anchors needed for claim interpretation.
 - Rubric generation prompts now explicitly target partial-context evidence scoring (signal-strength framing, observable criteria, and explicit weak/mixed stages) to reduce avoidable abstain behavior on fragmentary articles.
 - The V3 finish pass is now driven by the repo skill `skills/v3-finish-pass/` plus the campaign control plane under `_campaigns/v3_finish_pass/`.
@@ -232,11 +233,11 @@ This repo pins Node via `.nvmrc` to keep all packages on the same version.
 | --- | --- | --- |
 | `pools` | Reusable evidence pools | `pool_tag`, `evidence_count` |
 | `pool_evidences` | Evidence membership for pools | `pool_id`, `evidence_id` |
-| `experiments` | Experiment configs for legacy pools or V4 evidence sets | `experiment_tag`, `study_kind`, `evidence_source_kind`, `pool_id`, `evidence_set_id`, `bundle_plan_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
+| `experiments` | Experiment configs for V4 evidence sets, plus transitional pool fields still present in schema | `experiment_tag`, `study_kind`, `evidence_source_kind`, `pool_id`, `evidence_set_id`, `bundle_plan_id`, `rubric_source_kind`, `compatibility_mode`, `task_contract`, `output_contract`, `rubric_config`, `scoring_config`, `total_count` |
 | `runs` | Run metadata | `status`, `experiment_id`, `current_stage`, `pause_after`, `target_count`, `completed_count`, per-stage completed counters, `workflow_id`, `workflow_run_id`, `last_error_message` |
 | `samples` | Run samples (rubric scope + score aggregates) | `run_id`, `rubric_id`, `rubric_critic_id`, `seed`, `score_count`, `score_critic_count`, `rubric_gen_*`, `rubric_critic_*` |
 | `sample_score_targets` | Frozen run score targets | `run_id`, `sample_id`, `score_id`, `score_critic_id`, `score_gen_*`, `score_critic_*` |
-| `sample_score_target_items` | Evidence membership for each score target | `score_target_id`, `evidence_id`, `window_id`, `position` |
+| `sample_score_target_items` | Frozen V4 evidence bindings for each score target | `score_target_id`, `evidence_set_item_id`, `evidence_item_id`, `evidence_view_id`, `content_asset_id`, `position` |
 | `rubrics`, `scores`, `rubric_critics`, `score_critics` | LLM outputs | `llm_attempt_id`, parsed artifact payloads, and run/sample bindings |
 
 **Indexes that drive orchestration**

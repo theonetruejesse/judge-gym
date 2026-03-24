@@ -145,8 +145,10 @@ export default defineSchema({
   sample_score_target_items: defineTable(zodOutputToConvex(SampleScoreTargetItemsTableSchema))
     .index("by_run", ["run_id"])
     .index("by_score_target", ["score_target_id"])
-    .index("by_evidence", ["evidence_id"])
-    .index("by_window", ["window_id"]),
+    .index("by_evidence_set_item", ["evidence_set_item_id"])
+    .index("by_evidence_item", ["evidence_item_id"])
+    .index("by_evidence_view", ["evidence_view_id"])
+    .index("by_content_asset", ["content_asset_id"]),
   process_observability: defineTable(zodOutputToConvex(ProcessObservabilityTableSchema))
     .index("by_process", ["process_type", "process_id"])
     .index("by_trace", ["trace_id"])

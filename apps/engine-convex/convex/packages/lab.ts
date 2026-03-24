@@ -264,11 +264,11 @@ const RunScoreTargetListItemSchema = z.object({
   score_id: zid("scores").nullable(),
   score_critic_id: zid("score_critics").nullable(),
   items: z.array(z.object({
-    evidence_id: zid("evidences"),
-    window_id: zid("windows"),
+    evidence_item_id: zid("evidence_items"),
+    evidence_view_id: zid("evidence_views").nullable(),
     position: z.number(),
-    title: z.string(),
-    url: z.string(),
+    title: z.string().nullable(),
+    url: z.string().nullable(),
   })),
 });
 
@@ -304,14 +304,14 @@ async function hydrateRunScoreTargets(
 
     const hydratedItems: Array<z.infer<typeof RunScoreTargetListItemSchema.shape.items.element>> = [];
     for (const item of items.slice().sort((a: any, b: any) => a.position - b.position)) {
-      const evidence = await ctx.db.get(item.evidence_id);
-      if (!evidence) continue;
+      const evidenceItem = await ctx.db.get(item.evidence_item_id);
+      if (!evidenceItem) continue;
       hydratedItems.push({
-        evidence_id: evidence._id,
-        window_id: item.window_id,
+        evidence_item_id: evidenceItem._id,
+        evidence_view_id: item.evidence_view_id ?? null,
         position: item.position,
-        title: evidence.title,
-        url: evidence.url,
+        title: evidenceItem.title ?? null,
+        url: evidenceItem.source_url ?? null,
       });
     }
 
