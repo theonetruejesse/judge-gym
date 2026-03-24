@@ -248,6 +248,7 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
   const isBundledEvidence = args.evidence_item_count > 1;
   const scoring = resolveScoringStrategy(config);
   const evidenceStrategy = resolveEvidenceStrategy(config);
+  const outputKind = config.output_contract?.kind ?? "verdict_line";
 
   const evidenceContent =
     evidence[evidenceStrategy.contentField] ?? evidence.l0_raw_content;
@@ -290,7 +291,11 @@ export function buildScoreGenPrompt(args: ScorePromptArgs): {
             ? "If none of the stronger stages are supported, use the weakest displayed rubric stage identifier as your fallback instead of leaving the verdict blank."
             : null,
           !config.scoring_config.abstain_enabled
-            ? "Example fallback final line: `VERDICT: <weakest displayed rubric stage identifier from the user prompt>`"
+            ? outputKind === "label"
+              ? "Example fallback final line: `LABEL: <weakest displayed rubric stage identifier from the user prompt>`"
+              : outputKind === "structured_json"
+                ? "Example fallback final line: `{\"reasoning\":\"<brief justification>\",\"label\":\"<weakest displayed rubric stage identifier from the user prompt>\"}`"
+                : "Example fallback final line: `VERDICT: <weakest displayed rubric stage identifier from the user prompt>`"
             : null,
         ].filter(Boolean).join("\n"),
       ),

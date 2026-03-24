@@ -148,6 +148,80 @@ describe("run prompts", () => {
     expect(prompt.system_prompt).toContain("If none of the stronger stages are supported, use the weakest displayed rubric stage identifier as your fallback instead of leaving the verdict blank.");
   });
 
+  test("renders label-mode score generation prompts for imported coding tasks", () => {
+    const prompt = buildScoreGenPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 2,
+          concept: "policy relevance",
+        },
+        scoring_config: {
+          method: "single",
+          abstain_enabled: false,
+          evidence_view: "l0_raw",
+          randomizations: [],
+          evidence_bundle_size: 1,
+        },
+        output_contract: {
+          kind: "label",
+          schema_version: "v1",
+          parser_key: "label_choice",
+        },
+      },
+      evidence: {
+        l0_raw_content: "Imported article excerpt",
+      },
+      rubric: {
+        stages: [
+          { label: "Relevant", criteria: ["a", "b", "c"] },
+          { label: "Irrelevant", criteria: ["d", "e", "f"] },
+        ],
+      },
+      sample: {},
+      evidence_item_count: 1,
+    });
+
+    expect(prompt.system_prompt).toContain("`LABEL: <one rubric stage identifier from the user prompt>`");
+    expect(prompt.system_prompt).toContain("Example fallback final line: `LABEL: <weakest displayed rubric stage identifier from the user prompt>`");
+  });
+
+  test("renders structured-json score generation prompts for compatibility runs", () => {
+    const prompt = buildScoreGenPrompt({
+      config: {
+        rubric_config: {
+          scale_size: 2,
+          concept: "policy relevance",
+        },
+        scoring_config: {
+          method: "single",
+          abstain_enabled: true,
+          evidence_view: "l0_raw",
+          randomizations: [],
+          evidence_bundle_size: 1,
+        },
+        output_contract: {
+          kind: "structured_json",
+          schema_version: "v1",
+          parser_key: "json_label_choice",
+        },
+      },
+      evidence: {
+        l0_raw_content: "Imported article excerpt",
+      },
+      rubric: {
+        stages: [
+          { label: "Relevant", criteria: ["a", "b", "c"] },
+          { label: "Irrelevant", criteria: ["d", "e", "f"] },
+        ],
+      },
+      sample: {},
+      evidence_item_count: 1,
+    });
+
+    expect(prompt.system_prompt).toContain("End with exactly one final JSON object on the last line.");
+    expect(prompt.system_prompt).toContain("`{\"reasoning\":\"<brief justification>\",\"label\":\"<one rubric stage identifier from the user prompt>\"}`");
+  });
+
   test("builds score critic verdict summaries from decoded stages", () => {
     const verdict = buildScoreCriticVerdictSummary({
       decoded_scores: [4, 2, 4],

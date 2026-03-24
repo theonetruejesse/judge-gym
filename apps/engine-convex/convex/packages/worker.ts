@@ -25,12 +25,10 @@ import {
   type ExperimentConfig,
 } from "@judge-gym/engine-prompts/run";
 import {
-  extractReasoningBeforeVerdict,
   parseExpertAgreementResponse,
   parseQualityResponse,
   parseRubricResponse,
-  parseSingleVerdict,
-  parseSubsetVerdict,
+  parseScoreResponse,
 } from "../domain/runs/run_parsers";
 import { generateLabelMapping } from "../utils/randomize";
 import { syncExperimentTotalCount } from "../domain/runs/experiment_progress";
@@ -1616,17 +1614,18 @@ export const applyRunStageResult = zMutation({
         );
         return null;
       }
-      const parsedVerdict = config.scoring_config.method === "subset"
-        ? parseSubsetVerdict(args.output, rubric.label_mapping)
-        : parseSingleVerdict(args.output, rubric.label_mapping);
-      const justification = extractReasoningBeforeVerdict(args.output);
+      const parsedVerdict = parseScoreResponse(args.output, {
+        parserKey: config.output_contract?.parser_key ?? "single_verdict",
+        labelMapping: rubric.label_mapping,
+        method: config.scoring_config.method,
+      });
       const score_id = await ctx.db.insert("scores", {
         run_id: args.run_id,
         sample_id: sample._id,
         score_target_id: target._id,
         model: sample.model,
         llm_attempt_id: args.attempt_id,
-        justification,
+        justification: parsedVerdict.reasoning,
         decoded_scores: parsedVerdict.decodedScores ?? [],
       });
       await ctx.db.patch(target._id, {

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  parseLabelChoice,
+  parseScoreResponse,
   parseRubricResponse,
   parseSingleVerdict,
   parseSubsetVerdict,
@@ -130,5 +132,37 @@ describe("run parsers", () => {
     expect(parsed.abstained).toBe(false);
     expect(parsed.rawVerdict).toBe("VcGZj, dqqCdj");
     expect(parsed.decodedScores).toEqual([4, 6]);
+  });
+
+  test("parses LABEL-prefixed single-choice outputs", () => {
+    const parsed = parseLabelChoice(
+      [
+        "Reasoning goes here.",
+        "LABEL: policy_relevant",
+      ].join("\n"),
+      { policy_relevant: 1 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("policy_relevant");
+    expect(parsed.decodedScores).toEqual([1]);
+  });
+
+  test("dispatches structured-json score responses by parser key", () => {
+    const parsed = parseScoreResponse(
+      [
+        "Intermediate reasoning that should be ignored because JSON includes reasoning.",
+        "{\"reasoning\":\"Model chose the strongest supported label.\",\"labels\":[\"B\",\"D\"]}",
+      ].join("\n"),
+      {
+        parserKey: "json_label_choice",
+        labelMapping: { B: 2, D: 4 },
+        method: "subset",
+      },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.decodedScores).toEqual([2, 4]);
+    expect(parsed.reasoning).toBe("Model chose the strongest supported label.");
   });
 });

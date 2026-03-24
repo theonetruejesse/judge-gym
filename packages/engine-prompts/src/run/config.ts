@@ -252,38 +252,90 @@ export function resolveScoringStrategy(
   config: ExperimentConfig,
 ): ScoringPromptStrategy {
   const abstainEnabled = config.scoring_config.abstain_enabled;
-  const strategies: Record<string, ScoringPromptStrategy> = {
-    single: {
-      buildRequirements: () => [
-        "Select exactly one rubric stage identifier from the rubric provided by the user.",
-        abstainEnabled
-          ? "If no stage is sufficiently supported, output `ABSTAIN`."
-          : "Do not abstain. You must always select exactly one displayed rubric stage identifier, even if the evidence is weak or ambiguous.",
-      ],
-      buildOutputContract: () => abstainEnabled
-        ? [
-          "End with exactly one final line using one of these forms:",
-          "`VERDICT: <one rubric stage identifier from the user prompt>`",
-          "`VERDICT: ABSTAIN`",
-          "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
-        ]
-        : [
-          "End with exactly one final line in this form:",
-          "`VERDICT: <one rubric stage identifier from the user prompt>`",
-          "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
-          "Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
-        ],
-    },
-    subset: {
-      buildRequirements: () => [
-        "Select every rubric stage identifier from the user-provided rubric whose criteria are affirmatively supported by the evidence.",
-        "If multiple stages are supported, include all of them.",
-        "Do not collapse to a single stage if more than one applies.",
-        abstainEnabled
-          ? "If no stage is sufficiently supported, output `ABSTAIN`."
-          : "Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.",
-      ],
-      buildOutputContract: () => {
+  const outputKind = config.output_contract?.kind ?? "verdict_line";
+
+  const buildSingleOutputContract = () => {
+    switch (outputKind) {
+      case "label":
+        return abstainEnabled
+          ? [
+            "End with exactly one final line using one of these forms:",
+            "`LABEL: <one rubric stage identifier from the user prompt>`",
+            "`LABEL: ABSTAIN`",
+            "The final line must begin exactly with `LABEL:` and must not start with a bullet, dash, or numbering.",
+          ]
+          : [
+            "End with exactly one final line in this form:",
+            "`LABEL: <one rubric stage identifier from the user prompt>`",
+            "The final line must begin exactly with `LABEL:` and must not start with a bullet, dash, or numbering.",
+            "Never output `ABSTAIN`, `None`, an empty label, or any other text in the final line.",
+          ];
+      case "structured_json":
+        return abstainEnabled
+          ? [
+            "End with exactly one final JSON object on the last line.",
+            "Use one of these forms:",
+            "`{\"reasoning\":\"<brief justification>\",\"label\":\"<one rubric stage identifier from the user prompt>\"}`",
+            "`{\"reasoning\":\"<brief justification>\",\"label\":\"ABSTAIN\"}`",
+            "Do not wrap the JSON object in markdown fences.",
+          ]
+          : [
+            "End with exactly one final JSON object on the last line.",
+            "Use this form:",
+            "`{\"reasoning\":\"<brief justification>\",\"label\":\"<one rubric stage identifier from the user prompt>\"}`",
+            "Do not wrap the JSON object in markdown fences.",
+          ];
+      default:
+        return abstainEnabled
+          ? [
+            "End with exactly one final line using one of these forms:",
+            "`VERDICT: <one rubric stage identifier from the user prompt>`",
+            "`VERDICT: ABSTAIN`",
+            "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
+          ]
+          : [
+            "End with exactly one final line in this form:",
+            "`VERDICT: <one rubric stage identifier from the user prompt>`",
+            "The final line must begin exactly with `VERDICT:` and must not start with a bullet, dash, or numbering.",
+            "Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
+          ];
+    }
+  };
+
+  const buildSubsetOutputContract = () => {
+    switch (outputKind) {
+      case "label":
+        return abstainEnabled
+          ? [
+            "End with exactly one final line in one of these forms:",
+            "`LABELS: <comma-separated rubric stage identifiers from the user prompt>`",
+            "`LABELS: ABSTAIN`",
+            "The final line must begin exactly with `LABELS:` and must not start with a bullet, dash, or numbering.",
+          ]
+          : [
+            "End with exactly one final line in this form:",
+            "`LABELS: <comma-separated rubric stage identifiers from the user prompt>`",
+            "The final line must begin exactly with `LABELS:` and must not start with a bullet, dash, or numbering.",
+            "The final line must contain at least one displayed rubric stage identifier.",
+            "Never output `ABSTAIN`, `None`, an empty label set, or any other text in the final line.",
+          ];
+      case "structured_json":
+        return abstainEnabled
+          ? [
+            "End with exactly one final JSON object on the last line.",
+            "Use one of these forms:",
+            "`{\"reasoning\":\"<brief justification>\",\"labels\":[\"<rubric stage identifier>\",\"<rubric stage identifier>\"]}`",
+            "`{\"reasoning\":\"<brief justification>\",\"label\":\"ABSTAIN\"}`",
+            "Do not wrap the JSON object in markdown fences.",
+          ]
+          : [
+            "End with exactly one final JSON object on the last line.",
+            "Use this form:",
+            "`{\"reasoning\":\"<brief justification>\",\"labels\":[\"<rubric stage identifier>\",\"<rubric stage identifier>\"]}`",
+            "The `labels` array must contain at least one displayed rubric stage identifier.",
+            "Do not wrap the JSON object in markdown fences.",
+          ];
+      default:
         return abstainEnabled
           ? [
             "End with exactly one final line in one of these forms:",
@@ -298,7 +350,29 @@ export function resolveScoringStrategy(
             "The final line must contain at least one displayed rubric stage identifier.",
             "Never output `ABSTAIN`, `None`, an empty verdict, or any other text in the final line.",
           ];
-      },
+    }
+  };
+
+  const strategies: Record<string, ScoringPromptStrategy> = {
+    single: {
+      buildRequirements: () => [
+        "Select exactly one rubric stage identifier from the rubric provided by the user.",
+        abstainEnabled
+          ? "If no stage is sufficiently supported, output `ABSTAIN`."
+          : "Do not abstain. You must always select exactly one displayed rubric stage identifier, even if the evidence is weak or ambiguous.",
+      ],
+      buildOutputContract: buildSingleOutputContract,
+    },
+    subset: {
+      buildRequirements: () => [
+        "Select every rubric stage identifier from the user-provided rubric whose criteria are affirmatively supported by the evidence.",
+        "If multiple stages are supported, include all of them.",
+        "Do not collapse to a single stage if more than one applies.",
+        abstainEnabled
+          ? "If no stage is sufficiently supported, output `ABSTAIN`."
+          : "Do not abstain. If no higher-signal stage is affirmatively supported, select the weakest displayed rubric stage identifier instead.",
+      ],
+      buildOutputContract: buildSubsetOutputContract,
     },
   };
   const strategy = strategies[config.scoring_config.method];

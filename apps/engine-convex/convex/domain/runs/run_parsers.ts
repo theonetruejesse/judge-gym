@@ -205,6 +205,69 @@ function normalizeVerdictToken(token: string): string {
     .trim();
 }
 
+function stripLineDecorators(line: string): string {
+  return line
+    .trim()
+    .replace(/^[-*]\s*/, "")
+    .replace(/^\*\*+/, "")
+    .replace(/\*\*+$/g, "")
+    .replace(/^`+|`+$/g, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+function getLastTaggedLine(
+  raw: string,
+  prefixes: string[],
+): { line: string; index: number; prefix: string } {
+  const lines = raw.split(/\r?\n/);
+  let offset = raw.length;
+
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i] ?? "";
+    offset -= line.length;
+    const stripped = stripLineDecorators(line);
+    for (const prefix of prefixes) {
+      const marker = `${prefix.toUpperCase()}:`;
+      if (stripped.toUpperCase().startsWith(marker)) {
+        return {
+          line: stripped.slice(marker.length).trim(),
+          index: offset,
+          prefix,
+        };
+      }
+    }
+    offset -= 1;
+  }
+
+  throw new Error(`Failed to parse tagged line (${prefixes.join(", ")}): ${raw}`);
+}
+
+function extractReasoningBeforeTaggedLine(raw: string, prefixes: string[]): string {
+  const { index } = getLastTaggedLine(raw, prefixes);
+  const reasoning = raw.slice(0, index).trim();
+  if (!reasoning) {
+    throw new Error(`Missing reasoning before ${prefixes[0]} line`);
+  }
+  return reasoning;
+}
+
+function decodeSingleToken(
+  token: string,
+  labelMapping?: Record<string, number>,
+): number {
+  const normalized = token.toUpperCase();
+  const decoded = labelMapping
+    ? labelMapping[token]
+    : normalized.charCodeAt(0) - 64;
+
+  if (decoded === undefined) {
+    throw new Error(`Unrecognized verdict label: ${token}`);
+  }
+
+  return decoded;
+}
+
 function getVerdictLineCandidate(line: string): string | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
@@ -253,23 +316,18 @@ export function parseSingleVerdict(
   if (line.toUpperCase() === "ABSTAIN")
     return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
 
-  const tokenMatch = normalizeVerdictLine(line).match(/[A-Za-z0-9]+/);
+  const tokenMatch = normalizeVerdictLine(line).match(/[A-Za-z0-9_-]+/);
   if (!tokenMatch) {
     throw new Error(`Failed to parse verdict token: ${line}`);
   }
 
   const token = normalizeVerdictToken(tokenMatch[0] ?? "");
 
-  const normalized = token.toUpperCase();
-  const decoded = labelMapping
-    ? labelMapping[token]
-    : normalized.charCodeAt(0) - 64;
-
-  if (decoded === undefined) {
-    throw new Error(`Unrecognized verdict label: ${token}`);
-  }
-
-  return { rawVerdict: token, decodedScores: [decoded], abstained: false };
+  return {
+    rawVerdict: token,
+    decodedScores: [decodeSingleToken(token, labelMapping)],
+    abstained: false,
+  };
 }
 
 export function parseSubsetVerdict(
@@ -347,6 +405,223 @@ export function parseSubsetVerdict(
     decodedScores: decoded.length > 0 ? decoded : null,
     abstained: false,
   };
+}
+
+export function parseLabelChoice(
+  raw: string,
+  labelMapping?: Record<string, number>,
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+} {
+  const { line } = getLastTaggedLine(raw, ["LABEL", "VERDICT"]);
+  if (line.toUpperCase() === "ABSTAIN") {
+    return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
+  }
+
+  const tokenMatch = normalizeVerdictLine(line).match(/[A-Za-z0-9_-]+/);
+  if (!tokenMatch) {
+    throw new Error(`Failed to parse label token: ${line}`);
+  }
+  const token = normalizeVerdictToken(tokenMatch[0] ?? "");
+  return {
+    rawVerdict: token,
+    decodedScores: [decodeSingleToken(token, labelMapping)],
+    abstained: false,
+  };
+}
+
+export function parseLabelSet(
+  raw: string,
+  labelMapping?: Record<string, number>,
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+} {
+  const { line } = getLastTaggedLine(raw, ["LABELS", "LABEL", "VERDICT"]);
+  if (line.toUpperCase() === "ABSTAIN") {
+    return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
+  }
+
+  const cleaned = normalizeVerdictLine(line).replace(/[\[\]]/g, "");
+  const loweredMapping = labelMapping
+    ? Object.fromEntries(
+      Object.entries(labelMapping).map(([label, value]) => [label.toLowerCase(), value]),
+    )
+    : null;
+  const tokens = cleaned
+    .split(/[,\s/]+/)
+    .map((token) => normalizeVerdictToken(token))
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    throw new Error(`Failed to parse label tokens: ${line}`);
+  }
+
+  const decoded = tokens.map((token) => {
+    if (loweredMapping) {
+      const mapped = loweredMapping[token.toLowerCase()];
+      if (mapped === undefined) {
+        throw new Error(`Unrecognized verdict label: ${line}`);
+      }
+      return mapped;
+    }
+    return decodeSingleToken(token);
+  });
+
+  return {
+    rawVerdict: line,
+    decodedScores: Array.from(new Set(decoded)),
+    abstained: false,
+  };
+}
+
+function getLastJsonObject(raw: string): { value: unknown; index: number } {
+  for (let index = raw.lastIndexOf("{"); index >= 0; index = raw.lastIndexOf("{", index - 1)) {
+    const candidate = raw.slice(index).trim();
+    try {
+      return {
+        value: JSON.parse(candidate),
+        index,
+      };
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`Failed to parse trailing JSON object: ${raw}`);
+}
+
+function extractReasoningBeforeJson(raw: string): string {
+  const { index } = getLastJsonObject(raw);
+  const reasoning = raw.slice(0, index).trim();
+  if (!reasoning) {
+    throw new Error("Missing reasoning before JSON object");
+  }
+  return reasoning;
+}
+
+export function parseStructuredJsonChoice(
+  raw: string,
+  labelMapping: Record<string, number> | undefined,
+  mode: "single" | "subset",
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+  reasoning: string;
+} {
+  const { value } = getLastJsonObject(raw);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Structured JSON parser requires an object payload.");
+  }
+
+  const record = value as Record<string, unknown>;
+  const reasoning = typeof record.reasoning === "string"
+    ? record.reasoning.trim()
+    : extractReasoningBeforeJson(raw);
+  const abstain = record.abstain === true
+    || record.label === "ABSTAIN"
+    || record.verdict === "ABSTAIN";
+  if (abstain) {
+    return {
+      rawVerdict: "ABSTAIN",
+      decodedScores: null,
+      abstained: true,
+      reasoning,
+    };
+  }
+
+  if (mode === "single") {
+    const rawLabel = typeof record.label === "string"
+      ? record.label
+      : typeof record.verdict === "string"
+        ? record.verdict
+        : Array.isArray(record.labels)
+          ? String(record.labels[0] ?? "")
+          : "";
+    const token = normalizeVerdictToken(rawLabel);
+    if (!token) {
+      throw new Error("Structured JSON single parser requires `label` or `verdict`.");
+    }
+    return {
+      rawVerdict: token,
+      decodedScores: [decodeSingleToken(token, labelMapping)],
+      abstained: false,
+      reasoning,
+    };
+  }
+
+  const rawLabels = Array.isArray(record.labels)
+    ? record.labels
+    : typeof record.verdict === "string"
+      ? record.verdict.split(/[,\s/]+/)
+      : typeof record.label === "string"
+        ? [record.label]
+        : [];
+  const tokens = rawLabels
+    .map((value) => normalizeVerdictToken(String(value)))
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    throw new Error("Structured JSON subset parser requires `labels` or `verdict`.");
+  }
+  return {
+    rawVerdict: tokens.join(", "),
+    decodedScores: Array.from(
+      new Set(tokens.map((token) => decodeSingleToken(token, labelMapping))),
+    ),
+    abstained: false,
+    reasoning,
+  };
+}
+
+export function parseScoreResponse(
+  raw: string,
+  args: {
+    parserKey: string;
+    labelMapping?: Record<string, number>;
+    method: "single" | "subset";
+  },
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+  reasoning: string;
+} {
+  switch (args.parserKey) {
+    case "single_verdict": {
+      const verdict = parseSingleVerdict(raw, args.labelMapping);
+      return {
+        ...verdict,
+        reasoning: extractReasoningBeforeVerdict(raw),
+      };
+    }
+    case "subset_verdict": {
+      const verdict = parseSubsetVerdict(raw, args.labelMapping);
+      return {
+        ...verdict,
+        reasoning: extractReasoningBeforeVerdict(raw),
+      };
+    }
+    case "label_choice": {
+      const verdict = args.method === "subset"
+        ? parseLabelSet(raw, args.labelMapping)
+        : parseLabelChoice(raw, args.labelMapping);
+      return {
+        ...verdict,
+        reasoning: extractReasoningBeforeTaggedLine(
+          raw,
+          args.method === "subset" ? ["LABELS", "LABEL", "VERDICT"] : ["LABEL", "VERDICT"],
+        ),
+      };
+    }
+    case "json_label_choice":
+    case "structured_json": {
+      return parseStructuredJsonChoice(raw, args.labelMapping, args.method);
+    }
+    default:
+      throw new Error(`Unsupported score parser key: ${args.parserKey}`);
+  }
 }
 
 export function parseExpertAgreementResponse(raw: string): {
