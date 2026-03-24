@@ -3,7 +3,6 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
 import { api, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
 
 type ConvexTestInstance = ReturnType<typeof convexTest>;
 
@@ -11,53 +10,100 @@ function initTest(): ConvexTestInstance {
   return convexTest(schema, buildModules());
 }
 
-async function createWindowWithEvidence(
+async function createEvidenceSet(
   t: ConvexTestInstance,
-  query: string,
-  evidenceCount: number,
-  rawPrefix: string,
+  args: {
+    universe_tag: string;
+    evidence_set_tag: string;
+    itemCount: number;
+  },
 ) {
-  const { window_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindow,
+  const { universe_id } = await t.mutation(
+    internal.domain.evidence.evidence_repo.createUniverse,
     {
-      country: "USA",
-      start_date: "2026-03-01",
-      end_date: "2026-03-02",
-      query,
-      default_target_count: evidenceCount,
-    },
-  );
-  const { window_run_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindowRun,
-    {
-      window_id,
-      model: "gpt-4.1-mini",
-      target_count: evidenceCount,
-      target_stage: "l3_abstracted",
+      universe_tag: args.universe_tag,
+      kind: "paper_audit",
+      title: args.universe_tag,
     },
   );
 
-  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-    window_run_id,
-    evidences: Array.from({ length: evidenceCount }, (_, index) => ({
-      title: `${query} evidence ${index + 1}`,
-      url: `https://example.com/${rawPrefix}/${index + 1}`,
-      raw_content: `${rawPrefix} raw content ${index + 1}. `.repeat(40),
+  const importedItems = [] as Array<{
+    evidence_item_id: string;
+    evidence_view_id: string;
+  }>;
+
+  for (let index = 0; index < args.itemCount; index += 1) {
+    const imported = await t.action(
+      internal.domain.evidence.evidence_service.importEvidenceItem,
+      {
+        universe_id,
+        canonical_key: `${args.universe_tag}:item:${index + 1}`,
+        title: `${args.evidence_set_tag} item ${index + 1}`,
+        source_url: `https://example.com/${args.evidence_set_tag}/${index + 1}`,
+        raw_text: `${args.evidence_set_tag} evidence text ${index + 1}.`,
+        view_kind: "paper_original",
+        pipeline_kind: "import",
+        pipeline_version: "bundle-tests-v4",
+      },
+    );
+    importedItems.push({
+      evidence_item_id: imported.evidence_item_id,
+      evidence_view_id: imported.evidence_view_id,
+    });
+  }
+
+  const { evidence_set_id } = await t.mutation(
+    internal.domain.evidence.evidence_repo.createEvidenceSet,
+    {
+      universe_id,
+      evidence_set_tag: args.evidence_set_tag,
+      title: args.evidence_set_tag,
+      source_kind: "manual_import",
+      quality_label: "high",
+    },
+  );
+
+  await t.mutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
+    evidence_set_id,
+    items: importedItems.map((item, index) => ({
+      evidence_item_id: item.evidence_item_id as never,
+      pinned_view_id: item.evidence_view_id as never,
+      ordinal: index,
+      quality_label: "high" as const,
     })),
   });
 
   return {
-    window_id,
-    evidences: await t.query(api.packages.lab.listEvidenceByWindow, { window_id }),
+    universe_id,
+    evidence_set_id,
   };
 }
 
-async function createPoolFromWindows(
+async function createExperiment(
   t: ConvexTestInstance,
-  windows: Array<{ evidences: Array<{ evidence_id: Id<"evidences"> }> }>,
+  args: {
+    evidence_set_id: string;
+    evidence_bundle_size: number;
+  },
 ) {
-  const evidence_ids = windows.flatMap((window) => window.evidences.map((row) => row.evidence_id));
-  return t.mutation(api.packages.lab.createPool, { evidence_ids });
+  return t.mutation(api.packages.lab.initExperiment, {
+    evidence_set_id: args.evidence_set_id as never,
+    experiment_config: {
+      rubric_config: {
+        model: "gpt-4.1",
+        scale_size: 4,
+        concept: "fascism",
+      },
+      scoring_config: {
+        model: "gpt-4.1",
+        method: "subset",
+        abstain_enabled: true,
+        evidence_view: "l0_raw",
+        randomizations: [],
+        evidence_bundle_size: args.evidence_bundle_size,
+      },
+    },
+  });
 }
 
 describe("bundle score targets", () => {
@@ -91,29 +137,16 @@ describe("bundle score targets", () => {
     vi.unstubAllGlobals();
   });
 
-  test("single_evidence runs create one score target per pool evidence per sample", async () => {
+  test("single-item runs create one score target per evidence-set item per sample", async () => {
     const t = initTest();
-    const windowA = await createWindowWithEvidence(t, "single-a", 2, "single-a");
-    const windowB = await createWindowWithEvidence(t, "single-b", 1, "single-b");
-    const pool = await createPoolFromWindows(t, [windowA, windowB]);
-
-    const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-      pool_id: pool.pool_id,
-      experiment_config: {
-        rubric_config: {
-          model: "gpt-4.1",
-          scale_size: 4,
-          concept: "fascism",
-        },
-        scoring_config: {
-          model: "gpt-4.1",
-          method: "subset",
-          abstain_enabled: true,
-          evidence_view: "l2_neutralized",
-          randomizations: [],
-          evidence_bundle_size: 1,
-        },
-      },
+    const seeded = await createEvidenceSet(t, {
+      universe_tag: "single-evidence-universe",
+      evidence_set_tag: "single-evidence-set",
+      itemCount: 3,
+    });
+    const { experiment_id } = await createExperiment(t, {
+      evidence_set_id: seeded.evidence_set_id,
+      evidence_bundle_size: 1,
     });
 
     const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
@@ -128,35 +161,18 @@ describe("bundle score targets", () => {
       expect(target.items).toHaveLength(1);
       expect(target.items[0]?.position).toBe(0);
     }
-  }, 15_000);
+  });
 
-  test("bundle runs partition the pool into stratified score targets per sample", async () => {
+  test("bundle runs partition one evidence set into multiple score targets per sample", async () => {
     const t = initTest();
-    const windows = await Promise.all([
-      createWindowWithEvidence(t, "bundle-a", 2, "bundle-a"),
-      createWindowWithEvidence(t, "bundle-b", 2, "bundle-b"),
-      createWindowWithEvidence(t, "bundle-c", 2, "bundle-c"),
-      createWindowWithEvidence(t, "bundle-d", 2, "bundle-d"),
-    ]);
-    const pool = await createPoolFromWindows(t, windows);
-
-    const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-      pool_id: pool.pool_id,
-      experiment_config: {
-        rubric_config: {
-          model: "gpt-4.1",
-          scale_size: 4,
-          concept: "fascism",
-        },
-        scoring_config: {
-          model: "gpt-4.1",
-          method: "subset",
-          abstain_enabled: true,
-          evidence_view: "l2_neutralized",
-          randomizations: [],
-          evidence_bundle_size: 3,
-        },
-      },
+    const seeded = await createEvidenceSet(t, {
+      universe_tag: "bundle-universe",
+      evidence_set_tag: "bundle-set",
+      itemCount: 8,
+    });
+    const { experiment_id } = await createExperiment(t, {
+      evidence_set_id: seeded.evidence_set_id,
+      evidence_bundle_size: 3,
     });
 
     const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
@@ -166,6 +182,7 @@ describe("bundle score targets", () => {
 
     const scoreTargets = await t.query(api.packages.lab.listRunScoreTargets, { run_id });
     expect(scoreTargets).toHaveLength(6);
+
     const groupedBySample = new Map<string, (typeof scoreTargets)>();
     for (const target of scoreTargets) {
       const sampleTargets = groupedBySample.get(String(target.sample_id)) ?? [];
@@ -181,37 +198,25 @@ describe("bundle score targets", () => {
       expect(targets[2]?.items).toHaveLength(2);
       expect(
         new Set(
-          targets[0]!.items.map((item: { window_id: Id<"windows"> }) => String(item.window_id)),
+          targets.flatMap((target: (typeof scoreTargets)[number]) =>
+            target.items.map((item: (typeof scoreTargets)[number]["items"][number]) =>
+              String(item.evidence_item_id)
+            )),
         ).size,
-      ).toBe(3);
+      ).toBe(8);
     }
   });
 
-  test("bundle size greater than pool size creates a single all-evidence score target", async () => {
+  test("bundle size greater than evidence-set size creates a single all-evidence score target", async () => {
     const t = initTest();
-    const windows = await Promise.all([
-      createWindowWithEvidence(t, "all-a", 2, "all-a"),
-      createWindowWithEvidence(t, "all-b", 2, "all-b"),
-    ]);
-    const pool = await createPoolFromWindows(t, windows);
-
-    const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-      pool_id: pool.pool_id,
-      experiment_config: {
-        rubric_config: {
-          model: "gpt-4.1",
-          scale_size: 4,
-          concept: "fascism",
-        },
-        scoring_config: {
-          model: "gpt-4.1",
-          method: "subset",
-          abstain_enabled: true,
-          evidence_view: "l2_neutralized",
-          randomizations: [],
-          evidence_bundle_size: 99,
-        },
-      },
+    const seeded = await createEvidenceSet(t, {
+      universe_tag: "all-evidence-universe",
+      evidence_set_tag: "all-evidence-set",
+      itemCount: 4,
+    });
+    const { experiment_id } = await createExperiment(t, {
+      evidence_set_id: seeded.evidence_set_id,
+      evidence_bundle_size: 99,
     });
 
     const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
@@ -224,24 +229,18 @@ describe("bundle score targets", () => {
     expect(scoreTargets[0]?.items).toHaveLength(4);
   });
 
-  test("windows and pools persist count fields", async () => {
+  test("evidence sets persist item counts for curated V4 selections", async () => {
     const t = initTest();
-    const windowA = await createWindowWithEvidence(t, "count-a", 2, "count-a");
-    const windowB = await createWindowWithEvidence(t, "count-b", 3, "count-b");
-    const pool = await createPoolFromWindows(t, [windowA, windowB]);
-
-    const storedWindowA = await t.query(internal.domain.window.window_repo.getWindow, {
-      window_id: windowA.window_id,
-    });
-    const storedWindowB = await t.query(internal.domain.window.window_repo.getWindow, {
-      window_id: windowB.window_id,
-    });
-    const storedPool = await t.query(internal.domain.runs.pool_repo.getPool, {
-      pool_id: pool.pool_id,
+    const seeded = await createEvidenceSet(t, {
+      universe_tag: "counts-universe",
+      evidence_set_tag: "counts-set",
+      itemCount: 5,
     });
 
-    expect(storedWindowA.default_target_count).toBe(2);
-    expect(storedWindowB.default_target_count).toBe(3);
-    expect(storedPool.evidence_count).toBe(5);
+    const evidenceSet = await t.query(api.packages.evidence.getEvidenceSetSummary, {
+      evidence_set_id: seeded.evidence_set_id as never,
+    });
+
+    expect(evidenceSet.item_count).toBe(5);
   });
 });

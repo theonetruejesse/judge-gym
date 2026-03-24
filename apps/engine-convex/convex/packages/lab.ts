@@ -10,10 +10,7 @@ import { WindowStageKeySchema } from "@judge-gym/engine-settings/process";
 import type { Doc, Id } from "../_generated/dataModel";
 import { WindowsTableSchema } from "../models/window";
 import { ExperimentsTableSchema, RunStageSchema } from "../models/experiments";
-import {
-  BundleStrategySchema,
-  SemanticLevelSchema,
-} from "../models/_shared";
+import { SemanticLevelSchema } from "../models/_shared";
 import { CreateWindowResult } from "../domain/window/window_repo";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 
@@ -551,8 +548,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     experiment_tag: z.string().optional(),
     experiment_config: ExperimentConfigInputSchema,
     evidence_set_id: zid("evidence_sets").optional(),
-    pool_id: zid("pools").optional(),
-    bundle_plan_id: zid("bundle_plans").optional(),
   }),
   returns: z.object({
     experiment_id: zid("experiments"),
@@ -563,11 +558,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
       throw new Error(
         "Greenfield V4 experiments require evidence_set_id. "
         + "Legacy pool-backed experiment initialization is removed.",
-      );
-    }
-    if (args.pool_id || args.bundle_plan_id) {
-      throw new Error(
-        "Greenfield V4 experiments no longer accept pool_id or bundle_plan_id.",
       );
     }
 
@@ -596,124 +586,6 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
     });
 
     return { experiment_id };
-  },
-});
-
-export const createPool: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    evidence_ids: z.array(zid("evidences")).min(1),
-    pool_tag: z.string().optional(),
-  }),
-  returns: z.object({
-    pool_id: zid("pools"),
-  }),
-  handler: async (ctx, args) => {
-    const pool_id = await ctx.runMutation(
-      internal.domain.runs.pool_repo.createPool,
-      args,
-    );
-    return { pool_id };
-  },
-});
-
-export const createPoolFromWindowRun: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    window_run_id: zid("window_runs"),
-    pool_tag: z.string().optional(),
-  }),
-  returns: z.object({
-    pool_id: zid("pools"),
-    evidence_count: z.number(),
-  }),
-  handler: async (ctx, args) => {
-    const windowRun = await ctx.runQuery(
-      internal.domain.window.window_repo.getWindowRun,
-      { window_run_id: args.window_run_id },
-    );
-    if (windowRun.status !== "completed") {
-      throw new Error("Window run must be completed before creating a pool");
-    }
-    const evidences = await ctx.runQuery(
-      internal.domain.window.window_repo.listEvidenceByWindowRun,
-      { window_run_id: args.window_run_id },
-    );
-    if (evidences.length === 0) {
-      throw new Error("Window run has no evidence");
-    }
-    const pool_id = await ctx.runMutation(
-      internal.domain.runs.pool_repo.createPool,
-      {
-        evidence_ids: evidences.map((evidence: Doc<"evidences">) => evidence._id),
-        pool_tag: args.pool_tag,
-      },
-    );
-    return {
-      pool_id,
-      evidence_count: evidences.length,
-    };
-  },
-});
-
-export const createBundlePlan: ReturnType<typeof zMutation> = zMutation({
-  args: z.object({
-    bundle_plan_tag: z.string().optional(),
-    pool_id: zid("pools"),
-    strategy: BundleStrategySchema,
-    strategy_version: z.string().optional(),
-    source_view: SemanticLevelSchema.nullable().optional(),
-    bundle_size: z.number().int().min(1),
-    seed: z.number().int().nullable().optional(),
-  }),
-  returns: z.object({
-    bundle_plan_id: zid("bundle_plans"),
-    bundle_plan_tag: z.string(),
-    created: z.boolean(),
-  }),
-  handler: async (ctx, args) => {
-    return ctx.runMutation(
-      internal.domain.runs.bundle_plan_repo.createBundlePlan,
-      args,
-    );
-  },
-});
-
-export const listBundlePlans: ReturnType<typeof zQuery> = zQuery({
-  args: z.object({
-    pool_id: zid("pools").optional(),
-  }),
-  returns: z.array(z.object({
-    bundle_plan_id: zid("bundle_plans"),
-    bundle_plan_tag: z.string(),
-    pool_id: zid("pools"),
-    strategy: BundleStrategySchema,
-    strategy_version: z.string(),
-    source_view: SemanticLevelSchema.nullable(),
-    bundle_size: z.number().int().min(1),
-    seed: z.number().int().nullable(),
-    evidence_count: z.number().int().nonnegative(),
-    bundle_count: z.number().int().nonnegative(),
-    status: z.string(),
-    materialized_item_count: z.number().int().nonnegative(),
-  })),
-  handler: async (ctx, args) => {
-    const plans = await ctx.runQuery(
-      internal.domain.runs.bundle_plan_repo.listBundlePlans,
-      args,
-    );
-    return plans.map((plan: (typeof plans)[number]) => ({
-      bundle_plan_id: plan._id,
-      bundle_plan_tag: plan.bundle_plan_tag,
-      pool_id: plan.pool_id,
-      strategy: plan.strategy,
-      strategy_version: plan.strategy_version,
-      source_view: plan.source_view,
-      bundle_size: plan.bundle_size,
-      seed: plan.seed,
-      evidence_count: plan.evidence_count,
-      bundle_count: plan.bundle_count,
-      status: plan.status,
-      materialized_item_count: plan.materialized_item_count,
-    }));
   },
 });
 

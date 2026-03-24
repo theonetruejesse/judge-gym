@@ -37,44 +37,51 @@ async function seedWindow(t: ReturnType<typeof convexTest>) {
 }
 
 async function seedRun(t: ReturnType<typeof convexTest>) {
-  const { window_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindow,
+  const { universe_id } = await t.mutation(
+    internal.domain.evidence.evidence_repo.createUniverse,
     {
-      country: "USA",
-      start_date: "2026-03-01",
-      end_date: "2026-03-02",
-      query: "worker-idempotency-run",
-      default_target_count: 1,
-      default_target_stage: "l3_abstracted",
-    },
-  );
-  const { window_run_id } = await t.mutation(
-    internal.domain.window.window_repo.createWindowRun,
-    {
-      window_id,
-      model: "gpt-4.1-mini",
-      target_count: 1,
-      target_stage: "l3_abstracted",
+      universe_tag: "worker-idempotency-universe",
+      kind: "paper_audit",
+      title: "worker-idempotency-universe",
     },
   );
 
-  await t.mutation(internal.domain.window.window_repo.insertEvidenceBatch, {
-    window_run_id,
-    evidences: [{
+  const imported = await t.action(
+    internal.domain.evidence.evidence_service.importEvidenceItem,
+    {
+      universe_id,
+      canonical_key: "worker-idempotency:item:1",
       title: "Run Evidence 1",
-      url: "https://example.com/run-e1",
-      raw_content: "Run evidence one raw content.",
+      source_url: "https://example.com/run-e1",
+      raw_text: "Run evidence one raw content.",
+      view_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "worker-idempotency-v4",
+    },
+  );
+
+  const { evidence_set_id } = await t.mutation(
+    internal.domain.evidence.evidence_repo.createEvidenceSet,
+    {
+      universe_id,
+      evidence_set_tag: "worker-idempotency-set",
+      title: "worker-idempotency-set",
+      source_kind: "manual_import",
+      quality_label: "high",
+    },
+  );
+
+  await t.mutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
+    evidence_set_id,
+    items: [{
+      evidence_item_id: imported.evidence_item_id,
+      pinned_view_id: imported.evidence_view_id,
+      quality_label: "high",
     }],
   });
 
-  const evidenceRows = await t.query(api.packages.lab.listEvidenceByWindow, { window_id });
-  const pool = await t.mutation(api.packages.lab.createPool, {
-    evidence_ids: evidenceRows.map((row: { evidence_id: Id<"evidences"> }) => row.evidence_id),
-    pool_tag: "worker_idempotency_pool",
-  });
-
   const { experiment_id } = await t.mutation(api.packages.lab.initExperiment, {
-    pool_id: pool.pool_id,
+    evidence_set_id,
     experiment_config: {
       rubric_config: {
         model: "gpt-4.1",
