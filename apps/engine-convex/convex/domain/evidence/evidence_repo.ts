@@ -12,6 +12,7 @@ import {
   EvidenceSourceRecordsTableSchema,
   EvidenceSetItemsTableSchema,
   EvidenceSetsTableSchema,
+  EvidenceTransformRunsTableSchema,
   EvidenceUniverseTableSchema,
   EvidenceViewsTableSchema,
 } from "../../models/evidence";
@@ -144,6 +145,28 @@ const UpsertEvidenceSetItemsArgsSchema = z.object({
     quality_label: EvidenceSetItemsTableSchema.shape.quality_label.optional(),
     metadata_json: EvidenceSetItemsTableSchema.shape.metadata_json.optional(),
   })),
+});
+
+const CreateEvidenceTransformRunArgsSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  source_record_kind: EvidenceTransformRunsTableSchema.shape.source_record_kind,
+  target_view_kinds: EvidenceTransformRunsTableSchema.shape.target_view_kinds,
+  model: EvidenceTransformRunsTableSchema.shape.model,
+  prompt_version: EvidenceTransformRunsTableSchema.shape.prompt_version,
+});
+
+const PatchEvidenceTransformRunArgsSchema = z.object({
+  evidence_transform_run_id: zid("evidence_transform_runs"),
+  status: EvidenceTransformRunsTableSchema.shape.status.optional(),
+  workflow_id: EvidenceTransformRunsTableSchema.shape.workflow_id.optional(),
+  workflow_run_id: EvidenceTransformRunsTableSchema.shape.workflow_run_id.optional(),
+  current_stage: EvidenceTransformRunsTableSchema.shape.current_stage.optional(),
+  total_count: EvidenceTransformRunsTableSchema.shape.total_count.optional(),
+  completed_count: EvidenceTransformRunsTableSchema.shape.completed_count.optional(),
+  failed_count: EvidenceTransformRunsTableSchema.shape.failed_count.optional(),
+  last_error_message: EvidenceTransformRunsTableSchema.shape.last_error_message.optional(),
+  started_at_ms: EvidenceTransformRunsTableSchema.shape.started_at_ms.optional(),
+  finished_at_ms: EvidenceTransformRunsTableSchema.shape.finished_at_ms.optional(),
 });
 
 export const createUniverse = zInternalMutation({
@@ -791,5 +814,74 @@ export const listEvidenceSetItems = zInternalQuery({
       .query("evidence_set_items")
       .withIndex("by_set", (q) => q.eq("evidence_set_id", args.evidence_set_id))
       .collect();
+  },
+});
+
+export const createEvidenceTransformRun = zInternalMutation({
+  args: CreateEvidenceTransformRunArgsSchema,
+  returns: z.object({
+    evidence_transform_run_id: zid("evidence_transform_runs"),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const setItems = await ctx.db
+      .query("evidence_set_items")
+      .withIndex("by_set", (q) => q.eq("evidence_set_id", args.evidence_set_id))
+      .collect();
+    const totalCount = new Set(setItems.map((item) => String(item.evidence_item_id))).size;
+    const evidence_transform_run_id = await ctx.db.insert("evidence_transform_runs", {
+      evidence_set_id: args.evidence_set_id,
+      source_record_kind: args.source_record_kind,
+      target_view_kinds: args.target_view_kinds,
+      model: args.model,
+      prompt_version: args.prompt_version,
+      status: "start",
+      workflow_id: null,
+      workflow_run_id: null,
+      current_stage: null,
+      total_count: totalCount,
+      completed_count: 0,
+      failed_count: 0,
+      last_error_message: null,
+      started_at_ms: null,
+      finished_at_ms: null,
+      created_at_ms: now,
+      updated_at_ms: now,
+    });
+    return { evidence_transform_run_id };
+  },
+});
+
+export const patchEvidenceTransformRun = zInternalMutation({
+  args: PatchEvidenceTransformRunArgsSchema,
+  returns: z.null(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.evidence_transform_run_id);
+    if (!run) {
+      throw new Error("Evidence transform run not found.");
+    }
+    await ctx.db.patch(args.evidence_transform_run_id, {
+      status: args.status ?? run.status,
+      workflow_id: args.workflow_id ?? run.workflow_id ?? null,
+      workflow_run_id: args.workflow_run_id ?? run.workflow_run_id ?? null,
+      current_stage: args.current_stage ?? run.current_stage ?? null,
+      total_count: args.total_count ?? run.total_count,
+      completed_count: args.completed_count ?? run.completed_count,
+      failed_count: args.failed_count ?? run.failed_count,
+      last_error_message: args.last_error_message ?? run.last_error_message ?? null,
+      started_at_ms: args.started_at_ms ?? run.started_at_ms ?? null,
+      finished_at_ms: args.finished_at_ms ?? run.finished_at_ms ?? null,
+      updated_at_ms: Date.now(),
+    });
+    return null;
+  },
+});
+
+export const getEvidenceTransformRun = zInternalQuery({
+  args: z.object({
+    evidence_transform_run_id: zid("evidence_transform_runs"),
+  }),
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.evidence_transform_run_id);
   },
 });

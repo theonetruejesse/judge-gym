@@ -13,6 +13,14 @@ export const RUN_STAGE_KEYS = [
 export type RunStageKey = (typeof RUN_STAGE_KEYS)[number];
 export const RunStageKeySchema = z.enum(RUN_STAGE_KEYS);
 
+export const EVIDENCE_TRANSFORM_STAGE_KEYS = [
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+] as const;
+export type EvidenceTransformStageKey = (typeof EVIDENCE_TRANSFORM_STAGE_KEYS)[number];
+export const EvidenceTransformStageKeySchema = z.enum(EVIDENCE_TRANSFORM_STAGE_KEYS);
+
 export type ProcessStageKey = RunStageKey;
 
 export const PROCESS_STAGE_STATUSES = [
@@ -123,6 +131,11 @@ export interface ProjectProcessStateInput<TStage extends string = string>
 export interface RunWorkflowInput {
   runId: string;
   pauseAfter?: RunStageKey | null;
+}
+
+export interface EvidenceTransformWorkflowInput {
+  transformRunId: string;
+  stages?: EvidenceTransformStageKey[];
 }
 
 export interface SetPauseAfterInput<TStage extends string = string> {

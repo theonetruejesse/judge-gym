@@ -7,7 +7,7 @@ The repo is now a greenfield V4 system. The old window / `window_runs` / `eviden
 ## Stack
 
 - `apps/engine-convex`: Convex backend, schema, worker APIs, evidence acquisition, experiment/run orchestration
-- `apps/engine-temporal`: Temporal worker for `RunWorkflow`
+- `apps/engine-temporal`: Temporal worker for `RunWorkflow` and semantic evidence transforms
 - `apps/lab`: Next.js UI for evidence universes, evidence sets, and experiments
 - `packages/engine-settings`: shared provider/runtime settings
 - `packages/engine-prompts`: shared run prompt/config contracts
@@ -25,7 +25,7 @@ The evidence path is:
 4. ingest Media Cloud discovery into `evidence_candidates`
 5. hydrate candidates into canonical `evidence_items`
 6. persist original documents as `evidence_source_records`
-7. generate semantic/derived `evidence_views`
+7. execute `evidence_transform_runs` to generate semantic/derived `evidence_views`
 8. freeze reusable `evidence_sets`
 
 Large payloads live in Convex storage and are referenced through `evidence_assets`.
@@ -39,6 +39,7 @@ Core tables:
 - `evidence_items`
 - `evidence_source_records`
 - `evidence_views`
+- `evidence_transform_runs`
 - `evidence_assets`
 - `evidence_sets`
 - `evidence_set_items`
@@ -60,12 +61,19 @@ Experiments are evidence-set-native.
 
 ### Runtime
 
-The only live workflow is `RunWorkflow` with:
+Live workflows:
 
-- `rubric_gen`
-- `rubric_critic`
-- `score_gen`
-- `score_critic`
+- `RunWorkflow` with:
+  - `rubric_gen`
+  - `rubric_critic`
+  - `score_gen`
+  - `score_critic`
+- `EvidenceTransformWorkflow` with:
+  - `l1_cleaned`
+  - `l2_neutralized`
+  - `l3_abstracted`
+
+Semantic transforms now read from `evidence_source_records` and write back into `evidence_views`. Raw/paper-original source records stay decoupled from the semantic ladder.
 
 Provider support:
 

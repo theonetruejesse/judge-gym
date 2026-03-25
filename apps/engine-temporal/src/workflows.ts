@@ -10,6 +10,8 @@ import {
   workflowInfo,
 } from "@temporalio/workflow";
 import type {
+  EvidenceTransformStageKey,
+  EvidenceTransformWorkflowInput,
   PauseNowInput,
   ProcessSnapshot,
   RepairBoundedInput,
@@ -29,6 +31,12 @@ const RUN_STAGES: RunStageKey[] = [
   "score_critic",
 ];
 
+const EVIDENCE_TRANSFORM_STAGES: EvidenceTransformStageKey[] = [
+  "l1_cleaned",
+  "l2_neutralized",
+  "l3_abstracted",
+];
+
 const {
   projectProcessState,
 } = proxyActivities<typeof activities>({
@@ -40,6 +48,15 @@ const {
 
 const {
   runRunStage,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  retry: {
+    maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
+  },
+});
+
+const {
+  runEvidenceTransformStage,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
   retry: {
@@ -281,4 +298,30 @@ export async function runWorkflow(
     stages: RUN_STAGES,
     pauseAfter: input.pauseAfter ?? null,
   });
+}
+
+export async function evidenceTransformWorkflow(
+  input: EvidenceTransformWorkflowInput,
+) {
+  const stages = (input.stages?.length ? input.stages : EVIDENCE_TRANSFORM_STAGES)
+    .slice()
+    .sort(
+      (left, right) =>
+        EVIDENCE_TRANSFORM_STAGES.indexOf(left) - EVIDENCE_TRANSFORM_STAGES.indexOf(right),
+    );
+
+  for (const stage of stages) {
+    const result = await runEvidenceTransformStage({
+      evidenceTransformRunId: input.transformRunId,
+      stage,
+    });
+    if (result.haltProcess) {
+      break;
+    }
+  }
+
+  return {
+    transformRunId: input.transformRunId,
+    stages,
+  };
 }

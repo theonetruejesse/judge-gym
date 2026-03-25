@@ -32,4 +32,14 @@ describe("temporal migration activities", () => {
       /runId is required/,
     );
   });
+
+  it("fails fast before querying Convex when a transform stage input omits the run id", async () => {
+    await assert.rejects(
+      () => activities.runEvidenceTransformStage({
+        evidenceTransformRunId: undefined as unknown as string,
+        stage: "l1_cleaned",
+      }),
+      /processId is required/,
+    );
+  });
 });

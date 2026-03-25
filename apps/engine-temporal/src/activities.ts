@@ -1,9 +1,11 @@
 import type {
+  EvidenceTransformStageKey,
   ProjectProcessStateInput,
   RunStageKey,
   StageActivityResult,
 } from "@judge-gym/engine-settings/process";
 import { getConvexWorkerClient } from "./convex/client";
+import { runEvidenceTransformStageActivity } from "./evidence_transform/service";
 import { runRunStageActivity } from "./run/service";
 
 function assertRequiredProcessId(
@@ -33,4 +35,14 @@ export async function runRunStage(
 ): Promise<StageActivityResult<RunStageKey>> {
   assertRequiredProcessId(input.runId, "runId");
   return runRunStageActivity(input.runId, input.stage);
+}
+
+export async function runEvidenceTransformStage(
+  input: {
+    evidenceTransformRunId: string;
+    stage: EvidenceTransformStageKey;
+  },
+): Promise<StageActivityResult<EvidenceTransformStageKey>> {
+  assertRequiredProcessId(input.evidenceTransformRunId, "processId");
+  return runEvidenceTransformStageActivity(input.evidenceTransformRunId, input.stage);
 }

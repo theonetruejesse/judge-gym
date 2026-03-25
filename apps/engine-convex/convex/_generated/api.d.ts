@@ -39,6 +39,7 @@ import type * as models_telemetry from "../models/telemetry.js";
 import type * as packages_analysis from "../packages/analysis.js";
 import type * as packages_codex from "../packages/codex.js";
 import type * as packages_evidence from "../packages/evidence.js";
+import type * as packages_evidence_transform from "../packages/evidence_transform.js";
 import type * as packages_lab from "../packages/lab.js";
 import type * as packages_v3_campaign from "../packages/v3_campaign.js";
 import type * as packages_worker from "../packages/worker.js";
@@ -85,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   "packages/analysis": typeof packages_analysis;
   "packages/codex": typeof packages_codex;
   "packages/evidence": typeof packages_evidence;
+  "packages/evidence_transform": typeof packages_evidence_transform;
   "packages/lab": typeof packages_lab;
   "packages/v3_campaign": typeof packages_v3_campaign;
   "packages/worker": typeof packages_worker;

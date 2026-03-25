@@ -19,6 +19,7 @@ import {
   EvidenceSourceRecordsTableSchema,
   EvidenceSetItemsTableSchema,
   EvidenceSetsTableSchema,
+  EvidenceTransformRunsTableSchema,
   EvidenceUniverseTableSchema,
   EvidenceViewsTableSchema,
 } from "./models/evidence";
@@ -87,6 +88,9 @@ export default defineSchema({
     .index("by_item", ["evidence_item_id"])
     .index("by_item_view", ["evidence_item_id", "view_kind"])
     .index("by_attempt", ["attempt_id"]),
+  evidence_transform_runs: defineTable(zodOutputToConvex(EvidenceTransformRunsTableSchema))
+    .index("by_evidence_set", ["evidence_set_id"])
+    .index("by_status", ["status"]),
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
     .index("by_experiment_tag", ["experiment_tag"])
     .index("by_evidence_set", ["evidence_set_id"]),

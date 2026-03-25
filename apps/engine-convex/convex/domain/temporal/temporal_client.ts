@@ -13,6 +13,7 @@ import {
   TemporalTaskQueueKindSchema,
   TemporalTaskQueueHealthSchema,
 } from "./schemas";
+import { EvidenceTransformStageKeySchema } from "@judge-gym/engine-settings/process";
 
 const RunPauseAfterSchema = z.enum([
   "rubric_gen",
@@ -253,6 +254,40 @@ export async function startRunWorkflowExecution(args: {
       }],
       taskQueue: config.taskQueues.run,
       workflowId: `run:${args.run_id}`,
+    });
+
+    return {
+      workflow_id: handle.workflowId,
+      workflow_run_id: handle.firstExecutionRunId,
+    };
+  } finally {
+    await connection.close();
+  }
+}
+
+export async function startEvidenceTransformWorkflowExecution(args: {
+  evidence_transform_run_id: string;
+  stages: Array<z.infer<typeof EvidenceTransformStageKeySchema>>;
+}) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({
+    address: config.address,
+    tls: config.tls,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: config.namespace,
+    });
+
+    const handle = await client.workflow.start("evidenceTransformWorkflow", {
+      args: [{
+        transformRunId: args.evidence_transform_run_id,
+        stages: args.stages,
+      }],
+      taskQueue: config.taskQueues.run,
+      workflowId: `evidence_transform:${args.evidence_transform_run_id}`,
     });
 
     return {
@@ -550,6 +585,20 @@ export const startRunWorkflow = zInternalAction({
       run_id: String(args.run_id),
       pause_after: args.pause_after ?? null,
     });
+  },
+});
+
+export const startEvidenceTransformWorkflow = zInternalAction({
+  args: z.object({
+    evidence_transform_run_id: z.string(),
+    stages: z.array(EvidenceTransformStageKeySchema),
+  }),
+  returns: z.object({
+    workflow_id: z.string(),
+    workflow_run_id: z.string(),
+  }),
+  handler: async (_ctx, args) => {
+    return startEvidenceTransformWorkflowExecution(args);
   },
 });
 

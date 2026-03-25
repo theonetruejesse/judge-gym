@@ -4,16 +4,25 @@ Temporal worker package for the greenfield V4 runtime.
 
 ## What Runs Here
 
-Only `RunWorkflow` is live.
+Two workflows are live:
 
-Stages:
+- `RunWorkflow`
+- `EvidenceTransformWorkflow`
+
+Run stages:
 
 - `rubric_gen`
 - `rubric_critic`
 - `score_gen`
 - `score_critic`
 
-The worker executes provider-routed LLM calls, native batch flows, quota enforcement, and workflow snapshot/control handling.
+Evidence transform stages:
+
+- `l1_cleaned`
+- `l2_neutralized`
+- `l3_abstracted`
+
+The worker executes provider-routed LLM calls, native batch flows, quota enforcement, run workflow snapshot/control handling, and semantic evidence view generation.
 
 ## Provider Support
 
@@ -23,9 +32,10 @@ The worker executes provider-routed LLM calls, native batch flows, quota enforce
 
 ## Main Files
 
-- `src/workflows.ts`: `RunWorkflow`
+- `src/workflows.ts`: `RunWorkflow` and `EvidenceTransformWorkflow`
 - `src/activities.ts`: activity bindings
 - `src/run/service.ts`: run-stage execution
+- `src/evidence_transform/service.ts`: semantic transform execution
 - `src/llm/`: provider clients
 - `src/convex/client.ts`: worker-side Convex API client
 - `src/quota/`: Redis-backed quota logic
@@ -50,5 +60,5 @@ The worker executes provider-routed LLM calls, native batch flows, quota enforce
 
 ## Notes
 
-- The worker is run-only; the old window task queue and window activity path are removed.
+- The worker is V4-only; the old window task queue and window activity path are removed.
 - The primary deployment target is Railway.

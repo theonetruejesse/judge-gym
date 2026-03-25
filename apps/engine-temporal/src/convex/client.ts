@@ -1,6 +1,8 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import type {
+  EvidenceTransformStageKey,
+  EvidenceTransformWorkflowInput,
   ProjectProcessStateInput,
   RunStageKey,
 } from "@judge-gym/engine-settings/process";
@@ -44,6 +46,33 @@ type RunStageInput = {
   target_type: "sample" | "sample_score_target";
   target_id: string;
   model: ModelType;
+  system_prompt: string;
+  user_prompt: string;
+  metadata_json: string | null;
+};
+
+type EvidenceTransformRunExecutionContext = {
+  evidence_transform_run_id: string;
+  evidence_set_id: string;
+  source_record_kind: "source_text" | "paper_original";
+  target_view_kinds: EvidenceTransformStageKey[];
+  model: ModelType;
+  prompt_version: string;
+  status: string;
+  workflow_id: string | null;
+  workflow_run_id: string | null;
+  current_stage: EvidenceTransformStageKey | null;
+  total_count: number;
+  completed_count: number;
+  failed_count: number;
+  last_error_message: string | null;
+};
+
+type EvidenceTransformStageInput = {
+  evidence_set_item_id: string;
+  evidence_item_id: string;
+  model: ModelType;
+  stage: EvidenceTransformStageKey;
   system_prompt: string;
   user_prompt: string;
   metadata_json: string | null;
@@ -100,6 +129,27 @@ const workerApi = {
   ),
   bindRunWorkflow: makeFunctionReference<"mutation">(
     "packages/worker:bindRunWorkflow",
+  ),
+  getEvidenceTransformRunExecutionContext: makeFunctionReference<"query">(
+    "packages/evidence_transform:getEvidenceTransformRunExecutionContext",
+  ),
+  markEvidenceTransformStageRunning: makeFunctionReference<"mutation">(
+    "packages/evidence_transform:markEvidenceTransformStageRunning",
+  ),
+  listEvidenceTransformStageInputs: makeFunctionReference<"action">(
+    "packages/evidence_transform:listEvidenceTransformStageInputs",
+  ),
+  applyEvidenceTransformStageResult: makeFunctionReference<"action">(
+    "packages/evidence_transform:applyEvidenceTransformStageResult",
+  ),
+  markEvidenceTransformStageFailure: makeFunctionReference<"mutation">(
+    "packages/evidence_transform:markEvidenceTransformStageFailure",
+  ),
+  finalizeEvidenceTransformStage: makeFunctionReference<"mutation">(
+    "packages/evidence_transform:finalizeEvidenceTransformStage",
+  ),
+  markEvidenceTransformRunError: makeFunctionReference<"mutation">(
+    "packages/evidence_transform:markEvidenceTransformRunError",
   ),
   projectProcessState: makeFunctionReference<"mutation">(
     "packages/worker:projectProcessState",
@@ -165,6 +215,13 @@ export class ConvexWorkerClient {
     }) as Promise<RunExecutionContext>;
   }
 
+  getEvidenceTransformRunExecutionContext(evidence_transform_run_id: string) {
+    assertRequiredProcessId(evidence_transform_run_id, "evidence_transform_run_id");
+    return this.client.query(workerApi.getEvidenceTransformRunExecutionContext, {
+      evidence_transform_run_id,
+    }) as Promise<EvidenceTransformRunExecutionContext>;
+  }
+
   bindRunWorkflow(args: {
     run_id: string;
     workflow_id: string;
@@ -186,6 +243,22 @@ export class ConvexWorkerClient {
   }) {
     return this.client.action(workerApi.listRunStageInputs, args) as Promise<
       RunStageInput[]
+    >;
+  }
+
+  markEvidenceTransformStageRunning(args: {
+    evidence_transform_run_id: string;
+    stage: EvidenceTransformStageKey;
+  }) {
+    return this.client.mutation(workerApi.markEvidenceTransformStageRunning, args);
+  }
+
+  listEvidenceTransformStageInputs(args: {
+    evidence_transform_run_id: string;
+    stage: EvidenceTransformStageKey;
+  }) {
+    return this.client.action(workerApi.listEvidenceTransformStageInputs, args) as Promise<
+      EvidenceTransformStageInput[]
     >;
   }
 
@@ -213,6 +286,15 @@ export class ConvexWorkerClient {
     return this.client.mutation(workerApi.applyRunStageResult, args);
   }
 
+  applyEvidenceTransformStageResult(args: {
+    evidence_transform_run_id: string;
+    evidence_item_id: string;
+    stage: EvidenceTransformStageKey;
+    output: string;
+  }) {
+    return this.client.action(workerApi.applyEvidenceTransformStageResult, args);
+  }
+
   markRunStageFailure(args: {
     run_id: string;
     target_id: string;
@@ -221,6 +303,15 @@ export class ConvexWorkerClient {
     error_message: string;
   }) {
     return this.client.mutation(workerApi.markRunStageFailure, args);
+  }
+
+  markEvidenceTransformStageFailure(args: {
+    evidence_transform_run_id: string;
+    evidence_item_id: string;
+    stage: EvidenceTransformStageKey;
+    error_message: string;
+  }) {
+    return this.client.mutation(workerApi.markEvidenceTransformStageFailure, args);
   }
 
   finalizeRunStage(args: {
@@ -238,12 +329,34 @@ export class ConvexWorkerClient {
     }>;
   }
 
+  finalizeEvidenceTransformStage(args: {
+    evidence_transform_run_id: string;
+    stage: EvidenceTransformStageKey;
+  }) {
+    return this.client.mutation(workerApi.finalizeEvidenceTransformStage, args) as Promise<{
+      total: number;
+      completed: number;
+      failed: number;
+      has_pending: boolean;
+      halt_process: boolean;
+      error_message: string | null;
+    }>;
+  }
+
   markRunProcessError(args: {
     run_id: string;
     stage: RunStageKey | null;
     error_message: string;
   }) {
     return this.client.mutation(workerApi.markRunProcessError, args);
+  }
+
+  markEvidenceTransformRunError(args: {
+    evidence_transform_run_id: string;
+    stage: EvidenceTransformStageKey;
+    error_message: string;
+  }) {
+    return this.client.mutation(workerApi.markEvidenceTransformRunError, args);
   }
 
   getBatchExecution(args: { batch_key: string }) {

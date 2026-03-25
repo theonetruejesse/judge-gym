@@ -1,5 +1,7 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import { modelTypeSchema } from "@judge-gym/engine-settings/provider";
+import { EvidenceTransformStageKeySchema } from "@judge-gym/engine-settings/process";
 import { StateStatusSchema } from "./_shared";
 
 export const EvidenceUniverseKindSchema = z.enum([
@@ -185,6 +187,31 @@ export const EvidenceViewsTableSchema = z.object({
   status: StateStatusSchema,
   attempt_id: zid("llm_attempts").nullable().optional(),
   metadata_json: z.string().nullable().optional(),
+  created_at_ms: z.number(),
+  updated_at_ms: z.number(),
+});
+
+export const EvidenceTransformSourceRecordKindSchema = z.enum([
+  "source_text",
+  "paper_original",
+]);
+
+export const EvidenceTransformRunsTableSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  source_record_kind: EvidenceTransformSourceRecordKindSchema,
+  target_view_kinds: z.array(EvidenceTransformStageKeySchema),
+  model: modelTypeSchema,
+  prompt_version: z.string(),
+  status: StateStatusSchema,
+  workflow_id: z.string().nullable().optional(),
+  workflow_run_id: z.string().nullable().optional(),
+  current_stage: EvidenceTransformStageKeySchema.nullable().optional(),
+  total_count: z.number(),
+  completed_count: z.number(),
+  failed_count: z.number(),
+  last_error_message: z.string().nullable().optional(),
+  started_at_ms: z.number().nullable().optional(),
+  finished_at_ms: z.number().nullable().optional(),
   created_at_ms: z.number(),
   updated_at_ms: z.number(),
 });
