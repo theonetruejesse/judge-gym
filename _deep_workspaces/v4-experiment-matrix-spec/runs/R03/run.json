@@ -1,0 +1,20 @@
+{
+  "runId": "R03",
+  "title": "Package and close V4 spec",
+  "boundedObjective": "Package the locked V4 policy into the final matrix memo, implementation-facing study spec, and workspace closeout artifacts, then close the campaign.",
+  "status": "completed",
+  "createdAt": "2026-03-25T00:47:29.551779+00:00",
+  "workflowRequestPath": "runs/R03/workflow_request.md",
+  "workflowPath": "_deep_workflows/v4-matrix-spec-r03",
+  "measuredOutcome": {
+    "result": "campaign_closed",
+    "resolved": [
+      "final_matrix_memo",
+      "implementation_spec",
+      "workspace_closeout"
+    ]
+  },
+  "notes": [
+    "R03 was packaging-only and marked the workspace terminal."
+  ]
+}

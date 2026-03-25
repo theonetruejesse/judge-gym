@@ -1,0 +1,39 @@
+{
+  "nodeId": "N01",
+  "kind": "synthesize",
+  "role": "final-packager",
+  "objective": "Turn the locked R02 policy into the final V4 matrix memo and implementation-facing study spec.",
+  "inputs": [
+    "_deep_workflows/v4-matrix-spec-r02/agents/N02/locked_policy.md",
+    "_deep_workflows/v4-matrix-spec-r02/agents/N02/locked_policy.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "final_matrix_memo.md",
+    "implementation_spec.md"
+  ],
+  "completionCriteria": [
+    "Emit a final matrix memo that can be read as the campaign result.",
+    "Emit an implementation-facing study spec."
+  ]
+}

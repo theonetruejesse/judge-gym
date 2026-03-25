@@ -1,0 +1,40 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "closure-judge",
+  "objective": "Decide whether one final packaging run is still useful or whether the campaign can close after R02.",
+  "inputs": [
+    "agents/N02/locked_policy.md",
+    "agents/N02/locked_policy.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+  ],
+  "dependencies": [
+    "N02"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "closure.md",
+    "summary.json"
+  ],
+  "completionCriteria": [
+    "State clearly whether R03 is still needed."
+  ]
+}

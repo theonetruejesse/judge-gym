@@ -1,0 +1,55 @@
+{
+  "headlineTargets": [
+    "Gilardi",
+    "Zheng"
+  ],
+  "appendixTargets": [
+    "Ziems_subset"
+  ],
+  "headlineProviders": [
+    "gpt-4.1",
+    "gpt-5.2",
+    "claude-sonnet-4",
+    "claude-sonnet-4-openrouter"
+  ],
+  "secondaryOpenAiControls": [
+    "gpt-4.1-mini",
+    "gpt-5.2-chat"
+  ],
+  "openrouterPolicy": "provider_surface_control_only",
+  "headlineEvidencePolicy": {
+    "baseline": [
+      "paper_original",
+      "source_text"
+    ],
+    "alternate": "l2_neutralized",
+    "exclude": [
+      "l3_abstracted"
+    ]
+  },
+  "targetSpecificExtensions": {
+    "Gilardi": {
+      "headline": [
+        "faithful_baseline",
+        "abstention_perturbation",
+        "raw_vs_l2_neutralized",
+        "provider_family_replication"
+      ],
+      "appendix": [
+        "label_space_expansion_if_defensible",
+        "grouping_if_fidelity_preserved"
+      ]
+    },
+    "Zheng": {
+      "headline": [
+        "faithful_baseline",
+        "abstention_perturbation",
+        "provider_family_replication"
+      ],
+      "appendix": [
+        "raw_vs_l2_neutralized_if_fidelity_survives",
+        "scale_expansion_if_contract_supports"
+      ]
+    }
+  }
+}

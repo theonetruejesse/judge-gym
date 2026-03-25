@@ -1,0 +1,20 @@
+{
+  "runId": "R02",
+  "title": "Prune and lock matrix policy",
+  "boundedObjective": "Resolve the remaining matrix-blocking decisions from R01: decide the exact role of Ziems, decide the wave-1 OpenRouter breadth policy, and lock the target-specific conditional extension table.",
+  "status": "completed",
+  "createdAt": "2026-03-25T00:46:00.972051+00:00",
+  "workflowRequestPath": "runs/R02/workflow_request.md",
+  "workflowPath": "_deep_workflows/v4-matrix-spec-r02",
+  "measuredOutcome": {
+    "result": "matrix_policy_locked",
+    "resolved": [
+      "headline_targets",
+      "openrouter_wave1_policy",
+      "target_specific_extensions"
+    ]
+  },
+  "notes": [
+    "R02 intentionally pruned breadth to strengthen the final paper."
+  ]
+}

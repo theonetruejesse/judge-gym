@@ -1,0 +1,12 @@
+{
+  "campaignCanClose": true,
+  "terminalObjectiveMet": true,
+  "headlineTargets": [
+    "Gilardi",
+    "Zheng"
+  ],
+  "appendixTargets": [
+    "Ziems_subset"
+  ],
+  "nextWorkClass": "implementation_and_execution"
+}

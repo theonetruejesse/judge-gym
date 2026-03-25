@@ -1,0 +1,77 @@
+{
+  "targets": [
+    {
+      "target": "Gilardi",
+      "role": "primary_audit",
+      "baseline_view": "paper_original",
+      "core_perturbations": [
+        "abstention_policy",
+        "provider_family",
+        "evidence_view_l2_neutralized"
+      ],
+      "conditional_extensions": [
+        "label_space_expansion_if_defensible",
+        "grouping_if_multi_item_examples_exist"
+      ]
+    },
+    {
+      "target": "Ziems_subset",
+      "role": "scoped_secondary_audit",
+      "baseline_view": "paper_original",
+      "core_perturbations": [
+        "abstention_policy",
+        "provider_family",
+        "evidence_view_l2_neutralized"
+      ],
+      "conditional_extensions": [
+        "grouping_if_subset_contains_multi_item_evidence",
+        "model_placement_if_pipeline_roles_exist"
+      ]
+    },
+    {
+      "target": "Zheng",
+      "role": "comparator",
+      "baseline_view": "source_text",
+      "core_perturbations": [
+        "abstention_policy",
+        "provider_family"
+      ],
+      "conditional_extensions": [
+        "evidence_view_if_prompt_fidelity_survives_condensation",
+        "scale_expansion_if_judge_output_contract_supports_it"
+      ]
+    }
+  ],
+  "provider_panel": {
+    "headline": [
+      "gpt-4.1",
+      "gpt-5.2",
+      "claude-sonnet-4",
+      "claude-sonnet-4-openrouter"
+    ],
+    "secondary_openai": [
+      "gpt-4.1-mini",
+      "gpt-5.2-chat"
+    ]
+  },
+  "evidence_policy": {
+    "baseline_rule": "paper_audits_use_paper_original_or_source_text",
+    "semantic_alternate": "l2_neutralized",
+    "exclude_from_headline": [
+      "l3_abstracted"
+    ]
+  },
+  "primary_endpoints": [
+    "abstain_rate",
+    "scale_occupancy",
+    "singleton_rate",
+    "mean_subset_size",
+    "expected_stage",
+    "stage_entropy"
+  ],
+  "remaining_gaps": [
+    "ziems_subset_rule",
+    "openrouter_wave1_breadth",
+    "target_specific_extension_table"
+  ]
+}

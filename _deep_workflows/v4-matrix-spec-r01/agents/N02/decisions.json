@@ -1,0 +1,34 @@
+{
+  "launchBundle": {
+    "primary": "Gilardi",
+    "secondary": "Ziems_subset",
+    "comparator_default": "Zheng",
+    "comparator_alternate": "Thakur",
+    "deferred": [
+      "Santurkar",
+      "Tornberg"
+    ]
+  },
+  "providerPanel": {
+    "openai_primary": [
+      "gpt-4.1",
+      "gpt-5.2"
+    ],
+    "openai_secondary": [
+      "gpt-4.1-mini",
+      "gpt-5.2-chat"
+    ],
+    "anthropic": [
+      "claude-sonnet-4"
+    ],
+    "openrouter_current": [
+      "claude-sonnet-4-openrouter"
+    ]
+  },
+  "blockingDecisions": [
+    "ziems_subset_rule",
+    "openrouter_wave1_breadth",
+    "evidence_view_policy_by_target",
+    "conditional_perturbation_applicability"
+  ]
+}

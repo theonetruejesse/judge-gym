@@ -1,0 +1,41 @@
+{
+  "nodeId": "N04",
+  "kind": "synthesize",
+  "role": "campaign-closure-judge",
+  "objective": "Judge whether the candidate matrix is sufficient to close the workspace or whether a follow-up run is still required.",
+  "inputs": [
+    "agents/N03/matrix_candidate.md",
+    "agents/N03/matrix_sheet.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+  ],
+  "dependencies": [
+    "N03"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N04/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "closure_recommendation.md",
+    "summary.json"
+  ],
+  "completionCriteria": [
+    "Say clearly whether the campaign can stop or must open a follow-up run.",
+    "If a follow-up run is needed, narrow it to concrete remaining decisions."
+  ]
+}

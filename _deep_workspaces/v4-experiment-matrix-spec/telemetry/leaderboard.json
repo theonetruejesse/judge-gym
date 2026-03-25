@@ -1,16 +1,17 @@
 {
   "currentBest": {
-    "label": "narrow_geometry_first_v4",
-    "source": "workspace-bootstrap",
+    "ts": "2026-03-25T00:50:43.173721+00:00",
+    "label": "final_locked_matrix",
+    "source": "R03",
     "metrics": {
-      "target_reconstructability_confidence": 0.85,
-      "matrix_scope_discipline": 0.92,
-      "provider_symmetry_score": 0.78,
-      "engine_fit_score": 0.93,
-      "paper_claim_clarity": 0.9,
-      "unresolved_design_decisions": 4.0
+      "target_reconstructability_confidence": 0.9,
+      "matrix_scope_discipline": 0.97,
+      "provider_symmetry_score": 0.84,
+      "engine_fit_score": 0.95,
+      "paper_claim_clarity": 0.96,
+      "unresolved_design_decisions": 0.0
     },
-    "artifactPath": null
+    "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
   },
   "entries": [
     {
@@ -26,6 +27,20 @@
         "unresolved_design_decisions": 4.0
       },
       "artifactPath": null
+    },
+    {
+      "ts": "2026-03-25T00:50:43.173721+00:00",
+      "label": "final_locked_matrix",
+      "source": "R03",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.97,
+        "provider_symmetry_score": 0.84,
+        "engine_fit_score": 0.95,
+        "paper_claim_clarity": 0.96,
+        "unresolved_design_decisions": 0.0
+      },
+      "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
     }
   ]
 }

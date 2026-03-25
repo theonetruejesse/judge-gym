@@ -1,0 +1,40 @@
+{
+  "nodeId": "N01",
+  "kind": "analyze",
+  "role": "pilot-and-thesis-synthesizer",
+  "objective": "Extract the V2/V3 carry-forward claims, guardrails, and non-goals that the final V4 matrix must preserve.",
+  "inputs": [
+    "docs/pilots/paper.md",
+    "docs/pilots/v3_gpt_ablations.md",
+    "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "pilot_guardrails.md",
+    "findings.json"
+  ],
+  "completionCriteria": [
+    "State the primary V4 carry-forward levers from the pilots.",
+    "State which tempting expansions should be excluded from the final matrix."
+  ]
+}

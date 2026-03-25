@@ -1,0 +1,15 @@
+{
+  "headlineTargets": [
+    "Gilardi",
+    "Zheng"
+  ],
+  "appendixTargets": [
+    "Ziems_subset"
+  ],
+  "openrouterPolicy": "provider_surface_control_only",
+  "rationale": [
+    "reduces unresolved subset ambiguity",
+    "matches current supported model registry",
+    "preserves a strong paper while keeping breadth as explicit future work"
+  ]
+}

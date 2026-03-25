@@ -1,0 +1,40 @@
+{
+  "nodeId": "N01",
+  "kind": "analyze",
+  "role": "scope-pruner",
+  "objective": "Use the R01 candidate matrix to decide which unresolved branches should be locked versus pruned from the headline paper.",
+  "inputs": [
+    "_deep_workflows/v4-matrix-spec-r01/agents/N03/matrix_candidate.md",
+    "_deep_workflows/v4-matrix-spec-r01/agents/N03/matrix_sheet.json",
+    "_deep_workflows/v4-matrix-spec-r01/agents/N04/summary.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "prune_options.md",
+    "prune_recommendation.json"
+  ],
+  "completionCriteria": [
+    "Make a clear recommendation on Ziems and OpenRouter breadth.",
+    "Prefer a stronger narrower paper over unresolved breadth."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "campaignCanClose": false,
+  "recommendedNextRun": "R03",
+  "resolvedByR02": [
+    "headline_target_bundle",
+    "openrouter_wave1_policy",
+    "target_specific_extension_table"
+  ],
+  "remainingWork": [
+    "final_matrix_memo",
+    "implementation_facing_study_spec",
+    "workspace_closeout"
+  ]
+}

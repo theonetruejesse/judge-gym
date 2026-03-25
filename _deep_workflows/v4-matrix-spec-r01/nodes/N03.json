@@ -1,0 +1,44 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "matrix-compiler",
+  "objective": "Compile the candidate final V4 matrix, including targets, providers, evidence-view policy, perturbation families, endpoints, and sanity checks.",
+  "inputs": [
+    "agents/N01/pilot_guardrails.md",
+    "agents/N01/findings.json",
+    "agents/N02/launch_bundle_policy.md",
+    "agents/N02/decisions.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  ],
+  "dependencies": [
+    "N01",
+    "N02"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "matrix_candidate.md",
+    "matrix_sheet.json"
+  ],
+  "completionCriteria": [
+    "Emit one candidate final matrix that is bounded and paper-ready.",
+    "Include explicit raw-versus-semantic evidence usage rules and primary endpoints."
+  ]
+}

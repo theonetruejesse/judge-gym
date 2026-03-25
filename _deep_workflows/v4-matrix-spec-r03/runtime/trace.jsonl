@@ -1,0 +1,5 @@
+{"event": "bootstrap_complete", "nodeCount": 2, "ts": "2026-03-25T00:48:14.030890+00:00"}
+{"event": "bootstrap_complete", "nodeCount": 2, "ts": "2026-03-25T00:48:14.080839+00:00"}
+{"changed": true, "completedNodes": [], "event": "run_workflow_refresh", "inProgressNodes": [], "readyNodes": ["N01"], "ts": "2026-03-25T00:48:14.082170+00:00"}
+{"event": "bootstrap_complete", "nodeCount": 2, "ts": "2026-03-25T00:48:54.090789+00:00"}
+{"changed": true, "completedNodes": ["N01", "N02"], "event": "run_workflow_refresh", "inProgressNodes": [], "readyNodes": [], "ts": "2026-03-25T00:48:54.092137+00:00"}

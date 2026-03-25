@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R01 V4 Matrix Spec Compilation",
+    "slug": "v4-matrix-spec-r01",
+    "objective": "Compile and execute the bounded R01 workflow for the final V4 matrix specification package.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-matrix-spec-r01"
+  },
+  "compile": {
+    "baseHint": "Compile and execute a bounded spec workflow that turns the V4 workspace into a final candidate matrix package. Preserve geometry-first pilot claims, keep OpenAI primary, and treat Anthropic plus OpenRouter as wave-1 controls.",
+    "taskSignals": [
+      "This is a bounded campaign run under _deep_workspaces/v4-experiment-matrix-spec/runs/R01.",
+      "The run must synthesize docs/pilots, prior V4 blueprint research, and the current greenfield runtime state.",
+      "The output should be a candidate final matrix package, not code implementation.",
+      "The run should narrow unresolved decisions enough to decide whether more campaign runs are needed."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq"
+    ],
+    "notes": [
+      "Parallelize source synthesis first, then compile the candidate matrix, then synthesize closure guidance."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_deep_workspaces/v4-experiment-matrix-spec/workspace.json",
+      "_deep_workspaces/v4-experiment-matrix-spec/worldview.json",
+      "docs/pilots/paper.md",
+      "docs/pilots/v3_gpt_ablations.md",
+      "_blueprints/v4-target-resource-viability/blueprint.md",
+      "_blueprints/v4-refactor-and-study-plan/blueprint.md",
+      "_deep_workflows/v4-refactor-and-study-planning/agents/N05/study_design_plan.md",
+      "README.md",
+      "packages/engine-settings/src/provider.ts"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "sed"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01",
+      "N02"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "analyze",
+        "role": "pilot-and-thesis-synthesizer"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "analyze",
+        "role": "target-and-provider-policy-synthesizer"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "synthesize",
+        "role": "matrix-compiler"
+      },
+      {
+        "nodeId": "N04",
+        "kind": "synthesize",
+        "role": "campaign-closure-judge"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      },
+      {
+        "from": "N03",
+        "to": "N04",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "contexts/source_inventory.md",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/pilot_guardrails.md",
+      "agents/N01/findings.json",
+      "agents/N02/launch_bundle_policy.md",
+      "agents/N02/decisions.json",
+      "agents/N03/matrix_candidate.md",
+      "agents/N03/matrix_sheet.json",
+      "agents/N04/closure_recommendation.md",
+      "agents/N04/summary.json"
+    ],
+    "artifactTypes": [
+      "decision",
+      "report",
+      "metric"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop after the candidate V4 matrix package is compiled and closure guidance states whether additional campaign runs are required."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "mode": "read_only_analysis"
+    }
+  }
+}

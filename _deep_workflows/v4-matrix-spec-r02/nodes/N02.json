@@ -1,0 +1,40 @@
+{
+  "nodeId": "N02",
+  "kind": "synthesize",
+  "role": "policy-locker",
+  "objective": "Lock the final V4 matrix policy after pruning unresolved breadth.",
+  "inputs": [
+    "agents/N01/prune_options.md",
+    "agents/N01/prune_recommendation.json",
+    "packages/engine-settings/src/provider.ts"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "locked_policy.md",
+    "locked_policy.json"
+  ],
+  "completionCriteria": [
+    "Emit a final matrix policy that is bounded, executable, and no longer blocked by R01 uncertainties."
+  ]
+}

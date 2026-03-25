@@ -1,0 +1,27 @@
+{
+  "primaryThesis": "Judge behavior on contested or interpretation-heavy tasks should be analyzed as evaluator-regime behavior rather than neutral model behavior.",
+  "carryForwardLevers": [
+    "abstention",
+    "concept_framing",
+    "model_placement",
+    "grouping_policy"
+  ],
+  "secondaryLevers": [
+    "scale_size",
+    "semantic_abstraction"
+  ],
+  "primaryEndpoints": [
+    "abstain_rate",
+    "scale_occupancy",
+    "singleton_rate",
+    "mean_subset_size",
+    "expected_stage",
+    "stage_entropy"
+  ],
+  "nonGoals": [
+    "full_factorial_matrix",
+    "agreement_only_headline",
+    "global_correctness_claims",
+    "provider_breadth_without_matched_design"
+  ]
+}

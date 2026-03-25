@@ -9,7 +9,7 @@ Specify a self-contained V4 paper program and final experiment matrix for judge-
 - `judge-gym` is now a greenfield V4 runtime with Media Cloud-first acquisition, evidence universes and sets, source-record versus semantic-view separation, semantic transform runs, and provider-aware routing for OpenAI, Anthropic, and OpenRouter.
 - The strongest scientific continuity sources are `docs/pilots/paper.md` and `docs/pilots/v3_gpt_ablations.md`.
 - The strongest prior planning artifacts are `_blueprints/v4-target-resource-viability/blueprint.md` and `_blueprints/v4-refactor-and-study-plan/blueprint.md`.
-- The most likely launch-bundle direction remains `Gilardi` primary, scoped `Ziems` secondary, and one comparator lane with `Zheng` as the default choice.
+- The campaign concluded with a tighter headline bundle: `Gilardi` plus `Zheng`, with `Ziems` moved to appendix or immediate follow-on status.
 
 ## Progression Strategy
 
@@ -21,18 +21,18 @@ Specify a self-contained V4 paper program and final experiment matrix for judge-
 
 ## Current Best
 
-- `narrow_geometry_first_v4`
-- Summary: a self-contained paper with a bounded launch bundle, explicit raw-versus-semantic evidence policy, and a provider panel of OpenAI + Anthropic + OpenRouter.
+- `final_locked_matrix`
+- Summary: a self-contained paper with `Gilardi` plus `Zheng` as the headline bundle, explicit raw-versus-semantic evidence policy, and a provider panel of OpenAI + Anthropic + OpenRouter.
 - Evidence:
   - `docs/pilots/paper.md`
   - `docs/pilots/v3_gpt_ablations.md`
   - `_blueprints/v4-target-resource-viability/blueprint.md`
   - `_deep_workflows/v4-refactor-and-study-planning/agents/N05/study_design_plan.md`
+  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md`
 
 ## Next Handoff
 
-- Run `R01`, which asks `deep-workflow` to compile the final V4 matrix-spec package:
-  - lock the launch bundle and target roles,
-  - lock the provider panel and default model-family policy,
-  - lock the evidence-view and transform usage policy,
-  - and produce the final matched experiment matrix sheet for the paper.
+- Campaign complete.
+- The next work class is implementation and execution against:
+  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md`
+  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md`

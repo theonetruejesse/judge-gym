@@ -1,0 +1,43 @@
+{
+  "nodeId": "N02",
+  "kind": "analyze",
+  "role": "target-and-provider-policy-synthesizer",
+  "objective": "Lock the candidate launch bundle, comparator default, and provider panel policy from prior V4 research plus current runtime support.",
+  "inputs": [
+    "_blueprints/v4-target-resource-viability/blueprint.md",
+    "_blueprints/v4-refactor-and-study-plan/blueprint.md",
+    "_deep_workflows/v4-refactor-and-study-planning/agents/N05/study_design_plan.md",
+    "packages/engine-settings/src/provider.ts",
+    "README.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "launch_bundle_policy.md",
+    "decisions.json"
+  ],
+  "completionCriteria": [
+    "Choose the default comparator lane.",
+    "State the provider panel and current supported model roster policy.",
+    "Identify any remaining matrix-blocking design decisions."
+  ]
+}

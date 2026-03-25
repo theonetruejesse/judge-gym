@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-matrix-spec-r03",
+    "objective": "Compile and execute the bounded R03 workflow to package the locked V4 matrix and close the workspace.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": {
+        "state": "completed",
+        "dependencies": [],
+        "requiredOutputs": [
+          "final_matrix_memo.md",
+          "implementation_spec.md"
+        ],
+        "workspaceTask": "agents/N01/workspace/task.md",
+        "writeScope": "agents/N01/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T00:48:54.091827+00:00"
+      },
+      "N02": {
+        "state": "completed",
+        "dependencies": [
+          "N01"
+        ],
+        "requiredOutputs": [
+          "closeout.md",
+          "closeout.json"
+        ],
+        "workspaceTask": "agents/N02/workspace/task.md",
+        "writeScope": "agents/N02/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T00:48:54.091860+00:00"
+      }
+    },
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "ts": "2026-03-25T00:48:54.091873+00:00",
+      "type": "workspace_can_close"
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md",
+    "runState": "runtime/run_state.json"
+  }
+}

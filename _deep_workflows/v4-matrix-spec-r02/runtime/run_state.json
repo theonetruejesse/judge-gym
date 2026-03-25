@@ -1,0 +1,13 @@
+{
+  "updatedAt": "2026-03-25T00:47:24.887727+00:00",
+  "workflow": "v4-matrix-spec-r02",
+  "readyNodes": [],
+  "inProgressNodes": [],
+  "completedNodes": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "blockedNodes": [],
+  "pendingNodes": []
+}

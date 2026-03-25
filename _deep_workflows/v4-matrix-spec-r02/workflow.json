@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R02 V4 Policy Prune",
+    "slug": "v4-matrix-spec-r02",
+    "objective": "Compile and execute the bounded R02 workflow to prune and lock the remaining V4 matrix policy decisions.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-matrix-spec-r02"
+  },
+  "compile": {
+    "baseHint": "Use R01 outputs to prune the remaining V4 matrix decisions until the study policy is fully locked and bounded.",
+    "taskSignals": [
+      "R02 is a decision-pruning run, not a fresh ideation pass.",
+      "The main open questions are Ziems scope, OpenRouter breadth, and target-specific perturbation applicability.",
+      "Prefer a smaller but stronger paper over a broader but weakly specified one."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "parallel",
+      "seq"
+    ],
+    "notes": [
+      "R02 should end with locked policy decisions, not another abstract candidate."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_deep_workspaces/v4-experiment-matrix-spec/workspace.json",
+      "_deep_workspaces/v4-experiment-matrix-spec/worldview.json",
+      "_deep_workflows/v4-matrix-spec-r01/agents/N03/matrix_candidate.md",
+      "_deep_workflows/v4-matrix-spec-r01/agents/N03/matrix_sheet.json",
+      "_deep_workflows/v4-matrix-spec-r01/agents/N04/summary.json",
+      "packages/engine-settings/src/provider.ts"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "sed"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "analyze",
+        "role": "scope-pruner"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "synthesize",
+        "role": "policy-locker"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "synthesize",
+        "role": "closure-judge"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "contexts/r01_summary.md",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/prune_options.md",
+      "agents/N01/prune_recommendation.json",
+      "agents/N02/locked_policy.md",
+      "agents/N02/locked_policy.json",
+      "agents/N03/closure.md",
+      "agents/N03/summary.json"
+    ],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the remaining matrix-blocking decisions are either locked or explicitly pruned from the headline paper."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

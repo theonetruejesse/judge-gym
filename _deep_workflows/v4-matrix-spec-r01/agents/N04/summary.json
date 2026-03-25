@@ -1,0 +1,15 @@
+{
+  "campaignCanClose": false,
+  "recommendedNextRun": "R02",
+  "resolvedByR01": [
+    "launch_bundle_candidate",
+    "default_comparator_direction",
+    "primary_provider_panel_shape",
+    "raw_vs_semantic_headline_policy"
+  ],
+  "remainingBlockers": [
+    "ziems_subset_rule",
+    "openrouter_wave1_breadth",
+    "target_specific_extension_table"
+  ]
+}
