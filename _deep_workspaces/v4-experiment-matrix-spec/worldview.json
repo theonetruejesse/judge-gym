@@ -21,14 +21,14 @@
   },
   "baselines": {
     "current": {
-      "label": "final_locked_matrix",
-      "summary": "A self-contained paper with Gilardi plus Zheng as the headline bundle, OpenAI primary, Anthropic and OpenRouter controls, and appendix-only breadth beyond that core.",
+      "label": "revised_qwen_openrouter_matrix",
+      "summary": "A self-contained paper with Gilardi plus Zheng as the headline bundle, OpenAI primary, Anthropic direct control, a Qwen-centered OpenRouter lane, and appendix-only breadth beyond that core.",
       "sourceArtifacts": [
         "docs/pilots/paper.md",
         "docs/pilots/v3_gpt_ablations.md",
         "_blueprints/v4-target-resource-viability/blueprint.md",
         "_blueprints/v4-refactor-and-study-plan/blueprint.md",
-        "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
+        "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
       ]
     },
     "history": [
@@ -38,6 +38,10 @@
       },
       {
         "label": "final_locked_matrix",
+        "status": "superseded"
+      },
+      {
+        "label": "revised_qwen_openrouter_matrix",
         "status": "promoted"
       }
     ]
@@ -46,18 +50,18 @@
     "historyPath": "telemetry/metrics.jsonl",
     "leaderboardPath": "telemetry/leaderboard.json",
     "latest": {
-      "ts": "2026-03-25T00:50:43.173721+00:00",
-      "label": "final_locked_matrix",
-      "source": "R03",
+      "ts": "2026-03-25T01:12:44.825109+00:00",
+      "label": "revised_qwen_openrouter_matrix",
+      "source": "R05",
       "metrics": {
         "target_reconstructability_confidence": 0.9,
-        "matrix_scope_discipline": 0.97,
-        "provider_symmetry_score": 0.84,
+        "matrix_scope_discipline": 0.95,
+        "provider_symmetry_score": 0.91,
         "engine_fit_score": 0.95,
-        "paper_claim_clarity": 0.96,
+        "paper_claim_clarity": 0.97,
         "unresolved_design_decisions": 0.0
       },
-      "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
+      "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
     }
   },
   "workflowRuns": [
@@ -102,19 +106,46 @@
           "workspace_closeout"
         ]
       }
+    },
+    {
+      "runId": "R04",
+      "requestedObjective": "Reopen the V4 matrix campaign to evaluate Chinese open-weight families and materially distinct training/process regimes for the OpenRouter control lane, then decide whether the wave-1 control panel should pivot from Claude-on-OpenRouter to a different family design.",
+      "workflowPath": "_deep_workflows/v4-provider-surface-r04",
+      "status": "completed",
+      "measuredOutcome": {
+        "result": "provider_policy_revised",
+        "resolved": [
+          "headline_openrouter_family",
+          "appendix_watchlist_policy"
+        ]
+      }
+    },
+    {
+      "runId": "R05",
+      "requestedObjective": "Update the locked V4 matrix memo and implementation-facing study spec to reflect the Qwen-centered OpenRouter lane and the appendix/watchlist provider policy, then re-close the campaign.",
+      "workflowPath": "_deep_workflows/v4-provider-surface-r05",
+      "status": "completed",
+      "measuredOutcome": {
+        "result": "campaign_reclosed",
+        "resolved": [
+          "revised_final_matrix_memo",
+          "revised_implementation_spec",
+          "workspace_reclose"
+        ]
+      }
     }
   ],
   "currentBest": {
-    "label": "final_locked_matrix",
+    "label": "revised_qwen_openrouter_matrix",
     "metrics": {
       "target_reconstructability_confidence": 0.9,
-      "matrix_scope_discipline": 0.97,
-      "provider_symmetry_score": 0.84,
+      "matrix_scope_discipline": 0.95,
+      "provider_symmetry_score": 0.91,
       "engine_fit_score": 0.95,
-      "paper_claim_clarity": 0.96,
+      "paper_claim_clarity": 0.97,
       "unresolved_design_decisions": 0.0
     },
-    "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
+    "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
   },
   "bottlenecks": [],
   "decisions": [
@@ -136,11 +167,19 @@
     },
     {
       "timestamp": "2026-03-24",
-      "statement": "R02 pruned the headline bundle to Gilardi plus Zheng, moved Ziems to appendix/follow-on status, and locked OpenRouter as a wave-1 provider-surface control."
+      "statement": "R02 pruned the headline bundle to Gilardi plus Zheng, moved Ziems to appendix/follow-on status, and initially locked OpenRouter as a wave-1 provider-surface control."
     },
     {
       "timestamp": "2026-03-24",
       "statement": "R03 packaged the final matrix memo and implementation-facing study spec, satisfying the workspace terminal objective."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "R04 reopened the campaign only for the provider-surface question and replaced the OpenRouter placeholder with a Qwen-centered Chinese open-weight lane."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "R05 repackaged the final matrix and re-closed the campaign with appendix/watchlist lanes for DeepSeek, GLM, Kimi, MiniMax, and Mercury."
     },
     {
       "ts": "2026-03-25T00:50:43.173721+00:00",
@@ -155,12 +194,26 @@
         "paper_claim_clarity": 0.96,
         "unresolved_design_decisions": 0.0
       }
+    },
+    {
+      "ts": "2026-03-25T01:12:44.825109+00:00",
+      "type": "promotion",
+      "label": "revised_qwen_openrouter_matrix",
+      "source": "R05",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.95,
+        "provider_symmetry_score": 0.91,
+        "engine_fit_score": 0.95,
+        "paper_claim_clarity": 0.97,
+        "unresolved_design_decisions": 0.0
+      }
     }
   ],
   "nextActions": [
     {
       "type": "implementation",
-      "goal": "Execute the locked V4 study spec against the current engine and import surfaces."
+      "goal": "Execute the revised V4 study spec against the current engine and import surfaces."
     }
   ]
 }

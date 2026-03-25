@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-03-25T01:20:00Z",
+  "headlineLane": {
+    "family": "qwen",
+    "policyLabel": "qwen_current_text_flagship",
+    "resolutionRule": "At experiment freeze time, choose the latest stable text-only non-thinking Qwen open-weight model on OpenRouter; avoid VL variants in the headline matrix.",
+    "fallbackModelId": "qwen/qwen3-next-80b-a3b-instruct",
+    "observedCandidates": [
+      "qwen/qwen3.5-35b-a3b",
+      "qwen/qwen3.5-122b-a10b",
+      "qwen/qwen3-next-80b-a3b-instruct",
+      "qwen/qwen3-235b-a22b-2507"
+    ]
+  },
+  "appendixCandidates": [
+    {
+      "family": "deepseek",
+      "modelId": "deepseek/deepseek-v3.2",
+      "disposition": "appendix_or_follow_on",
+      "reason": "Sparse-attention plus RL and agentic task synthesis gives a meaningful process contrast without leaving the Chinese open-weight space."
+    },
+    {
+      "family": "z-ai",
+      "modelId": "z-ai/glm-4.5",
+      "disposition": "appendix",
+      "reason": "Hybrid thinking and non-thinking modes make it useful for reasoning-mode sensitivity checks."
+    },
+    {
+      "family": "moonshotai",
+      "modelId": "moonshotai/kimi-k2",
+      "disposition": "watchlist",
+      "reason": "Strong agentic MoE family with a distinct optimizer/training story, but not necessary for the headline matrix."
+    },
+    {
+      "family": "minimax",
+      "modelId": "minimax/minimax-m1",
+      "disposition": "architecture_diversity_follow_on",
+      "reason": "Hybrid MoE plus lightning-attention and million-token context make it highly interesting but too divergent for the main panel."
+    },
+    {
+      "family": "inception",
+      "modelId": "inception/mercury-2",
+      "disposition": "exploratory_sidecar",
+      "reason": "Diffusion LLM outlier is worth a dedicated spike, not a headline matrix cell."
+    }
+  ]
+}

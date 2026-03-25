@@ -1,0 +1,25 @@
+{
+  "decision": "replace_openrouter_placeholder",
+  "replaces": "claude-sonnet-4-openrouter",
+  "replacement": {
+    "policyLabel": "qwen_current_text_flagship",
+    "provider": "openrouter",
+    "family": "qwen",
+    "resolutionRule": "Freeze to the latest stable text-only non-thinking Qwen open-weight model present on OpenRouter when the experiment matrix is instantiated.",
+    "fallback": "qwen/qwen3-next-80b-a3b-instruct"
+  },
+  "headlineProviderPanel": [
+    "gpt-4.1",
+    "gpt-5.2",
+    "claude-sonnet-4",
+    "qwen_current_text_flagship"
+  ],
+  "appendixWatchlist": [
+    "deepseek/deepseek-v3.2",
+    "z-ai/glm-4.5",
+    "moonshotai/kimi-k2",
+    "minimax/minimax-m1",
+    "inception/mercury-2"
+  ],
+  "boundednessRule": "Do not turn the headline matrix into a broad many-model OpenRouter sweep."
+}

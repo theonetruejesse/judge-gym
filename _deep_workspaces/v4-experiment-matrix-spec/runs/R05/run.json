@@ -1,0 +1,20 @@
+{
+  "runId": "R05",
+  "title": "Repackage final matrix after provider-lane revision",
+  "boundedObjective": "Update the locked V4 matrix memo and implementation-facing study spec to reflect the Qwen-centered OpenRouter lane and the appendix/watchlist provider policy, then re-close the campaign.",
+  "status": "completed",
+  "createdAt": "2026-03-25T01:09:39.477130+00:00",
+  "workflowRequestPath": "runs/R05/workflow_request.md",
+  "workflowPath": "_deep_workflows/v4-provider-surface-r05",
+  "measuredOutcome": {
+    "result": "campaign_reclosed",
+    "resolved": [
+      "revised_final_matrix_memo",
+      "revised_implementation_spec",
+      "workspace_reclose"
+    ]
+  },
+  "notes": [
+    "R05 integrated the Qwen-centered provider revision without reopening the rest of the matrix."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "nodeId": "N02",
+  "kind": "synthesize",
+  "role": "workspace-closer",
+  "objective": "Write the closeout artifact that re-closes the workspace after the provider-lane revision.",
+  "inputs": [
+    "agents/N01/final_matrix_memo.md",
+    "agents/N01/implementation_spec.md",
+    "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "closeout.md",
+    "closeout.json"
+  ],
+  "completionCriteria": [
+    "State clearly that the campaign can close with the revised provider policy."
+  ]
+}

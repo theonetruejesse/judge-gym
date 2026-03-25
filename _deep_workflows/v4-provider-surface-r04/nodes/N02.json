@@ -1,0 +1,42 @@
+{
+  "nodeId": "N02",
+  "kind": "synthesize",
+  "role": "policy-reviser",
+  "objective": "Turn the provider survey into a revised V4 provider policy and matrix recommendation.",
+  "inputs": [
+    "agents/N01/provider_surface_survey.md",
+    "agents/N01/openrouter_candidate_registry.json",
+    "_deep_workflows/v4-matrix-spec-r02/agents/N02/locked_policy.md",
+    "_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "revised_provider_policy.md",
+    "revised_provider_policy.json"
+  ],
+  "completionCriteria": [
+    "State clearly whether the prior OpenRouter lane is replaced.",
+    "Bound the headline matrix and push extra breadth into appendix/watchlist lanes."
+  ]
+}

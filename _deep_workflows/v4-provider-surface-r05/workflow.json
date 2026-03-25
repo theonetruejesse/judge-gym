@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R05 Repackage Revised Matrix",
+    "slug": "v4-provider-surface-r05",
+    "objective": "Package the revised provider policy into the final V4 matrix memo, implementation-facing study spec, and workspace closeout artifacts.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-provider-surface-r05"
+  },
+  "compile": {
+    "baseHint": "Package the R04 provider-policy revision back into the final V4 matrix artifacts without reopening unrelated study-design questions.",
+    "taskSignals": [
+      "Only the provider policy changed.",
+      "The headline paper bundle remains Gilardi plus Zheng.",
+      "The new OpenRouter lane should be Qwen-centered and the extra families should be kept to appendix/watchlist status."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq"
+    ],
+    "notes": [
+      "This run is packaging-only after the R04 policy revision."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_deep_workflows/v4-provider-surface-r04/agents/N02/revised_provider_policy.md",
+      "_deep_workflows/v4-provider-surface-r04/agents/N02/revised_provider_policy.json",
+      "_deep_workflows/v4-provider-surface-r04/agents/N03/reopen_decision.md",
+      "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md",
+      "_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md",
+      "_deep_workspaces/v4-experiment-matrix-spec/workspace.json",
+      "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "sed"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "synthesize",
+        "role": "repackager"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "synthesize",
+        "role": "workspace-closer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/final_matrix_memo.md",
+      "agents/N01/implementation_spec.md",
+      "agents/N02/closeout.md",
+      "agents/N02/closeout.json"
+    ],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the revised matrix memo, revised implementation spec, and closeout artifact are all written."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

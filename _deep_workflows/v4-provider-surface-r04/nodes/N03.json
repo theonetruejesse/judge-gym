@@ -1,0 +1,38 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "workspace-reopen-decision",
+  "objective": "Write the campaign decision for whether a packaging follow-up run is required to update the final matrix memo.",
+  "inputs": [
+    "agents/N02/revised_provider_policy.md",
+    "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+  ],
+  "dependencies": [
+    "N02"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "reopen_decision.md",
+    "summary.json"
+  ],
+  "completionCriteria": [
+    "State whether the campaign should remain open for one packaging run."
+  ]
+}

@@ -11,9 +11,11 @@
   - a populated `workspace.json`,
   - a populated `worldview.json`,
   - telemetry bootstrap in `telemetry/leaderboard.json`,
-  - and completed bounded run requests in `runs/R01/`, `runs/R02/`, and `runs/R03/`.
+  - and completed bounded run requests in `runs/R01/`, `runs/R02/`, `runs/R03/`, `runs/R04/`, and `runs/R05/`.
 - Structural validation passed via `validate_workspace.py`.
-- The campaign produced three executed deep-workflow artifacts:
+- The campaign produced five executed deep-workflow artifacts:
   - `_deep_workflows/v4-matrix-spec-r01`
   - `_deep_workflows/v4-matrix-spec-r02`
   - `_deep_workflows/v4-matrix-spec-r03`
+  - `_deep_workflows/v4-provider-surface-r04`
+  - `_deep_workflows/v4-provider-surface-r05`

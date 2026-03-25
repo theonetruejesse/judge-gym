@@ -10,6 +10,7 @@ Specify a self-contained V4 paper program and final experiment matrix for judge-
 - The strongest scientific continuity sources are `docs/pilots/paper.md` and `docs/pilots/v3_gpt_ablations.md`.
 - The strongest prior planning artifacts are `_blueprints/v4-target-resource-viability/blueprint.md` and `_blueprints/v4-refactor-and-study-plan/blueprint.md`.
 - The campaign concluded with a tighter headline bundle: `Gilardi` plus `Zheng`, with `Ziems` moved to appendix or immediate follow-on status.
+- A later reopen corrected the OpenRouter lane from a routed Anthropic placeholder to a Qwen-centered Chinese open-weight control.
 
 ## Progression Strategy
 
@@ -18,21 +19,22 @@ Specify a self-contained V4 paper program and final experiment matrix for judge-
 - Favor matched contrasts over a large full-factorial matrix.
 - Prune designs that widen the provider panel, overgeneralize the paper into a platform manifesto, or depend on weakly reconstructable targets.
 - Escalate to `deep-workflow` only for bounded spec compilation, not for open-ended ideation.
+- When provider breadth is reopened, prefer a family correction over a headline-matrix expansion.
 
 ## Current Best
 
-- `final_locked_matrix`
-- Summary: a self-contained paper with `Gilardi` plus `Zheng` as the headline bundle, explicit raw-versus-semantic evidence policy, and a provider panel of OpenAI + Anthropic + OpenRouter.
+- `revised_qwen_openrouter_matrix`
+- Summary: a self-contained paper with `Gilardi` plus `Zheng` as the headline bundle, explicit raw-versus-semantic evidence policy, and a revised provider panel of OpenAI + Anthropic + a Qwen-centered OpenRouter lane.
 - Evidence:
   - `docs/pilots/paper.md`
   - `docs/pilots/v3_gpt_ablations.md`
   - `_blueprints/v4-target-resource-viability/blueprint.md`
-  - `_deep_workflows/v4-refactor-and-study-planning/agents/N05/study_design_plan.md`
-  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md`
+  - `_deep_workflows/v4-provider-surface-r04/agents/N02/revised_provider_policy.md`
+  - `_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md`
 
 ## Next Handoff
 
 - Campaign complete.
 - The next work class is implementation and execution against:
-  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md`
-  - `_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md`
+  - `_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md`
+  - `_deep_workflows/v4-provider-surface-r05/agents/N01/implementation_spec.md`

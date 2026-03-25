@@ -1,0 +1,4 @@
+{"event": "bootstrap_complete", "nodeCount": 3, "ts": "2026-03-25T01:13:30.061977+00:00"}
+{"event": "bootstrap_complete", "nodeCount": 3, "ts": "2026-03-25T01:13:36.635985+00:00"}
+{"event": "bootstrap_complete", "nodeCount": 3, "ts": "2026-03-25T01:14:00.924721+00:00"}
+{"changed": true, "completedNodes": ["N01", "N02", "N03"], "event": "run_workflow_refresh", "inProgressNodes": [], "readyNodes": [], "ts": "2026-03-25T01:14:00.926343+00:00"}

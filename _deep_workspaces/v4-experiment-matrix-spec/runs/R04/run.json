@@ -1,0 +1,19 @@
+{
+  "runId": "R04",
+  "title": "Investigate OpenRouter Chinese open-weight and regime-diverse provider surface",
+  "boundedObjective": "Reopen the V4 matrix campaign to evaluate Chinese open-weight families and materially distinct training/process regimes for the OpenRouter control lane, then decide whether the wave-1 control panel should pivot from Claude-on-OpenRouter to a different family design.",
+  "status": "completed",
+  "createdAt": "2026-03-25T01:03:02.971850+00:00",
+  "workflowRequestPath": "runs/R04/workflow_request.md",
+  "workflowPath": "_deep_workflows/v4-provider-surface-r04",
+  "measuredOutcome": {
+    "result": "provider_policy_revised",
+    "resolved": [
+      "headline_openrouter_family",
+      "appendix_watchlist_policy"
+    ]
+  },
+  "notes": [
+    "R04 replaced the old OpenRouter placeholder with a Qwen-centered Chinese open-weight control policy."
+  ]
+}

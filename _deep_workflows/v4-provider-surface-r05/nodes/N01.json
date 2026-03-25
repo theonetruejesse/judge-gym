@@ -1,0 +1,41 @@
+{
+  "nodeId": "N01",
+  "kind": "synthesize",
+  "role": "repackager",
+  "objective": "Update the final V4 matrix memo and implementation-facing study spec to reflect the revised Qwen-centered provider policy.",
+  "inputs": [
+    "_deep_workflows/v4-provider-surface-r04/agents/N02/revised_provider_policy.md",
+    "_deep_workflows/v4-provider-surface-r04/agents/N02/revised_provider_policy.json",
+    "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md",
+    "_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md",
+    "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "final_matrix_memo.md",
+    "implementation_spec.md"
+  ],
+  "completionCriteria": [
+    "The revised memo must replace the old OpenRouter placeholder.",
+    "The revised spec must add the appendix/watchlist provider policy."
+  ]
+}

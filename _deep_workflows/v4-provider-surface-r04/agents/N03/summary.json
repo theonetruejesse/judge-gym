@@ -1,0 +1,8 @@
+{
+  "result": "provider_policy_revised",
+  "requiresPackagingFollowup": true,
+  "changes": [
+    "replace claude-sonnet-4-openrouter with qwen_current_text_flagship",
+    "create appendix/watchlist for deepseek/glm/kimi/minimax/mercury"
+  ]
+}

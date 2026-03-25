@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R04 Provider Surface Reopen",
+    "slug": "v4-provider-surface-r04",
+    "objective": "Investigate Chinese open-weight and regime-diverse OpenRouter families for the V4 provider panel, then decide whether to revise the locked matrix.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-provider-surface-r04"
+  },
+  "compile": {
+    "baseHint": "Reopen the V4 matrix campaign only for the provider-surface question, using current model-surface evidence to decide whether the OpenRouter lane should pivot from Claude-on-OpenRouter to a Chinese open-weight control family.",
+    "taskSignals": [
+      "The previous lock used a placeholder OpenRouter lane that no longer matches the intended study design.",
+      "OpenAI remains primary; Anthropic remains the commercial control.",
+      "The reopened run must keep the headline matrix bounded and push extra breadth into appendix or follow-on lanes."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq"
+    ],
+    "notes": [
+      "This run is policy research plus campaign steering, not code mutation."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "docs/pilots/paper.md",
+      "_deep_workflows/v4-matrix-spec-r02/agents/N02/locked_policy.md",
+      "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md",
+      "_deep_workflows/v4-matrix-spec-r03/agents/N01/implementation_spec.md",
+      "_deep_workspaces/v4-experiment-matrix-spec/workspace.json",
+      "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "sed",
+      "web"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "synthesize",
+        "role": "provider-surface-surveyor"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "synthesize",
+        "role": "policy-reviser"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "synthesize",
+        "role": "workspace-reopen-decision"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "contexts/live_openrouter_surface.md",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/provider_surface_survey.md",
+      "agents/N01/openrouter_candidate_registry.json",
+      "agents/N02/revised_provider_policy.md",
+      "agents/N02/revised_provider_policy.json",
+      "agents/N03/reopen_decision.md",
+      "agents/N03/summary.json"
+    ],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the provider survey, revised provider policy, and reopen decision are all written."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

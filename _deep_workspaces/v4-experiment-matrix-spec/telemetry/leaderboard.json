@@ -1,17 +1,17 @@
 {
   "currentBest": {
-    "ts": "2026-03-25T00:50:43.173721+00:00",
-    "label": "final_locked_matrix",
-    "source": "R03",
+    "ts": "2026-03-25T01:12:44.825109+00:00",
+    "label": "revised_qwen_openrouter_matrix",
+    "source": "R05",
     "metrics": {
       "target_reconstructability_confidence": 0.9,
-      "matrix_scope_discipline": 0.97,
-      "provider_symmetry_score": 0.84,
+      "matrix_scope_discipline": 0.95,
+      "provider_symmetry_score": 0.91,
       "engine_fit_score": 0.95,
-      "paper_claim_clarity": 0.96,
+      "paper_claim_clarity": 0.97,
       "unresolved_design_decisions": 0.0
     },
-    "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
+    "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
   },
   "entries": [
     {
@@ -41,6 +41,34 @@
         "unresolved_design_decisions": 0.0
       },
       "artifactPath": "_deep_workflows/v4-matrix-spec-r03/agents/N01/final_matrix_memo.md"
+    },
+    {
+      "ts": "2026-03-25T01:12:36.700197+00:00",
+      "label": "revised_qwen_openrouter_matrix",
+      "source": "R05",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.95,
+        "provider_symmetry_score": 0.91,
+        "engine_fit_score": 0.95,
+        "paper_claim_clarity": 0.95,
+        "unresolved_design_decisions": 0.0
+      },
+      "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
+    },
+    {
+      "ts": "2026-03-25T01:12:44.825109+00:00",
+      "label": "revised_qwen_openrouter_matrix",
+      "source": "R05",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.95,
+        "provider_symmetry_score": 0.91,
+        "engine_fit_score": 0.95,
+        "paper_claim_clarity": 0.97,
+        "unresolved_design_decisions": 0.0
+      },
+      "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
     }
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "result": "campaign_reclosed",
+  "terminalObjectiveMet": true,
+  "finalHeadlinePanel": [
+    "gpt-4.1",
+    "gpt-5.2",
+    "claude-sonnet-4",
+    "qwen_current_text_flagship"
+  ]
+}

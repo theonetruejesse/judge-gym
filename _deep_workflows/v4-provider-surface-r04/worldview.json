@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-provider-surface-r04",
+    "objective": "Investigate Chinese open-weight and regime-diverse OpenRouter families for the V4 provider panel, then decide whether to revise the locked matrix.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": {
+        "state": "completed",
+        "dependencies": [],
+        "requiredOutputs": [
+          "provider_surface_survey.md",
+          "openrouter_candidate_registry.json"
+        ],
+        "workspaceTask": "agents/N01/workspace/task.md",
+        "writeScope": "agents/N01/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T01:14:00.925977+00:00"
+      },
+      "N02": {
+        "state": "completed",
+        "dependencies": [
+          "N01"
+        ],
+        "requiredOutputs": [
+          "revised_provider_policy.md",
+          "revised_provider_policy.json"
+        ],
+        "workspaceTask": "agents/N02/workspace/task.md",
+        "writeScope": "agents/N02/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T01:14:00.926012+00:00"
+      },
+      "N03": {
+        "state": "completed",
+        "dependencies": [
+          "N02"
+        ],
+        "requiredOutputs": [
+          "reopen_decision.md",
+          "summary.json"
+        ],
+        "workspaceTask": "agents/N03/workspace/task.md",
+        "writeScope": "agents/N03/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T01:14:00.926039+00:00"
+      }
+    },
+    "runtime": "running",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "statement": "The OpenRouter headline lane should pivot from a routed Anthropic placeholder to a Qwen-centered Chinese open-weight control."
+    },
+    {
+      "statement": "Broader family diversity belongs in appendix/watchlist lanes, not the headline matrix."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md",
+    "runState": "runtime/run_state.json"
+  }
+}
