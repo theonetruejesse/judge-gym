@@ -29,6 +29,8 @@ type ActionLikeCtx = MutationLikeCtx & {
 };
 
 const SOURCE_RECORD_KIND_SCHEMA = z.enum(["source_text", "paper_original"]);
+const SOURCE_RECORD_KINDS = ["source_text", "paper_original"] as const;
+const TRANSFORM_STAGE_KEYS = ["l1_cleaned", "l2_neutralized", "l3_abstracted"] as const;
 
 const EvidenceTransformRunSummarySchema = z.object({
   evidence_transform_run_id: zid("evidence_transform_runs"),
@@ -45,6 +47,34 @@ const EvidenceTransformRunSummarySchema = z.object({
   completed_count: z.number(),
   failed_count: z.number(),
   last_error_message: z.string().nullable(),
+  started_at_ms: z.number().nullable(),
+  finished_at_ms: z.number().nullable(),
+  created_at_ms: z.number(),
+});
+
+const EvidenceTransformUniverseRunSummarySchema = EvidenceTransformRunSummarySchema.extend({
+  evidence_set_tag: z.string(),
+  evidence_set_title: z.string(),
+  evidence_set_quality_label: z.string(),
+});
+
+const EvidenceSetTransformCoverageSchema = z.object({
+  evidence_set_id: zid("evidence_sets"),
+  evidence_set_tag: z.string(),
+  title: z.string(),
+  quality_label: z.string(),
+  item_count: z.number(),
+  source_record_coverage: z.array(z.object({
+    record_kind: SOURCE_RECORD_KIND_SCHEMA,
+    available_count: z.number(),
+    missing_count: z.number(),
+  })),
+  view_coverage: z.array(z.object({
+    view_kind: EvidenceTransformStageKeySchema,
+    completed_count: z.number(),
+    error_count: z.number(),
+    pending_count: z.number(),
+  })),
 });
 
 const TransformStageInputSchema = z.object({
@@ -129,6 +159,9 @@ function summarizeRun(run: EvidenceTransformRunDoc): z.infer<typeof EvidenceTran
     completed_count: run.completed_count,
     failed_count: run.failed_count,
     last_error_message: run.last_error_message ?? null,
+    started_at_ms: run.started_at_ms ?? null,
+    finished_at_ms: run.finished_at_ms ?? null,
+    created_at_ms: run.created_at_ms,
   };
 }
 
@@ -221,6 +254,120 @@ export const getEvidenceTransformRun: ReturnType<typeof zQuery> = zQuery({
     return summarizeRun(
       await requireTransformRun(ctx as unknown as QueryLikeCtx, args.evidence_transform_run_id),
     );
+  },
+});
+
+export const listEvidenceTransformRuns: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes"),
+  }),
+  returns: z.array(EvidenceTransformUniverseRunSummarySchema),
+  handler: async (ctx, args): Promise<Array<z.infer<typeof EvidenceTransformUniverseRunSummarySchema>>> => {
+    const evidenceSets = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.listUniverseEvidenceSets,
+      {
+        universe_id: args.universe_id,
+      },
+    );
+
+    const runs: Array<z.infer<typeof EvidenceTransformUniverseRunSummarySchema>> = [];
+    for (const evidenceSet of evidenceSets) {
+      const setRuns: EvidenceTransformRunDoc[] = await ctx.db
+        .query("evidence_transform_runs")
+        .withIndex("by_evidence_set", (q) => q.eq("evidence_set_id", evidenceSet._id))
+        .collect();
+      for (const run of setRuns) {
+        runs.push({
+          ...summarizeRun(run),
+          evidence_set_tag: evidenceSet.evidence_set_tag,
+          evidence_set_title: evidenceSet.title,
+          evidence_set_quality_label: evidenceSet.quality_label,
+        });
+      }
+    }
+
+    return runs
+      .slice()
+      .sort((left, right) => right.created_at_ms - left.created_at_ms);
+  },
+});
+
+export const getEvidenceSetTransformCoverage: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    evidence_set_id: zid("evidence_sets"),
+  }),
+  returns: EvidenceSetTransformCoverageSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof EvidenceSetTransformCoverageSchema>> => {
+    const evidenceSet = await ctx.db.get(args.evidence_set_id);
+    if (!evidenceSet) {
+      throw new Error("Evidence set not found.");
+    }
+
+    const setItems = await getOrderedSetItems(ctx as unknown as QueryLikeCtx, args.evidence_set_id);
+    const uniqueItemIds = Array.from(
+      new Set(setItems.map((item) => String(item.evidence_item_id))),
+    ) as Array<Id<"evidence_items">>;
+
+    const sourceRecordCounts = new Map<string, number>();
+    const completedViewCounts = new Map<string, number>();
+    const errorViewCounts = new Map<string, number>();
+
+    for (const evidenceItemId of uniqueItemIds) {
+      const [sourceRecords, views] = await Promise.all([
+        ctx.runQuery(internal.domain.evidence.evidence_repo.listItemSourceRecords, {
+          evidence_item_id: evidenceItemId,
+        }) as Promise<EvidenceSourceRecordDoc[]>,
+        ctx.runQuery(internal.domain.evidence.evidence_repo.listItemViews, {
+          evidence_item_id: evidenceItemId,
+        }) as Promise<EvidenceViewDoc[]>,
+      ]);
+
+      for (const recordKind of SOURCE_RECORD_KINDS) {
+        if (sourceRecords.some((record) => record.record_kind === recordKind)) {
+          sourceRecordCounts.set(recordKind, (sourceRecordCounts.get(recordKind) ?? 0) + 1);
+        }
+      }
+
+      for (const stage of TRANSFORM_STAGE_KEYS) {
+        const view = views.find((candidate) => candidate.view_kind === stage) ?? null;
+        if (!view) {
+          continue;
+        }
+        if (view.status === "completed" && view.asset_id != null) {
+          completedViewCounts.set(stage, (completedViewCounts.get(stage) ?? 0) + 1);
+        } else if (view.status === "error") {
+          errorViewCounts.set(stage, (errorViewCounts.get(stage) ?? 0) + 1);
+        }
+      }
+    }
+
+    const itemCount = uniqueItemIds.length;
+
+    return {
+      evidence_set_id: evidenceSet._id,
+      evidence_set_tag: evidenceSet.evidence_set_tag,
+      title: evidenceSet.title,
+      quality_label: evidenceSet.quality_label,
+      item_count: itemCount,
+      source_record_coverage: SOURCE_RECORD_KINDS.map((recordKind) => {
+        const available_count = sourceRecordCounts.get(recordKind) ?? 0;
+        return {
+          record_kind: recordKind,
+          available_count,
+          missing_count: Math.max(0, itemCount - available_count),
+        };
+      }),
+      view_coverage: TRANSFORM_STAGE_KEYS.map((viewKind) => {
+        const completed_count = completedViewCounts.get(viewKind) ?? 0;
+        const error_count = errorViewCounts.get(viewKind) ?? 0;
+        return {
+          view_kind: viewKind,
+          completed_count,
+          error_count,
+          pending_count: Math.max(0, itemCount - completed_count - error_count),
+        };
+      }),
+    };
   },
 });
 

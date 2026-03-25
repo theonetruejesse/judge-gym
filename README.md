@@ -102,6 +102,8 @@ The evidence detail page inspects:
 - universe items
 - source records / raw storage-backed content
 - generated views
+- transform coverage per evidence set
+- semantic transform run launch + progress
 
 ## Validation
 

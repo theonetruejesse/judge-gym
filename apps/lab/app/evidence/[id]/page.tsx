@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@judge-gym/engine-convex";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -14,6 +26,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import LabNavbar from "@/components/lab_navbar";
+import { MODEL_OPTIONS, STATUS_COLORS, VIEW_LABELS } from "@/lib/ui-maps";
+
+const SOURCE_RECORD_OPTIONS = [
+  { value: "source_text", label: "Source Text" },
+  { value: "paper_original", label: "Paper Original" },
+] as const;
+
+const TRANSFORM_STAGE_OPTIONS = [
+  { value: "l1_cleaned", label: VIEW_LABELS.l1_cleaned },
+  { value: "l2_neutralized", label: VIEW_LABELS.l2_neutralized },
+  { value: "l3_abstracted", label: VIEW_LABELS.l3_abstracted },
+] as const;
 
 type EvidenceUniverseSummary = {
   universe_id: string;
@@ -58,6 +82,48 @@ type UniverseItem = {
   hydration_status: string;
 };
 
+type TransformRun = {
+  evidence_transform_run_id: string;
+  evidence_set_id: string;
+  evidence_set_tag: string;
+  evidence_set_title: string;
+  evidence_set_quality_label: string;
+  source_record_kind: "source_text" | "paper_original";
+  target_view_kinds: Array<"l1_cleaned" | "l2_neutralized" | "l3_abstracted">;
+  model: string;
+  prompt_version: string;
+  status: string;
+  workflow_id: string | null;
+  workflow_run_id: string | null;
+  current_stage: "l1_cleaned" | "l2_neutralized" | "l3_abstracted" | null;
+  total_count: number;
+  completed_count: number;
+  failed_count: number;
+  last_error_message: string | null;
+  started_at_ms: number | null;
+  finished_at_ms: number | null;
+  created_at_ms: number;
+};
+
+type TransformCoverage = {
+  evidence_set_id: string;
+  evidence_set_tag: string;
+  title: string;
+  quality_label: string;
+  item_count: number;
+  source_record_coverage: Array<{
+    record_kind: "source_text" | "paper_original";
+    available_count: number;
+    missing_count: number;
+  }>;
+  view_coverage: Array<{
+    view_kind: "l1_cleaned" | "l2_neutralized" | "l3_abstracted";
+    completed_count: number;
+    error_count: number;
+    pending_count: number;
+  }>;
+};
+
 type EvidenceContent = {
   evidence_item_id: string;
   canonical_key: string;
@@ -89,11 +155,26 @@ export default function EvidenceUniversePage({
 }) {
   const [resolvedParams, setResolvedParams] = useState<{ id: string } | null>(null);
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("");
+  const [selectedEvidenceSetId, setSelectedEvidenceSetId] = useState<string>("");
   const [selectedTab, setSelectedTab] = useState<string>("source_text");
   const [content, setContent] = useState<EvidenceContent | null>(null);
   const [contentLoading, setContentLoading] = useState(false);
+  const [transformSourceRecordKind, setTransformSourceRecordKind] = useState<
+    "source_text" | "paper_original"
+  >("source_text");
+  const [transformModel, setTransformModel] = useState<string>("claude-sonnet-4");
+  const [selectedTransformStages, setSelectedTransformStages] = useState<
+    Array<"l1_cleaned" | "l2_neutralized" | "l3_abstracted">
+  >(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
+  const [transformSubmitting, setTransformSubmitting] = useState(false);
 
   const getEvidenceItemContent = useAction(api.packages.evidence.getEvidenceItemContent);
+  const createEvidenceTransformRun = useMutation(
+    api.packages.evidence_transform.createEvidenceTransformRun,
+  );
+  const startEvidenceTransformRun = useAction(
+    api.packages.evidence_transform.startEvidenceTransformRun,
+  );
 
   useEffect(() => {
     const maybePromise = params as unknown as {
@@ -122,6 +203,14 @@ export default function EvidenceUniversePage({
     api.packages.evidence.listUniverseItems,
     resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
   ) as UniverseItem[] | undefined;
+  const transformRuns = useQuery(
+    api.packages.evidence_transform.listEvidenceTransformRuns,
+    resolvedParams ? { universe_id: resolvedParams.id as never } : "skip",
+  ) as TransformRun[] | undefined;
+  const transformCoverage = useQuery(
+    api.packages.evidence_transform.getEvidenceSetTransformCoverage,
+    selectedEvidenceSetId ? { evidence_set_id: selectedEvidenceSetId as never } : "skip",
+  ) as TransformCoverage | undefined;
 
   const universeLoading = !!resolvedParams && universe === undefined;
   const evidenceLoading = !!resolvedParams && evidenceItems === undefined;
@@ -132,6 +221,12 @@ export default function EvidenceUniversePage({
       setSelectedEvidenceId(evidenceRows[0].evidence_item_id);
     }
   }, [evidenceRows, selectedEvidenceId]);
+
+  useEffect(() => {
+    if (!selectedEvidenceSetId && (evidenceSets?.length ?? 0) > 0) {
+      setSelectedEvidenceSetId(evidenceSets?.[0]?.evidence_set_id ?? "");
+    }
+  }, [evidenceSets, selectedEvidenceSetId]);
 
   useEffect(() => {
     if (!selectedEvidenceId) {
@@ -199,10 +294,59 @@ export default function EvidenceUniversePage({
     }))),
     ...((content?.views ?? []).map((view) => ({
       key: view.view_kind,
-      label: view.view_kind,
+      label: VIEW_LABELS[view.view_kind] ?? view.view_kind,
       content: view.content ?? "",
     }))),
   ];
+
+  const toggleTransformStage = (
+    stage: "l1_cleaned" | "l2_neutralized" | "l3_abstracted",
+    nextChecked: boolean,
+  ) => {
+    setSelectedTransformStages((current) => {
+      if (nextChecked) {
+        return current.includes(stage) ? current : [...current, stage];
+      }
+      return current.filter((value) => value !== stage);
+    });
+  };
+
+  const handleLaunchTransformRun = async () => {
+    if (!selectedEvidenceSetId) {
+      toast.error("Select an evidence set before starting transforms.");
+      return;
+    }
+    if (selectedTransformStages.length === 0) {
+      toast.error("Select at least one semantic transform stage.");
+      return;
+    }
+
+    setTransformSubmitting(true);
+    try {
+      const orderedStages = TRANSFORM_STAGE_OPTIONS
+        .map((option) => option.value)
+        .filter((value) => selectedTransformStages.includes(value));
+      const { evidence_transform_run_id } = await createEvidenceTransformRun({
+        evidence_set_id: selectedEvidenceSetId as never,
+        source_record_kind: transformSourceRecordKind,
+        target_view_kinds: orderedStages as never,
+        model: transformModel as never,
+      });
+      await startEvidenceTransformRun({
+        evidence_transform_run_id: evidence_transform_run_id as never,
+      });
+      toast.success("Semantic transform started.", {
+        description: `${orderedStages.map((stage) => VIEW_LABELS[stage]).join(" -> ")} via ${transformModel}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error("Semantic transform launch failed.", {
+        description: message,
+      });
+    } finally {
+      setTransformSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -419,6 +563,213 @@ export default function EvidenceUniversePage({
                     <TableRow>
                       <TableCell colSpan={3} className="text-xs opacity-50">
                         No evidence sets found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            <Card className="border-border bg-card/80 p-5">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Semantic Transforms
+                </p>
+                <h2 className="text-sm font-semibold">Coverage and execution</h2>
+                <p className="text-[11px] opacity-50">
+                  Run `l1/l2/l3` transforms on a curated evidence set, then inspect raw-vs-semantic
+                  readiness before locking the V4 matrix.
+                </p>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Evidence Set</Label>
+                  <Select
+                    value={selectedEvidenceSetId}
+                    onValueChange={(value) => setSelectedEvidenceSetId(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select evidence set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(evidenceSets ?? []).map((setRow) => (
+                        <SelectItem key={setRow.evidence_set_id} value={setRow.evidence_set_id}>
+                          {setRow.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Source Record</Label>
+                  <Select
+                    value={transformSourceRecordKind}
+                    onValueChange={(value) =>
+                      setTransformSourceRecordKind(value as "source_text" | "paper_original")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SOURCE_RECORD_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Transform Model</Label>
+                  <Select value={transformModel} onValueChange={setTransformModel}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MODEL_OPTIONS.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <Label>Target Views</Label>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {TRANSFORM_STAGE_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-3 rounded border border-border bg-muted/20 px-3 py-2 text-xs"
+                    >
+                      <Checkbox
+                        checked={selectedTransformStages.includes(option.value)}
+                        onCheckedChange={(checked) =>
+                          toggleTransformStage(option.value, checked === true)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="text-[11px] opacity-50">
+                  Coverage updates automatically as semantic views complete or fail.
+                </div>
+                <Button
+                  onClick={handleLaunchTransformRun}
+                  disabled={transformSubmitting || !selectedEvidenceSetId}
+                >
+                  {transformSubmitting ? "Starting..." : "Start Semantic Transform"}
+                </Button>
+              </div>
+
+              {transformCoverage && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{transformCoverage.evidence_set_tag}</Badge>
+                    <Badge variant="secondary">{transformCoverage.quality_label}</Badge>
+                    <span className="text-[11px] opacity-50">
+                      {transformCoverage.item_count} unique evidence items
+                    </span>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card className="border-border bg-muted/20 p-4">
+                      <p className="text-[10px] uppercase tracking-widest opacity-50">
+                        Source Record Coverage
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {transformCoverage.source_record_coverage.map((entry) => (
+                          <div
+                            key={entry.record_kind}
+                            className="flex items-center justify-between rounded border border-border px-3 py-2 text-xs"
+                          >
+                            <span>{VIEW_LABELS[entry.record_kind] ?? entry.record_kind}</span>
+                            <span className="opacity-60">
+                              {entry.available_count} ready · {entry.missing_count} missing
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+
+                    <Card className="border-border bg-muted/20 p-4">
+                      <p className="text-[10px] uppercase tracking-widest opacity-50">
+                        Semantic View Coverage
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {transformCoverage.view_coverage.map((entry) => (
+                          <div
+                            key={entry.view_kind}
+                            className="flex items-center justify-between rounded border border-border px-3 py-2 text-xs"
+                          >
+                            <span>{VIEW_LABELS[entry.view_kind] ?? entry.view_kind}</span>
+                            <span className="opacity-60">
+                              {entry.completed_count} done · {entry.error_count} error · {entry.pending_count} pending
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card className="border-border bg-card/80">
+              <div className="border-b border-border px-5 py-4">
+                <p className="text-[10px] uppercase tracking-widest opacity-50">
+                  Transform Runs
+                </p>
+              </div>
+              <Table>
+                <TableHeader className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <TableRow>
+                    <TableHead>Set</TableHead>
+                    <TableHead>Stages</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Progress</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(transformRuns ?? []).map((run) => (
+                    <TableRow key={run.evidence_transform_run_id}>
+                      <TableCell>
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-medium">{run.evidence_set_title}</div>
+                          <div className="text-[10px] opacity-45">
+                            {run.evidence_set_tag} · {VIEW_LABELS[run.source_record_kind]}
+                          </div>
+                          <div className="text-[10px] opacity-45">{run.model}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {run.target_view_kinds.map((stage) => VIEW_LABELS[stage]).join(" -> ")}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <Badge
+                          variant="outline"
+                          style={{ borderColor: STATUS_COLORS[run.status] ?? "#6b7280" }}
+                        >
+                          {run.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {run.completed_count}/{run.total_count} · err {run.failed_count}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(transformRuns ?? []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-xs opacity-50">
+                        No semantic transform runs found.
                       </TableCell>
                     </TableRow>
                   )}
