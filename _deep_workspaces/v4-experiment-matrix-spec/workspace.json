@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "V4 Experiment Matrix Spec",
+    "slug": "v4-experiment-matrix-spec",
+    "objective": "Specify a self-contained V4 paper program and final experiment matrix for judge-gym, grounded in pilots, literature-audit targets, and multi-provider runtime constraints.",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-experiment-matrix-spec"
+  },
+  "environment": {
+    "repoRoot": "/Users/jesselee/dev/research/jg/judge-gym",
+    "knownTools": [
+      "bun",
+      "uv",
+      "Convex own-dev and package APIs",
+      "Temporal worker runtime",
+      "Media Cloud discovery integration",
+      "Anthropic direct and native batch support",
+      "OpenRouter direct support",
+      "deep-workflow",
+      "execute-workflow"
+    ],
+    "knownConstraints": [
+      "V4 must be a self-contained paper study, not a pilot continuation.",
+      "OpenAI remains the primary model family and baseline reference line.",
+      "Wave-1 provider expansion is limited to Anthropic and OpenRouter; Gemini and Grok are deferred.",
+      "The final matrix should privilege matched contrasts over a large full-factorial sweep.",
+      "The live repo is greenfield V4: evidence universes, evidence sets, source records, semantic views, and transform runs are available now.",
+      "Historical V3 findings constrain claim selection: abstention, concept framing, model placement, and grouping are first-order levers; l3 is weaker.",
+      "Paper-audit targets must remain fair reconstructions rather than bespoke reinterpretations."
+    ],
+    "unknowns": [
+      "Whether the launch bundle should include Zheng or Thakur as the comparator lane.",
+      "Which exact Ziems subset should be precommitted for V4.",
+      "Which OpenRouter-backed model family should anchor the third provider slice.",
+      "How much of the perturbation sweep should be identical across all targets versus target-specific."
+    ],
+    "notes": [
+      "Relevant grounding lives in docs/pilots plus prior V4 blueprints under _blueprints/ and _deep_workflows/.",
+      "Current codebase already supports Media Cloud-first acquisition, source-record versus semantic-view separation, and provider-aware runtime routing."
+    ]
+  },
+  "objectiveModel": {
+    "terminalObjective": "Specify a self-contained V4 paper program and final experiment matrix for judge-gym, grounded in pilots, literature-audit targets, and multi-provider runtime constraints.",
+    "successCriteria": [
+      "Lock a launch-bundle target set with explicit roles in the paper argument.",
+      "Define a final V4 experiment matrix that is self-contained, bounded, and publishable.",
+      "Specify a provider panel policy with OpenAI primary plus Anthropic and OpenRouter wave-1 controls.",
+      "Specify evidence-set quality rules, source-record versus semantic-view usage rules, and transform requirements.",
+      "Define primary endpoints and sanity checks consistent with the geometry-first pilot framing.",
+      "Produce a bounded deep-workflow request for the next compilation step toward the final matrix package."
+    ],
+    "nonGoals": [
+      "Do not expand wave 1 to Gemini, Grok, or broad many-provider claims.",
+      "Do not treat V4 as a general literature census or a full systematic review.",
+      "Do not promise human-ground-truth validity claims beyond evaluator-regime auditing.",
+      "Do not let engine generalization reopen the already-settled greenfield evidence/runtime architecture."
+    ],
+    "dependencyPolicy": [
+      "Use docs/pilots as the highest-priority scientific continuity source.",
+      "Use prior V4 blueprint artifacts as secondary planning evidence rather than re-deriving earlier research.",
+      "Treat current repo runtime and schema state as the implementation source of truth for what V4 can support now.",
+      "Promote only study designs that are supportable by the current engine or require narrow, explicit deltas."
+    ],
+    "capabilityTiers": [
+      {
+        "tier": "T0",
+        "label": "Matrix-ready specification",
+        "definition": "Final launch bundle, perturbation families, provider panel, evidence/view contract, and endpoints are all locked in writing."
+      },
+      {
+        "tier": "T1",
+        "label": "Workflow-compilable package",
+        "definition": "A bounded deep-workflow request can compile the final matrix package without reopening core study-design questions."
+      },
+      {
+        "tier": "T2",
+        "label": "Execution-ready V4 study",
+        "definition": "The spec cleanly maps onto the current engine substrate, with only target-specific import work left."
+      }
+    ]
+  },
+  "strategy": {
+    "baselinePlan": [
+      "Start from the strongest stable pilot claims: abstention, concept framing, model placement, and grouping are primary levers; l3 is secondary.",
+      "Start from the highest-certainty target bundle research: Gilardi primary, Ziems subset secondary, Zheng default comparator, Thakur alternate, Santurkar deferred.",
+      "Treat OpenAI as the baseline continuity family, then add Anthropic and OpenRouter as symmetric controls rather than equal first-pass optimization targets."
+    ],
+    "telemetry": {
+      "historyPath": "telemetry/metrics.jsonl",
+      "leaderboardPath": "telemetry/leaderboard.json",
+      "trackedMetrics": [
+        "target_reconstructability_confidence",
+        "matrix_scope_discipline",
+        "provider_symmetry_score",
+        "engine_fit_score",
+        "paper_claim_clarity",
+        "unresolved_design_decisions"
+      ]
+    },
+    "progressionLadder": [
+      "environment discovery -> integrate pilots, target-viability research, and live repo capabilities",
+      "launch-bundle lock -> finalize target roles and comparator/default decisions",
+      "matrix compilation -> define perturbation families, provider slices, evidence/view rules, and endpoints",
+      "paper packaging -> turn the matrix into a final self-contained study specification with deliverables"
+    ],
+    "searchRegimes": [
+      {
+        "mode": "exploit",
+        "focus": "Use the pilot results and prior V4 research to narrow the paper to the strongest defensible claim surface."
+      },
+      {
+        "mode": "explore",
+        "focus": "Test whether provider expansion and paper-audit targets materially change the recommended matrix shape."
+      }
+    ],
+    "pruneRules": [
+      "Prune any branch that turns V4 into a broad platform manifesto instead of a paper-ready study.",
+      "Prune candidate targets that require large new execution machinery or lack fair reconstruction support.",
+      "Prune perturbation families that do not connect back to strong V2/V3 findings or externally legible audit claims."
+    ],
+    "escalationRules": [
+      "Escalate to a deeper workflow only after the workspace resolves the current strategic bottleneck into a bounded spec question.",
+      "Escalate provider breadth only after the OpenAI + Anthropic + OpenRouter panel is coherently specified.",
+      "Escalate beyond the launch bundle only after the core V4 paper argument is stable."
+    ],
+    "promotionRules": [
+      "Promote a matrix design only if it preserves geometry-first claims, is bounded enough to execute, and keeps provider symmetry legible.",
+      "Promote a target bundle only if each chosen target has a distinct argumentative role and acceptable reconstruction fairness.",
+      "Promote a workflow request only if it is concrete enough to compile without reopening campaign-level decisions."
+    ],
+    "gitPolicy": {
+      "commitAfterLoop": true,
+      "branchStrategy": "same_branch_until_user_redirects"
+    },
+    "workflowRequestPolicy": {
+      "createRealRunFolders": true,
+      "maxOpenRuns": 1
+    }
+  },
+  "handoff": {
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows",
+    "runRoot": "runs/",
+    "kernelSkill": "deep-workflow",
+    "executorSkill": "execute-workflow",
+    "requestTemplatePath": "runs/_template_workflow_request.md"
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "telemetry/leaderboard.json"
+    ]
+  },
+  "policies": {
+    "maxConcurrentWorkflows": 1,
+    "reviewRequired": [
+      "Changing the launch bundle after it is locked",
+      "Expanding the provider panel beyond OpenAI, Anthropic, and OpenRouter",
+      "Turning the study into a full-factorial matrix"
+    ],
+    "stopConditions": [
+      "Terminal objective met: final V4 study specification and matrix are locked.",
+      "Hard blocker: a required top target loses reconstructability or provider panel policy becomes unsupported."
+    ],
+    "budget": {
+      "primaryCostControl": "Prefer planning and specification over live external runs.",
+      "executionScope": "Compile one bounded workflow at a time."
+    },
+    "continueUntilTerminal": true,
+    "blockerPolicy": "only_stop_for_real_external_blockers"
+  }
+}

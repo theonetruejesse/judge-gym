@@ -1,0 +1,1 @@
+{"artifactPath": null, "label": "narrow_geometry_first_v4", "metrics": {"engine_fit_score": 0.93, "matrix_scope_discipline": 0.92, "paper_claim_clarity": 0.9, "provider_symmetry_score": 0.78, "target_reconstructability_confidence": 0.85, "unresolved_design_decisions": 4.0}, "source": "workspace-bootstrap", "ts": "2026-03-25T00:30:36.403007+00:00"}

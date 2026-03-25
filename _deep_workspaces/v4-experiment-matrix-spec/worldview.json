@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "workspacePath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-experiment-matrix-spec",
+    "objective": "Specify a self-contained V4 paper program and final experiment matrix for judge-gym, grounded in pilots, literature-audit targets, and multi-provider runtime constraints.",
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows"
+  },
+  "status": {
+    "workspace": "active",
+    "phase": "campaign_scoping",
+    "activeRun": "R01",
+    "terminalObjectiveMet": false
+  },
+  "environment": {
+    "discovered": true,
+    "notes": [
+      "Pilot docs show abstention, concept framing, model placement, and grouping are the strongest V4 levers.",
+      "The repo now supports Media Cloud-first evidence acquisition, source-record and semantic-view separation, transform runs, and OpenAI/Anthropic/OpenRouter runtime routing.",
+      "Prior V4 research artifacts already narrow the likely launch bundle and provider framing."
+    ]
+  },
+  "baselines": {
+    "current": {
+      "label": "narrow_geometry_first_v4",
+      "summary": "A self-contained paper with OpenAI primary, Anthropic and OpenRouter controls, and a bounded launch bundle anchored in pilot findings.",
+      "sourceArtifacts": [
+        "docs/pilots/paper.md",
+        "docs/pilots/v3_gpt_ablations.md",
+        "_blueprints/v4-target-resource-viability/blueprint.md",
+        "_blueprints/v4-refactor-and-study-plan/blueprint.md"
+      ]
+    },
+    "history": [
+      {
+        "label": "narrow_geometry_first_v4",
+        "status": "active"
+      }
+    ]
+  },
+  "telemetry": {
+    "historyPath": "telemetry/metrics.jsonl",
+    "leaderboardPath": "telemetry/leaderboard.json",
+    "latest": {
+      "ts": "2026-03-25T00:30:36.403007+00:00",
+      "label": "narrow_geometry_first_v4",
+      "source": "workspace-bootstrap",
+      "metrics": {
+        "target_reconstructability_confidence": 0.85,
+        "matrix_scope_discipline": 0.92,
+        "provider_symmetry_score": 0.78,
+        "engine_fit_score": 0.93,
+        "paper_claim_clarity": 0.9,
+        "unresolved_design_decisions": 4.0
+      },
+      "artifactPath": null
+    }
+  },
+  "workflowRuns": [
+    {
+      "runId": "R01",
+      "requestedObjective": "Compile the final V4 study specification: lock the launch-bundle targets, provider panel, evidence/view contract, perturbation families, and the matched experiment matrix for a self-contained paper.",
+      "workflowPath": null,
+      "status": "planned",
+      "measuredOutcome": {}
+    }
+  ],
+  "currentBest": {
+    "label": "narrow_geometry_first_v4",
+    "metrics": {
+      "target_reconstructability_confidence": 0.85,
+      "matrix_scope_discipline": 0.92,
+      "provider_symmetry_score": 0.78,
+      "engine_fit_score": 0.93,
+      "paper_claim_clarity": 0.9,
+      "unresolved_design_decisions": 4.0
+    },
+    "artifactPath": "_deep_workspaces/v4-experiment-matrix-spec/workspace.json"
+  },
+  "bottlenecks": [
+    "Comparator lane still needs a default lock between Zheng and Thakur.",
+    "Ziems subset still needs a written precommitment rule.",
+    "Provider symmetry policy needs exact model-family selection without overexpanding scope.",
+    "The final matrix still needs explicit raw-versus-semantic view rules per target class."
+  ],
+  "decisions": [
+    {
+      "timestamp": "2026-03-24",
+      "statement": "Treat V4 as a self-contained paper and matrix-spec campaign rather than open-ended engine ideation."
+    },
+    {
+      "timestamp": "2026-03-24",
+      "statement": "Preserve OpenAI as the primary family, with Anthropic and OpenRouter as the wave-1 control panel; Gemini and Grok are deferred."
+    },
+    {
+      "timestamp": "2026-03-24",
+      "statement": "Carry forward the geometry-first pilot thesis and avoid collapsing V4 into agreement-only or accuracy-only framing."
+    }
+  ],
+  "nextActions": [
+    {
+      "type": "compile_workflow",
+      "runId": "R01",
+      "requestPath": "runs/R01/workflow_request.md",
+      "goal": "Compile the bounded workflow that will produce the final V4 matrix-spec package."
+    }
+  ]
+}

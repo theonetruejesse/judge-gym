@@ -1,0 +1,14 @@
+{
+  "runId": "R01",
+  "title": "Compile V4 matrix spec",
+  "boundedObjective": "Compile the final V4 study specification: lock the launch-bundle targets, provider panel, evidence/view contract, perturbation families, and the matched experiment matrix for a self-contained paper.",
+  "status": "planned",
+  "createdAt": "2026-03-25T00:28:05.470393+00:00",
+  "workflowRequestPath": "runs/R01/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": [
+    "This run compiles the bounded V4 matrix-spec package rather than implementing or executing experiments.",
+    "Primary design pressure: preserve geometry-first pilot claims while expanding to OpenAI + Anthropic + OpenRouter wave-1 coverage."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "currentBest": {
+    "label": "narrow_geometry_first_v4",
+    "source": "workspace-bootstrap",
+    "metrics": {
+      "target_reconstructability_confidence": 0.85,
+      "matrix_scope_discipline": 0.92,
+      "provider_symmetry_score": 0.78,
+      "engine_fit_score": 0.93,
+      "paper_claim_clarity": 0.9,
+      "unresolved_design_decisions": 4.0
+    },
+    "artifactPath": null
+  },
+  "entries": [
+    {
+      "ts": "2026-03-25T00:30:36.403007+00:00",
+      "label": "narrow_geometry_first_v4",
+      "source": "workspace-bootstrap",
+      "metrics": {
+        "target_reconstructability_confidence": 0.85,
+        "matrix_scope_discipline": 0.92,
+        "provider_symmetry_score": 0.78,
+        "engine_fit_score": 0.93,
+        "paper_claim_clarity": 0.9,
+        "unresolved_design_decisions": 4.0
+      },
+      "artifactPath": null
+    }
+  ]
+}
