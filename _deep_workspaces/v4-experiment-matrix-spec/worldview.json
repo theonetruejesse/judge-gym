@@ -54,14 +54,14 @@
     "historyPath": "telemetry/metrics.jsonl",
     "leaderboardPath": "telemetry/leaderboard.json",
     "latest": {
-      "ts": "2026-03-25T20:53:38.434474+00:00",
-      "label": "v3_transfer_locked_matrix",
-      "source": "R06",
+      "ts": "2026-03-25T21:09:29.992598+00:00",
+      "label": "v4_execution_readiness_locked",
+      "source": "R07",
       "metrics": {
         "target_reconstructability_confidence": 0.9,
         "matrix_scope_discipline": 0.96,
         "provider_symmetry_score": 0.91,
-        "engine_fit_score": 0.96,
+        "engine_fit_score": 0.99,
         "paper_claim_clarity": 0.98,
         "unresolved_design_decisions": 0.0
       },
@@ -149,6 +149,20 @@
           "headline_transfer_policy",
           "appendix_transfer_policy",
           "revised_v4_specs"
+        ]
+      }
+    },
+    {
+      "runId": "R07",
+      "requestedObjective": "Translate the locked V4 matrix into an implementation logistics package: specify how paper targets should be ingested and packaged, identify which parts of the current engine already support faithful audits, isolate the remaining missing code before target-specific smoke and canary runs, and define where bundle checks belong across literature-audit versus native evidence studies.",
+      "workflowPath": "_deep_workflows/v4-implementation-logistics-r07",
+      "status": "completed",
+      "measuredOutcome": {
+        "result": "implementation_logistics_locked",
+        "resolved": [
+          "paper_audit_packaging_policy",
+          "canary_readiness_checklist",
+          "bundle_policy_partition"
         ]
       }
     }
@@ -244,12 +258,16 @@
         "paper_claim_clarity": 0.98,
         "unresolved_design_decisions": 0.0
       }
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "R07 locked the V4 implementation logistics: paper targets require a package layer, target-specific canaries need dedicated import and package harnesses, and bundle checks stay out of headline Gilardi and Zheng lanes."
     }
   ],
   "nextActions": [
     {
       "type": "implementation",
-      "goal": "Execute the revised V4 study spec against the current engine and import surfaces."
+      "goal": "Build the paper-audit package registry, Gilardi and Zheng import/canary harnesses, and OpenRouter/Qwen smoke extension before executing the headline matrix."
     }
   ]
 }

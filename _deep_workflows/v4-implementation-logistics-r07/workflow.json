@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R07 V4 Implementation Logistics",
+    "slug": "v4-implementation-logistics-r07",
+    "objective": "Translate the locked V4 matrix into an implementation logistics package: specify how paper targets should be ingested and packaged, identify which parts of the current engine already support faithful audits, isolate the remaining missing code before target-specific smoke and canary runs, and define where bundle checks belong across literature-audit versus native evidence studies.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-implementation-logistics-r07"
+  },
+  "compile": {
+    "baseHint": "Do not reopen the scientific matrix. Use the current repo to translate the locked V4 design into an implementation logistics package and canary-readiness checklist.",
+    "taskSignals": [
+      "The matrix is already locked around Gilardi plus Zheng, OpenAI primary, Anthropic direct control, and a Qwen-centered OpenRouter lane.",
+      "The repo already supports evidence universes, evidence sets, source records, semantic views, transform runs, and evidence-set-backed experiments.",
+      "The remaining ambiguity is operational: how target papers get packaged, what still needs to be built before target-specific canaries, and where bundle checks belong."
+    ],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq"
+    ],
+    "notes": [
+      "This run sharpens execution readiness and spec wording. It does not re-evaluate the matrix."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "docs/pilots/v4_specs.md",
+      "docs/pilots/v3_gpt_ablations.md",
+      "_deep_workspaces/v4-experiment-matrix-spec/worldview.json",
+      "_deep_workflows/v4-provider-surface-r05/agents/N01/implementation_spec.md",
+      "_deep_workflows/v4-v3-transfer-r06/agents/N02/revised_v4_spec.md",
+      "packages/engine-prompts/src/run/config.ts",
+      "apps/engine-convex/convex/models/experiments.ts",
+      "apps/engine-convex/convex/packages/evidence.ts",
+      "apps/engine-convex/convex/domain/runs/experiments_repo.ts",
+      "apps/engine-convex/convex/domain/runs/run_repo.ts",
+      "apps/engine-convex/scripts/v4_smoke.ts"
+    ],
+    "sharedTools": [
+      "shell",
+      "rg",
+      "sed"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "synthesize",
+        "role": "execution-surface-auditor"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "synthesize",
+        "role": "paper-audit-packager"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "synthesize",
+        "role": "bundle-and-spec-closer"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "contexts/implementation_logistics_summary.md",
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/execution_surface_audit.md",
+      "agents/N01/execution_surface_matrix.json",
+      "agents/N02/paper_audit_packaging_contract.md",
+      "agents/N02/canary_readiness_checklist.json",
+      "agents/N03/bundle_policy_and_missing_code.md",
+      "agents/N03/logistics_summary.json"
+    ],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the execution-surface audit, packaging contract, bundle policy, and closeout summary are all written."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

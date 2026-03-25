@@ -1,0 +1,44 @@
+{
+  "nodeId": "N01",
+  "kind": "synthesize",
+  "role": "execution-surface-auditor",
+  "objective": "Audit the current V4 substrate and separate what is already implemented from what is still missing for faithful paper-audit execution.",
+  "inputs": [
+    "docs/pilots/v4_specs.md",
+    "packages/engine-prompts/src/run/config.ts",
+    "apps/engine-convex/convex/models/experiments.ts",
+    "apps/engine-convex/convex/packages/evidence.ts",
+    "apps/engine-convex/convex/domain/runs/experiments_repo.ts",
+    "apps/engine-convex/convex/domain/runs/run_repo.ts",
+    "apps/engine-convex/scripts/v4_smoke.ts"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "execution_surface_audit.md",
+    "execution_surface_matrix.json"
+  ],
+  "completionCriteria": [
+    "List the substrate features already built for V4 paper audits.",
+    "Call out the exact missing code paths before target-specific canaries."
+  ]
+}

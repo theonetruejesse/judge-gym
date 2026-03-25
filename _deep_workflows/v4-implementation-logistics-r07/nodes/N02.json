@@ -1,0 +1,40 @@
+{
+  "nodeId": "N02",
+  "kind": "synthesize",
+  "role": "paper-audit-packager",
+  "objective": "Define the packaging contract and canary ladder for importing target papers into the V4 engine.",
+  "inputs": [
+    "agents/N01/execution_surface_audit.md",
+    "docs/pilots/v4_specs.md",
+    "_deep_workflows/v4-provider-surface-r05/agents/N01/implementation_spec.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "paper_audit_packaging_contract.md",
+    "canary_readiness_checklist.json"
+  ],
+  "completionCriteria": [
+    "Define a concrete import-and-package process for `Gilardi` and `Zheng`.",
+    "Define the smoke and canary ladder from substrate smoke to target-specific canaries."
+  ]
+}

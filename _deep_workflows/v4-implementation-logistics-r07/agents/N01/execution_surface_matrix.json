@@ -1,0 +1,21 @@
+{
+  "already_implemented": [
+    "evidence_universes_and_sets",
+    "source_record_vs_semantic_view_split",
+    "evidence_set_backed_experiments",
+    "compatibility_mode_and_output_contract_fields",
+    "run_materialization_from_evidence_sets",
+    "substrate_smoke_script"
+  ],
+  "missing_before_target_canaries": [
+    "paper_audit_package_registry",
+    "target_specific_import_adapters",
+    "prompt_template_provenance_registry",
+    "target_specific_canary_scripts",
+    "openrouter_qwen_smoke_path"
+  ],
+  "missing_before_bundle_sensitive_appendix_work": [
+    "semantic_cluster_for_evidence_sets",
+    "semantic_cluster_projected_for_evidence_sets"
+  ]
+}

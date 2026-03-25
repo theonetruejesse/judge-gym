@@ -1,0 +1,10 @@
+{
+  "status": "completed",
+  "completedNodes": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "pendingNodes": [],
+  "failedNodes": []
+}

@@ -1,0 +1,41 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "bundle-and-spec-closer",
+  "objective": "Lock the bundle policy, final missing-code checklist, and V4 spec updates without reopening the matrix.",
+  "inputs": [
+    "agents/N01/execution_surface_audit.md",
+    "agents/N02/paper_audit_packaging_contract.md",
+    "docs/pilots/v3_gpt_ablations.md",
+    "docs/pilots/v4_specs.md"
+  ],
+  "dependencies": [
+    "N02"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "bundle_policy_and_missing_code.md",
+    "logistics_summary.json"
+  ],
+  "completionCriteria": [
+    "State clearly where bundle checks belong in V4.",
+    "Produce a final checklist that can guide the next implementation wave."
+  ]
+}

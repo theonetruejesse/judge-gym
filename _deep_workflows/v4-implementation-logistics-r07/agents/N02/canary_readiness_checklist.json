@@ -1,0 +1,29 @@
+{
+  "ready_now": [
+    "generic_evidence_import",
+    "evidence_set_creation",
+    "paper_original_and_source_text_selection",
+    "semantic_transform_runs",
+    "paper_audit_experiment_contracts",
+    "generic_v4_substrate_smoke"
+  ],
+  "must_build_before_gilardi_canary": [
+    "paper_audit_package_registry",
+    "gilardi_import_adapter_or_script",
+    "gilardi_prompt_template_bundle",
+    "gilardi_output_contract_fixture"
+  ],
+  "must_build_before_zheng_canary": [
+    "paper_audit_package_registry",
+    "zheng_import_adapter_or_script",
+    "zheng_prompt_template_bundle",
+    "zheng_output_contract_fixture"
+  ],
+  "must_build_before_openrouter_canary": [
+    "qwen_openrouter_smoke_support"
+  ],
+  "can_defer_until_appendix_or_native_regime_work": [
+    "semantic_cluster_bundle_strategy_for_evidence_sets",
+    "semantic_cluster_projected_bundle_strategy_for_evidence_sets"
+  ]
+}

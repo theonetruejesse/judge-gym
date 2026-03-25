@@ -1,0 +1,15 @@
+{
+  "direct_swap_policy": "no",
+  "headline_bundle_policy": {
+    "gilardi": "no_bundles",
+    "zheng": "no_bundles",
+    "ziems": "appendix_candidate",
+    "native_evidence_studies": "full_bundle_space"
+  },
+  "next_build_targets": [
+    "paper_audit_package_registry",
+    "gilardi_import_and_canary",
+    "zheng_import_and_canary",
+    "openrouter_qwen_smoke_extension"
+  ]
+}

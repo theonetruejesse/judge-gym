@@ -83,6 +83,20 @@
         "unresolved_design_decisions": 0.0
       },
       "artifactPath": "docs/pilots/v4_specs.md"
+    },
+    {
+      "ts": "2026-03-25T21:09:29.992598+00:00",
+      "label": "v4_execution_readiness_locked",
+      "source": "R07",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.96,
+        "provider_symmetry_score": 0.91,
+        "engine_fit_score": 0.99,
+        "paper_claim_clarity": 0.98,
+        "unresolved_design_decisions": 0.0
+      },
+      "artifactPath": "docs/pilots/v4_specs.md"
     }
   ]
 }

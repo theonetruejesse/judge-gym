@@ -149,6 +149,80 @@ Architecture-diversity sidecar:
 
 - `l3_abstracted`
 
+## Implementation Logistics
+
+### Do Not Swap Inputs Naively
+
+V4 should not port a target paper by simply pasting its rubric and evidence into an experiment row.
+
+The correct process is:
+
+1. import the target's released task units into a V4 `evidence_universe`
+2. curate a frozen `evidence_set`
+3. pin each item to `paper_original` or `source_text`
+4. register a paper-audit package that freezes:
+   - prompt template
+   - instructions
+   - rubric or codebook
+   - label space
+   - output contract
+   - provenance and freeze metadata
+5. instantiate a `paper_faithful` experiment against that package
+6. run a target-specific canary before expanding to the full matrix
+
+### What The Current Engine Already Supports
+
+- direct evidence import into `paper_audit` universes
+- curated `evidence_sets`
+- raw source records decoupled from semantic views
+- semantic transform runs for `l1`, `l2`, and `l3`
+- evidence-set-backed experiment creation
+- `paper_faithful`, `paper_translated`, and `stress_test` compatibility modes
+- task contracts with prompt-template, instruction, and label-space fields
+- output contracts for verdict-line, label, and structured-json parsing
+- generic V4 substrate smoke via `bun run v4:smoke`
+
+### What We Still Need Before Target-Specific Canaries
+
+Required before `Gilardi` and `Zheng` canaries:
+
+1. a first-class `paper_audit_packages` registry
+2. target import adapters or scripts for `Gilardi` and `Zheng`
+3. target-specific prompt or rubric package storage
+4. target-specific canary scripts
+5. OpenRouter/Qwen support in the smoke harness
+
+Not required before the headline paper run:
+
+1. `Ziems` import
+2. semantic clustering over evidence-set bundles
+3. broader appendix/watchlist provider execution
+
+### Smoke And Canary Ladder
+
+1. substrate smoke:
+   - existing `bun run v4:smoke`
+2. provider smoke:
+   - extend smoke to include the Qwen OpenRouter lane
+3. paper target canary:
+   - `gilardi_canary`
+   - `zheng_canary`
+4. condition canary:
+   - abstention-on
+   - `l2_neutralized` where applicable
+5. matrix execution
+
+### Bundle Policy
+
+Bundle checks are not part of the headline paper-fidelity lanes.
+
+- `Gilardi`: no headline bundles
+- `Zheng / MT-Bench`: no headline bundles
+- `Ziems`: best appendix or follow-on literature-audit candidate for bundle checks
+- native `judge-gym` evidence studies: full bundle-sensitive regime analysis
+
+This preserves the V3 lesson that grouping is part of the instrument without forcing bundled tasks into paper-faithful targets that are fundamentally single-item or benchmark-native.
+
 ## Primary Endpoints
 
 Use the geometry-first panel carried forward from V3:
