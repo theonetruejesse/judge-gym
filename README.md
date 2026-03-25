@@ -140,6 +140,7 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 - Root `.env.local` is the source of truth
 - Use `bun install` from repo root
 - Deploy the Temporal worker after runtime-affecting worker changes before resuming real external runs
+- Railway worker bootstrap is: Temporal template project + Redis service + public TCP proxy on `7233` + `./scripts/deploy_railway_worker.sh`
 
 ## Debug Surfaces
 

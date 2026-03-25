@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 SERVICE_NAME="${RAILWAY_WORKER_SERVICE_NAME:-engine-temporal-worker}"
 RAILWAY_ENVIRONMENT="${RAILWAY_ENVIRONMENT:-production}"
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporalserver:7233}"
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporalserver.railway.internal:7233}"
 if [ -z "${RAILWAY_REDIS_URL_REFERENCE:-}" ]; then
   RAILWAY_REDIS_URL_REFERENCE='${{Redis.REDIS_URL}}'
 fi
@@ -53,7 +53,6 @@ fi
 
 require_env CONVEX_URL
 require_env OPENAI_API_KEY
-require_env FIRECRAWL_API_KEY
 
 status_json="$(railway status --json)"
 redis_url_value="${REDIS_URL:-$RAILWAY_REDIS_URL_REFERENCE}"
@@ -77,7 +76,6 @@ worker_vars=(
   "TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}"
   "CONVEX_URL=$CONVEX_URL"
   "OPENAI_API_KEY=$OPENAI_API_KEY"
-  "FIRECRAWL_API_KEY=$FIRECRAWL_API_KEY"
   "REDIS_URL=$redis_url_value"
 )
 

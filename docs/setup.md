@@ -74,7 +74,7 @@ If you rename the Redis service or use a different variable reference, override
 For the current official template, the private worker address is typically:
 
 ```bash
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver:7233
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver.railway.internal:7233
 ```
 
 If your template uses different private service naming, override
@@ -114,15 +114,14 @@ That script:
 - creates `engine-temporal-worker` if it does not exist
 - deploys using the repo-root `railway.toml` plus the repo-root `Dockerfile`
 - syncs the worker env vars from `.env.local`
-- defaults the worker to `temporalserver:7233` internally
+- defaults the worker to `temporalserver.railway.internal:7233` internally
 
 The worker service needs:
 
-- `TEMPORAL_ADDRESS=temporalserver:7233`
+- `TEMPORAL_ADDRESS=temporalserver.railway.internal:7233`
 - `TEMPORAL_NAMESPACE=default`
 - `CONVEX_URL`
 - `OPENAI_API_KEY`
-- `FIRECRAWL_API_KEY`
 - `REDIS_URL` via the default Railway service reference `${{Redis.REDIS_URL}}`
   or your explicit `RAILWAY_REDIS_URL_REFERENCE`
 
@@ -130,7 +129,7 @@ Optional:
 
 - `AXIOM_DATASET`
 - `AXIOM_TOKEN`
-- additional provider API keys
+- additional provider API keys such as `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, and `XAI_API_KEY`
 
 ## 6. Configure Convex env
 
@@ -140,7 +139,6 @@ Convex needs the **public** Temporal address, not the Railway private one:
 TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
 OPENAI_API_KEY=...
-FIRECRAWL_API_KEY=...
 ```
 
 If you use telemetry in Convex:

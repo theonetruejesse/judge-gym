@@ -45,11 +45,12 @@ This repo treats Railway as the canonical Temporal runtime:
 The deploy script defaults to:
 
 ```bash
-RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver:7233
+RAILWAY_TEMPORAL_PRIVATE_ADDRESS=temporalserver.railway.internal:7233
 ```
 
-That matches the current official Railway Temporal template. If your project
-uses a different private service name, override
+That matches the current Railway Temporal template private domain exposed by the
+`temporal_server` service. If your project uses a different private service
+naming, override
 `RAILWAY_TEMPORAL_PRIVATE_ADDRESS` in `.env.local` before running the deploy
 script.
 
@@ -76,6 +77,7 @@ That gives contributors the simplest flow:
 - click your template
 - fill envs
 - configure Convex
+- run `./scripts/deploy_railway_worker.sh`
 - run `bun dev`
 
 Until that custom template exists, the supported path remains:
