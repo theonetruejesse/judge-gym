@@ -1,0 +1,55 @@
+{
+  "headlineFamilies": [
+    {
+      "v3Family": "d1",
+      "v4Condition": "baseline_faithful",
+      "scope": "all_headline_providers"
+    },
+    {
+      "v3Family": "a1",
+      "v4Condition": "abstention_on",
+      "scope": "all_headline_providers"
+    },
+    {
+      "v3Family": "evidence_surface",
+      "v4Condition": "view_l2_neutralized",
+      "scope": "gilardi_headline_only"
+    }
+  ],
+  "appendixFamilies": [
+    {
+      "v3Families": [
+        "a3",
+        "c6",
+        "c7"
+      ],
+      "v4Condition": "scale_expansion",
+      "scope": "zheng_or_target_compatible_only"
+    },
+    {
+      "v3Families": [
+        "b1",
+        "c4",
+        "c5"
+      ],
+      "v4Condition": "small_chat_followups",
+      "scope": "openai_appendix_only"
+    },
+    {
+      "v3Families": [
+        "a2",
+        "c3"
+      ],
+      "v4Condition": "zheng_l2_conditional",
+      "scope": "appendix_only"
+    }
+  ],
+  "excludedHeadlineFamilies": [
+    "a4",
+    "a5",
+    "c1",
+    "c2",
+    "a2",
+    "c3"
+  ]
+}

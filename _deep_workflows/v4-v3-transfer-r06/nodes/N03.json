@@ -1,0 +1,39 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "closeout-writer",
+  "objective": "Write the closeout summary for the V3 transfer update and indicate whether the campaign remains closed.",
+  "inputs": [
+    "agents/N02/revised_v4_spec.md",
+    "agents/N02/matrix_sheet.json",
+    "_deep_workspaces/v4-experiment-matrix-spec/worldview.json"
+  ],
+  "dependencies": [
+    "N02"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "closeout.md",
+    "summary.json"
+  ],
+  "completionCriteria": [
+    "State clearly whether the campaign can remain closed after the spec update."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "nodeId": "N01",
+  "kind": "synthesize",
+  "role": "v3-transfer-auditor",
+  "objective": "Audit the V3 families and decide which interventions should carry into V4 as headline, appendix, or excluded levers.",
+  "inputs": [
+    "docs/pilots/v3_gpt_ablations.md",
+    "docs/pilots/paper.md",
+    "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "v3_transfer_policy.md",
+    "v3_transfer_policy.json"
+  ],
+  "completionCriteria": [
+    "State clearly which V3 families are headline-portable, appendix-portable, or excluded.",
+    "Explain why the chosen V3 levers transfer to literature audits."
+  ]
+}

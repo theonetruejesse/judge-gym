@@ -21,14 +21,14 @@
   },
   "baselines": {
     "current": {
-      "label": "revised_qwen_openrouter_matrix",
-      "summary": "A self-contained paper with Gilardi plus Zheng as the headline bundle, OpenAI primary, Anthropic direct control, a Qwen-centered OpenRouter lane, and appendix-only breadth beyond that core.",
+      "label": "v3_transfer_locked_matrix",
+      "summary": "A self-contained paper with Gilardi plus Zheng as the headline bundle, OpenAI primary, Anthropic direct control, a Qwen-centered OpenRouter lane, and a V3-informed transfer ladder that makes abstention a full provider-panel headline intervention.",
       "sourceArtifacts": [
         "docs/pilots/paper.md",
         "docs/pilots/v3_gpt_ablations.md",
-        "_blueprints/v4-target-resource-viability/blueprint.md",
-        "_blueprints/v4-refactor-and-study-plan/blueprint.md",
-        "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
+        "docs/pilots/v4_specs.md",
+        "_deep_workflows/v4-v3-transfer-r06/agents/N01/v3_transfer_policy.md",
+        "_deep_workflows/v4-v3-transfer-r06/agents/N02/revised_v4_spec.md"
       ]
     },
     "history": [
@@ -42,6 +42,10 @@
       },
       {
         "label": "revised_qwen_openrouter_matrix",
+        "status": "superseded"
+      },
+      {
+        "label": "v3_transfer_locked_matrix",
         "status": "promoted"
       }
     ]
@@ -50,18 +54,18 @@
     "historyPath": "telemetry/metrics.jsonl",
     "leaderboardPath": "telemetry/leaderboard.json",
     "latest": {
-      "ts": "2026-03-25T01:12:44.825109+00:00",
-      "label": "revised_qwen_openrouter_matrix",
-      "source": "R05",
+      "ts": "2026-03-25T20:53:38.434474+00:00",
+      "label": "v3_transfer_locked_matrix",
+      "source": "R06",
       "metrics": {
         "target_reconstructability_confidence": 0.9,
-        "matrix_scope_discipline": 0.95,
+        "matrix_scope_discipline": 0.96,
         "provider_symmetry_score": 0.91,
-        "engine_fit_score": 0.95,
-        "paper_claim_clarity": 0.97,
+        "engine_fit_score": 0.96,
+        "paper_claim_clarity": 0.98,
         "unresolved_design_decisions": 0.0
       },
-      "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
+      "artifactPath": "docs/pilots/v4_specs.md"
     }
   },
   "workflowRuns": [
@@ -133,19 +137,33 @@
           "workspace_reclose"
         ]
       }
+    },
+    {
+      "runId": "R06",
+      "requestedObjective": "Determine which V3 experiment families should carry forward into the V4 multi-family literature-audit study, lock a strong-conviction transfer policy, and update the V4 specs accordingly.",
+      "workflowPath": "_deep_workflows/v4-v3-transfer-r06",
+      "status": "completed",
+      "measuredOutcome": {
+        "result": "v3_transfer_policy_locked",
+        "resolved": [
+          "headline_transfer_policy",
+          "appendix_transfer_policy",
+          "revised_v4_specs"
+        ]
+      }
     }
   ],
   "currentBest": {
-    "label": "revised_qwen_openrouter_matrix",
+    "label": "v3_transfer_locked_matrix",
     "metrics": {
       "target_reconstructability_confidence": 0.9,
-      "matrix_scope_discipline": 0.95,
+      "matrix_scope_discipline": 0.96,
       "provider_symmetry_score": 0.91,
-      "engine_fit_score": 0.95,
-      "paper_claim_clarity": 0.97,
+      "engine_fit_score": 0.96,
+      "paper_claim_clarity": 0.98,
       "unresolved_design_decisions": 0.0
     },
-    "artifactPath": "_deep_workflows/v4-provider-surface-r05/agents/N01/final_matrix_memo.md"
+    "artifactPath": "docs/pilots/v4_specs.md"
   },
   "bottlenecks": [],
   "decisions": [
@@ -182,6 +200,10 @@
       "statement": "R05 repackaged the final matrix and re-closed the campaign with appendix/watchlist lanes for DeepSeek, GLM, Kimi, MiniMax, and Mercury."
     },
     {
+      "timestamp": "2026-03-25",
+      "statement": "R06 used V3 as a portability filter, upgraded abstention to a full provider-panel headline intervention, and rewrote the V4 specs around carried, appendix, and excluded V3 levers."
+    },
+    {
       "ts": "2026-03-25T00:50:43.173721+00:00",
       "type": "promotion",
       "label": "final_locked_matrix",
@@ -206,6 +228,20 @@
         "provider_symmetry_score": 0.91,
         "engine_fit_score": 0.95,
         "paper_claim_clarity": 0.97,
+        "unresolved_design_decisions": 0.0
+      }
+    },
+    {
+      "ts": "2026-03-25T20:53:38.434474+00:00",
+      "type": "promotion",
+      "label": "v3_transfer_locked_matrix",
+      "source": "R06",
+      "metrics": {
+        "target_reconstructability_confidence": 0.9,
+        "matrix_scope_discipline": 0.96,
+        "provider_symmetry_score": 0.91,
+        "engine_fit_score": 0.96,
+        "paper_claim_clarity": 0.98,
         "unresolved_design_decisions": 0.0
       }
     }

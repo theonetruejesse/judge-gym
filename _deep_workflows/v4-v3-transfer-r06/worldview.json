@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-v3-transfer-r06",
+    "objective": "Analyze which V3 interventions are portable and worth carrying into the final V4 multi-family matrix, then package a revised V4 spec.",
+    "objectiveClass": "research",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": {
+        "state": "completed",
+        "dependencies": [],
+        "requiredOutputs": [
+          "v3_transfer_policy.md",
+          "v3_transfer_policy.json"
+        ],
+        "workspaceTask": "agents/N01/workspace/task.md",
+        "writeScope": "agents/N01/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T20:53:27.139209+00:00"
+      },
+      "N02": {
+        "state": "completed",
+        "dependencies": [
+          "N01"
+        ],
+        "requiredOutputs": [
+          "revised_v4_spec.md",
+          "matrix_sheet.json"
+        ],
+        "workspaceTask": "agents/N02/workspace/task.md",
+        "writeScope": "agents/N02/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T20:53:27.139605+00:00"
+      },
+      "N03": {
+        "state": "completed",
+        "dependencies": [
+          "N02"
+        ],
+        "requiredOutputs": [
+          "closeout.md",
+          "summary.json"
+        ],
+        "workspaceTask": "agents/N03/workspace/task.md",
+        "writeScope": "agents/N03/",
+        "claimedBy": null,
+        "blockedReason": null,
+        "lastUpdated": "2026-03-25T20:53:27.155828+00:00"
+      }
+    },
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "statement": "Abstention is the strongest portable V3 lever and should become a full provider-panel headline intervention in V4."
+    },
+    {
+      "statement": "Concept framing, placement, and bundle strategy should not enter the headline literature-audit matrix."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md",
+    "runState": "runtime/run_state.json"
+  }
+}

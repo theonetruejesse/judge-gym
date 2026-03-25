@@ -1,0 +1,13 @@
+{
+  "updatedAt": "2026-03-25T20:53:27.155907+00:00",
+  "workflow": "v4-v3-transfer-r06",
+  "readyNodes": [],
+  "inProgressNodes": [],
+  "completedNodes": [
+    "N01",
+    "N02",
+    "N03"
+  ],
+  "blockedNodes": [],
+  "pendingNodes": []
+}

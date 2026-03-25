@@ -1,0 +1,79 @@
+{
+  "headlineProviders": [
+    "gpt-4.1",
+    "gpt-5.2",
+    "claude-sonnet-4",
+    "qwen_current_text_flagship"
+  ],
+  "headlineExperiments": [
+    {
+      "target": "gilardi",
+      "condition": "baseline_faithful",
+      "view": "paper_original_or_source_text",
+      "providers": [
+        "gpt-4.1",
+        "gpt-5.2",
+        "claude-sonnet-4",
+        "qwen_current_text_flagship"
+      ]
+    },
+    {
+      "target": "gilardi",
+      "condition": "abstention_on",
+      "view": "paper_original_or_source_text",
+      "providers": [
+        "gpt-4.1",
+        "gpt-5.2",
+        "claude-sonnet-4",
+        "qwen_current_text_flagship"
+      ]
+    },
+    {
+      "target": "gilardi",
+      "condition": "view_l2_neutralized",
+      "view": "l2_neutralized",
+      "providers": [
+        "gpt-4.1",
+        "gpt-5.2",
+        "claude-sonnet-4",
+        "qwen_current_text_flagship"
+      ]
+    },
+    {
+      "target": "zheng",
+      "condition": "baseline_faithful",
+      "view": "source_text",
+      "providers": [
+        "gpt-4.1",
+        "gpt-5.2",
+        "claude-sonnet-4",
+        "qwen_current_text_flagship"
+      ]
+    },
+    {
+      "target": "zheng",
+      "condition": "abstention_on",
+      "view": "source_text",
+      "providers": [
+        "gpt-4.1",
+        "gpt-5.2",
+        "claude-sonnet-4",
+        "qwen_current_text_flagship"
+      ]
+    }
+  ],
+  "headlineCount": 20,
+  "appendixFamilies": {
+    "openai_small_chat": [
+      "gpt-4.1-mini",
+      "gpt-5.2-chat"
+    ],
+    "watchlist_providers": [
+      "deepseek/deepseek-v3.2",
+      "z-ai/glm-4.5",
+      "moonshotai/kimi-k2",
+      "minimax/minimax-m1",
+      "inception/mercury-2"
+    ]
+  }
+}

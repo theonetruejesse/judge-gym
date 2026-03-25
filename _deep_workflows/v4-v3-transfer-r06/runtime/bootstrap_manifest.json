@@ -1,0 +1,31 @@
+{
+  "status": "bootstrapped",
+  "executionSubstrate": "rlm",
+  "generatedAt": "2026-03-25T20:53:26.917634+00:00",
+  "nodes": [
+    {
+      "nodeId": "N01",
+      "writeScope": "agents/N01",
+      "workspaceRoot": "agents/N01/workspace",
+      "delegateRoot": "agents/N01/delegates",
+      "canSpawnSubagents": false,
+      "maxSubagents": 0
+    },
+    {
+      "nodeId": "N02",
+      "writeScope": "agents/N02",
+      "workspaceRoot": "agents/N02/workspace",
+      "delegateRoot": "agents/N02/delegates",
+      "canSpawnSubagents": false,
+      "maxSubagents": 0
+    },
+    {
+      "nodeId": "N03",
+      "writeScope": "agents/N03",
+      "workspaceRoot": "agents/N03/workspace",
+      "delegateRoot": "agents/N03/delegates",
+      "canSpawnSubagents": false,
+      "maxSubagents": 0
+    }
+  ]
+}

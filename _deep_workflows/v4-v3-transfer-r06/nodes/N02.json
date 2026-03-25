@@ -1,0 +1,42 @@
+{
+  "nodeId": "N02",
+  "kind": "synthesize",
+  "role": "v4-spec-packager",
+  "objective": "Rewrite the V4 spec around the V3 transfer policy and emit a revised experiment matrix.",
+  "inputs": [
+    "agents/N01/v3_transfer_policy.md",
+    "agents/N01/v3_transfer_policy.json",
+    "docs/pilots/v4_specs.md",
+    "_deep_workflows/v4-provider-surface-r05/agents/N01/implementation_spec.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_state",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "shell",
+    "rg",
+    "sed"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "revised_v4_spec.md",
+    "matrix_sheet.json"
+  ],
+  "completionCriteria": [
+    "Emit a revised V4 spec that is more complete than the existing minimal matrix note.",
+    "Emit a machine-readable matrix sheet."
+  ]
+}

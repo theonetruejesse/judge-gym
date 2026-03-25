@@ -1,0 +1,20 @@
+{
+  "runId": "R06",
+  "title": "Integrate V3 transferable levers into V4 specs",
+  "boundedObjective": "Determine which V3 experiment families should carry forward into the V4 multi-family literature-audit study, lock a strong-conviction transfer policy, and update the V4 specs accordingly.",
+  "status": "completed",
+  "createdAt": "2026-03-25T20:49:35.107570+00:00",
+  "workflowRequestPath": "runs/R06/workflow_request.md",
+  "workflowPath": "_deep_workflows/v4-v3-transfer-r06",
+  "measuredOutcome": {
+    "result": "v3_transfer_policy_locked",
+    "resolved": [
+      "headline_transfer_policy",
+      "appendix_transfer_policy",
+      "revised_v4_specs"
+    ]
+  },
+  "notes": [
+    "R06 promoted abstention to a full provider-panel headline intervention and rewrote the V4 specs around a portability filter over V3."
+  ]
+}
