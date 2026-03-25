@@ -75,27 +75,36 @@ async function createV4Experiment(
   t: ConvexTestInstance,
   evidence_set_id: Id<"evidence_sets">,
   evidence_bundle_size: number,
+  args?: {
+    paper_audit_package_id?: Id<"paper_audit_packages">;
+    parser_key?: string;
+  },
 ) {
   return t.mutation(internal.domain.runs.experiments_repo.createExperiment, {
     experiment_tag: `v4_run_${evidence_bundle_size}_${Math.random().toString(16).slice(2)}`,
     evidence_set_id,
+    paper_audit_package_id: args?.paper_audit_package_id ?? null,
     study_kind: "paper_audit",
     evidence_source_kind: "evidence_set",
-    rubric_source_kind: "imported_codebook",
+    rubric_source_kind: "direct_labels",
     compatibility_mode: "paper_faithful",
-    task_contract: {
-      task_kind: "label_classification",
-      label_space_json: JSON.stringify(["relevant", "irrelevant"]),
-      instructions_json: JSON.stringify({
-        source: "test",
-      }),
-      prompt_template_id: "v4_test_prompt",
-    },
-    output_contract: {
-      kind: "label",
-      schema_version: "v1",
-      parser_key: "label_choice",
-    },
+    task_contract: args?.paper_audit_package_id
+      ? undefined
+      : {
+        task_kind: "label_classification",
+        label_space_json: JSON.stringify(["relevant", "irrelevant"]),
+        instructions_json: JSON.stringify({
+          source: "test",
+        }),
+        prompt_template_id: "v4_test_prompt",
+      },
+    output_contract: args?.paper_audit_package_id
+      ? undefined
+      : {
+        kind: "label",
+        schema_version: "v1",
+        parser_key: args?.parser_key ?? "label_choice",
+      },
     rubric_config: {
       model: "gpt-4.1-mini",
       scale_size: 2,
@@ -109,6 +118,57 @@ async function createV4Experiment(
       randomizations: [],
       evidence_bundle_size,
     },
+  });
+}
+
+async function createGilardiPackage(t: ConvexTestInstance) {
+  return t.mutation(api.packages.paper_audits.upsertPaperAuditPackage, {
+    package_tag: "gilardi_relevance_v1",
+    target_key: "gilardi",
+    title: "Gilardi relevance package",
+    description: "Test package",
+    default_compatibility_mode: "paper_faithful",
+    default_evidence_view: "paper_original",
+    rubric_source_kind: "direct_labels",
+    task_contract: {
+      task_kind: "label_classification",
+      label_space_json: JSON.stringify(["relevant", "irrelevant"]),
+      instructions_json: JSON.stringify({ source: "gilardi" }),
+      prompt_template_id: "gilardi_relevance_v1",
+    },
+    output_contract: {
+      kind: "label",
+      schema_version: "v1",
+      parser_key: "freeform_label_choice",
+    },
+    rubric_seed: {
+      concept: "policy relevance",
+      scale_size: 2,
+      justification: "Imported direct labels",
+      stages: [
+        { stage_number: 1, label: "Relevant", criteria: ["a"] },
+        { stage_number: 2, label: "Irrelevant", criteria: ["b"] },
+      ],
+      label_mapping: {
+        relevant: 1,
+        Relevant: 1,
+        irrelevant: 2,
+        Irrelevant: 2,
+      },
+    },
+    rubric_critic_seed: {
+      justification: "Imported package critic seed",
+      observability_score: 1,
+      discriminability_score: 1,
+    },
+    score_prompt: {
+      template_kind: "simple_v1",
+      system_prompt_template: "Gilardi system prompt",
+      user_prompt_template: "Tweet:\n{{evidence}}\nFinal label only.",
+      required_variables: ["evidence"],
+    },
+    provenance_json: JSON.stringify({ test: true }),
+    metadata_json: JSON.stringify({ test: true }),
   });
 }
 
@@ -238,5 +298,50 @@ describe("v4 run substrate", () => {
     expect(inputs[0]?.target_type).toBe("sample_score_target");
     expect(`${inputs[0]?.system_prompt}\n${inputs[0]?.user_prompt}`).toContain("Storage-backed evidence text.");
     expect(inputs[0]?.metadata_json).toContain("score_target_id");
+  });
+
+  test("package-backed runs preseed rubric artifacts and use package prompts", async () => {
+    const t = initTest();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Package-backed evidence text.", {
+      status: 200,
+    })));
+
+    const seeded = await seedEvidenceSet(t, {
+      universe_tag: "v4-package-run",
+      evidence_set_tag: "v4-package-run-set",
+      itemCount: 1,
+    });
+    const paperAuditPackage = await createGilardiPackage(t);
+    const experiment_id = await createV4Experiment(t, seeded.evidence_set_id, 1, {
+      paper_audit_package_id: paperAuditPackage.package_id,
+    });
+
+    const run_id = await t.mutation(internal.domain.runs.run_repo.createRun, {
+      experiment_id,
+      target_count: 1,
+    });
+
+    const samples = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("samples").collect();
+      return rows.filter((sample) => sample.run_id === run_id);
+    });
+    expect(samples).toHaveLength(1);
+    expect(samples[0]?.rubric_id).toBeTruthy();
+    expect(samples[0]?.rubric_critic_id).toBeTruthy();
+
+    const rubricInputs = await t.action(api.packages.worker.listRunStageInputs, {
+      run_id,
+      stage: "rubric_gen",
+    });
+    expect(rubricInputs).toHaveLength(0);
+
+    const scoreInputs = await t.action(api.packages.worker.listRunStageInputs, {
+      run_id,
+      stage: "score_gen",
+    });
+    expect(scoreInputs).toHaveLength(1);
+    expect(scoreInputs[0]?.system_prompt).toContain("Gilardi system prompt");
+    expect(scoreInputs[0]?.user_prompt).toContain("Package-backed evidence text.");
+    expect(scoreInputs[0]?.user_prompt).toContain("Final label only.");
   });
 });

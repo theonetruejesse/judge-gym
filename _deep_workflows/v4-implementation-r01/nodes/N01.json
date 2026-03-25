@@ -1,0 +1,39 @@
+{
+  "nodeId": "N01",
+  "kind": "patch",
+  "role": "lead_implementation",
+  "objective": "Implement the package-aware paper-audit runtime, local source acquisition, target bundle builders, and dry-run canaries needed to leave only live Convex import and experiment/job creation calls.",
+  "inputs": [
+    "docs/pilots/v4_specs.md",
+    "_deep_workspaces/v4-implementation-readiness/runs/R01/workflow_request.md"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "write_code",
+    "run_local_scripts",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.apply_patch"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01",
+  "execution": {
+    "workspaceRoot": "workspace",
+    "delegateRoot": "delegates",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "summary.md"
+  ],
+  "completionCriteria": [
+    "Package-aware paper-audit execution is supported for Gilardi and Zheng.",
+    "Local source bundles and import bundles exist for Gilardi and Zheng.",
+    "Dry-run canaries succeed and only live control-plane actions remain."
+  ]
+}

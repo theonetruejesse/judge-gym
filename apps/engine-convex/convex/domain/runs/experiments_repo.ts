@@ -1,14 +1,17 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import type { Id } from "../../_generated/dataModel";
 import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { ExperimentsTableSchema } from "../../models/experiments";
 import { buildRandomTag } from "../../utils/tags";
+import { internal } from "../../_generated/api";
 
 export const CreateExperimentArgsSchema = ExperimentsTableSchema.pick({
   experiment_tag: true,
   study_kind: true,
   evidence_source_kind: true,
   evidence_set_id: true,
+  paper_audit_package_id: true,
   rubric_source_kind: true,
   compatibility_mode: true,
   task_contract: true,
@@ -27,54 +30,90 @@ export const CreateExperimentArgsSchema = ExperimentsTableSchema.pick({
 
 function resolveCreateArgs(
   args: z.infer<typeof CreateExperimentArgsSchema>,
-) {
+): {
+  experiment_tag: string;
+  study_kind: z.infer<typeof ExperimentsTableSchema.shape.study_kind>;
+  evidence_source_kind: z.infer<typeof ExperimentsTableSchema.shape.evidence_source_kind>;
+  evidence_set_id: z.infer<typeof ExperimentsTableSchema.shape.evidence_set_id>;
+  paper_audit_package_id: z.infer<typeof ExperimentsTableSchema.shape.paper_audit_package_id>;
+  rubric_source_kind: z.infer<typeof ExperimentsTableSchema.shape.rubric_source_kind>;
+  compatibility_mode: z.infer<typeof ExperimentsTableSchema.shape.compatibility_mode>;
+  task_contract: z.infer<typeof ExperimentsTableSchema.shape.task_contract>;
+  output_contract: z.infer<typeof ExperimentsTableSchema.shape.output_contract>;
+  rubric_config: z.infer<typeof ExperimentsTableSchema.shape.rubric_config>;
+  scoring_config: z.infer<typeof ExperimentsTableSchema.shape.scoring_config>;
+} {
   const evidenceSourceKind = args.evidence_source_kind
     ?? "evidence_set";
   const studyKind = args.study_kind
     ?? "paper_audit";
-  const rubricSourceKind = args.rubric_source_kind ?? "generate";
-  const compatibilityMode = args.compatibility_mode ?? "native";
-  const taskContract = args.task_contract ?? {
-    task_kind: "stage_judgment" as const,
-    label_space_json: null,
-    instructions_json: null,
-    prompt_template_id: null,
-  };
-  const outputContract = args.output_contract ?? {
-    kind: "verdict_line" as const,
-    schema_version: "v1",
-    parser_key: args.scoring_config.method === "subset"
-      ? "subset_verdict"
-      : "single_verdict",
-  };
-
-  if (evidenceSourceKind !== "evidence_set") {
-    throw new Error("Greenfield V4 experiments only support evidence_set sources");
-  }
-  if (!args.evidence_set_id) {
-    throw new Error("Evidence-set-backed experiments require evidence_set_id");
-  }
-
   return {
     experiment_tag: args.experiment_tag ?? buildRandomTag(),
     study_kind: studyKind,
     evidence_source_kind: evidenceSourceKind,
     evidence_set_id: args.evidence_set_id,
-    rubric_source_kind: rubricSourceKind,
-    compatibility_mode: compatibilityMode,
-    task_contract: taskContract,
-    output_contract: outputContract,
+    paper_audit_package_id: args.paper_audit_package_id ?? null,
+    rubric_source_kind: args.rubric_source_kind ?? "generate",
+    compatibility_mode: args.compatibility_mode ?? "native",
+    task_contract: args.task_contract ?? {
+      task_kind: "stage_judgment" as const,
+      label_space_json: null,
+      instructions_json: null,
+      prompt_template_id: null,
+    },
+    output_contract: args.output_contract ?? {
+      kind: "verdict_line" as const,
+      schema_version: "v1",
+      parser_key: args.scoring_config.method === "subset"
+        ? "subset_verdict"
+        : "single_verdict",
+    },
     rubric_config: args.rubric_config,
     scoring_config: args.scoring_config,
   };
 }
 
-export const createExperiment = zInternalMutation({
+export const createExperiment: ReturnType<typeof zInternalMutation> = zInternalMutation({
   args: CreateExperimentArgsSchema,
   returns: zid("experiments"),
-  handler: async (ctx, args) => {
-    const resolved = resolveCreateArgs(args);
-    const evidenceSet = await ctx.db.get(resolved.evidence_set_id);
+  handler: async (ctx, args): Promise<Id<"experiments">> => {
+    const resolvedBase = resolveCreateArgs(args);
+    if (resolvedBase.evidence_source_kind !== "evidence_set") {
+      throw new Error("Greenfield V4 experiments only support evidence_set sources");
+    }
+    if (!resolvedBase.evidence_set_id) {
+      throw new Error("Evidence-set-backed experiments require evidence_set_id");
+    }
+    let packageRow = null;
+    if (resolvedBase.paper_audit_package_id) {
+      packageRow = await ctx.runQuery(
+        internal.domain.paper_audits.paper_audit_repo.getPackage,
+        { package_id: resolvedBase.paper_audit_package_id },
+      );
+      if (!packageRow) {
+        throw new Error("Paper-audit package not found");
+      }
+    }
+    const resolved: ReturnType<typeof resolveCreateArgs> = {
+      ...resolvedBase,
+      rubric_source_kind:
+        args.rubric_source_kind
+        ?? packageRow?.rubric_source_kind
+        ?? resolvedBase.rubric_source_kind,
+      compatibility_mode:
+        args.compatibility_mode
+        ?? packageRow?.default_compatibility_mode
+        ?? resolvedBase.compatibility_mode,
+      task_contract:
+        args.task_contract
+        ?? packageRow?.task_contract
+        ?? resolvedBase.task_contract,
+      output_contract:
+        args.output_contract
+        ?? packageRow?.output_contract
+        ?? resolvedBase.output_contract,
+    };
+    const evidenceSet = await ctx.db.get(resolved.evidence_set_id!);
     if (!evidenceSet) {
       throw new Error("Evidence set not found");
     }
@@ -85,7 +124,7 @@ export const createExperiment = zInternalMutation({
   },
 });
 
-export const upsertExperimentByTag = zInternalMutation({
+export const upsertExperimentByTag: ReturnType<typeof zInternalMutation> = zInternalMutation({
   args: CreateExperimentArgsSchema.extend({
     experiment_tag: ExperimentsTableSchema.shape.experiment_tag,
     force_reconfigure: z.boolean().default(false),
@@ -94,9 +133,47 @@ export const upsertExperimentByTag = zInternalMutation({
     experiment_id: zid("experiments"),
     action: z.enum(["created", "updated", "unchanged", "conflict"]),
   }),
-  handler: async (ctx, args) => {
-    const resolved = resolveCreateArgs(args);
-    const evidenceSet = await ctx.db.get(resolved.evidence_set_id);
+  handler: async (ctx, args): Promise<{
+    experiment_id: Id<"experiments">;
+    action: "created" | "updated" | "unchanged" | "conflict";
+  }> => {
+    const resolvedBase = resolveCreateArgs(args);
+    if (resolvedBase.evidence_source_kind !== "evidence_set") {
+      throw new Error("Greenfield V4 experiments only support evidence_set sources");
+    }
+    if (!resolvedBase.evidence_set_id) {
+      throw new Error("Evidence-set-backed experiments require evidence_set_id");
+    }
+    let packageRow = null;
+    if (resolvedBase.paper_audit_package_id) {
+      packageRow = await ctx.runQuery(
+        internal.domain.paper_audits.paper_audit_repo.getPackage,
+        { package_id: resolvedBase.paper_audit_package_id },
+      );
+      if (!packageRow) {
+        throw new Error("Paper-audit package not found");
+      }
+    }
+    const resolved: ReturnType<typeof resolveCreateArgs> = {
+      ...resolvedBase,
+      rubric_source_kind:
+        args.rubric_source_kind
+        ?? packageRow?.rubric_source_kind
+        ?? resolvedBase.rubric_source_kind,
+      compatibility_mode:
+        args.compatibility_mode
+        ?? packageRow?.default_compatibility_mode
+        ?? resolvedBase.compatibility_mode,
+      task_contract:
+        args.task_contract
+        ?? packageRow?.task_contract
+        ?? resolvedBase.task_contract,
+      output_contract:
+        args.output_contract
+        ?? packageRow?.output_contract
+        ?? resolvedBase.output_contract,
+    };
+    const evidenceSet = await ctx.db.get(resolved.evidence_set_id!);
     if (!evidenceSet) {
       throw new Error("Evidence set not found");
     }
@@ -106,7 +183,7 @@ export const upsertExperimentByTag = zInternalMutation({
       .withIndex("by_experiment_tag", (q) => q.eq("experiment_tag", args.experiment_tag))
       .first();
     if (!existing) {
-      const experiment_id = await ctx.db.insert("experiments", {
+      const experiment_id: Id<"experiments"> = await ctx.db.insert("experiments", {
         ...resolved,
         experiment_tag: args.experiment_tag,
         total_count: 0,
@@ -120,6 +197,7 @@ export const upsertExperimentByTag = zInternalMutation({
     const unchanged = existing.study_kind === resolved.study_kind
       && existing.evidence_source_kind === resolved.evidence_source_kind
       && existing.evidence_set_id === resolved.evidence_set_id
+      && existing.paper_audit_package_id === resolved.paper_audit_package_id
       && existing.rubric_source_kind === resolved.rubric_source_kind
       && existing.compatibility_mode === resolved.compatibility_mode
       && JSON.stringify(existing.task_contract) === JSON.stringify(resolved.task_contract)

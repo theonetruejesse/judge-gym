@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "workspacePath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-implementation-readiness",
+    "objective": "Implement everything needed to execute the locked V4 study end to end, leaving only the final live API calls to create experiments, import data into Convex, and launch scrape or run jobs.",
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows"
+  },
+  "status": {
+    "workspace": "complete",
+    "phase": "terminal_readiness",
+    "activeRun": null,
+    "terminalObjectiveMet": true
+  },
+  "environment": {
+    "discovered": true,
+    "notes": [
+      "The live repo supports evidence universes, evidence sets, source records, semantic views, transform runs, evidence-set-backed experiments, and package-aware paper-audit execution.",
+      "OpenRouter now exposes the Qwen-centered control lane in engine-settings and the local smoke/canary path.",
+      "Real upstream sources are available locally: Gilardi through Harvard Dataverse and Zheng through FastChat plus public Hugging Face MT-Bench datasets.",
+      "Local import bundles and dry-run canaries exist for Gilardi and Zheng; live Convex import and experiment/job creation are the only remaining operations."
+    ]
+  },
+  "baselines": {
+    "current": {
+      "label": "terminal_ready_v4_runtime",
+      "summary": "Greenfield V4 substrate is in place, paper-audit packages drive runtime behavior, Gilardi and Zheng source bundles exist locally, and dry-run canaries prove only live control-plane calls remain.",
+      "sourceArtifacts": [
+        "docs/pilots/v4_specs.md",
+        "_deep_workflows/v4-implementation-r01/synthesis/final_report.md"
+      ]
+    },
+    "history": [
+      {
+        "label": "post_spec_v4_runtime",
+        "status": "superseded"
+      },
+      {
+        "label": "terminal_ready_v4_runtime",
+        "status": "active"
+      }
+    ]
+  },
+  "telemetry": {
+    "historyPath": "telemetry/metrics.jsonl",
+    "leaderboardPath": "telemetry/leaderboard.json",
+    "latest": {
+      "ts": "2026-03-25T22:00:00Z",
+      "label": "terminal_readiness_reached",
+      "source": "r01_execution",
+      "metrics": {
+        "package_runtime_readiness": 1.0,
+        "target_source_locality": 1.0,
+        "canary_surface_coverage": 0.95,
+        "remaining_live_ops_count": 3,
+        "unresolved_runtime_blockers": 0
+      },
+      "artifactPath": "_deep_workflows/v4-implementation-r01/synthesis/final_report.md"
+    }
+  },
+  "workflowRuns": [
+    {
+      "runId": "R01",
+      "requestedObjective": "Implement the missing V4 paper-audit execution path: add a paper-audit package registry, make the run pipeline package-aware for Gilardi and Zheng, add local source acquisition and import builders for both targets, align OpenRouter with the Qwen policy, and add smoke/canary harnesses so only live Convex import and experiment/job creation calls remain.",
+      "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-implementation-r01",
+      "status": "completed",
+      "measuredOutcome": {
+        "package_runtime_readiness": 1.0,
+        "target_source_locality": 1.0,
+        "canary_surface_coverage": 0.95,
+        "remaining_live_ops_count": 3,
+        "unresolved_runtime_blockers": 0
+      }
+    }
+  ],
+  "currentBest": {
+    "label": "terminal_ready_v4_runtime",
+    "metrics": {
+      "package_runtime_readiness": 1.0,
+      "target_source_locality": 1.0,
+      "canary_surface_coverage": 0.95,
+      "remaining_live_ops_count": 3,
+      "unresolved_runtime_blockers": 0
+    },
+    "artifactPath": "_deep_workflows/v4-implementation-r01/synthesis/final_report.md"
+  },
+  "bottlenecks": [],
+  "decisions": [
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Treat the locked V4 matrix as fixed and focus the campaign entirely on implementation readiness."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Use real upstream source artifacts for Gilardi and Zheng during implementation rather than mock-only placeholders."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Prefer narrow package-aware runtime changes over another stage-engine rewrite unless canaries prove the narrow path insufficient."
+    }
+  ],
+  "nextActions": [
+    {
+      "type": "live_ops",
+      "runId": "R01",
+      "requestPath": "runs/R01/workflow_request.md",
+      "notes": "Next steps are live Convex bundle application and optional canary run launch for Gilardi and Zheng."
+    }
+  ]
+}

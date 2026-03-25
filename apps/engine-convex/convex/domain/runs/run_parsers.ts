@@ -330,6 +330,28 @@ export function parseSingleVerdict(
   };
 }
 
+function extractOptionalReasoningBeforeTaggedLine(raw: string, prefixes: string[]): string {
+  try {
+    return extractReasoningBeforeTaggedLine(raw, prefixes);
+  } catch {
+    return "";
+  }
+}
+
+function extractReasoningBeforeLastNonEmptyLine(raw: string): string {
+  const lines = raw.split(/\r?\n/);
+  let offset = raw.length;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index] ?? "";
+    offset -= line.length;
+    if (line.trim().length > 0) {
+      return raw.slice(0, offset).trim();
+    }
+    offset -= 1;
+  }
+  return "";
+}
+
 export function parseSubsetVerdict(
   raw: string,
   labelMapping?: Record<string, number>,
@@ -477,6 +499,87 @@ export function parseLabelSet(
   };
 }
 
+export function parseFreeformLabelChoice(
+  raw: string,
+  labelMapping?: Record<string, number>,
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+} {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => stripLineDecorators(line))
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    throw new Error("Failed to parse freeform label response: empty output");
+  }
+
+  const candidate = lines[lines.length - 1] ?? "";
+  if (/^(LABEL|VERDICT)\s*:/i.test(candidate)) {
+    return parseLabelChoice(raw, labelMapping);
+  }
+
+  const loweredMapping = labelMapping
+    ? Object.fromEntries(
+      Object.entries(labelMapping).map(([label, value]) => [label.toLowerCase(), value]),
+    )
+    : null;
+  const normalizedCandidate = normalizeVerdictToken(candidate);
+  if (normalizedCandidate.toUpperCase() === "ABSTAIN") {
+    return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
+  }
+
+  if (loweredMapping) {
+    const direct = loweredMapping[normalizedCandidate.toLowerCase()];
+    if (direct !== undefined) {
+      return {
+        rawVerdict: normalizedCandidate,
+        decodedScores: [direct],
+        abstained: false,
+      };
+    }
+  }
+
+  const tokenMatch = normalizedCandidate.match(/[A-Za-z0-9_-]+/);
+  if (!tokenMatch) {
+    throw new Error(`Failed to parse freeform label token: ${candidate}`);
+  }
+  const token = normalizeVerdictToken(tokenMatch[0] ?? "");
+  return {
+    rawVerdict: token,
+    decodedScores: [decodeSingleToken(token, labelMapping)],
+    abstained: false,
+  };
+}
+
+export function parseBracketChoice(
+  raw: string,
+  labelMapping?: Record<string, number>,
+): {
+  rawVerdict: string | null;
+  decodedScores: number[] | null;
+  abstained: boolean;
+} {
+  const match = [...raw.matchAll(/\[\[\s*([A-Za-z0-9_-]+)\s*\]\]/g)]
+    .at(-1);
+  if (!match) {
+    throw new Error(`Failed to parse bracket verdict: ${raw}`);
+  }
+  const token = normalizeVerdictToken(match[1] ?? "");
+  if (!token) {
+    throw new Error(`Failed to parse bracket verdict token: ${raw}`);
+  }
+  if (token.toUpperCase() === "ABSTAIN") {
+    return { rawVerdict: "ABSTAIN", decodedScores: null, abstained: true };
+  }
+  return {
+    rawVerdict: token,
+    decodedScores: [decodeSingleToken(token, labelMapping)],
+    abstained: false,
+  };
+}
+
 function getLastJsonObject(raw: string): { value: unknown; index: number } {
   for (let index = raw.lastIndexOf("{"); index >= 0; index = raw.lastIndexOf("{", index - 1)) {
     const candidate = raw.slice(index).trim();
@@ -613,6 +716,24 @@ export function parseScoreResponse(
           raw,
           args.method === "subset" ? ["LABELS", "LABEL", "VERDICT"] : ["LABEL", "VERDICT"],
         ),
+      };
+    }
+    case "freeform_label_choice": {
+      const verdict = parseFreeformLabelChoice(raw, args.labelMapping);
+      return {
+        ...verdict,
+        reasoning: /^(?:\s*(?:LABEL|VERDICT)\s*:)/im.test(raw)
+          ? extractOptionalReasoningBeforeTaggedLine(raw, ["LABEL", "VERDICT"])
+          : extractReasoningBeforeLastNonEmptyLine(raw),
+      };
+    }
+    case "mt_bench_pairwise_bracket_choice": {
+      const verdict = parseBracketChoice(raw, args.labelMapping);
+      const match = [...raw.matchAll(/\[\[\s*[A-Za-z0-9_-]+\s*\]\]/g)].at(-1);
+      const reasoning = match ? raw.slice(0, match.index).trim() : "";
+      return {
+        ...verdict,
+        reasoning,
       };
     }
     case "json_label_choice":

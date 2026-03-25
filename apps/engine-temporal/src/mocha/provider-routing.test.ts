@@ -38,8 +38,8 @@ describe("provider routing", () => {
 
   it("resolves provider metadata for the new models", () => {
     assert.equal(getProviderForModel("claude-sonnet-4"), "anthropic");
-    assert.equal(getProviderForModel("claude-sonnet-4-openrouter"), "openrouter");
-    assert.equal(getProviderModel("claude-sonnet-4-openrouter"), "anthropic/claude-sonnet-4");
+    assert.equal(getProviderForModel("qwen-current-text-flagship"), "openrouter");
+    assert.equal(getProviderModel("qwen-current-text-flagship"), "qwen/qwen3-next-80b-a3b-instruct");
     assert.equal(getProviderModel("claude-sonnet-4"), "claude-sonnet-4-20250514");
   });
 
@@ -49,7 +49,7 @@ describe("provider routing", () => {
     assert.equal(providerSupportsBatching("anthropic"), true);
     assert.equal(providerSupportsBatching("openrouter"), false);
     assert.equal(isBatchableModel("claude-sonnet-4"), true);
-    assert.equal(isBatchableModel("claude-sonnet-4-openrouter"), false);
+    assert.equal(isBatchableModel("qwen-current-text-flagship"), false);
   });
 
   it("dispatches direct chat calls to Anthropic", async () => {
@@ -114,7 +114,7 @@ describe("provider routing", () => {
     );
 
     const result = await runModelChat({
-      model: "claude-sonnet-4-openrouter",
+      model: "qwen-current-text-flagship",
       systemPrompt: "system",
       userPrompt: "user",
     });

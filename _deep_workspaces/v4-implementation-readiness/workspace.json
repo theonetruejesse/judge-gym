@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "V4 Implementation Readiness",
+    "slug": "v4-implementation-readiness",
+    "objective": "Implement everything needed to execute the locked V4 study end to end, leaving only the final live API calls to create experiments, import data into Convex, and launch scrape or run jobs.",
+    "status": "complete",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-implementation-readiness"
+  },
+  "environment": {
+    "repoRoot": "/Users/jesselee/dev/research/jg/judge-gym",
+    "knownTools": [
+      "bun",
+      "uv",
+      "Convex own-dev and package APIs",
+      "Temporal worker runtime",
+      "Media Cloud discovery integration",
+      "Anthropic direct and native batch support",
+      "OpenRouter direct support",
+      "deep-workflow",
+      "execute-workflow"
+    ],
+    "knownConstraints": [
+      "Do not run bun dev unless explicitly instructed; user has not requested it in this turn.",
+      "After any Convex code or schema change, run bun run validate:convex.",
+      "Commit only after validation passes.",
+      "V4 matrix is already locked in docs/pilots/v4_specs.md and should not be reopened during implementation unless a true blocker appears.",
+      "Target data should be fetched locally now, but not imported into Convex yet.",
+      "Stop only for real external blockers."
+    ],
+    "unknowns": [
+      "Which exact Qwen OpenRouter model id should be frozen at launch time versus encoded as a policy alias in code.",
+      "Whether Gilardi and Zheng package prompts need any target-specific normalization beyond faithful packaging.",
+      "Whether package-based experiments can be fully supported by pre-seeding rubric artifacts without any stage-graph changes."
+    ],
+    "notes": [
+      "The greenfield V4 substrate already exists: evidence universes, evidence sets, evidence source records, semantic views, transform runs, provider-aware routing, and evidence-set-backed runs.",
+      "Missing implementation is concentrated in package-driven paper audits, target import/canary harnesses, OpenRouter Qwen defaults, and local upstream source acquisition.",
+      "Real upstream sources have been identified: Gilardi via Harvard Dataverse doi:10.7910/DVN/PQYF6M and Zheng via FastChat plus Hugging Face MT-Bench datasets."
+    ]
+  },
+  "objectiveModel": {
+    "terminalObjective": "Implement everything needed to execute the locked V4 study end to end, leaving only the final live API calls to create experiments, import data into Convex, and launch scrape or run jobs.",
+    "successCriteria": [
+      "A first-class paper-audit package registry exists in Convex and experiments can bind to package artifacts.",
+      "Package-based experiments can execute the current run pipeline faithfully enough for Gilardi and Zheng canaries.",
+      "Local source-acquisition scripts and manifests exist for Gilardi and Zheng and place real upstream artifacts under a local, ignored workspace.",
+      "Target-specific import builders exist for Gilardi and Zheng, producing local import artifacts ready for later Convex upload.",
+      "Smoke and canary scripts exist for OpenAI, Anthropic, and OpenRouter Qwen across the package-aware path.",
+      "All remaining work after this campaign is limited to live API calls that create experiments, import data into Convex, or launch scrape/run jobs."
+    ],
+    "nonGoals": [
+      "Do not execute the full V4 experiment matrix in this campaign.",
+      "Do not import the fetched target datasets into Convex yet.",
+      "Do not reopen V4 scientific design decisions unless implementation exposes a true blocker.",
+      "Do not add Gemini or Grok provider support in this campaign."
+    ],
+    "dependencyPolicy": [
+      "Treat docs/pilots/v4_specs.md and the closed V4 spec workspace as the study-design source of truth.",
+      "Treat the current repo runtime and schema state as the implementation source of truth.",
+      "Prefer the narrowest implementation that supports faithful paper-audit canaries without destabilizing the run engine.",
+      "Use real upstream source artifacts for Gilardi and Zheng rather than synthetic placeholders wherever possible."
+    ],
+    "capabilityTiers": [
+      {
+        "tier": "T0",
+        "label": "Package-aware runtime",
+        "definition": "Paper-audit packages, package-aware experiments, and package-aware canary execution are supported in code."
+      },
+      {
+        "tier": "T1",
+        "label": "Target import readiness",
+        "definition": "Gilardi and Zheng source artifacts are available locally and import builders can emit ready-to-upload payloads."
+      },
+      {
+        "tier": "T2",
+        "label": "Launch-ready control plane",
+        "definition": "Only live Convex import calls and experiment/run creation calls remain before starting real V4 execution."
+      }
+    ]
+  },
+  "strategy": {
+    "baselinePlan": [
+      "Start from the current greenfield V4 substrate and avoid further architecture rewrites unless they unblock package-aware execution.",
+      "Close the highest-risk runtime gaps first: package registry, package-aware rubric handling, and package-driven score prompt rendering.",
+      "Then add real-source acquisition and target-specific import/canary harnesses for Gilardi and Zheng.",
+      "Finish by widening the smoke harness to cover the Qwen OpenRouter lane and validating that only live API calls remain."
+    ],
+    "telemetry": {
+      "historyPath": "telemetry/metrics.jsonl",
+      "leaderboardPath": "telemetry/leaderboard.json",
+      "trackedMetrics": [
+        "package_runtime_readiness",
+        "target_source_locality",
+        "canary_surface_coverage",
+        "remaining_live_ops_count",
+        "unresolved_runtime_blockers"
+      ]
+    },
+    "progressionLadder": [
+      "environment discovery -> verify what is already implemented and isolate the real missing runtime/import surfaces",
+      "package runtime -> add paper-audit package registry and package-aware run support",
+      "target harness -> fetch real Gilardi and Zheng sources locally and add import/canary builders",
+      "provider completion -> align OpenRouter with Qwen policy and widen smoke/canary coverage",
+      "terminal readiness -> validate that only live experiment/import/scrape calls remain"
+    ],
+    "searchRegimes": [
+      {
+        "mode": "exploit",
+        "focus": "Implement the smallest coherent code path that turns the existing V4 substrate into a package-aware paper-audit engine."
+      },
+      {
+        "mode": "probe",
+        "focus": "Continuously test whether remaining work is code versus true external live-ops."
+      }
+    ],
+    "pruneRules": [
+      "Prune any implementation line that reintroduces legacy pool/window assumptions.",
+      "Prune any package design that requires a new generic stage engine if pre-seeding and prompt overrides suffice.",
+      "Prune optional provider breadth beyond the locked OpenAI, Anthropic, and OpenRouter Qwen surface."
+    ],
+    "escalationRules": [
+      "Escalate to another deep-workflow only when the next missing slice is bounded and concrete.",
+      "Escalate runtime changes only if target canaries cannot be supported through package-aware prompt and artifact handling.",
+      "Treat missing upstream source access as a true blocker only if the public artifact surfaces fail."
+    ],
+    "promotionRules": [
+      "Promote a loop only if it materially reduces the remaining live-ops surface without reopening study-design questions.",
+      "Promote the campaign to terminal-ready only if Gilardi and Zheng both have local source artifacts, package bindings, and canary paths."
+    ],
+    "gitPolicy": {
+      "commitAfterLoop": true,
+      "branchStrategy": "same_branch_until_user_redirects"
+    },
+    "workflowRequestPolicy": {
+      "createRealRunFolders": true,
+      "maxOpenRuns": 1
+    }
+  },
+  "handoff": {
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows",
+    "runRoot": "runs/",
+    "kernelSkill": "deep-workflow",
+    "executorSkill": "execute-workflow",
+    "requestTemplatePath": "runs/_template_workflow_request.md"
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "telemetry/leaderboard.json"
+    ]
+  },
+  "policies": {
+    "maxConcurrentWorkflows": 1,
+    "reviewRequired": [
+      "Changing the locked V4 matrix or target bundle",
+      "Adding provider families beyond OpenAI, Anthropic, and OpenRouter Qwen"
+    ],
+    "stopConditions": [
+      "Terminal objective met: all missing code and local source setup are done and only live import/experiment/job calls remain.",
+      "Hard blocker: required upstream source artifacts cannot be accessed or a required provider surface is unsupported by live APIs."
+    ],
+    "budget": {
+      "primaryCostControl": "Favor local fetch/build/canary work over repeated live provider runs.",
+      "executionScope": "One bounded workflow at a time with continuous validation and scoped commits."
+    },
+    "continueUntilTerminal": true,
+    "blockerPolicy": "only_stop_for_real_external_blockers"
+  }
+}

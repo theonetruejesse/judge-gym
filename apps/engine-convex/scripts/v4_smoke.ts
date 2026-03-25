@@ -7,7 +7,13 @@ type RunSummary = FunctionReturnType<typeof api.packages.lab.getRunSummary>;
 type ProcessInspection = FunctionReturnType<typeof api.packages.codex.inspectProcessExecution>;
 
 type Args = {
-  model: "gpt-4.1" | "gpt-4.1-mini" | "gpt-5.2" | "gpt-5.2-chat" | "claude-sonnet-4";
+  model:
+    | "gpt-4.1"
+    | "gpt-4.1-mini"
+    | "gpt-5.2"
+    | "gpt-5.2-chat"
+    | "claude-sonnet-4"
+    | "qwen-current-text-flagship";
   targetCount: number;
   pollMs: number;
   queueTimeoutMs: number;

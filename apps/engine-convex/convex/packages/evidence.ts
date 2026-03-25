@@ -1,5 +1,6 @@
 import z from "zod";
 import { zid } from "convex-helpers/server/zod4";
+import type { Doc } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { zAction, zMutation, zQuery } from "../utils/custom_fns";
 import { internal } from "../_generated/api";
@@ -399,7 +400,7 @@ export const createEvidenceSetFromAcquisitionRun: ReturnType<typeof zMutation> =
       { acquisition_run_id: acquisitionRun._id },
     );
     const hydratedItems = await Promise.all(
-      runCandidates.map(async (candidate) => {
+      runCandidates.map(async (candidate: (typeof runCandidates)[number]) => {
         const item = await ctx.runQuery(
           internal.domain.evidence.evidence_repo.getItemByCandidate,
           { candidate_id: candidate._id },
@@ -411,8 +412,8 @@ export const createEvidenceSetFromAcquisitionRun: ReturnType<typeof zMutation> =
       }),
     );
     const orderedItems = hydratedItems
-      .filter((item): item is NonNullable<typeof item> => item != null)
-      .sort((left, right) => {
+      .filter((item): item is NonNullable<(typeof hydratedItems)[number]> => item != null)
+      .sort((left: NonNullable<(typeof hydratedItems)[number]>, right: NonNullable<(typeof hydratedItems)[number]>) => {
         const leftDate = left.publish_date ?? "";
         const rightDate = right.publish_date ?? "";
         if (leftDate !== rightDate) {
@@ -446,7 +447,7 @@ export const createEvidenceSetFromAcquisitionRun: ReturnType<typeof zMutation> =
 
     await ctx.runMutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
       evidence_set_id,
-      items: orderedItems.map((item, index) => ({
+      items: orderedItems.map((item: (typeof orderedItems)[number], index: number) => ({
         evidence_item_id: item._id,
         ordinal: index,
         quality_label: args.quality_label ?? "high",
@@ -518,7 +519,7 @@ export const listEvidenceUniverses: ReturnType<typeof zQuery> = zQuery({
   handler: async (ctx): Promise<Array<z.infer<typeof EvidenceUniverseCatalogEntrySchema>>> => {
     const universes = await ctx.db.query("evidence_universes").collect();
     const rows = await Promise.all(
-      universes.map(async (universe) => {
+      universes.map(async (universe: (typeof universes)[number]) => {
         const [acquisitionSpecs, acquisitionRuns, evidenceSets, candidates, items] = await Promise.all([
           ctx.db
             .query("acquisition_specs")
@@ -535,12 +536,12 @@ export const listEvidenceUniverses: ReturnType<typeof zQuery> = zQuery({
             universe_id: universe._id,
           }),
         ]);
-        const specIds = new Set(acquisitionSpecs.map((spec) => String(spec._id)));
+        const specIds = new Set(acquisitionSpecs.map((spec: (typeof acquisitionSpecs)[number]) => String(spec._id)));
         const latestRun = acquisitionRuns
-          .filter((run) => specIds.has(String(run.acquisition_spec_id)))
-          .sort((left, right) => right._creationTime - left._creationTime)[0] ?? null;
+          .filter((run: (typeof acquisitionRuns)[number]) => specIds.has(String(run.acquisition_spec_id)))
+          .sort((left: (typeof acquisitionRuns)[number], right: (typeof acquisitionRuns)[number]) => right._creationTime - left._creationTime)[0] ?? null;
         const latestSpec = latestRun
-          ? acquisitionSpecs.find((spec) => spec._id === latestRun.acquisition_spec_id) ?? null
+          ? acquisitionSpecs.find((spec: (typeof acquisitionSpecs)[number]) => spec._id === latestRun.acquisition_spec_id) ?? null
           : null;
         return {
           universe_id: universe._id,
@@ -549,7 +550,9 @@ export const listEvidenceUniverses: ReturnType<typeof zQuery> = zQuery({
           title: universe.title,
           status: universe.status,
           acquisition_spec_count: acquisitionSpecs.length,
-          acquisition_run_count: latestRun ? acquisitionRuns.filter((run) => specIds.has(String(run.acquisition_spec_id))).length : 0,
+          acquisition_run_count: latestRun
+            ? acquisitionRuns.filter((run: (typeof acquisitionRuns)[number]) => specIds.has(String(run.acquisition_spec_id))).length
+            : 0,
           evidence_set_count: evidenceSets.length,
           candidate_count: candidates.length,
           item_count: items.length,
@@ -705,7 +708,7 @@ export const listUniverseItems: ReturnType<typeof zQuery> = zQuery({
       { universe_id: args.universe_id },
     );
     return items
-      .map((item) => ({
+      .map((item: (typeof items)[number]) => ({
         evidence_item_id: item._id,
         universe_id: item.universe_id,
         canonical_key: item.canonical_key,
@@ -717,7 +720,7 @@ export const listUniverseItems: ReturnType<typeof zQuery> = zQuery({
         hydration_status: item.hydration_status,
         created_at_ms: item.created_at_ms,
       }))
-      .sort((left, right) => {
+      .sort((left: z.infer<typeof EvidenceUniverseItemSummarySchema>, right: z.infer<typeof EvidenceUniverseItemSummarySchema>) => {
         const leftDate = left.publish_date ?? "";
         const rightDate = right.publish_date ?? "";
         if (leftDate !== rightDate) {
@@ -743,7 +746,7 @@ export const listEvidenceSets: ReturnType<typeof zQuery> = zQuery({
       : await ctx.db.query("evidence_sets").collect();
 
     const rows = await Promise.all(
-      evidenceSets.map(async (evidenceSet) => {
+      evidenceSets.map(async (evidenceSet: (typeof evidenceSets)[number]) => {
         const universe = await ctx.runQuery(internal.domain.evidence.evidence_repo.getUniverse, {
           universe_id: evidenceSet.universe_id,
         });
@@ -797,7 +800,7 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
 
     const [renderedSourceRecords, renderedViews] = await Promise.all([
       Promise.all(
-        sourceRecords.map(async (record) => {
+        sourceRecords.map(async (record: (typeof sourceRecords)[number]) => {
           const asset = await ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
             asset_id: record.asset_id,
           });
@@ -812,7 +815,7 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
         }),
       ),
       Promise.all(
-        views.map(async (view) => {
+        views.map(async (view: (typeof views)[number]) => {
           const asset = view.asset_id
             ? await ctx.runQuery(internal.domain.evidence.evidence_repo.getAsset, {
               asset_id: view.asset_id,
@@ -836,7 +839,10 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
       source_url: item.source_url ?? null,
       source_name: item.source_name ?? null,
       publish_date: item.publish_date ?? null,
-      source_records: renderedSourceRecords.sort((left, right) => {
+      source_records: renderedSourceRecords.sort((
+        left: (typeof renderedSourceRecords)[number],
+        right: (typeof renderedSourceRecords)[number],
+      ) => {
         if (left.is_primary !== right.is_primary) {
           return left.is_primary ? -1 : 1;
         }
@@ -845,7 +851,10 @@ export const getEvidenceItemContent: ReturnType<typeof zAction> = zAction({
         }
         return left.pipeline_version.localeCompare(right.pipeline_version);
       }),
-      views: renderedViews.sort((left, right) => left.view_kind.localeCompare(right.view_kind)),
+      views: renderedViews.sort((
+        left: (typeof renderedViews)[number],
+        right: (typeof renderedViews)[number],
+      ) => left.view_kind.localeCompare(right.view_kind)),
     };
   },
 });
@@ -864,8 +873,10 @@ export const listEvidenceSetItems: ReturnType<typeof zQuery> = zQuery({
     );
 
     const rows = await Promise.all(
-      evidenceSetItems.map(async (row) => {
-        const item = await ctx.db.get(row.evidence_item_id);
+      evidenceSetItems.map(async (row: (typeof evidenceSetItems)[number]) => {
+        const item = await ctx.runQuery(internal.domain.evidence.evidence_repo.getItem, {
+          evidence_item_id: row.evidence_item_id,
+        }) as Doc<"evidence_items"> | null;
         if (!item) {
           throw new Error(`Evidence item missing for set membership ${row._id}`);
         }
@@ -887,6 +898,9 @@ export const listEvidenceSetItems: ReturnType<typeof zQuery> = zQuery({
       }),
     );
 
-    return rows.sort((a, b) => a.ordinal - b.ordinal);
+    return rows.sort((
+      a: z.infer<typeof EvidenceSetItemSummarySchema>,
+      b: z.infer<typeof EvidenceSetItemSummarySchema>,
+    ) => a.ordinal - b.ordinal);
   },
 });

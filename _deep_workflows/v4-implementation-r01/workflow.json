@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "R01 Package Runtime and Target Canaries",
+    "slug": "v4-implementation-r01",
+    "objective": "Implement the missing V4 paper-audit execution path: package registry, package-aware runtime, local source acquisition, target import builders, and package-aware canary harnesses for Gilardi and Zheng, leaving only live Convex import and experiment/job creation calls.",
+    "objectiveClass": "implementation",
+    "operatingMode": "bounded_code_write",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-implementation-r01"
+  },
+  "compile": {
+    "baseHint": null,
+    "taskSignals": [],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "schema_extension",
+      "runtime_binding",
+      "local_source_fetch",
+      "target_bundle_builder",
+      "dry_run_canary"
+    ],
+    "notes": [
+      "Execution stayed local-only; no live Convex import or experiment creation calls were issued."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.apply_patch"
+    ],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "implementation",
+        "title": "Package-aware runtime and target readiness",
+        "status": "completed"
+      }
+    ],
+    "edges": []
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when Gilardi and Zheng local bundles exist, dry-run canaries pass, and only live Convex import and experiment/job creation calls remain."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

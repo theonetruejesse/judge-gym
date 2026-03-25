@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-implementation-r01",
+    "objective": "Implement the missing V4 paper-audit execution path: package registry, package-aware runtime, local source acquisition, target import builders, and package-aware canary harnesses for Gilardi and Zheng, leaving only live Convex import and experiment/job creation calls.",
+    "objectiveClass": "implementation",
+    "operatingMode": "bounded_code_write",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": "completed"
+    },
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    "Use a paper-audit package registry instead of encoding target fidelity only in experiment metadata.",
+    "Support faithful Gilardi and Zheng execution by extending parser families instead of rewriting the stage engine.",
+    "Keep all target acquisition local under _local/ and stop before live Convex bundle application."
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

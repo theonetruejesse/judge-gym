@@ -74,9 +74,11 @@ export const MODELS = [
     batchable: true,
   },
   {
-    id: "claude-sonnet-4-openrouter",
+    id: "qwen-current-text-flagship",
     provider: "openrouter",
-    provider_model: "anthropic/claude-sonnet-4",
+    // Freeze-time OpenRouter lane for V4 wave 1. Update this provider model
+    // when the project formally refreshes the Qwen control line.
+    provider_model: "qwen/qwen3-next-80b-a3b-instruct",
     batchable: false,
   },
 ] as const;

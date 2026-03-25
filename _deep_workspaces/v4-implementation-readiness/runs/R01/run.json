@@ -1,0 +1,20 @@
+{
+  "runId": "R01",
+  "title": "Package runtime and target canaries",
+  "boundedObjective": "Implement the missing V4 paper-audit execution path: add a paper-audit package registry, make the run pipeline package-aware for Gilardi and Zheng, add local source acquisition and import builders for both targets, align OpenRouter with the Qwen policy, and add smoke/canary harnesses so only live Convex import and experiment/job creation calls remain.",
+  "status": "completed",
+  "createdAt": "2026-03-25T21:25:41.773403+00:00",
+  "workflowRequestPath": "runs/R01/workflow_request.md",
+  "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-implementation-r01",
+  "measuredOutcome": {
+    "package_runtime_readiness": 1.0,
+    "target_source_locality": 1.0,
+    "canary_surface_coverage": 0.95,
+    "remaining_live_ops_count": 3,
+    "unresolved_runtime_blockers": 0
+  },
+  "notes": [
+    "Started from the existing greenfield V4 substrate; did not reopen matrix decisions.",
+    "Finished with package-aware runtime support, local Gilardi and Zheng bundles, and dry-run canary coverage."
+  ]
+}

@@ -192,7 +192,7 @@ async function buildRunStageProgress(
   const summary = await ctx.runQuery(internal.domain.runs.experiments_service.getRunSummary, {
     run_id,
   });
-  return summary.stages.map((stage) => ({
+  return summary.stages.map((stage: (typeof summary.stages)[number]) => ({
     stage: stage.stage,
     target_total: stage.total,
     completed: stage.completed,
@@ -293,7 +293,7 @@ async function collectProcessHealth(
     },
     projection_meta: {
       approximate: false,
-      scanned_targets: stage_progress.reduce((sum, stage) => sum + stage.target_total, 0),
+      scanned_targets: stage_progress.reduce((sum: number, stage) => sum + stage.target_total, 0),
       latest_updated_at_ms: lastUpdatedAt,
       last_milestone_at_ms: observability?.last_milestone_at_ms ?? null,
       projection_fresh:

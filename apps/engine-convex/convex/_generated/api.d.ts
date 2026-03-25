@@ -17,6 +17,7 @@ import type * as domain_maintenance_danger from "../domain/maintenance/danger.js
 import type * as domain_maintenance_process_debug from "../domain/maintenance/process_debug.js";
 import type * as domain_maintenance_v3_campaign from "../domain/maintenance/v3_campaign.js";
 import type * as domain_maintenance_v3_matrix from "../domain/maintenance/v3_matrix.js";
+import type * as domain_paper_audits_paper_audit_repo from "../domain/paper_audits/paper_audit_repo.js";
 import type * as domain_runs_experiment_progress from "../domain/runs/experiment_progress.js";
 import type * as domain_runs_experiments_repo from "../domain/runs/experiments_repo.js";
 import type * as domain_runs_experiments_service from "../domain/runs/experiments_service.js";
@@ -34,6 +35,7 @@ import type * as models_attempts from "../models/attempts.js";
 import type * as models_batches from "../models/batches.js";
 import type * as models_evidence from "../models/evidence.js";
 import type * as models_experiments from "../models/experiments.js";
+import type * as models_paper_audits from "../models/paper_audits.js";
 import type * as models_samples from "../models/samples.js";
 import type * as models_telemetry from "../models/telemetry.js";
 import type * as packages_analysis from "../packages/analysis.js";
@@ -41,6 +43,7 @@ import type * as packages_codex from "../packages/codex.js";
 import type * as packages_evidence from "../packages/evidence.js";
 import type * as packages_evidence_transform from "../packages/evidence_transform.js";
 import type * as packages_lab from "../packages/lab.js";
+import type * as packages_paper_audits from "../packages/paper_audits.js";
 import type * as packages_v3_campaign from "../packages/v3_campaign.js";
 import type * as packages_worker from "../packages/worker.js";
 import type * as utils_custom_fns from "../utils/custom_fns.js";
@@ -64,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   "domain/maintenance/process_debug": typeof domain_maintenance_process_debug;
   "domain/maintenance/v3_campaign": typeof domain_maintenance_v3_campaign;
   "domain/maintenance/v3_matrix": typeof domain_maintenance_v3_matrix;
+  "domain/paper_audits/paper_audit_repo": typeof domain_paper_audits_paper_audit_repo;
   "domain/runs/experiment_progress": typeof domain_runs_experiment_progress;
   "domain/runs/experiments_repo": typeof domain_runs_experiments_repo;
   "domain/runs/experiments_service": typeof domain_runs_experiments_service;
@@ -81,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   "models/batches": typeof models_batches;
   "models/evidence": typeof models_evidence;
   "models/experiments": typeof models_experiments;
+  "models/paper_audits": typeof models_paper_audits;
   "models/samples": typeof models_samples;
   "models/telemetry": typeof models_telemetry;
   "packages/analysis": typeof packages_analysis;
@@ -88,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   "packages/evidence": typeof packages_evidence;
   "packages/evidence_transform": typeof packages_evidence_transform;
   "packages/lab": typeof packages_lab;
+  "packages/paper_audits": typeof packages_paper_audits;
   "packages/v3_campaign": typeof packages_v3_campaign;
   "packages/worker": typeof packages_worker;
   "utils/custom_fns": typeof utils_custom_fns;

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  parseBracketChoice,
+  parseFreeformLabelChoice,
   parseLabelChoice,
   parseScoreResponse,
   parseRubricResponse,
@@ -148,6 +150,33 @@ describe("run parsers", () => {
     expect(parsed.decodedScores).toEqual([1]);
   });
 
+  test("parses freeform label outputs without a tagged final line", () => {
+    const parsed = parseFreeformLabelChoice("Relevant", {
+      relevant: 1,
+      Relevant: 1,
+      irrelevant: 2,
+      Irrelevant: 2,
+    });
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("Relevant");
+    expect(parsed.decodedScores).toEqual([1]);
+  });
+
+  test("parses MT-Bench bracket verdict outputs", () => {
+    const parsed = parseBracketChoice(
+      [
+        "Assistant B is more complete and follows the user instruction better.",
+        "[[B]]",
+      ].join("\n"),
+      { A: 1, B: 2, C: 3 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("B");
+    expect(parsed.decodedScores).toEqual([2]);
+  });
+
   test("dispatches structured-json score responses by parser key", () => {
     const parsed = parseScoreResponse(
       [
@@ -164,5 +193,40 @@ describe("run parsers", () => {
     expect(parsed.abstained).toBe(false);
     expect(parsed.decodedScores).toEqual([2, 4]);
     expect(parsed.reasoning).toBe("Model chose the strongest supported label.");
+  });
+
+  test("dispatches freeform label score responses without required reasoning", () => {
+    const parsed = parseScoreResponse("Irrelevant", {
+      parserKey: "freeform_label_choice",
+      labelMapping: {
+        relevant: 1,
+        Relevant: 1,
+        irrelevant: 2,
+        Irrelevant: 2,
+      },
+      method: "single",
+    });
+
+    expect(parsed.rawVerdict).toBe("Irrelevant");
+    expect(parsed.decodedScores).toEqual([2]);
+    expect(parsed.reasoning).toBe("");
+  });
+
+  test("dispatches MT-Bench bracket score responses", () => {
+    const parsed = parseScoreResponse(
+      [
+        "Assistant A is more direct and consistent with the question.",
+        "[[A]]",
+      ].join("\n"),
+      {
+        parserKey: "mt_bench_pairwise_bracket_choice",
+        labelMapping: { A: 1, B: 2, C: 3 },
+        method: "single",
+      },
+    );
+
+    expect(parsed.rawVerdict).toBe("A");
+    expect(parsed.decodedScores).toEqual([1]);
+    expect(parsed.reasoning).toContain("Assistant A is more direct");
   });
 });

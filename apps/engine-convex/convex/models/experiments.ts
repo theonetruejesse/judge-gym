@@ -17,6 +17,7 @@ export const ExperimentsTableSchema = z.object({
     study_kind: StudyKindSchema,
     evidence_source_kind: EvidenceSourceKindSchema,
     evidence_set_id: zid("evidence_sets").nullable().optional(),
+    paper_audit_package_id: zid("paper_audit_packages").nullable().optional(),
     rubric_source_kind: RubricSourceKindSchema,
     compatibility_mode: CompatibilityModeSchema,
     task_contract: TaskContractSchema,

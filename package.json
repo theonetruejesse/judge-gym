@@ -16,11 +16,18 @@
     "test": "turbo test",
     "pilot:smoke": "cd apps/engine-convex && bun run pilot:smoke",
     "v3:init": "cd apps/engine-convex && bun run v3:init",
+    "v4:fetch:gilardi": "bun scripts/v4/fetch_gilardi.ts",
+    "v4:fetch:zheng": "bun scripts/v4/fetch_zheng.ts",
+    "v4:build:gilardi": "bun scripts/v4/build_gilardi_import.ts",
+    "v4:build:zheng": "bun scripts/v4/build_zheng_import.ts",
+    "v4:canary:gilardi": "bun scripts/v4/canary_gilardi.ts",
+    "v4:canary:zheng": "bun scripts/v4/canary_zheng.ts",
     "typecheck": "turbo run typecheck",
     "validate:convex": "(cd apps/engine-convex && npx convex codegen) && bun run typecheck"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "convex": "^1.32.0",
     "turbo": "^2.8.10",
     "typescript": "^5.9.3"
   },

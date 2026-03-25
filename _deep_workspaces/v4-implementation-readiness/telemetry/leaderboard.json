@@ -1,0 +1,27 @@
+{
+  "currentBest": {
+    "label": "terminal_ready_v4_runtime",
+    "metrics": {
+      "package_runtime_readiness": 1.0,
+      "target_source_locality": 1.0,
+      "canary_surface_coverage": 0.95,
+      "remaining_live_ops_count": 3,
+      "unresolved_runtime_blockers": 0
+    },
+    "artifactPath": "_deep_workflows/v4-implementation-r01/synthesis/final_report.md"
+  },
+  "entries": [
+    {
+      "ts": "2026-03-25T22:00:00Z",
+      "label": "terminal_ready_v4_runtime",
+      "metrics": {
+        "package_runtime_readiness": 1.0,
+        "target_source_locality": 1.0,
+        "canary_surface_coverage": 0.95,
+        "remaining_live_ops_count": 3,
+        "unresolved_runtime_blockers": 0
+      },
+      "artifactPath": "_deep_workflows/v4-implementation-r01/synthesis/final_report.md"
+    }
+  ]
+}

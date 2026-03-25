@@ -23,6 +23,7 @@ import {
   EvidenceUniverseTableSchema,
   EvidenceViewsTableSchema,
 } from "./models/evidence";
+import { PaperAuditPackagesTableSchema } from "./models/paper_audits";
 import {
   SamplesTableSchema,
   RubricsTableSchema,
@@ -91,6 +92,9 @@ export default defineSchema({
   evidence_transform_runs: defineTable(zodOutputToConvex(EvidenceTransformRunsTableSchema))
     .index("by_evidence_set", ["evidence_set_id"])
     .index("by_status", ["status"]),
+  paper_audit_packages: defineTable(zodOutputToConvex(PaperAuditPackagesTableSchema))
+    .index("by_package_tag", ["package_tag"])
+    .index("by_target_key", ["target_key"]),
   experiments: defineTable(zodOutputToConvex(ExperimentsTableSchema))
     .index("by_experiment_tag", ["experiment_tag"])
     .index("by_evidence_set", ["evidence_set_id"]),

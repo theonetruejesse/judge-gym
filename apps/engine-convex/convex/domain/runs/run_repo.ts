@@ -11,6 +11,7 @@ import { zInternalMutation, zInternalQuery } from "../../utils/custom_fns";
 import { RunsTableSchema } from "../../models/experiments";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { generateSeeds } from "../../utils/randomize";
+import { internal } from "../../_generated/api";
 
 const CreateRunArgsSchema = z.object({
   experiment_id: RunsTableSchema.shape.experiment_id,
@@ -306,6 +307,68 @@ async function resolveEvidenceSetSelections(
   });
 }
 
+function buildDefaultRubricCriticSeed(
+  paperAuditPackage: Doc<"paper_audit_packages"> | null,
+) {
+  if (paperAuditPackage?.rubric_critic_seed) {
+    return paperAuditPackage.rubric_critic_seed;
+  }
+  return {
+    justification:
+      "Package-seeded rubric preserved for faithful paper-audit execution.",
+    observability_score: 1,
+    discriminability_score: 1,
+  };
+}
+
+async function seedPaperAuditArtifacts(args: {
+  ctx: MutationCtx;
+  run_id: Id<"runs">;
+  experiment: Doc<"experiments">;
+  sample_id: Id<"samples">;
+  paperAuditPackage: Doc<"paper_audit_packages"> | null;
+}) {
+  const { ctx, run_id, experiment, sample_id, paperAuditPackage } = args;
+  if (!paperAuditPackage || experiment.rubric_source_kind === "generate") {
+    return;
+  }
+  if (!paperAuditPackage.rubric_seed) {
+    throw new Error(
+      `Paper-audit package ${paperAuditPackage.package_tag} is missing rubric_seed for ${experiment.rubric_source_kind}.`,
+    );
+  }
+
+  const rubric_id = await ctx.db.insert("rubrics", {
+    run_id,
+    sample_id,
+    model: experiment.rubric_config.model,
+    concept: paperAuditPackage.rubric_seed.concept,
+    scale_size: paperAuditPackage.rubric_seed.scale_size,
+    llm_attempt_id: null,
+    justification: paperAuditPackage.rubric_seed.justification,
+    stages: paperAuditPackage.rubric_seed.stages,
+    label_mapping: paperAuditPackage.rubric_seed.label_mapping,
+  });
+  const rubricCriticSeed = buildDefaultRubricCriticSeed(paperAuditPackage);
+  const rubric_critic_id = await ctx.db.insert("rubric_critics", {
+    run_id,
+    sample_id,
+    model: experiment.rubric_config.model,
+    llm_attempt_id: null,
+    justification: rubricCriticSeed.justification,
+    expert_agreement_prob: {
+      observability_score: rubricCriticSeed.observability_score,
+      discriminability_score: rubricCriticSeed.discriminability_score,
+    },
+  });
+  await ctx.db.patch(sample_id, {
+    rubric_id,
+    rubric_critic_id,
+    rubric_gen_error_message: null,
+    rubric_critic_error_message: null,
+  });
+}
+
 export const createRun = zInternalMutation({
   args: CreateRunArgsSchema,
   returns: zid("runs"),
@@ -317,6 +380,15 @@ export const createRun = zInternalMutation({
       throw new Error(
         "Greenfield V4 run materialization now requires evidence-set-backed experiments.",
       );
+    }
+    const paperAuditPackage = rawExperiment.paper_audit_package_id
+      ? await ctx.runQuery(
+        internal.domain.paper_audits.paper_audit_repo.getPackage,
+        { package_id: rawExperiment.paper_audit_package_id },
+      )
+      : null;
+    if (rawExperiment.paper_audit_package_id && !paperAuditPackage) {
+      throw new Error("Paper-audit package not found for experiment");
     }
 
     const experimentConfig = normalizeExperimentConfig(rawExperiment);
@@ -350,6 +422,13 @@ export const createRun = zInternalMutation({
         score_target_total: 0,
         score_count: 0,
         score_critic_count: 0,
+      });
+      await seedPaperAuditArtifacts({
+        ctx,
+        run_id,
+        experiment: rawExperiment,
+        sample_id,
+        paperAuditPackage,
       });
       sampleIds.push(sample_id);
     }

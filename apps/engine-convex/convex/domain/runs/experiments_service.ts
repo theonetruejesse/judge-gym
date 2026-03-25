@@ -169,6 +169,9 @@ async function buildExperimentRows(
     study_kind: Doc<"experiments">["study_kind"];
     evidence_source_kind: Doc<"experiments">["evidence_source_kind"];
     evidence_set_id: Id<"evidence_sets">;
+    paper_audit_package_id: Id<"paper_audit_packages"> | null;
+    paper_audit_package_tag: string | null;
+    paper_audit_target_key: string | null;
     evidence_set_tag: string | null;
     evidence_set_quality_label: Doc<"evidence_sets">["quality_label"];
     evidence_set_source_kind: Doc<"evidence_sets">["source_kind"];
@@ -217,6 +220,9 @@ async function buildExperimentRows(
       .withIndex("by_experiment", (q) => q.eq("experiment_id", experiment._id))
       .collect();
     const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment);
+    const paperAuditPackage = experiment.paper_audit_package_id
+      ? await ctx.db.get(experiment.paper_audit_package_id)
+      : null;
     const latest = latestRun(experimentRuns);
     const totalCount = typeof experiment.total_count === "number"
       ? experiment.total_count
@@ -238,6 +244,9 @@ async function buildExperimentRows(
       study_kind: experiment.study_kind,
       evidence_source_kind: experiment.evidence_source_kind,
       evidence_set_id: experiment.evidence_set_id,
+      paper_audit_package_id: experiment.paper_audit_package_id ?? null,
+      paper_audit_package_tag: paperAuditPackage?.package_tag ?? null,
+      paper_audit_target_key: paperAuditPackage?.target_key ?? null,
       evidence_set_tag: evidenceSelection.evidence_set_tag,
       evidence_set_quality_label: evidenceSelection.evidence_set_quality_label,
       evidence_set_source_kind: evidenceSelection.evidence_set_source_kind,
@@ -321,6 +330,9 @@ export const getExperimentSummary = zInternalQuery({
       );
     }
     const evidenceSelection = await getEvidenceSelectionSummary(ctx, experiment);
+    const paperAuditPackage = experiment.paper_audit_package_id
+      ? await ctx.db.get(experiment.paper_audit_package_id)
+      : null;
     const runArtifacts = await Promise.all(
       runs.map(async (run) => {
         const samples = await ctx.db
@@ -372,6 +384,9 @@ export const getExperimentSummary = zInternalQuery({
       study_kind: experiment.study_kind,
       evidence_source_kind: experiment.evidence_source_kind,
       evidence_set_id: experiment.evidence_set_id,
+      paper_audit_package_id: experiment.paper_audit_package_id ?? null,
+      paper_audit_package_tag: paperAuditPackage?.package_tag ?? null,
+      paper_audit_target_key: paperAuditPackage?.target_key ?? null,
       evidence_set_tag: evidenceSelection.evidence_set_tag,
       evidence_set_quality_label: evidenceSelection.evidence_set_quality_label,
       evidence_set_source_kind: evidenceSelection.evidence_set_source_kind,

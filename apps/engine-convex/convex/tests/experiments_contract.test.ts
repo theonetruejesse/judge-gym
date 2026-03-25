@@ -39,8 +39,60 @@ describe("experiment contract", () => {
     vi.unstubAllGlobals();
   });
 
+  async function seedGilardiPackage(t: ReturnType<typeof initTest>) {
+    return t.mutation(api.packages.paper_audits.upsertPaperAuditPackage, {
+      package_tag: "gilardi_relevance_v1",
+      target_key: "gilardi",
+      title: "Gilardi relevance package",
+      description: "Test package",
+      default_compatibility_mode: "paper_faithful",
+      default_evidence_view: "paper_original",
+      rubric_source_kind: "direct_labels",
+      task_contract: {
+        task_kind: "label_classification",
+        label_space_json: JSON.stringify(["relevant", "irrelevant"]),
+        instructions_json: JSON.stringify({ source: "package" }),
+        prompt_template_id: "gilardi_relevance_v1",
+      },
+      output_contract: {
+        kind: "label",
+        schema_version: "v1",
+        parser_key: "freeform_label_choice",
+      },
+      rubric_seed: {
+        concept: "policy relevance",
+        scale_size: 2,
+        justification: "Imported direct labels",
+        stages: [
+          { stage_number: 1, label: "Relevant", criteria: ["a"] },
+          { stage_number: 2, label: "Irrelevant", criteria: ["b"] },
+        ],
+        label_mapping: {
+          relevant: 1,
+          Relevant: 1,
+          irrelevant: 2,
+          Irrelevant: 2,
+        },
+      },
+      rubric_critic_seed: {
+        justification: "Imported package critic seed",
+        observability_score: 1,
+        discriminability_score: 1,
+      },
+      score_prompt: {
+        template_kind: "simple_v1",
+        system_prompt_template: "Classify the evidence.",
+        user_prompt_template: "{{evidence}}",
+        required_variables: ["evidence"],
+      },
+      provenance_json: JSON.stringify({ test: true }),
+      metadata_json: JSON.stringify({ test: true }),
+    });
+  }
+
   test("stores evidence-set-backed experiment metadata with V4 defaults", async () => {
     const t = initTest();
+    const paperAuditPackage = await seedGilardiPackage(t);
 
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "v4-contract-universe",
@@ -83,23 +135,9 @@ describe("experiment contract", () => {
     const experiment_id = await t.mutation(internal.domain.runs.experiments_repo.createExperiment, {
       experiment_tag: "v4_contract_experiment",
       evidence_set_id,
+      paper_audit_package_id: paperAuditPackage.package_id,
       study_kind: "paper_audit",
       evidence_source_kind: "evidence_set",
-      rubric_source_kind: "imported_codebook",
-      compatibility_mode: "paper_faithful",
-      task_contract: {
-        task_kind: "label_classification",
-        label_space_json: JSON.stringify(["relevant", "irrelevant"]),
-        instructions_json: JSON.stringify({
-          source: "paper",
-        }),
-        prompt_template_id: "gilardi_v1",
-      },
-      output_contract: {
-        kind: "label",
-        schema_version: "v1",
-        parser_key: "label_choice",
-      },
       rubric_config: {
         model: "gpt-4.1-mini",
         scale_size: 2,
@@ -125,13 +163,16 @@ describe("experiment contract", () => {
     expect(summary.evidence_set_tag).toBe("contract-set");
     expect(summary.evidence_set_quality_label).toBe("high");
     expect(summary.evidence_selected_count).toBe(1);
-    expect(summary.rubric_source_kind).toBe("imported_codebook");
+    expect(summary.paper_audit_package_tag).toBe("gilardi_relevance_v1");
+    expect(summary.paper_audit_target_key).toBe("gilardi");
+    expect(summary.rubric_source_kind).toBe("direct_labels");
     expect(summary.compatibility_mode).toBe("paper_faithful");
-    expect(summary.output_contract.parser_key).toBe("label_choice");
+    expect(summary.output_contract.parser_key).toBe("freeform_label_choice");
   });
 
   test("lab experiment surfaces expose evidence-set-backed experiment evidence", async () => {
     const t = initTest();
+    const paperAuditPackage = await seedGilardiPackage(t);
 
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "v4-lab-universe",
@@ -181,21 +222,7 @@ describe("experiment contract", () => {
       experiment_config: {
         study_kind: "paper_audit",
         evidence_source_kind: "evidence_set",
-        rubric_source_kind: "imported_codebook",
-        compatibility_mode: "paper_faithful",
-        task_contract: {
-          task_kind: "label_classification",
-          label_space_json: JSON.stringify(["relevant", "irrelevant"]),
-          instructions_json: JSON.stringify({
-            source: "paper",
-          }),
-          prompt_template_id: "gilardi_v1",
-        },
-        output_contract: {
-          kind: "label",
-          schema_version: "v1",
-          parser_key: "label_choice",
-        },
+        paper_audit_package_id: paperAuditPackage.package_id,
         rubric_config: {
           model: "gpt-4.1-mini",
           scale_size: 2,

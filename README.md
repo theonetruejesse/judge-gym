@@ -43,6 +43,7 @@ Core tables:
 - `evidence_assets`
 - `evidence_sets`
 - `evidence_set_items`
+- `paper_audit_packages`
 
 ### Experiments
 
@@ -80,6 +81,8 @@ Provider support:
 - OpenAI direct + native batch
 - Anthropic direct + native batch
 - OpenRouter direct
+
+Wave-1 OpenRouter control is `qwen-current-text-flagship`, currently pinned to `qwen/qwen3-next-80b-a3b-instruct` until launch-time provider freeze.
 
 Batch/provider lifecycle is persisted in `llm_batch_executions`, including provider-specific artifacts such as Anthropic batch `results_url`.
 
@@ -120,6 +123,17 @@ Useful checks:
 Smoke flow:
 
 - `cd apps/engine-convex && bun run v4:smoke`
+
+Local paper-audit readiness flow:
+
+- `bun run v4:fetch:gilardi`
+- `bun run v4:fetch:zheng`
+- `bun run v4:build:gilardi`
+- `bun run v4:build:zheng`
+- `bun run v4:canary:gilardi`
+- `bun run v4:canary:zheng`
+
+These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts only when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and optional canary runs.
 
 ## Development Notes
 

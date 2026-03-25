@@ -224,8 +224,8 @@ describe("evidence service", () => {
       { evidence_item_id: items[0]!._id },
     );
     expect(sourceRecords).toHaveLength(2);
-    expect(sourceRecords.find((record) => record._id === result.source_text_record_id)?.record_kind).toBe("source_text");
-    expect(sourceRecords.find((record) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
+    expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_text_record_id)?.record_kind).toBe("source_text");
+    expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
   });
 
   test("importEvidenceItem stores direct text imports as hydrated source records", async () => {
@@ -266,7 +266,7 @@ describe("evidence service", () => {
       internal.domain.evidence.evidence_repo.listItemSourceRecords,
       { evidence_item_id: items[0]!._id },
     );
-    expect(sourceRecords.find((record) => record._id === result.source_record_id)?.record_kind).toBe("paper_original");
-    expect(sourceRecords.find((record) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
+    expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_record_id)?.record_kind).toBe("paper_original");
+    expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
   });
 });

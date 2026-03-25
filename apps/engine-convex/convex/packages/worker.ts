@@ -24,6 +24,11 @@ import {
   type ExperimentConfig,
 } from "@judge-gym/engine-prompts/run";
 import {
+  renderPaperAuditLabelBlock,
+  renderPaperAuditRubricBlock,
+  renderPaperAuditTemplate,
+} from "@judge-gym/engine-prompts";
+import {
   parseExpertAgreementResponse,
   parseQualityResponse,
   parseRubricResponse,
@@ -379,6 +384,74 @@ type RunScoreStageTargetSeed = {
   }>;
 };
 
+type PaperAuditPackageSeed = {
+  package_id: Id<"paper_audit_packages">;
+  package_tag: string;
+  score_prompt: {
+    system_prompt_template: string;
+    user_prompt_template: string;
+  };
+  task_contract: Doc<"paper_audit_packages">["task_contract"];
+  rubric_seed: Doc<"paper_audit_packages">["rubric_seed"];
+} | null;
+
+type PromptInputSeed = {
+  kind: "prompt_inputs";
+  inputs: Array<{
+    target_type: "sample";
+    target_id: string;
+    model: Doc<"samples">["model"];
+    system_prompt: string;
+    user_prompt: string;
+    metadata_json: string | null;
+  }>;
+};
+
+type ScoreStageSeed = {
+  kind: "score_stage_seed";
+  config: ExperimentConfig;
+  package: PaperAuditPackageSeed;
+  targets: RunScoreStageTargetSeed[];
+};
+
+type RunStageInputSeed = PromptInputSeed | ScoreStageSeed;
+
+function buildPaperAuditScorePrompt(args: {
+  packageSeed: NonNullable<PaperAuditPackageSeed>;
+  evidence: string;
+  target_id: string;
+  evidence_item_count: number;
+  instructionsJson: string | null | undefined;
+}) {
+  let instructionsBlock = "";
+  if (args.instructionsJson) {
+    try {
+      instructionsBlock = JSON.stringify(JSON.parse(args.instructionsJson), null, 2);
+    } catch {
+      instructionsBlock = args.instructionsJson;
+    }
+  }
+  const variables = {
+    evidence: args.evidence,
+    rubric_block: renderPaperAuditRubricBlock(args.packageSeed.rubric_seed ?? null),
+    label_block: renderPaperAuditLabelBlock(args.packageSeed.rubric_seed ?? null),
+    instructions_block: instructionsBlock,
+    item_count: String(args.evidence_item_count),
+    target_id: args.target_id,
+    package_tag: args.packageSeed.package_tag,
+  };
+  return {
+    system_prompt: renderPaperAuditTemplate({
+      template: args.packageSeed.score_prompt.system_prompt_template,
+      variables,
+    }),
+    user_prompt: renderPaperAuditTemplate({
+      template: args.packageSeed.score_prompt.user_prompt_template,
+      variables,
+    }),
+  };
+}
+
 async function readStoredTextAsset(
   ctx: ActionCtx,
   storageId: string,
@@ -509,12 +582,12 @@ export const bindRunWorkflow = zMutation({
   },
 });
 
-export const listRunStageInputSeed = zInternalQuery({
+export const listRunStageInputSeed: ReturnType<typeof zInternalQuery> = zInternalQuery({
   args: z.object({
     run_id: zid("runs"),
     stage: RunStageInputSchema,
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<RunStageInputSeed> => {
     const run = await ctx.db.get(args.run_id);
     if (!run) {
       throw new Error("Run not found");
@@ -524,6 +597,15 @@ export const listRunStageInputSeed = zInternalQuery({
       throw new Error("Experiment not found");
     }
     const config = normalizeExperimentConfig(experiment);
+    const paperAuditPackage: Doc<"paper_audit_packages"> | null = experiment.paper_audit_package_id
+      ? await ctx.runQuery(
+        internal.domain.paper_audits.paper_audit_repo.getPackage,
+        { package_id: experiment.paper_audit_package_id },
+      )
+      : null;
+    if (experiment.paper_audit_package_id && !paperAuditPackage) {
+      throw new Error("Paper-audit package not found");
+    }
 
     if (args.stage === "rubric_gen" || args.stage === "rubric_critic") {
       const samples = await ctx.db
@@ -533,14 +615,7 @@ export const listRunStageInputSeed = zInternalQuery({
       const orderedSamples = samples
         .slice()
         .sort((left, right) => left._creationTime - right._creationTime);
-      const results: Array<{
-        target_type: "sample";
-        target_id: string;
-        model: Doc<"samples">["model"];
-        system_prompt: string;
-        user_prompt: string;
-        metadata_json: string | null;
-      }> = [];
+      const results: PromptInputSeed["inputs"] = [];
 
       for (const sample of orderedSamples) {
         if (args.stage === "rubric_gen") {
@@ -726,6 +801,18 @@ export const listRunStageInputSeed = zInternalQuery({
     return {
       kind: "score_stage_seed" as const,
       config,
+      package: paperAuditPackage
+        ? {
+          package_id: paperAuditPackage._id,
+          package_tag: paperAuditPackage.package_tag,
+          score_prompt: {
+            system_prompt_template: paperAuditPackage.score_prompt.system_prompt_template,
+            user_prompt_template: paperAuditPackage.score_prompt.user_prompt_template,
+          },
+          task_contract: paperAuditPackage.task_contract,
+          rubric_seed: paperAuditPackage.rubric_seed ?? null,
+        }
+        : null,
       targets,
     };
   },
@@ -748,7 +835,7 @@ export const listRunStageInputs = zAction({
 
     for (const target of seed.targets) {
       const contents = await Promise.all(
-        target.items.map(async (item) => {
+        target.items.map(async (item: RunScoreStageTargetSeed["items"][number]) => {
           const cacheKey = String(item.content_asset_id);
           let pending = assetContentCache.get(cacheKey);
           if (!pending) {
@@ -770,23 +857,31 @@ export const listRunStageInputs = zAction({
       const renderedEvidence = renderBundledEvidence(
         contents
           .slice()
-          .sort((left, right) => left.position - right.position)
-          .map(({ content }) => ({ content })),
+          .sort((left: (typeof contents)[number], right: (typeof contents)[number]) => left.position - right.position)
+          .map(({ content }: (typeof contents)[number]) => ({ content })),
       );
 
       if (args.stage === "score_gen") {
-        const prompt = buildScoreGenPrompt({
-          config: seed.config,
-          evidence: renderedEvidence,
-          rubric: {
-            stages: target.rubric.stages,
-          },
-          sample: {
-            label_mapping: target.rubric.label_mapping,
-            display_seed: target.sample_seed,
-          },
-          evidence_item_count: target.items.length,
-        });
+        const prompt = seed.package
+          ? buildPaperAuditScorePrompt({
+            packageSeed: seed.package,
+            evidence: renderedEvidence,
+            target_id: target.target_id,
+            evidence_item_count: target.items.length,
+            instructionsJson: seed.package.task_contract.instructions_json,
+          })
+          : buildScoreGenPrompt({
+            config: seed.config,
+            evidence: renderedEvidence,
+            rubric: {
+              stages: target.rubric.stages,
+            },
+            sample: {
+              label_mapping: target.rubric.label_mapping,
+              display_seed: target.sample_seed,
+            },
+            evidence_item_count: target.items.length,
+          });
         results.push({
           target_type: "sample_score_target",
           target_id: target.target_id,
@@ -818,10 +913,14 @@ export const listRunStageInputs = zAction({
         verdict: buildScoreCriticVerdictSummary({
           decoded_scores: target.score.decoded_scores,
           displayed_identifiers_by_stage: target.rubric.label_mapping
-            ? Object.entries(target.rubric.label_mapping)
-              .sort((left, right) => left[1] - right[1])
+            ? (Object.entries(target.rubric.label_mapping) as Array<[string, number]>)
+              .sort(
+                (left, right) => left[1] - right[1],
+              )
               .map(([token]) => token)
-            : target.rubric.stages.map((_, index) => String.fromCharCode(65 + index)),
+            : target.rubric.stages.map((_: { label: string; criteria: string[] }, index: number) =>
+              String.fromCharCode(65 + index)
+            ),
           method: seed.config.scoring_config.method,
         }),
         evidence_item_count: target.items.length,
