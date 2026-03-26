@@ -8,10 +8,6 @@ import type { Id } from "../../_generated/dataModel";
 import type { ActionCtx } from "../../_generated/server";
 import { EvidenceAssetRoleSchema } from "../../models/evidence";
 import { zInternalAction } from "../../utils/custom_fns";
-import {
-  fetchMediaCloudStoryList,
-  MediaCloudDiscoveryArgsSchema,
-} from "./mediacloud";
 
 const StoreTextAssetArgsSchema = z.object({
   content: z.string(),
@@ -29,15 +25,27 @@ const StoreTextAssetResultSchema = z.object({
   deduped: z.boolean(),
 });
 
-const IngestMediaCloudDiscoveryRunArgsSchema = z.object({
+const MediaCloudCandidateInputSchema = z.object({
+  external_id: z.string(),
+  url: z.string(),
+  title: z.string().nullable().optional(),
+  publish_date: z.string().nullable().optional(),
+  indexed_date: z.string().nullable().optional(),
+  media_name: z.string().nullable().optional(),
+  media_url: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  metadata_json: z.string(),
+});
+
+const PersistMediaCloudDiscoveryBatchArgsSchema = z.object({
   acquisition_run_id: zid("acquisition_runs"),
+  candidates: z.array(MediaCloudCandidateInputSchema),
   pagination_token: z.string().nullable().optional(),
-  page_size: z.number().int().positive().optional(),
-  sort_order: z.string().optional(),
+  page_count: z.number().int().nonnegative().optional(),
   persist_provider_payloads: z.boolean().optional(),
 });
 
-const IngestMediaCloudDiscoveryRunResultSchema = z.object({
+const PersistMediaCloudDiscoveryBatchResultSchema = z.object({
   inserted: z.number(),
   updated: z.number(),
   total: z.number(),
@@ -45,12 +53,14 @@ const IngestMediaCloudDiscoveryRunResultSchema = z.object({
   pagination_token: z.string().nullable(),
 });
 
-const HydrateCandidateArgsSchema = z.object({
+const PersistCandidateHydrationArgsSchema = z.object({
   candidate_id: zid("evidence_candidates"),
+  body: z.string(),
+  content_type: z.string().nullable().optional(),
   extraction_version: z.string().optional(),
 });
 
-const HydrateCandidateResultSchema = z.object({
+const PersistCandidateHydrationResultSchema = z.object({
   evidence_item_id: zid("evidence_items"),
   source_text_record_id: zid("evidence_source_records"),
   source_html_record_id: zid("evidence_source_records").nullable(),
@@ -59,17 +69,9 @@ const HydrateCandidateResultSchema = z.object({
   action: z.enum(["created", "updated"]),
 });
 
-const HydrateRunCandidatesArgsSchema = z.object({
-  acquisition_run_id: zid("acquisition_runs"),
-  limit: z.number().int().positive().optional(),
-  extraction_version: z.string().optional(),
-});
-
-const HydrateRunCandidatesResultSchema = z.object({
-  processed: z.number(),
-  hydrated: z.number(),
-  skipped: z.number(),
-  items: z.array(HydrateCandidateResultSchema),
+const MarkCandidateHydrationFailureArgsSchema = z.object({
+  candidate_id: zid("evidence_candidates"),
+  error_message: z.string(),
 });
 
 const ImportEvidenceItemArgsSchema = z.object({
@@ -212,34 +214,6 @@ async function storeTextAssetInternal(
   };
 }
 
-function parseMediaCloudDiscoveryConfig(
-  discovery_config_json: string,
-  overrides: Pick<
-    z.infer<typeof IngestMediaCloudDiscoveryRunArgsSchema>,
-    "pagination_token" | "page_size" | "sort_order"
-  >,
-) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(discovery_config_json);
-  } catch (error) {
-    throw new Error(
-      `Invalid Media Cloud discovery_config_json: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Media Cloud discovery_config_json must decode to an object.");
-  }
-  const parsedRecord = parsed as Record<string, unknown>;
-
-  return MediaCloudDiscoveryArgsSchema.parse({
-    ...parsedRecord,
-    pagination_token: overrides.pagination_token ?? undefined,
-    page_size: overrides.page_size ?? undefined,
-    sort_order: overrides.sort_order ?? undefined,
-  });
-}
-
 async function patchAcquisitionRunFailure(
   ctx: ActionCtx,
   args: {
@@ -259,8 +233,8 @@ async function patchAcquisitionRunFailure(
 
 async function hydrateCandidateInternal(
   ctx: ActionCtx,
-  args: z.infer<typeof HydrateCandidateArgsSchema>,
-): Promise<z.infer<typeof HydrateCandidateResultSchema>> {
+  args: z.infer<typeof PersistCandidateHydrationArgsSchema>,
+): Promise<z.infer<typeof PersistCandidateHydrationResultSchema>> {
   const candidate = await ctx.runQuery(internal.domain.evidence.evidence_repo.getCandidate, {
     candidate_id: args.candidate_id,
   });
@@ -268,22 +242,8 @@ async function hydrateCandidateInternal(
     throw new Error("Evidence candidate not found.");
   }
 
-  const response = await fetch(candidate.url, {
-    headers: {
-      Accept: "text/html, text/plain;q=0.9, application/xhtml+xml;q=0.8, */*;q=0.5",
-      "User-Agent": "judge-gym/evidence-hydrator",
-    },
-    method: "GET",
-    redirect: "follow",
-    signal: AbortSignal.timeout(DEFAULT_ENGINE_SETTINGS.evidence.mediacloud.requestTimeoutMs),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Hydration failed for ${candidate.url} (${response.status}).`);
-  }
-
-  const contentType = response.headers.get("content-type");
-  const body = await response.text();
+  const contentType = args.content_type ?? null;
+  const body = args.body;
   const extraction_version = args.extraction_version ?? "simple-html-text-v1";
 
   let raw_html_asset_id: Id<"evidence_assets"> | null = null;
@@ -326,7 +286,7 @@ async function hydrateCandidateInternal(
       metadata_json: JSON.stringify({
         fetched_at_ms: Date.now(),
         response_content_type: contentType,
-        status: response.status,
+        status: "persisted",
       }),
     },
   );
@@ -398,6 +358,53 @@ async function hydrateCandidateInternal(
   };
 }
 
+async function markCandidateHydrationFailureInternal(
+  ctx: ActionCtx,
+  args: z.infer<typeof MarkCandidateHydrationFailureArgsSchema>,
+) {
+  const candidate = await ctx.runQuery(internal.domain.evidence.evidence_repo.getCandidate, {
+    candidate_id: args.candidate_id,
+  });
+  if (!candidate) {
+    throw new Error("Evidence candidate not found.");
+  }
+
+  await ctx.runMutation(
+    internal.domain.evidence.evidence_repo.upsertItemFromCandidate,
+    {
+      universe_id: candidate.universe_id,
+      candidate_id: candidate._id,
+      canonical_key: buildCanonicalKey(candidate),
+      title: candidate.title ?? null,
+      source_url: candidate.url,
+      source_name: candidate.media_name ?? null,
+      publish_date: candidate.publish_date ?? null,
+      language: candidate.language ?? null,
+      hydration_status: "failed",
+      metadata_json: JSON.stringify({
+        failed_at_ms: Date.now(),
+        error_message: args.error_message,
+      }),
+    },
+  );
+
+  const acquisitionRun = await ctx.runQuery(
+    internal.domain.evidence.evidence_repo.getAcquisitionRun,
+    {
+      acquisition_run_id: candidate.acquisition_run_id,
+    },
+  );
+  if (acquisitionRun) {
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
+      acquisition_run_id: acquisitionRun._id,
+      error_count: acquisitionRun.error_count + 1,
+      last_error_message: args.error_message,
+    });
+  }
+
+  return null;
+}
+
 export const storeTextAsset = zInternalAction({
   args: StoreTextAssetArgsSchema,
   returns: StoreTextAssetResultSchema,
@@ -406,13 +413,13 @@ export const storeTextAsset = zInternalAction({
   },
 });
 
-export const ingestMediaCloudDiscoveryRun = zInternalAction({
-  args: IngestMediaCloudDiscoveryRunArgsSchema,
-  returns: IngestMediaCloudDiscoveryRunResultSchema,
+export const persistMediaCloudDiscoveryBatch = zInternalAction({
+  args: PersistMediaCloudDiscoveryBatchArgsSchema,
+  returns: PersistMediaCloudDiscoveryBatchResultSchema,
   handler: async (
     ctx,
     args,
-  ): Promise<z.infer<typeof IngestMediaCloudDiscoveryRunResultSchema>> => {
+  ): Promise<z.infer<typeof PersistMediaCloudDiscoveryBatchResultSchema>> => {
     const acquisitionRun = await ctx.runQuery(
       internal.domain.evidence.evidence_repo.getAcquisitionRun,
       {
@@ -433,18 +440,12 @@ export const ingestMediaCloudDiscoveryRun = zInternalAction({
       throw new Error("Acquisition spec not found.");
     }
     if (acquisitionSpec.discovery_provider !== "mediacloud") {
-      throw new Error("ingestMediaCloudDiscoveryRun requires a Media Cloud acquisition spec.");
+      throw new Error("persistMediaCloudDiscoveryBatch requires a Media Cloud acquisition spec.");
     }
 
     try {
-      const discoveryArgs = parseMediaCloudDiscoveryConfig(acquisitionSpec.discovery_config_json, {
-        pagination_token: args.pagination_token ?? null,
-        page_size: args.page_size,
-        sort_order: args.sort_order,
-      });
-      const discoveryResult = await fetchMediaCloudStoryList(discoveryArgs);
       const candidates = await Promise.all(
-        discoveryResult.candidates.map(async (candidate) => {
+        args.candidates.map(async (candidate) => {
           let provider_payload_asset_id: Id<"evidence_assets"> | null = null;
           if (args.persist_provider_payloads ?? true) {
             const storedPayload = await storeTextAssetInternal(ctx, {
@@ -483,12 +484,14 @@ export const ingestMediaCloudDiscoveryRun = zInternalAction({
 
       await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
         acquisition_run_id: acquisitionRun._id,
-        status: discoveryResult.pagination_token ? "running" : "completed",
-        cursor_json: discoveryResult.pagination_token
-          ? JSON.stringify({ pagination_token: discoveryResult.pagination_token })
+        status: "running",
+        cursor_json: args.pagination_token
+          ? JSON.stringify({
+            pagination_token: args.pagination_token,
+            page_count: args.page_count ?? 0,
+          })
           : null,
         discovered_count: acquisitionRun.discovered_count + upserted.total,
-        finished_at_ms: discoveryResult.pagination_token ? undefined : Date.now(),
         last_error_message: null,
       });
 
@@ -497,7 +500,7 @@ export const ingestMediaCloudDiscoveryRun = zInternalAction({
         updated: upserted.updated,
         total: upserted.total,
         candidate_ids: upserted.candidate_ids,
-        pagination_token: discoveryResult.pagination_token,
+        pagination_token: args.pagination_token ?? null,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -511,53 +514,20 @@ export const ingestMediaCloudDiscoveryRun = zInternalAction({
   },
 });
 
-export const hydrateCandidate = zInternalAction({
-  args: HydrateCandidateArgsSchema,
-  returns: HydrateCandidateResultSchema,
-  handler: async (ctx, args): Promise<z.infer<typeof HydrateCandidateResultSchema>> => {
+export const persistCandidateHydration = zInternalAction({
+  args: PersistCandidateHydrationArgsSchema,
+  returns: PersistCandidateHydrationResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof PersistCandidateHydrationResultSchema>> => {
     return hydrateCandidateInternal(ctx, args);
   },
 });
 
-export const hydrateRunCandidates = zInternalAction({
-  args: HydrateRunCandidatesArgsSchema,
-  returns: HydrateRunCandidatesResultSchema,
-  handler: async (
-    ctx,
-    args,
-  ): Promise<z.infer<typeof HydrateRunCandidatesResultSchema>> => {
-    const candidates = await ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
-      acquisition_run_id: args.acquisition_run_id,
-    });
-    const limit = args.limit ?? candidates.length;
-    const selected = candidates.slice(0, limit);
-    const items: Array<z.infer<typeof HydrateCandidateResultSchema>> = [];
-    let skipped = 0;
-
-    for (const candidate of selected) {
-      const existingItem = await ctx.runQuery(
-        internal.domain.evidence.evidence_repo.getItemByCandidate,
-        {
-          candidate_id: candidate._id,
-        },
-      );
-      if (existingItem?.hydration_status === "hydrated") {
-        skipped += 1;
-        continue;
-      }
-      const hydrated = await hydrateCandidateInternal(ctx, {
-        candidate_id: candidate._id,
-        extraction_version: args.extraction_version,
-      });
-      items.push(hydrated);
-    }
-
-    return {
-      processed: selected.length,
-      hydrated: items.length,
-      skipped,
-      items,
-    };
+export const markCandidateHydrationFailure = zInternalAction({
+  args: MarkCandidateHydrationFailureArgsSchema,
+  returns: z.null(),
+  handler: async (ctx, args): Promise<null> => {
+    await markCandidateHydrationFailureInternal(ctx, args);
+    return null;
   },
 });
 

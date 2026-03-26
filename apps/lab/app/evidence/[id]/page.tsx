@@ -55,9 +55,12 @@ type AcquisitionRunItem = {
   acquisition_run_id: string;
   spec_tag: string;
   discovery_provider: string;
+  workflow_id: string | null;
+  workflow_run_id: string | null;
   status: string;
   candidate_count: number;
   item_count: number;
+  last_error_message: string | null;
   started_at_ms: number | null;
 };
 
@@ -167,8 +170,12 @@ export default function EvidenceUniversePage({
     Array<"l1_cleaned" | "l2_neutralized" | "l3_abstracted">
   >(["l1_cleaned", "l2_neutralized", "l3_abstracted"]);
   const [transformSubmitting, setTransformSubmitting] = useState(false);
+  const [snapshottingRunId, setSnapshottingRunId] = useState<string | null>(null);
 
   const getEvidenceItemContent = useAction(api.packages.evidence.getEvidenceItemContent);
+  const createEvidenceSetFromAcquisitionRun = useMutation(
+    api.packages.evidence.createEvidenceSetFromAcquisitionRun,
+  );
   const createEvidenceTransformRun = useMutation(
     api.packages.evidence_transform.createEvidenceTransformRun,
   );
@@ -215,6 +222,33 @@ export default function EvidenceUniversePage({
   const universeLoading = !!resolvedParams && universe === undefined;
   const evidenceLoading = !!resolvedParams && evidenceItems === undefined;
   const evidenceRows = evidenceItems ?? [];
+
+  const handleSnapshotAcquisitionRun = async (run: AcquisitionRunItem) => {
+    if (!universe || snapshottingRunId) {
+      return;
+    }
+    setSnapshottingRunId(run.acquisition_run_id);
+    try {
+      const result = await createEvidenceSetFromAcquisitionRun({
+        acquisition_run_id: run.acquisition_run_id as never,
+        evidence_set_tag: `${universe.universe_tag}-${run.spec_tag}-set`,
+        title: `${universe.title} · ${run.spec_tag} set`,
+        description: `Snapshot from acquisition run ${run.acquisition_run_id}`,
+        quality_label: "high",
+      });
+      toast.success("Evidence set created.", {
+        description: `Snapshotted ${result.item_count} items from ${run.spec_tag}.`,
+      });
+      setSelectedEvidenceSetId(result.evidence_set_id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error("Failed to snapshot acquisition run.", {
+        description: message,
+      });
+    } finally {
+      setSnapshottingRunId(null);
+    }
+  };
 
   useEffect(() => {
     if (!selectedEvidenceId && evidenceRows.length > 0) {
@@ -500,24 +534,53 @@ export default function EvidenceUniversePage({
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Candidates</TableHead>
                     <TableHead className="text-right">Items</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(acquisitionRuns ?? []).map((run) => (
                     <TableRow key={run.acquisition_run_id}>
                       <TableCell className="text-xs">{run.spec_tag}</TableCell>
-                      <TableCell className="text-xs">{run.status}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="space-y-0.5">
+                          <div>{run.status}</div>
+                          {run.workflow_id ? (
+                            <div className="opacity-45">{run.workflow_id}</div>
+                          ) : null}
+                          {run.last_error_message ? (
+                            <div className="max-w-xs text-[10px] text-red-400">
+                              {run.last_error_message}
+                            </div>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right text-xs">
                         {run.candidate_count}
                       </TableCell>
                       <TableCell className="text-right text-xs">
                         {run.item_count}
                       </TableCell>
+                      <TableCell className="text-right text-xs">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            run.status !== "completed"
+                            || run.item_count === 0
+                            || snapshottingRunId === run.acquisition_run_id
+                          }
+                          onClick={() => void handleSnapshotAcquisitionRun(run)}
+                        >
+                          {snapshottingRunId === run.acquisition_run_id
+                            ? "Snapshotting..."
+                            : "Create Set"}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {(acquisitionRuns ?? []).length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-xs opacity-50">
+                      <TableCell colSpan={5} className="text-xs opacity-50">
                         No acquisition runs found.
                       </TableCell>
                     </TableRow>

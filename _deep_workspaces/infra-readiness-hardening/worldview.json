@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "workspacePath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/infra-readiness-hardening",
+    "objective": "Harden judge-gym infra for V4 launch by moving Media Cloud acquisition to the Temporal execution plane, validating full smoke/screen coverage, clearing irrelevant Convex and Railway state, and simplifying Railway bootstrap/linking so contributors can provision the stack from scratch.",
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows"
+  },
+  "status": {
+    "workspace": "complete",
+    "phase": "terminal",
+    "activeRun": null,
+    "terminalObjectiveMet": true
+  },
+  "environment": {
+    "discovered": true,
+    "notes": [
+      "Convex own-dev deployment is combative-pika-662 and is healthy after a prior greenfield reset.",
+      "Railway project sincere-freedom is linked again, includes Temporal template services plus Redis and engine-temporal-worker, and the latest worker deployment was verified running.",
+      "Media Cloud acquisition currently runs inside Convex node actions rather than in engine-temporal, which is misaligned with the user's desired execution ownership model.",
+      "Local V4 canary tooling and paper-audit bundle builders already exist under scripts/v4 and can be reused for smoke validation once runtime ownership is corrected."
+    ]
+  },
+  "baselines": {
+    "current": {
+      "label": "temporal_owned_acquisition_with_clean_bootstrap",
+      "summary": "Media Cloud acquisition now runs on the Temporal worker, live acquisition smoke passes, transient own-dev state is cleared after proof, and the Railway bootstrap path is documented and scriptable without hidden service knowledge.",
+      "sourceArtifacts": [
+        "apps/engine-temporal/src/evidence_acquisition/service.ts",
+        "apps/engine-temporal/src/evidence_acquisition/mediacloud.ts",
+        "apps/engine-convex/convex/domain/evidence/evidence_service.ts",
+        "apps/engine-convex/convex/packages/evidence.ts",
+        "scripts/acquisition_smoke.ts",
+        "scripts/verify_railway_worker.sh",
+        "scripts/deploy_railway_worker.sh",
+        "docs/railway.md",
+        "README.md"
+      ]
+    },
+    "history": [
+      {
+        "label": "convex_owned_acquisition_with_live_worker",
+        "status": "superseded"
+      },
+      {
+        "label": "temporal_owned_acquisition_with_clean_bootstrap",
+        "status": "active"
+      }
+    ]
+  },
+  "telemetry": {
+    "historyPath": "telemetry/metrics.jsonl",
+    "leaderboardPath": "telemetry/leaderboard.json",
+    "latest": {}
+  },
+  "workflowRuns": [
+    {
+      "runId": "R01",
+      "requestedObjective": "Compile the first infra-hardening workflow: move Media Cloud acquisition from Convex actions into engine-temporal, define the smallest trustworthy smoke ladder for local and live validation, and identify the exact cleanup/bootstrap changes needed before V4 launch operations.",
+      "workflowPath": "_deep_workflows/infra-hardening-r01/workflow.json",
+      "status": "completed",
+      "measuredOutcome": {
+        "execution_plane_alignment": 1,
+        "smoke_coverage": 1,
+        "bootstrap_simplicity": 0.86,
+        "state_hygiene": 1,
+        "unresolved_infra_blockers": 0.08
+      }
+    }
+  ],
+  "currentBest": {
+    "label": "temporal_owned_acquisition_with_clean_bootstrap",
+    "metrics": {
+      "execution_plane_alignment": 1,
+      "smoke_coverage": 1,
+      "bootstrap_simplicity": 0.86,
+      "state_hygiene": 1,
+      "unresolved_infra_blockers": 0.08
+    },
+    "artifactPath": "apps/engine-temporal/src/evidence_acquisition/service.ts"
+  },
+  "bottlenecks": [
+    "The remaining work is no longer infra hardening; it is launch-side experiment/canary execution.",
+    "A custom Railway template still does not exist, so the official Temporal template remains the starting point for new projects."
+  ],
+  "decisions": [
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Treat this workspace as infra-only; V4 launch execution is explicitly out of scope until infra is hardened."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Use engine-temporal, not a new microservice, as the execution home for Media Cloud acquisition."
+    },
+    {
+      "timestamp": "2026-03-25",
+      "statement": "Keep bun dev agent-owned and use it as the local observability spine throughout the campaign."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Accept bounded page-budget controls in Media Cloud discovery so live acquisition smokes can prove the real path without paging into avoidable rate-limit noise."
+    }
+  ],
+  "nextActions": []
+}

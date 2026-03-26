@@ -20,9 +20,6 @@ type FormState = {
   collection_ids: string;
   source_ids: string;
   page_size: string;
-  hydrate_limit: string;
-  evidence_set_tag: string;
-  evidence_set_title: string;
 };
 
 const DEFAULT_FORM: FormState = {
@@ -35,9 +32,6 @@ const DEFAULT_FORM: FormState = {
   collection_ids: "34412234",
   source_ids: "",
   page_size: "10",
-  hydrate_limit: "10",
-  evidence_set_tag: "",
-  evidence_set_title: "",
 };
 
 function slugify(value: string) {
@@ -62,14 +56,8 @@ function buildDefaults(state: FormState) {
   const title = state.title.trim();
   const query = state.query.trim();
   const universeTag = state.universe_tag.trim() || slugify(title || query || "mediacloud-universe");
-  const evidenceSetTag =
-    state.evidence_set_tag.trim() || slugify(`${universeTag}-core`);
-  const evidenceSetTitle =
-    state.evidence_set_title.trim() || `${title || query || "Media Cloud"} Core Set`;
   return {
     universeTag,
-    evidenceSetTag,
-    evidenceSetTitle,
   };
 }
 
@@ -78,11 +66,7 @@ export function MediaCloudForm() {
   const createEvidenceUniverse = useMutation(api.packages.evidence.createEvidenceUniverse);
   const createAcquisitionSpec = useMutation(api.packages.evidence.createAcquisitionSpec);
   const createAcquisitionRun = useMutation(api.packages.evidence.createAcquisitionRun);
-  const createEvidenceSetFromAcquisitionRun = useMutation(
-    api.packages.evidence.createEvidenceSetFromAcquisitionRun,
-  );
-  const ingestAcquisitionRun = useAction(api.packages.evidence.ingestAcquisitionRun);
-  const hydrateAcquisitionRun = useAction(api.packages.evidence.hydrateAcquisitionRun);
+  const startAcquisitionRun = useAction(api.packages.evidence.startAcquisitionRun);
 
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +95,6 @@ export function MediaCloudForm() {
       const collection_ids = parseCsvIntegers(form.collection_ids);
       const source_ids = parseCsvIntegers(form.source_ids);
       const page_size = Math.max(1, Number(form.page_size) || 10);
-      const hydrate_limit = Math.max(1, Number(form.hydrate_limit) || page_size);
 
       const { universe_id } = await createEvidenceUniverse({
         universe_tag: defaults.universeTag,
@@ -130,9 +113,12 @@ export function MediaCloudForm() {
           end_date: form.end_date,
           collection_ids,
           source_ids,
+          page_size,
         }),
-        hydrator_kind: "manual",
-        hydrator_config_json: null,
+        hydrator_kind: "url_fetch",
+        hydrator_config_json: JSON.stringify({
+          fetch_strategy: "direct_url_v1",
+        }),
         active: true,
       });
 
@@ -140,26 +126,13 @@ export function MediaCloudForm() {
         acquisition_spec_id,
       });
 
-      const ingestResult = await ingestAcquisitionRun({
+      const started = await startAcquisitionRun({
         acquisition_run_id,
-        page_size,
-      });
-      const hydrateResult = await hydrateAcquisitionRun({
-        acquisition_run_id,
-        limit: hydrate_limit,
-      });
-      const evidenceSetResult = await createEvidenceSetFromAcquisitionRun({
-        acquisition_run_id,
-        evidence_set_tag: defaults.evidenceSetTag,
-        title: defaults.evidenceSetTitle,
-        description: `Media Cloud query: ${query}`,
-        quality_label: "high",
       });
 
       toast.success("Evidence universe created.", {
         description:
-          `Discovered ${ingestResult.total} candidates, hydrated ${hydrateResult.hydrated}, `
-          + `snapshotted ${evidenceSetResult.item_count} items.`,
+          `Acquisition queued as ${started.workflow_id}. Review the run on the evidence page and snapshot it into an evidence set after completion.`,
       });
       router.push(`/evidence/${universe_id}`);
     } catch (error) {
@@ -267,44 +240,13 @@ export function MediaCloudForm() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="page_size">Candidate Page Size</Label>
-              <Input
-                id="page_size"
-                value={form.page_size}
-                onChange={(event) => setField("page_size", event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hydrate_limit">Hydrate Limit</Label>
-              <Input
-                id="hydrate_limit"
-                value={form.hydrate_limit}
-                onChange={(event) => setField("hydrate_limit", event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="evidence_set_tag">Evidence Set Tag</Label>
-              <Input
-                id="evidence_set_tag"
-                value={form.evidence_set_tag}
-                onChange={(event) => setField("evidence_set_tag", event.target.value)}
-                placeholder={defaults.evidenceSetTag}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="evidence_set_title">Evidence Set Title</Label>
-              <Input
-                id="evidence_set_title"
-                value={form.evidence_set_title}
-                onChange={(event) => setField("evidence_set_title", event.target.value)}
-                placeholder={defaults.evidenceSetTitle}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="page_size">Candidate Page Size</Label>
+            <Input
+              id="page_size"
+              value={form.page_size}
+              onChange={(event) => setField("page_size", event.target.value)}
+            />
           </div>
 
           <Button
@@ -312,7 +254,7 @@ export function MediaCloudForm() {
             className="w-full text-[10px] uppercase tracking-widest"
             disabled={submitting}
           >
-            {submitting ? "Creating Universe..." : "Create Universe"}
+            {submitting ? "Launching Acquisition..." : "Create Universe + Launch Acquisition"}
           </Button>
         </form>
       </CardContent>

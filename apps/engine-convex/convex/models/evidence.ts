@@ -17,6 +17,7 @@ export const DiscoveryProviderSchema = z.enum([
 ]);
 
 export const HydratorKindSchema = z.enum([
+  "url_fetch",
   "manual",
   "none",
 ]);

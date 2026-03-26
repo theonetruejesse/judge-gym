@@ -1,0 +1,44 @@
+{
+  "nodeId": "N03",
+  "kind": "synthesize",
+  "role": "cleanup-and-bootstrap-closeout",
+  "objective": "Summarize the migrated infra state, prune irrelevant runtime state if needed, and lock the contributor bootstrap/deployment contract for Railway.",
+  "inputs": [
+    "agents/N01/implementation_notes.md",
+    "agents/N02/smoke_results.md",
+    "scripts/deploy_railway_worker.sh",
+    "docs/railway.md",
+    "docs/setup.md",
+    "README.md"
+  ],
+  "dependencies": [
+    "N02"
+  ],
+  "effects": [
+    "read_code",
+    "write_code",
+    "write_shared_artifacts",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.apply_patch"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N03/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "closeout.md"
+  ],
+  "completionCriteria": [
+    "The remaining manual steps before V4 launch are limited to live control-plane operations.",
+    "Contributor bootstrap and Railway linkage are documented without relying on hidden project history."
+  ]
+}

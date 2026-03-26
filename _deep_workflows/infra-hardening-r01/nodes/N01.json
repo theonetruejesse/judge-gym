@@ -1,0 +1,43 @@
+{
+  "nodeId": "N01",
+  "kind": "patch",
+  "role": "acquisition-migration",
+  "objective": "Move Media Cloud acquisition ownership from Convex node actions into engine-temporal while preserving Convex as the persistence and control-plane surface.",
+  "inputs": [
+    "apps/engine-convex/convex/domain/evidence/mediacloud.ts",
+    "apps/engine-convex/convex/domain/evidence/evidence_service.ts",
+    "apps/engine-convex/convex/packages/evidence.ts",
+    "apps/engine-convex/convex/domain/temporal/temporal_client.ts",
+    "apps/engine-temporal/src/activities.ts",
+    "apps/engine-temporal/src/workflows.ts",
+    "apps/engine-temporal/src/convex/client.ts"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "write_code",
+    "run_local_scripts",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.apply_patch"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "implementation_notes.md"
+  ],
+  "completionCriteria": [
+    "Temporal workflow/activity/client surfaces exist for acquisition.",
+    "Convex public control-plane APIs no longer perform Media Cloud HTTP calls directly."
+  ]
+}

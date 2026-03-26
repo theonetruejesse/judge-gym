@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
@@ -9,15 +9,11 @@ function initTest() {
 }
 
 describe("evidence package", () => {
-  beforeEach(() => {
-    process.env.MEDIACLOUD_API_KEY = "test-mediacloud-key";
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  test("creates a universe/spec/run and drives ingest + hydration through the public API", async () => {
+  test("creates a universe/spec/run and persists discovery + hydration through the public API", async () => {
     const t = initTest();
 
     const { universe_id } = await t.mutation(api.packages.evidence.createEvidenceUniverse, {
@@ -34,75 +30,49 @@ describe("evidence package", () => {
         start_date: "2026-03-01",
         end_date: "2026-03-05",
         collection_ids: [34412234],
+        page_size: 10,
       }),
-      hydrator_kind: "manual",
+      hydrator_kind: "url_fetch",
       active: true,
     });
     const { acquisition_run_id } = await t.mutation(api.packages.evidence.createAcquisitionRun, {
       acquisition_spec_id,
     });
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("search/story-list")) {
-          return new Response(
-            JSON.stringify({
-              stories: [
-                {
-                  id: 88,
-                  url: "https://example.com/story-88",
-                  title: "Story Eighty Eight",
-                  publish_date: "2026-03-03",
-                  indexed_date: "2026-03-03T09:00:00Z",
-                  media_name: "Example Outlet",
-                  media_url: "https://example.com",
-                  language: "en",
-                },
-              ],
-              pagination_token: null,
-            }),
-            {
-              status: 200,
-              headers: {
-                "content-type": "application/json",
-              },
-            },
-          );
-        }
-
-        return new Response(
-          `
-            <html>
-              <body>
-                <article>
-                  <h1>Story Eighty Eight</h1>
-                  <p>Lead paragraph.</p>
-                </article>
-              </body>
-            </html>
-          `,
-          {
-            status: 200,
-            headers: {
-              "content-type": "text/html; charset=utf-8",
-            },
-          },
-        );
-      }),
-    );
-
-    const ingest = await t.action(api.packages.evidence.ingestAcquisitionRun, {
+    const discovery = await t.action(api.packages.evidence.persistMediaCloudDiscoveryBatch, {
       acquisition_run_id,
+      candidates: [
+        {
+          external_id: "88",
+          url: "https://example.com/story-88",
+          title: "Story Eighty Eight",
+          publish_date: "2026-03-03",
+          indexed_date: "2026-03-03T09:00:00Z",
+          media_name: "Example Outlet",
+          media_url: "https://example.com",
+          language: "en",
+          metadata_json: JSON.stringify({ id: 88 }),
+        },
+      ],
+      pagination_token: null,
     });
-    expect(ingest.inserted).toBe(1);
+    expect(discovery.inserted).toBe(1);
 
-    const hydrate = await t.action(api.packages.evidence.hydrateAcquisitionRun, {
-      acquisition_run_id,
-      limit: 5,
+    const hydrate = await t.action(api.packages.evidence.persistCandidateHydration, {
+      candidate_id: discovery.candidate_ids[0]!,
+      body: `
+        <html>
+          <body>
+            <article>
+              <h1>Story Eighty Eight</h1>
+              <p>Lead paragraph.</p>
+            </article>
+          </body>
+        </html>
+      `,
+      content_type: "text/html; charset=utf-8",
     });
-    expect(hydrate.hydrated).toBe(1);
+    expect(hydrate.action).toBe("created");
 
     const universeSummary = await t.query(api.packages.evidence.getEvidenceUniverseSummary, {
       universe_id,
@@ -206,60 +176,36 @@ describe("evidence package", () => {
         start_date: "2026-03-01",
         end_date: "2026-03-05",
         collection_ids: [34412234],
+        page_size: 10,
       }),
-      hydrator_kind: "manual",
+      hydrator_kind: "url_fetch",
       active: true,
     });
     const { acquisition_run_id } = await t.mutation(api.packages.evidence.createAcquisitionRun, {
       acquisition_spec_id,
     });
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("search/story-list")) {
-          return new Response(
-            JSON.stringify({
-              stories: [
-                {
-                  id: 101,
-                  url: "https://example.com/story-101",
-                  title: "Story One Zero One",
-                  publish_date: "2026-03-03",
-                  indexed_date: "2026-03-03T09:00:00Z",
-                  media_name: "Example Outlet",
-                  media_url: "https://example.com",
-                  language: "en",
-                },
-              ],
-              pagination_token: null,
-            }),
-            {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            },
-          );
-        }
-        if (url.includes("example.com/story-101")) {
-          return new Response(
-            "<html><body><article><p>Hydrated Media Cloud story.</p></article></body></html>",
-            {
-              status: 200,
-              headers: { "content-type": "text/html; charset=utf-8" },
-            },
-          );
-        }
-        return new Response("Stored evidence text.", { status: 200 });
-      }),
-    );
-
-    await t.action(api.packages.evidence.ingestAcquisitionRun, {
+    const discovery = await t.action(api.packages.evidence.persistMediaCloudDiscoveryBatch, {
       acquisition_run_id,
+      candidates: [
+        {
+          external_id: "101",
+          url: "https://example.com/story-101",
+          title: "Story One Zero One",
+          publish_date: "2026-03-03",
+          indexed_date: "2026-03-03T09:00:00Z",
+          media_name: "Example Outlet",
+          media_url: "https://example.com",
+          language: "en",
+          metadata_json: JSON.stringify({ id: 101 }),
+        },
+      ],
+      pagination_token: null,
     });
-    await t.action(api.packages.evidence.hydrateAcquisitionRun, {
-      acquisition_run_id,
-      limit: 5,
+    await t.action(api.packages.evidence.persistCandidateHydration, {
+      candidate_id: discovery.candidate_ids[0]!,
+      body: "<html><body><article><p>Hydrated Media Cloud story.</p></article></body></html>",
+      content_type: "text/html; charset=utf-8",
     });
 
     const universes = await t.query(api.packages.evidence.listEvidenceUniverses, {});
@@ -284,6 +230,11 @@ describe("evidence package", () => {
     });
     expect(universeItems).toHaveLength(1);
     expect(universeItems[0]?.title).toBe("Story One Zero One");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Stored evidence text.", { status: 200 })),
+    );
 
     const content = await t.action(api.packages.evidence.getEvidenceItemContent, {
       evidence_item_id: universeItems[0]!.evidence_item_id,

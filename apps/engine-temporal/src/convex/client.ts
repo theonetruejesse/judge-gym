@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import type {
+  EvidenceAcquisitionWorkflowInput,
   EvidenceTransformStageKey,
   EvidenceTransformWorkflowInput,
   ProjectProcessStateInput,
@@ -78,6 +79,69 @@ type EvidenceTransformStageInput = {
   metadata_json: string | null;
 };
 
+type AcquisitionRunExecutionContext = {
+  acquisition_run_id: string;
+  acquisition_spec_id: string;
+  universe_id: string;
+  spec_tag: string;
+  discovery_provider: "mediacloud" | "manual";
+  discovery_config_json: string;
+  hydrator_kind: "url_fetch" | "manual" | "none";
+  hydrator_config_json: string | null;
+  status: string;
+  cursor_json: string | null;
+  discovered_count: number;
+  hydrated_count: number;
+  error_count: number;
+  workflow_id: string | null;
+  workflow_run_id: string | null;
+  last_error_message: string | null;
+};
+
+type MediaCloudCandidateInput = {
+  external_id: string;
+  url: string;
+  title: string | null;
+  publish_date: string | null;
+  indexed_date: string | null;
+  media_name: string | null;
+  media_url: string | null;
+  language: string | null;
+  metadata_json: string;
+};
+
+type PersistMediaCloudDiscoveryBatchInput = {
+  acquisition_run_id: string;
+  candidates: MediaCloudCandidateInput[];
+  pagination_token?: string | null;
+  page_count?: number;
+  persist_provider_payloads?: boolean;
+};
+
+type PersistMediaCloudDiscoveryBatchResult = {
+  inserted: number;
+  updated: number;
+  total: number;
+  candidate_ids: string[];
+  pagination_token: string | null;
+};
+
+type PersistCandidateHydrationInput = {
+  candidate_id: string;
+  body: string;
+  content_type?: string | null;
+  extraction_version?: string;
+};
+
+type PersistCandidateHydrationResult = {
+  evidence_item_id: string;
+  source_text_record_id: string;
+  source_html_record_id: string | null;
+  raw_text_asset_id: string;
+  raw_html_asset_id: string | null;
+  action: "created" | "updated";
+};
+
 type AttemptStartInput = {
   attempt_key?: string;
   process_kind: "run";
@@ -127,6 +191,9 @@ const workerApi = {
   getRunExecutionContext: makeFunctionReference<"query">(
     "packages/worker:getRunExecutionContext",
   ),
+  getAcquisitionRunExecutionContext: makeFunctionReference<"query">(
+    "packages/evidence:getAcquisitionRunExecutionContext",
+  ),
   bindRunWorkflow: makeFunctionReference<"mutation">(
     "packages/worker:bindRunWorkflow",
   ),
@@ -150,6 +217,27 @@ const workerApi = {
   ),
   markEvidenceTransformRunError: makeFunctionReference<"mutation">(
     "packages/evidence_transform:markEvidenceTransformRunError",
+  ),
+  startAcquisitionRun: makeFunctionReference<"action">(
+    "packages/evidence:startAcquisitionRun",
+  ),
+  markAcquisitionRunRunning: makeFunctionReference<"mutation">(
+    "packages/evidence:markAcquisitionRunRunning",
+  ),
+  finalizeAcquisitionRun: makeFunctionReference<"mutation">(
+    "packages/evidence:finalizeAcquisitionRun",
+  ),
+  markAcquisitionRunError: makeFunctionReference<"mutation">(
+    "packages/evidence:markAcquisitionRunError",
+  ),
+  persistMediaCloudDiscoveryBatch: makeFunctionReference<"action">(
+    "packages/evidence:persistMediaCloudDiscoveryBatch",
+  ),
+  persistCandidateHydration: makeFunctionReference<"action">(
+    "packages/evidence:persistCandidateHydration",
+  ),
+  markCandidateHydrationFailure: makeFunctionReference<"action">(
+    "packages/evidence:markCandidateHydrationFailure",
   ),
   projectProcessState: makeFunctionReference<"mutation">(
     "packages/worker:projectProcessState",
@@ -215,11 +303,25 @@ export class ConvexWorkerClient {
     }) as Promise<RunExecutionContext>;
   }
 
+  getAcquisitionRunExecutionContext(acquisition_run_id: string) {
+    assertRequiredProcessId(acquisition_run_id, "acquisition_run_id");
+    return this.client.query(workerApi.getAcquisitionRunExecutionContext, {
+      acquisition_run_id,
+    }) as Promise<AcquisitionRunExecutionContext>;
+  }
+
   getEvidenceTransformRunExecutionContext(evidence_transform_run_id: string) {
     assertRequiredProcessId(evidence_transform_run_id, "evidence_transform_run_id");
     return this.client.query(workerApi.getEvidenceTransformRunExecutionContext, {
       evidence_transform_run_id,
     }) as Promise<EvidenceTransformRunExecutionContext>;
+  }
+
+  startAcquisitionRun(args: EvidenceAcquisitionWorkflowInput) {
+    assertRequiredProcessId(args.acquisitionRunId, "acquisitionRunId");
+    return this.client.action(workerApi.startAcquisitionRun, {
+      acquisition_run_id: args.acquisitionRunId,
+    }) as Promise<{ workflow_id: string; workflow_run_id: string; }>;
   }
 
   bindRunWorkflow(args: {
@@ -244,6 +346,45 @@ export class ConvexWorkerClient {
     return this.client.action(workerApi.listRunStageInputs, args) as Promise<
       RunStageInput[]
     >;
+  }
+
+  markAcquisitionRunRunning(args: {
+    acquisition_run_id: string;
+  }) {
+    return this.client.mutation(workerApi.markAcquisitionRunRunning, args);
+  }
+
+  finalizeAcquisitionRun(args: {
+    acquisition_run_id: string;
+  }) {
+    return this.client.mutation(workerApi.finalizeAcquisitionRun, args);
+  }
+
+  markAcquisitionRunError(args: {
+    acquisition_run_id: string;
+    error_message: string;
+    increment_error_count?: boolean;
+  }) {
+    return this.client.mutation(workerApi.markAcquisitionRunError, args);
+  }
+
+  persistMediaCloudDiscoveryBatch(args: PersistMediaCloudDiscoveryBatchInput) {
+    return this.client.action(workerApi.persistMediaCloudDiscoveryBatch, args) as Promise<
+      PersistMediaCloudDiscoveryBatchResult
+    >;
+  }
+
+  persistCandidateHydration(args: PersistCandidateHydrationInput) {
+    return this.client.action(workerApi.persistCandidateHydration, args) as Promise<
+      PersistCandidateHydrationResult
+    >;
+  }
+
+  markCandidateHydrationFailure(args: {
+    candidate_id: string;
+    error_message: string;
+  }) {
+    return this.client.action(workerApi.markCandidateHydrationFailure, args);
   }
 
   markEvidenceTransformStageRunning(args: {

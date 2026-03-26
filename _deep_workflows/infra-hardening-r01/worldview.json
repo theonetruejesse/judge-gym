@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/infra-hardening-r01",
+    "objective": "Move Media Cloud acquisition from Convex actions into the Temporal worker, harden the smoke ladder around the migrated path, and reduce Railway bootstrap/manual drift so the infra is ready for V4 launch operations.",
+    "objectiveClass": "optimization",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "active",
+    "nodes": {
+      "N01": "ready",
+      "N02": "pending",
+      "N03": "pending"
+    },
+    "runtime": "active",
+    "synthesis": "pending",
+    "validation": "pending"
+  },
+  "decisions": [
+    "Keep Media Cloud inside engine-temporal rather than introducing a new microservice.",
+    "Use the existing Railway sincere-freedom project as the reference environment to simplify, not as a one-off snowflake.",
+    "Treat smoke verification and contributor bootstrap as first-class deliverables of the migration."
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

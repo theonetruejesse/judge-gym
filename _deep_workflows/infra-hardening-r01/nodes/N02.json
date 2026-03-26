@@ -1,0 +1,47 @@
+{
+  "nodeId": "N02",
+  "kind": "validate",
+  "role": "smoke-and-live-verification",
+  "objective": "Validate the migrated acquisition path locally and live, redeploy the worker, and verify Railway/Temporal health.",
+  "inputs": [
+    "apps/engine-temporal/src/",
+    "scripts/deploy_railway_worker.sh",
+    "docs/railway.md",
+    "README.md"
+  ],
+  "dependencies": [
+    "N01"
+  ],
+  "effects": [
+    "read_code",
+    "run_local_scripts",
+    "run_mutating_scripts",
+    "touch_live_ops",
+    "write_private_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.mcp__railway__deploy",
+    "functions.mcp__railway__get_logs",
+    "functions.mcp__railway__list_deployments",
+    "functions.mcp__railway__list_services"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N02/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "smoke_results.md"
+  ],
+  "completionCriteria": [
+    "Convex validation and targeted test suites pass.",
+    "Railway worker is redeployed and verified live after runtime changes.",
+    "At least one narrow smoke proves acquisition uses the intended execution plane."
+  ]
+}

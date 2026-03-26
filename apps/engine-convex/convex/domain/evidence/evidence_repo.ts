@@ -246,7 +246,10 @@ export const patchAcquisitionRun = zInternalMutation({
     discovered_count: AcquisitionRunsTableSchema.shape.discovered_count.optional(),
     hydrated_count: AcquisitionRunsTableSchema.shape.hydrated_count.optional(),
     error_count: AcquisitionRunsTableSchema.shape.error_count.optional(),
+    workflow_id: AcquisitionRunsTableSchema.shape.workflow_id.optional(),
+    workflow_run_id: AcquisitionRunsTableSchema.shape.workflow_run_id.optional(),
     last_error_message: AcquisitionRunsTableSchema.shape.last_error_message.optional(),
+    started_at_ms: AcquisitionRunsTableSchema.shape.started_at_ms.optional(),
     finished_at_ms: AcquisitionRunsTableSchema.shape.finished_at_ms.optional(),
   }),
   returns: z.null(),
@@ -257,7 +260,10 @@ export const patchAcquisitionRun = zInternalMutation({
     if (args.discovered_count !== undefined) patch.discovered_count = args.discovered_count;
     if (args.hydrated_count !== undefined) patch.hydrated_count = args.hydrated_count;
     if (args.error_count !== undefined) patch.error_count = args.error_count;
+    if (args.workflow_id !== undefined) patch.workflow_id = args.workflow_id;
+    if (args.workflow_run_id !== undefined) patch.workflow_run_id = args.workflow_run_id;
     if (args.last_error_message !== undefined) patch.last_error_message = args.last_error_message;
+    if (args.started_at_ms !== undefined) patch.started_at_ms = args.started_at_ms;
     if (args.finished_at_ms !== undefined) patch.finished_at_ms = args.finished_at_ms;
     await ctx.db.patch(args.acquisition_run_id, patch);
     return null;

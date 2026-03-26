@@ -1,6 +1,7 @@
 export const TEMPORAL_WORKFLOW_TYPES = {
   run: "RunWorkflow",
   evidence_transform: "EvidenceTransformWorkflow",
+  evidence_acquisition: "EvidenceAcquisitionWorkflow",
 } as const;
 
 export const TEMPORAL_TASK_QUEUES = {

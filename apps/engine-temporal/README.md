@@ -4,9 +4,10 @@ Temporal worker package for the greenfield V4 runtime.
 
 ## What Runs Here
 
-Two workflows are live:
+Three workflows are live:
 
 - `RunWorkflow`
+- `EvidenceAcquisitionWorkflow`
 - `EvidenceTransformWorkflow`
 
 Run stages:
@@ -16,13 +17,18 @@ Run stages:
 - `score_gen`
 - `score_critic`
 
+Evidence acquisition covers:
+
+- Media Cloud page discovery
+- URL hydration and raw source persistence
+
 Evidence transform stages:
 
 - `l1_cleaned`
 - `l2_neutralized`
 - `l3_abstracted`
 
-The worker executes provider-routed LLM calls, native batch flows, quota enforcement, run workflow snapshot/control handling, and semantic evidence view generation.
+The worker executes provider-routed LLM calls, native batch flows, quota enforcement, Media Cloud acquisition, run workflow snapshot/control handling, and semantic evidence view generation.
 
 ## Provider Support
 
@@ -32,8 +38,9 @@ The worker executes provider-routed LLM calls, native batch flows, quota enforce
 
 ## Main Files
 
-- `src/workflows.ts`: `RunWorkflow` and `EvidenceTransformWorkflow`
+- `src/workflows.ts`: `RunWorkflow`, `EvidenceAcquisitionWorkflow`, and `EvidenceTransformWorkflow`
 - `src/activities.ts`: activity bindings
+- `src/evidence_acquisition/`: Media Cloud discovery + URL hydration
 - `src/run/service.ts`: run-stage execution
 - `src/evidence_transform/service.ts`: semantic transform execution
 - `src/llm/`: provider clients
@@ -54,6 +61,7 @@ The worker executes provider-routed LLM calls, native batch flows, quota enforce
 - `TEMPORAL_TLS_SERVER_NAME`
 - `TEMPORAL_RUN_TASK_QUEUE` default: `judge-gym.run`
 - `REDIS_URL`
+- `MEDIACLOUD_API_KEY`
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `OPENROUTER_API_KEY`

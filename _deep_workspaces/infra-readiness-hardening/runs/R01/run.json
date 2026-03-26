@@ -1,0 +1,13 @@
+{
+  "runId": "R01",
+  "title": "Migrate acquisition and prove infra",
+  "boundedObjective": "Compile the first infra-hardening workflow: move Media Cloud acquisition from Convex actions into engine-temporal, define the smallest trustworthy smoke ladder for local and live validation, and identify the exact cleanup/bootstrap changes needed before V4 launch operations.",
+  "status": "planned",
+  "createdAt": "2026-03-25T23:48:27.001526+00:00",
+  "workflowRequestPath": "runs/R01/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": [
+    "Prior live worker exists on Railway sincere-freedom; current misalignment is Convex-owned acquisition."
+  ]
+}

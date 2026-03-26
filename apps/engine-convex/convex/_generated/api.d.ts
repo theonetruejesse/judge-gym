@@ -10,7 +10,6 @@
 
 import type * as domain_evidence_evidence_repo from "../domain/evidence/evidence_repo.js";
 import type * as domain_evidence_evidence_service from "../domain/evidence/evidence_service.js";
-import type * as domain_evidence_mediacloud from "../domain/evidence/mediacloud.js";
 import type * as domain_exports_analysis_export from "../domain/exports/analysis_export.js";
 import type * as domain_maintenance_codex from "../domain/maintenance/codex.js";
 import type * as domain_maintenance_danger from "../domain/maintenance/danger.js";
@@ -60,7 +59,6 @@ import type {
 declare const fullApi: ApiFromModules<{
   "domain/evidence/evidence_repo": typeof domain_evidence_evidence_repo;
   "domain/evidence/evidence_service": typeof domain_evidence_evidence_service;
-  "domain/evidence/mediacloud": typeof domain_evidence_mediacloud;
   "domain/exports/analysis_export": typeof domain_exports_analysis_export;
   "domain/maintenance/codex": typeof domain_maintenance_codex;
   "domain/maintenance/danger": typeof domain_maintenance_danger;

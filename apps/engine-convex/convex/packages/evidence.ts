@@ -51,15 +51,36 @@ const CreateAcquisitionRunResultSchema = z.object({
   acquisition_run_id: zid("acquisition_runs"),
 });
 
-const IngestAcquisitionRunArgsSchema = z.object({
+const StartAcquisitionRunArgsSchema = z.object({
   acquisition_run_id: zid("acquisition_runs"),
+});
+
+const StartAcquisitionRunResultSchema = z.object({
+  workflow_id: z.string(),
+  workflow_run_id: z.string(),
+});
+
+const MediaCloudCandidateInputSchema = z.object({
+  external_id: z.string(),
+  url: z.string(),
+  title: z.string().nullable().optional(),
+  publish_date: z.string().nullable().optional(),
+  indexed_date: z.string().nullable().optional(),
+  media_name: z.string().nullable().optional(),
+  media_url: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  metadata_json: z.string(),
+});
+
+const PersistMediaCloudDiscoveryBatchArgsSchema = z.object({
+  acquisition_run_id: zid("acquisition_runs"),
+  candidates: z.array(MediaCloudCandidateInputSchema),
   pagination_token: z.string().nullable().optional(),
-  page_size: z.number().int().positive().optional(),
-  sort_order: z.string().optional(),
+  page_count: z.number().int().nonnegative().optional(),
   persist_provider_payloads: z.boolean().optional(),
 });
 
-const IngestAcquisitionRunResultSchema = z.object({
+const PersistMediaCloudDiscoveryBatchResultSchema = z.object({
   inserted: z.number(),
   updated: z.number(),
   total: z.number(),
@@ -67,13 +88,14 @@ const IngestAcquisitionRunResultSchema = z.object({
   pagination_token: z.string().nullable(),
 });
 
-const HydrateAcquisitionRunArgsSchema = z.object({
-  acquisition_run_id: zid("acquisition_runs"),
-  limit: z.number().int().positive().optional(),
+const PersistCandidateHydrationArgsSchema = z.object({
+  candidate_id: zid("evidence_candidates"),
+  body: z.string(),
+  content_type: z.string().nullable().optional(),
   extraction_version: z.string().optional(),
 });
 
-const HydrateCandidateItemSchema = z.object({
+const PersistCandidateHydrationResultSchema = z.object({
   evidence_item_id: zid("evidence_items"),
   source_text_record_id: zid("evidence_source_records"),
   source_html_record_id: zid("evidence_source_records").nullable(),
@@ -82,11 +104,19 @@ const HydrateCandidateItemSchema = z.object({
   action: z.enum(["created", "updated"]),
 });
 
-const HydrateAcquisitionRunResultSchema = z.object({
-  processed: z.number(),
-  hydrated: z.number(),
-  skipped: z.number(),
-  items: z.array(HydrateCandidateItemSchema),
+const MarkCandidateHydrationFailureArgsSchema = z.object({
+  candidate_id: zid("evidence_candidates"),
+  error_message: z.string(),
+});
+
+const MarkAcquisitionRunErrorArgsSchema = z.object({
+  acquisition_run_id: zid("acquisition_runs"),
+  error_message: z.string(),
+  increment_error_count: z.boolean().optional(),
+});
+
+const FinalizeAcquisitionRunArgsSchema = z.object({
+  acquisition_run_id: zid("acquisition_runs"),
 });
 
 const ImportEvidenceItemArgsSchema = z.object({
@@ -230,6 +260,8 @@ const AcquisitionRunSummarySchema = z.object({
   discovered_count: z.number(),
   hydrated_count: z.number(),
   error_count: z.number(),
+  workflow_id: z.string().nullable(),
+  workflow_run_id: z.string().nullable(),
   last_error_message: z.string().nullable(),
   candidate_count: z.number(),
   item_count: z.number(),
@@ -238,6 +270,25 @@ const AcquisitionRunSummarySchema = z.object({
 const AcquisitionRunCatalogEntrySchema = AcquisitionRunSummarySchema.extend({
   started_at_ms: z.number().nullable(),
   finished_at_ms: z.number().nullable(),
+});
+
+const AcquisitionRunExecutionContextSchema = z.object({
+  acquisition_run_id: zid("acquisition_runs"),
+  acquisition_spec_id: zid("acquisition_specs"),
+  universe_id: zid("evidence_universes"),
+  spec_tag: z.string(),
+  discovery_provider: AcquisitionSpecsTableSchema.shape.discovery_provider,
+  discovery_config_json: AcquisitionSpecsTableSchema.shape.discovery_config_json,
+  hydrator_kind: AcquisitionSpecsTableSchema.shape.hydrator_kind,
+  hydrator_config_json: AcquisitionSpecsTableSchema.shape.hydrator_config_json,
+  status: z.string(),
+  cursor_json: z.string().nullable(),
+  discovered_count: z.number(),
+  hydrated_count: z.number(),
+  error_count: z.number(),
+  workflow_id: z.string().nullable(),
+  workflow_run_id: z.string().nullable(),
+  last_error_message: z.string().nullable(),
 });
 
 const EvidenceUniverseItemSummarySchema = z.object({
@@ -313,15 +364,71 @@ export const createAcquisitionRun: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
-export const ingestAcquisitionRun: ReturnType<typeof zAction> = zAction({
-  args: IngestAcquisitionRunArgsSchema,
-  returns: IngestAcquisitionRunResultSchema,
-  handler: async (ctx, args): Promise<z.infer<typeof IngestAcquisitionRunResultSchema>> => {
+export const startAcquisitionRun: ReturnType<typeof zAction> = zAction({
+  args: StartAcquisitionRunArgsSchema,
+  returns: StartAcquisitionRunResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof StartAcquisitionRunResultSchema>> => {
     const acquisitionRun = await ctx.runQuery(
       internal.domain.evidence.evidence_repo.getAcquisitionRun,
       {
         acquisition_run_id: args.acquisition_run_id,
       },
+    );
+    if (!acquisitionRun) {
+      throw new Error("Acquisition run not found.");
+    }
+    const started = await ctx.runAction(
+      internal.domain.temporal.temporal_client.startEvidenceAcquisitionWorkflow,
+      {
+        acquisition_run_id: args.acquisition_run_id,
+      },
+    );
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
+      acquisition_run_id: args.acquisition_run_id,
+      status: "queued",
+      workflow_id: started.workflow_id,
+      workflow_run_id: started.workflow_run_id,
+      started_at_ms: acquisitionRun.started_at_ms ?? Date.now(),
+      finished_at_ms: null,
+      last_error_message: null,
+    });
+    return started;
+  },
+});
+
+export const persistMediaCloudDiscoveryBatch: ReturnType<typeof zAction> = zAction({
+  args: PersistMediaCloudDiscoveryBatchArgsSchema,
+  returns: PersistMediaCloudDiscoveryBatchResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof PersistMediaCloudDiscoveryBatchResultSchema>> => {
+    return ctx.runAction(internal.domain.evidence.evidence_service.persistMediaCloudDiscoveryBatch, args);
+  },
+});
+
+export const persistCandidateHydration: ReturnType<typeof zAction> = zAction({
+  args: PersistCandidateHydrationArgsSchema,
+  returns: PersistCandidateHydrationResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof PersistCandidateHydrationResultSchema>> => {
+    return ctx.runAction(internal.domain.evidence.evidence_service.persistCandidateHydration, args);
+  },
+});
+
+export const markCandidateHydrationFailure: ReturnType<typeof zAction> = zAction({
+  args: MarkCandidateHydrationFailureArgsSchema,
+  returns: z.null(),
+  handler: async (ctx, args): Promise<null> => {
+    return ctx.runAction(internal.domain.evidence.evidence_service.markCandidateHydrationFailure, args);
+  },
+});
+
+export const getAcquisitionRunExecutionContext: ReturnType<typeof zQuery> = zQuery({
+  args: z.object({
+    acquisition_run_id: zid("acquisition_runs"),
+  }),
+  returns: AcquisitionRunExecutionContextSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof AcquisitionRunExecutionContextSchema>> => {
+    const acquisitionRun = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionRun,
+      args,
     );
     if (!acquisitionRun) {
       throw new Error("Acquisition run not found.");
@@ -335,26 +442,95 @@ export const ingestAcquisitionRun: ReturnType<typeof zAction> = zAction({
     if (!acquisitionSpec) {
       throw new Error("Acquisition spec not found.");
     }
-
-    switch (acquisitionSpec.discovery_provider) {
-      case "mediacloud":
-        return ctx.runAction(
-          internal.domain.evidence.evidence_service.ingestMediaCloudDiscoveryRun,
-          args,
-        );
-      default:
-        throw new Error(
-          `Unsupported discovery provider for ingestAcquisitionRun: ${acquisitionSpec.discovery_provider}`,
-        );
-    }
+    return {
+      acquisition_run_id: acquisitionRun._id,
+      acquisition_spec_id: acquisitionSpec._id,
+      universe_id: acquisitionSpec.universe_id,
+      spec_tag: acquisitionSpec.spec_tag,
+      discovery_provider: acquisitionSpec.discovery_provider,
+      discovery_config_json: acquisitionSpec.discovery_config_json,
+      hydrator_kind: acquisitionSpec.hydrator_kind,
+      hydrator_config_json: acquisitionSpec.hydrator_config_json ?? null,
+      status: acquisitionRun.status,
+      cursor_json: acquisitionRun.cursor_json ?? null,
+      discovered_count: acquisitionRun.discovered_count,
+      hydrated_count: acquisitionRun.hydrated_count,
+      error_count: acquisitionRun.error_count,
+      workflow_id: acquisitionRun.workflow_id ?? null,
+      workflow_run_id: acquisitionRun.workflow_run_id ?? null,
+      last_error_message: acquisitionRun.last_error_message ?? null,
+    };
   },
 });
 
-export const hydrateAcquisitionRun: ReturnType<typeof zAction> = zAction({
-  args: HydrateAcquisitionRunArgsSchema,
-  returns: HydrateAcquisitionRunResultSchema,
-  handler: async (ctx, args): Promise<z.infer<typeof HydrateAcquisitionRunResultSchema>> => {
-    return ctx.runAction(internal.domain.evidence.evidence_service.hydrateRunCandidates, args);
+export const markAcquisitionRunRunning: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    acquisition_run_id: zid("acquisition_runs"),
+  }),
+  returns: z.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const acquisitionRun = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionRun,
+      args,
+    );
+    if (!acquisitionRun) {
+      throw new Error("Acquisition run not found.");
+    }
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
+      acquisition_run_id: args.acquisition_run_id,
+      status: "running",
+      started_at_ms: acquisitionRun.started_at_ms ?? Date.now(),
+      last_error_message: null,
+      finished_at_ms: null,
+    });
+    return null;
+  },
+});
+
+export const finalizeAcquisitionRun: ReturnType<typeof zMutation> = zMutation({
+  args: FinalizeAcquisitionRunArgsSchema,
+  returns: z.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const acquisitionRun = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionRun,
+      args,
+    );
+    if (!acquisitionRun) {
+      throw new Error("Acquisition run not found.");
+    }
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
+      acquisition_run_id: args.acquisition_run_id,
+      status: "completed",
+      cursor_json: null,
+      finished_at_ms: Date.now(),
+      last_error_message: null,
+    });
+    return null;
+  },
+});
+
+export const markAcquisitionRunError: ReturnType<typeof zMutation> = zMutation({
+  args: MarkAcquisitionRunErrorArgsSchema,
+  returns: z.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const acquisitionRun = await ctx.runQuery(
+      internal.domain.evidence.evidence_repo.getAcquisitionRun,
+      {
+        acquisition_run_id: args.acquisition_run_id,
+      },
+    );
+    if (!acquisitionRun) {
+      throw new Error("Acquisition run not found.");
+    }
+    const shouldIncrement = args.increment_error_count ?? true;
+    await ctx.runMutation(internal.domain.evidence.evidence_repo.patchAcquisitionRun, {
+      acquisition_run_id: args.acquisition_run_id,
+      status: "error",
+      error_count: acquisitionRun.error_count + (shouldIncrement ? 1 : 0),
+      last_error_message: args.error_message,
+      finished_at_ms: Date.now(),
+    });
+    return null;
   },
 });
 
@@ -590,14 +766,16 @@ export const getAcquisitionRunSummary: ReturnType<typeof zQuery> = zQuery({
       throw new Error("Acquisition spec not found.");
     }
 
-    const [candidateRows, itemRows] = await Promise.all([
-      ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
-        acquisition_run_id: acquisitionRun._id,
-      }),
-      ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseItems, {
-        universe_id: acquisitionSpec.universe_id,
-      }),
-    ]);
+    const candidateRows = await ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
+      acquisition_run_id: acquisitionRun._id,
+    });
+    const itemRows = await Promise.all(
+      candidateRows.map((candidate: (typeof candidateRows)[number]) =>
+        ctx.runQuery(internal.domain.evidence.evidence_repo.getItemByCandidate, {
+          candidate_id: candidate._id,
+        }),
+      ),
+    );
 
     return {
       acquisition_run_id: acquisitionRun._id,
@@ -611,9 +789,11 @@ export const getAcquisitionRunSummary: ReturnType<typeof zQuery> = zQuery({
       discovered_count: acquisitionRun.discovered_count,
       hydrated_count: acquisitionRun.hydrated_count,
       error_count: acquisitionRun.error_count,
+      workflow_id: acquisitionRun.workflow_id ?? null,
+      workflow_run_id: acquisitionRun.workflow_run_id ?? null,
       last_error_message: acquisitionRun.last_error_message ?? null,
       candidate_count: candidateRows.length,
-      item_count: itemRows.length,
+      item_count: itemRows.filter((item) => item != null).length,
     };
   },
 });
@@ -637,14 +817,16 @@ export const listAcquisitionRuns: ReturnType<typeof zQuery> = zQuery({
         if (args.universe_id && spec.universe_id !== args.universe_id) {
           return null;
         }
-        const [candidateRows, itemRows] = await Promise.all([
-          ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
-            acquisition_run_id: run._id,
-          }),
-          ctx.runQuery(internal.domain.evidence.evidence_repo.listUniverseItems, {
-            universe_id: spec.universe_id,
-          }),
-        ]);
+        const candidateRows = await ctx.runQuery(internal.domain.evidence.evidence_repo.listRunCandidates, {
+          acquisition_run_id: run._id,
+        });
+        const itemRows = await Promise.all(
+          candidateRows.map((candidate: (typeof candidateRows)[number]) =>
+            ctx.runQuery(internal.domain.evidence.evidence_repo.getItemByCandidate, {
+              candidate_id: candidate._id,
+            }),
+          ),
+        );
         return {
           acquisition_run_id: run._id,
           acquisition_spec_id: spec._id,
@@ -657,9 +839,11 @@ export const listAcquisitionRuns: ReturnType<typeof zQuery> = zQuery({
           discovered_count: run.discovered_count,
           hydrated_count: run.hydrated_count,
           error_count: run.error_count,
+          workflow_id: run.workflow_id ?? null,
+          workflow_run_id: run.workflow_run_id ?? null,
           last_error_message: run.last_error_message ?? null,
           candidate_count: candidateRows.length,
-          item_count: itemRows.length,
+          item_count: itemRows.filter((item) => item != null).length,
           started_at_ms: run.started_at_ms ?? null,
           finished_at_ms: run.finished_at_ms ?? null,
         };

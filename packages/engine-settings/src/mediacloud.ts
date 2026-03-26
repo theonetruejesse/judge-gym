@@ -7,6 +7,9 @@ export const MediaCloudSettingsSchema = z.object({
   defaultPageSize: z.number().int().positive().default(100),
   maxPageSize: z.number().int().positive().default(1_000),
   defaultSortOrder: z.string().nullable().default(null),
+  maxRetries: z.number().int().nonnegative().default(3),
+  initialBackoffMs: z.number().int().positive().default(1_000),
+  maxBackoffMs: z.number().int().positive().default(10_000),
 });
 
 export type MediaCloudSettings = z.infer<typeof MediaCloudSettingsSchema>;

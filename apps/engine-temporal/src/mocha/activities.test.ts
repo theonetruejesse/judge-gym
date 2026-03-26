@@ -42,4 +42,13 @@ describe("temporal migration activities", () => {
       /processId is required/,
     );
   });
+
+  it("fails fast before querying Convex when an acquisition input omits the run id", async () => {
+    await assert.rejects(
+      () => activities.runEvidenceAcquisitionCycle({
+        acquisitionRunId: undefined as unknown as string,
+      }),
+      /processId is required/,
+    );
+  });
 });

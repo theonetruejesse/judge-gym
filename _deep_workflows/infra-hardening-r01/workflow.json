@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "Infra Hardening R01",
+    "slug": "infra-hardening-r01",
+    "objective": "Move Media Cloud acquisition from Convex actions into the Temporal worker, harden the smoke ladder around the migrated path, and reduce Railway bootstrap/manual drift so the infra is ready for V4 launch operations.",
+    "objectiveClass": "optimization",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/infra-hardening-r01"
+  },
+  "compile": {
+    "baseHint": "Use the existing live Railway worker and V4 evidence substrate as the base. The only architectural misalignment to correct first is Convex-owned Media Cloud acquisition.",
+    "taskSignals": [
+      "Media Cloud discovery currently runs in Convex node actions.",
+      "The user wants Firecrawl-style ownership, meaning external acquisition should happen on Railway/Temporal.",
+      "The worker and Railway project are already live, so runtime-affecting changes can be redeployed and verified in the same loop.",
+      "This workspace stops short of V4 launch execution; only infra hardening, smoke validation, and bootstrap simplification are in scope."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "seq"
+    ],
+    "notes": [
+      "Keep the workflow bounded to acquisition migration, smoke validation, and deployment/bootstrap cleanup.",
+      "Do not reopen the V4 experimental matrix."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_deep_workspaces/infra-readiness-hardening/runs/R01/workflow_request.md",
+      "apps/engine-convex/convex/domain/evidence/mediacloud.ts",
+      "apps/engine-convex/convex/domain/evidence/evidence_service.ts",
+      "apps/engine-convex/convex/packages/evidence.ts",
+      "apps/engine-convex/convex/domain/temporal/temporal_client.ts",
+      "apps/engine-temporal/src/activities.ts",
+      "apps/engine-temporal/src/workflows.ts",
+      "apps/engine-temporal/src/worker.ts",
+      "scripts/deploy_railway_worker.sh",
+      "docs/railway.md",
+      "README.md"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.apply_patch",
+      "functions.mcp__convex__status",
+      "functions.mcp__railway__list_services",
+      "functions.mcp__railway__list_deployments",
+      "functions.mcp__railway__get_logs",
+      "functions.mcp__railway__set_variables",
+      "functions.mcp__railway__deploy"
+    ],
+    "connectors": [
+      "Convex own-dev",
+      "Railway sincere-freedom"
+    ],
+    "env": [
+      "CONVEX_URL",
+      "TEMPORAL_ADDRESS",
+      "TEMPORAL_NAMESPACE",
+      "MEDIACLOUD_API_KEY",
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "OPENROUTER_API_KEY"
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "patch",
+        "role": "acquisition-migration"
+      },
+      {
+        "nodeId": "N02",
+        "kind": "validate",
+        "role": "smoke-and-live-verification"
+      },
+      {
+        "nodeId": "N03",
+        "kind": "synthesize",
+        "role": "cleanup-and-bootstrap-closeout"
+      }
+    ],
+    "edges": [
+      {
+        "from": "N01",
+        "to": "N02",
+        "kind": "seq"
+      },
+      {
+        "from": "N02",
+        "to": "N03",
+        "kind": "seq"
+      }
+    ]
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/implementation_notes.md",
+      "agents/N02/smoke_results.md",
+      "agents/N03/closeout.md"
+    ],
+    "artifactTypes": [
+      "report",
+      "validation_result",
+      "decision"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when Media Cloud acquisition is Temporal-owned, live smoke passes, and the remaining contributor bootstrap is fully documented and minimized.",
+      "Stop early only for true external blockers such as unavailable Railway or Media Cloud surfaces."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 3,
+    "retry": 0,
+    "budget": {
+      "primary": "Prefer small live smokes over broad canary launches.",
+      "secondary": "Keep contributor bootstrap changes tight and reproducible."
+    }
+  }
+}

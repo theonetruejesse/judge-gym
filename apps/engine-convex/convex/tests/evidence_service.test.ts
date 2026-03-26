@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { buildModules } from "./test.setup";
@@ -10,10 +10,6 @@ function initTest() {
 }
 
 describe("evidence service", () => {
-  beforeEach(() => {
-    process.env.MEDIACLOUD_API_KEY = "test-mediacloud-key";
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -67,7 +63,7 @@ describe("evidence service", () => {
     expect(asset?.storage_id).toBe(first.storage_id);
   });
 
-  test("ingestMediaCloudDiscoveryRun stores candidates and provider payload assets", async () => {
+  test("persistMediaCloudDiscoveryBatch stores candidates and provider payload assets", async () => {
     const t = initTest();
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "mediacloud-ingest",
@@ -96,39 +92,24 @@ describe("evidence service", () => {
       },
     );
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            stories: [
-              {
-                id: 42,
-                url: "https://example.com/story-42",
-                title: "Story Forty Two",
-                publish_date: "2026-03-02",
-                indexed_date: "2026-03-02T10:00:00Z",
-                media_name: "Example Outlet",
-                media_url: "https://example.com",
-                language: "en",
-              },
-            ],
-            pagination_token: null,
-          }),
-          {
-            status: 200,
-            headers: {
-              "content-type": "application/json",
-            },
-          },
-        ),
-      ),
-    );
-
     const result = await t.action(
-      internal.domain.evidence.evidence_service.ingestMediaCloudDiscoveryRun,
+      internal.domain.evidence.evidence_service.persistMediaCloudDiscoveryBatch,
       {
         acquisition_run_id,
+        candidates: [
+          {
+            external_id: "42",
+            url: "https://example.com/story-42",
+            title: "Story Forty Two",
+            publish_date: "2026-03-02",
+            indexed_date: "2026-03-02T10:00:00Z",
+            media_name: "Example Outlet",
+            media_url: "https://example.com",
+            language: "en",
+            metadata_json: JSON.stringify({ id: 42 }),
+          },
+        ],
+        pagination_token: null,
       },
     );
 
@@ -143,7 +124,7 @@ describe("evidence service", () => {
     expect(candidates[0]?.provider_payload_asset_id).toBeTruthy();
   });
 
-  test("hydrateCandidate stores raw html/raw text as source records", async () => {
+  test("persistCandidateHydration stores raw html/raw text as source records", async () => {
     const t = initTest();
     const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
       universe_tag: "hydrate-candidate",
@@ -182,33 +163,20 @@ describe("evidence service", () => {
       },
     );
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(
-          `
-            <html>
-              <body>
-                <article>
-                  <h1>Headline</h1>
-                  <p>Paragraph one.</p>
-                  <p>Paragraph two.</p>
-                </article>
-              </body>
-            </html>
-          `,
-          {
-            status: 200,
-            headers: {
-              "content-type": "text/html; charset=utf-8",
-            },
-          },
-        ),
-      ),
-    );
-
-    const result = await t.action(internal.domain.evidence.evidence_service.hydrateCandidate, {
+    const result = await t.action(internal.domain.evidence.evidence_service.persistCandidateHydration, {
       candidate_id: candidateBatch.candidate_ids[0]!,
+      body: `
+        <html>
+          <body>
+            <article>
+              <h1>Headline</h1>
+              <p>Paragraph one.</p>
+              <p>Paragraph two.</p>
+            </article>
+          </body>
+        </html>
+      `,
+      content_type: "text/html; charset=utf-8",
     });
 
     expect(result.action).toBe("created");
@@ -226,6 +194,60 @@ describe("evidence service", () => {
     expect(sourceRecords).toHaveLength(2);
     expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_text_record_id)?.record_kind).toBe("source_text");
     expect(sourceRecords.find((record: (typeof sourceRecords)[number]) => record._id === result.source_html_record_id)?.record_kind).toBe("source_html");
+  });
+
+  test("markCandidateHydrationFailure records a failed hydration state", async () => {
+    const t = initTest();
+    const { universe_id } = await t.mutation(internal.domain.evidence.evidence_repo.createUniverse, {
+      universe_tag: "hydrate-failure",
+      kind: "news",
+      title: "Hydrate failure",
+    });
+    const { acquisition_spec_id } = await t.mutation(
+      internal.domain.evidence.evidence_repo.createAcquisitionSpec,
+      {
+        universe_id,
+        spec_tag: "hydrate-failure-spec",
+        discovery_provider: "manual",
+        discovery_config_json: "{}",
+        hydrator_kind: "manual",
+      },
+    );
+    const { acquisition_run_id } = await t.mutation(
+      internal.domain.evidence.evidence_repo.createAcquisitionRun,
+      {
+        acquisition_spec_id,
+      },
+    );
+    const candidateBatch = await t.mutation(
+      internal.domain.evidence.evidence_repo.upsertCandidates,
+      {
+        universe_id,
+        acquisition_run_id,
+        candidates: [
+          {
+            discovery_provider: "manual",
+            external_id: "story-fail-1",
+            url: "https://example.com/story-fail-1",
+            title: "Fail me",
+          },
+        ],
+      },
+    );
+
+    await t.action(
+      internal.domain.evidence.evidence_service.markCandidateHydrationFailure,
+      {
+        candidate_id: candidateBatch.candidate_ids[0]!,
+        error_message: "boom",
+      },
+    );
+
+    const items = await t.query(internal.domain.evidence.evidence_repo.listUniverseItems, {
+      universe_id,
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]?.hydration_status).toBe("failed");
   });
 
   test("importEvidenceItem stores direct text imports as hydrated source records", async () => {

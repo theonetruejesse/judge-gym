@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 SERVICE_NAME="${RAILWAY_WORKER_SERVICE_NAME:-engine-temporal-worker}"
 RAILWAY_ENVIRONMENT="${RAILWAY_ENVIRONMENT:-production}"
+RAILWAY_PROJECT_ID="${RAILWAY_PROJECT_ID:-}"
 RAILWAY_TEMPORAL_PRIVATE_ADDRESS="${RAILWAY_TEMPORAL_PRIVATE_ADDRESS:-temporalserver.railway.internal:7233}"
 if [ -z "${RAILWAY_REDIS_URL_REFERENCE:-}" ]; then
   RAILWAY_REDIS_URL_REFERENCE='${{Redis.REDIS_URL}}'
@@ -40,19 +41,14 @@ require_cmd railway
 require_cmd node
 
 if ! railway status --json >/dev/null 2>&1; then
-  cat <<EOF
-Railway project is not linked in this repo.
-
-Link an existing project first, for example:
-  railway link --project <project-id> --environment $RAILWAY_ENVIRONMENT
-
-Then re-run this script.
-EOF
-  exit 1
+  require_env RAILWAY_PROJECT_ID
+  echo "Linking Railway project $RAILWAY_PROJECT_ID ($RAILWAY_ENVIRONMENT)"
+  railway link --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" >/dev/null
 fi
 
 require_env CONVEX_URL
 require_env OPENAI_API_KEY
+require_env MEDIACLOUD_API_KEY
 
 status_json="$(railway status --json)"
 redis_url_value="${REDIS_URL:-$RAILWAY_REDIS_URL_REFERENCE}"
@@ -76,6 +72,7 @@ worker_vars=(
   "TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}"
   "CONVEX_URL=$CONVEX_URL"
   "OPENAI_API_KEY=$OPENAI_API_KEY"
+  "MEDIACLOUD_API_KEY=$MEDIACLOUD_API_KEY"
   "REDIS_URL=$redis_url_value"
 )
 
@@ -95,16 +92,8 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   worker_vars+=("ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY")
 fi
 
-if [ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]; then
-  worker_vars+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY")
-fi
-
 if [ -n "${OPENROUTER_API_KEY:-}" ]; then
   worker_vars+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY")
-fi
-
-if [ -n "${XAI_API_KEY:-}" ]; then
-  worker_vars+=("XAI_API_KEY=$XAI_API_KEY")
 fi
 
 railway variable set -s "$SERVICE_NAME" -e "$RAILWAY_ENVIRONMENT" \

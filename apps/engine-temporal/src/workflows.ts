@@ -10,6 +10,7 @@ import {
   workflowInfo,
 } from "@temporalio/workflow";
 import type {
+  EvidenceAcquisitionWorkflowInput,
   EvidenceTransformStageKey,
   EvidenceTransformWorkflowInput,
   PauseNowInput,
@@ -57,6 +58,15 @@ const {
 
 const {
   runEvidenceTransformStage,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  retry: {
+    maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
+  },
+});
+
+const {
+  runEvidenceAcquisitionCycle,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
   retry: {
@@ -323,5 +333,28 @@ export async function evidenceTransformWorkflow(
   return {
     transformRunId: input.transformRunId,
     stages,
+  };
+}
+
+export async function evidenceAcquisitionWorkflow(
+  input: EvidenceAcquisitionWorkflowInput,
+) {
+  let iterations = 0;
+  let completed = false;
+
+  while (!completed) {
+    iterations += 1;
+    const result = await runEvidenceAcquisitionCycle({
+      acquisitionRunId: input.acquisitionRunId,
+    });
+    completed = result.completed;
+    if (iterations > 256) {
+      throw new Error("Evidence acquisition workflow exceeded 256 iterations.");
+    }
+  }
+
+  return {
+    acquisitionRunId: input.acquisitionRunId,
+    iterations,
   };
 }

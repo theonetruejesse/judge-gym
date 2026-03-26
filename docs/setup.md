@@ -40,7 +40,7 @@ CONVEX_URL=...
 CONVEX_SITE_URL=...
 
 OPENAI_API_KEY=...
-FIRECRAWL_API_KEY=...
+MEDIACLOUD_API_KEY=...
 
 TEMPORAL_ADDRESS=<public temporal frontend tcp host:port>
 TEMPORAL_NAMESPACE=default
@@ -49,8 +49,9 @@ TEMPORAL_NAMESPACE=default
 Notes:
 
 - Local scripts use the public Temporal TCP endpoint.
+- Media Cloud discovery is executed by the Railway worker, so the worker environment must also carry `MEDIACLOUD_API_KEY`.
 - The Railway worker does **not** use that public endpoint. It uses the private
-  Railway alias `temporalserver:7233` unless your template used a different
+  Railway alias `temporalserver.railway.internal:7233` unless your template used a different
   private service name.
 
 ## 3. Create the Railway Temporal project
@@ -93,13 +94,21 @@ private Railway network.
 
 ## 4. Link your repo to Railway
 
-Link this repo to the Railway project you want to use:
+Add these to `.env.local`:
 
 ```bash
-railway link --project <project-id> --environment production
+RAILWAY_PROJECT_ID=<your-railway-project-id>
+RAILWAY_ENVIRONMENT=production
+RAILWAY_WORKER_SERVICE_NAME=engine-temporal-worker
 ```
 
-Do this locally only. Do not commit machine-specific Railway link state.
+Then verify the repo can auto-link to the intended project and worker target:
+
+```bash
+bun run infra:verify:railway
+```
+
+Do not commit machine-specific Railway link state.
 
 ## 5. Deploy the Railway worker
 
@@ -122,6 +131,7 @@ The worker service needs:
 - `TEMPORAL_NAMESPACE=default`
 - `CONVEX_URL`
 - `OPENAI_API_KEY`
+- `MEDIACLOUD_API_KEY`
 - `REDIS_URL` via the default Railway service reference `${{Redis.REDIS_URL}}`
   or your explicit `RAILWAY_REDIS_URL_REFERENCE`
 
@@ -129,7 +139,7 @@ Optional:
 
 - `AXIOM_DATASET`
 - `AXIOM_TOKEN`
-- additional provider API keys such as `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, and `XAI_API_KEY`
+- additional provider API keys such as `ANTHROPIC_API_KEY` and `OPENROUTER_API_KEY`
 
 ## 6. Configure Convex env
 
@@ -167,6 +177,7 @@ Recommended smoke test:
 
 ```bash
 bun run v4:smoke
+bun run infra:smoke:acquisition
 ```
 
 That smoke script:

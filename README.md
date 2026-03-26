@@ -7,7 +7,7 @@ The repo is now a greenfield V4 system. The old window / `window_runs` / `eviden
 ## Stack
 
 - `apps/engine-convex`: Convex backend, schema, worker APIs, evidence acquisition, experiment/run orchestration
-- `apps/engine-temporal`: Temporal worker for `RunWorkflow` and semantic evidence transforms
+- `apps/engine-temporal`: Temporal worker for run execution, Media Cloud acquisition, and semantic evidence transforms
 - `apps/lab`: Next.js UI for evidence universes, evidence sets, and experiments
 - `packages/engine-settings`: shared provider/runtime settings
 - `packages/engine-prompts`: shared run prompt/config contracts
@@ -69,12 +69,16 @@ Live workflows:
   - `rubric_critic`
   - `score_gen`
   - `score_critic`
+- `EvidenceAcquisitionWorkflow` for:
+  - Media Cloud page discovery
+  - URL hydration on the worker
+  - persistence back into Convex evidence tables/storage
 - `EvidenceTransformWorkflow` with:
   - `l1_cleaned`
   - `l2_neutralized`
   - `l3_abstracted`
 
-Semantic transforms now read from `evidence_source_records` and write back into `evidence_views`. Raw/paper-original source records stay decoupled from the semantic ladder.
+Convex owns the control plane and storage persistence. Railway/Temporal owns long-running external I/O, including Media Cloud discovery and URL hydration. Semantic transforms read from `evidence_source_records` and write back into `evidence_views`. Raw/paper-original source records stay decoupled from the semantic ladder.
 
 Provider support:
 
@@ -91,6 +95,7 @@ Batch/provider lifecycle is persisted in `llm_batch_executions`, including provi
 The lab now has two primary authoring surfaces:
 
 - `/editor/evidence`: Media Cloud query form for creating evidence universes and frozen evidence sets
+- `/editor/evidence`: Media Cloud query form for creating universes and launching acquisition workflows
 - `/editor/experiment`: experiment creation from curated evidence sets
 
 The home page lists:
@@ -123,6 +128,7 @@ Useful checks:
 Smoke flow:
 
 - `cd apps/engine-convex && bun run v4:smoke`
+- `bun run infra:smoke:acquisition`
 
 Local paper-audit readiness flow:
 
@@ -140,7 +146,7 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 - Root `.env.local` is the source of truth
 - Use `bun install` from repo root
 - Deploy the Temporal worker after runtime-affecting worker changes before resuming real external runs
-- Railway worker bootstrap is: Temporal template project + Redis service + public TCP proxy on `7233` + `./scripts/deploy_railway_worker.sh`
+- Railway worker bootstrap is: Temporal template project + Redis service + public TCP proxy on `7233` + `MEDIACLOUD_API_KEY` + `RAILWAY_PROJECT_ID` in `.env.local` + `bun run infra:verify:railway` + `./scripts/deploy_railway_worker.sh`
 
 ## Debug Surfaces
 

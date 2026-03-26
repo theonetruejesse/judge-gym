@@ -22,6 +22,8 @@
     "v4:build:zheng": "bun scripts/v4/build_zheng_import.ts",
     "v4:canary:gilardi": "bun scripts/v4/canary_gilardi.ts",
     "v4:canary:zheng": "bun scripts/v4/canary_zheng.ts",
+    "infra:verify:railway": "bash scripts/verify_railway_worker.sh",
+    "infra:smoke:acquisition": "bun scripts/acquisition_smoke.ts",
     "typecheck": "turbo run typecheck",
     "validate:convex": "(cd apps/engine-convex && npx convex codegen) && bun run typecheck"
   },

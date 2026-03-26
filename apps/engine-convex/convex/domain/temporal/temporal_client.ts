@@ -299,6 +299,38 @@ export async function startEvidenceTransformWorkflowExecution(args: {
   }
 }
 
+export async function startEvidenceAcquisitionWorkflowExecution(args: {
+  acquisition_run_id: string;
+}) {
+  const config = getTemporalConfig();
+  const connection = await Connection.connect({
+    address: config.address,
+    tls: config.tls,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: config.namespace,
+    });
+
+    const handle = await client.workflow.start("evidenceAcquisitionWorkflow", {
+      args: [{
+        acquisitionRunId: args.acquisition_run_id,
+      }],
+      taskQueue: config.taskQueues.run,
+      workflowId: `acquisition:${args.acquisition_run_id}`,
+    });
+
+    return {
+      workflow_id: handle.workflowId,
+      workflow_run_id: handle.firstExecutionRunId,
+    };
+  } finally {
+    await connection.close();
+  }
+}
+
 async function withTemporalClient<T>(
   fn: (client: Client) => Promise<T>,
 ) {
@@ -599,6 +631,21 @@ export const startEvidenceTransformWorkflow = zInternalAction({
   }),
   handler: async (_ctx, args) => {
     return startEvidenceTransformWorkflowExecution(args);
+  },
+});
+
+export const startEvidenceAcquisitionWorkflow = zInternalAction({
+  args: z.object({
+    acquisition_run_id: zid("acquisition_runs"),
+  }),
+  returns: z.object({
+    workflow_id: z.string(),
+    workflow_run_id: z.string(),
+  }),
+  handler: async (_ctx, args) => {
+    return startEvidenceAcquisitionWorkflowExecution({
+      acquisition_run_id: String(args.acquisition_run_id),
+    });
   },
 });
 

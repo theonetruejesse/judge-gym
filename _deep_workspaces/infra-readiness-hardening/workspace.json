@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "Infra Readiness Hardening",
+    "slug": "infra-readiness-hardening",
+    "objective": "Harden judge-gym infra for V4 launch by moving Media Cloud acquisition to the Temporal execution plane, validating full smoke/screen coverage, clearing irrelevant Convex and Railway state, and simplifying Railway bootstrap/linking so contributors can provision the stack from scratch.",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/infra-readiness-hardening"
+  },
+  "environment": {
+    "repoRoot": "/Users/jesselee/dev/research/jg/judge-gym",
+    "knownTools": [
+      "bun",
+      "uv",
+      "Convex own-dev and package APIs",
+      "Temporal worker runtime on Railway",
+      "Railway MCP plus linked sincere-freedom project",
+      "Media Cloud API key in local .env.local",
+      "deep-workflow",
+      "execute-workflow"
+    ],
+    "knownConstraints": [
+      "User wants greenfield treatment: legacy code and stale state should be aggressively removed rather than migrated.",
+      "User explicitly wants Media Cloud ingestion to follow the old Firecrawl ownership model, meaning acquisition should run on the Railway/Temporal side rather than inside Convex actions.",
+      "Convex is the control plane and persistence layer; Railway/Temporal is the execution plane for long-running external I/O.",
+      "bun dev must remain agent-owned while this campaign is active.",
+      "After runtime-affecting changes to apps/engine-temporal, shared engine runtime packages, Dockerfile, or railway.toml, the worker must be redeployed and verified live before launch work resumes."
+    ],
+    "unknowns": [
+      "How much of the existing Convex acquisition API should remain as public control-plane surface versus being replaced by Temporal-triggered orchestration.",
+      "Whether Media Cloud hydration should stay coupled to acquisition in the first pass or split into separate Temporal activities immediately.",
+      "What the minimal contributor bootstrap contract should be for Railway: one script, one template, or both."
+    ],
+    "notes": [
+      "Current code keeps Media Cloud discovery in apps/engine-convex/convex/domain/evidence/mediacloud.ts and ingestion orchestration in evidence_service.ts and packages/evidence.ts.",
+      "Current Railway project is sincere-freedom with Temporal template services, Redis, and engine-temporal-worker already deployed.",
+      "Existing V4 paper-audit canaries are local-import based and do not require Media Cloud to run, but the user wants the acquisition architecture corrected before the broader launch campaign."
+    ]
+  },
+  "objectiveModel": {
+    "terminalObjective": "Harden judge-gym infra for V4 launch by moving Media Cloud acquisition to the Temporal execution plane, validating full smoke/screen coverage, clearing irrelevant Convex and Railway state, and simplifying Railway bootstrap/linking so contributors can provision the stack from scratch.",
+    "successCriteria": [
+      "Media Cloud acquisition is owned by engine-temporal rather than Convex actions, with Convex used for persistence and orchestration state only.",
+      "Smoke and screen tests cover acquisition, provider routing, worker deployment, and end-to-end canary scaffolding with trustworthy validation artifacts.",
+      "Irrelevant local Convex data and unnecessary Railway services/config drift are pruned or explicitly classified as intentional.",
+      "Contributor-facing Railway bootstrap is reduced to a documented, reproducible flow that can recreate the current deployment shape from scratch.",
+      "At campaign close, the only remaining actions before V4 launch are live control-plane operations such as creating experiments, ingestion jobs, and canary runs."
+    ],
+    "nonGoals": [
+      "Do not reopen the V4 paper matrix or experiment-spec campaign in this workspace.",
+      "Do not build a separate Media Cloud microservice app unless engine-temporal proves insufficient.",
+      "Do not spend time on broad lab UI work outside what is needed for infra validation.",
+      "Do not add new providers or launch new evaluation campaigns during this workspace."
+    ],
+    "dependencyPolicy": [
+      "Use current repo runtime state as the implementation source of truth.",
+      "Treat the existing Railway project as the reference deployment to simplify and document, not as a permanent snowflake to preserve.",
+      "Promote only changes that improve greenfield reproducibility and reduce hidden operational coupling."
+    ],
+    "capabilityTiers": [
+      {
+        "tier": "T0",
+        "label": "Infra ready",
+        "definition": "Acquisition, worker deployment, smoke validation, and contributor bootstrap are coherent enough to support the V4 launch campaign."
+      },
+      {
+        "tier": "T1",
+        "label": "Smoke verified",
+        "definition": "Local and live smoke checks prove the Temporal worker, Convex control plane, and provider/external acquisition surfaces behave as expected."
+      },
+      {
+        "tier": "T2",
+        "label": "Bootstrap simplified",
+        "definition": "A new contributor can recreate the Railway-linked worker environment from repo docs and scripts with minimal manual reconstruction."
+      }
+    ]
+  },
+  "strategy": {
+    "baselinePlan": [
+      "Start by moving Media Cloud acquisition from Convex node actions into engine-temporal workflows/activities while preserving the existing Convex persistence model.",
+      "Use smoke-first validation: keep live checks narrow and attributable, then expand only after the execution plane is stable.",
+      "Prune stale runtime state and redundant infra only after the new path is working, so cleanup follows validation rather than preceding it.",
+      "Reduce contributor setup to a single documented Railway bootstrap path backed by repo scripts and explicit environment contracts."
+    ],
+    "telemetry": {
+      "historyPath": "telemetry/metrics.jsonl",
+      "leaderboardPath": "telemetry/leaderboard.json",
+      "trackedMetrics": [
+        "execution_plane_alignment",
+        "smoke_coverage",
+        "bootstrap_simplicity",
+        "state_hygiene",
+        "unresolved_infra_blockers"
+      ]
+    },
+    "progressionLadder": [
+      "environment discovery -> lock current Convex/Temporal/Railway/Media Cloud execution ownership and gaps",
+      "migration planning -> compile a bounded workflow for acquisition migration and smoke validation",
+      "runtime hardening -> implement, validate, redeploy, and verify live worker behavior",
+      "cleanup and simplification -> prune irrelevant state and document/reduce contributor bootstrap"
+    ],
+    "searchRegimes": [
+      {
+        "mode": "exploit",
+        "focus": "Use the current implementation and deployed Railway project to converge on the smallest reliable execution architecture."
+      },
+      {
+        "mode": "explore",
+        "focus": "Check whether any extra deployment simplifications or state-pruning opportunities materially improve contributor bootstrap."
+      }
+    ],
+    "pruneRules": [
+      "Prune any branch that creates an extra standalone microservice for Media Cloud without clear scaling or ownership necessity.",
+      "Prune validation work that does not directly increase trust in the execution plane or contributor bootstrap path.",
+      "Prune legacy compatibility layers once the greenfield replacement path is validated."
+    ],
+    "escalationRules": [
+      "Escalate to a deeper workflow only when the next step is a bounded implementation or cleanup slice with concrete validation.",
+      "Escalate Railway simplification only after the worker deployment contract is stable again on the migrated runtime path."
+    ],
+    "promotionRules": [
+      "Promote a runtime change only if smoke coverage and live worker verification both pass.",
+      "Promote a cleanup step only if it clearly reduces stale state or contributor confusion without removing needed execution surfaces.",
+      "Promote a bootstrap contract only if it is reproducible from repo scripts/docs rather than oral history."
+    ],
+    "gitPolicy": {
+      "commitAfterLoop": true,
+      "branchStrategy": "same_branch_until_user_redirects"
+    },
+    "workflowRequestPolicy": {
+      "createRealRunFolders": true,
+      "maxOpenRuns": 1
+    }
+  },
+  "handoff": {
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows",
+    "runRoot": "runs/",
+    "kernelSkill": "deep-workflow",
+    "executorSkill": "execute-workflow",
+    "requestTemplatePath": "runs/_template_workflow_request.md"
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "telemetry/leaderboard.json"
+    ]
+  },
+  "policies": {
+    "maxConcurrentWorkflows": 1,
+    "reviewRequired": [
+      "Creating a separate acquisition microservice instead of using engine-temporal",
+      "Retaining Convex-side Media Cloud execution as the primary architecture",
+      "Expanding beyond infra hardening into V4 launch execution"
+    ],
+    "stopConditions": [
+      "Terminal objective met: infra is smoke-verified, cleaned, and contributor-bootstrap ready.",
+      "Hard blocker: a required external surface such as Railway or Media Cloud becomes unavailable and prevents validation."
+    ],
+    "budget": {
+      "primaryCostControl": "Prefer narrow live smokes and deterministic cleanup over repeated broad canary launches.",
+      "executionScope": "One bounded deep-workflow at a time, then direct implementation until the next strategic bottleneck."
+    },
+    "continueUntilTerminal": true,
+    "blockerPolicy": "only_stop_for_real_external_blockers"
+  }
+}

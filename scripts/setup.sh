@@ -41,11 +41,10 @@ if [ ! -f "$ROOT_DIR/.env.local" ]; then
     cat > "$ROOT_DIR/.env.local" <<'EOF'
 CONVEX_URL=
 # OPENAI_API_KEY=
+# MEDIACLOUD_API_KEY=
 # ANTHROPIC_API_KEY=
-# FIRECRAWL_API_KEY=
-# GOOGLE_GENERATIVE_AI_API_KEY=
 # OPENROUTER_API_KEY=
-# XAI_API_KEY=
+# RAILWAY_PROJECT_ID=
 EOF
     echo "Created .env.local (fill in values)"
   fi
@@ -72,9 +71,10 @@ echo "  1. Fill in .env.local"
 echo "  2. Create/link a Convex dev deployment for apps/engine-convex"
 echo "  3. Create a Railway Temporal project from the official template"
 echo "  4. Add a Redis service to that Railway project"
-echo "  5. Link this repo to that Railway project"
-echo "  6. Run scripts/deploy_railway_worker.sh to deploy the Railway worker"
-echo "  7. Set Convex TEMPORAL_ADDRESS to the public Railway TCP proxy"
-echo "  8. Start local UI + Convex surfaces with: bun dev"
+echo "  5. Add the public Temporal TCP proxy and fill .env.local"
+echo "  6. Run scripts/verify_railway_worker.sh"
+echo "  7. Run scripts/deploy_railway_worker.sh to deploy the Railway worker"
+echo "  8. Set Convex TEMPORAL_ADDRESS to the public Railway TCP proxy"
+echo "  9. Start local UI + Convex surfaces with: bun dev"
 echo
 echo "Detailed instructions live in docs/setup.md"

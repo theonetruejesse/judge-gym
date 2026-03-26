@@ -1,9 +1,9 @@
 # Railway
 
-This repo treats Railway as the canonical Temporal runtime:
+This repo treats Railway as the canonical Temporal runtime and external acquisition plane:
 
 - Railway template services run the Temporal cluster
-- Railway `engine-temporal-worker` runs the worker code from this repo
+- Railway `engine-temporal-worker` runs the worker code from this repo, including Media Cloud acquisition
 - local `bun dev` does **not** start a local Temporal cluster or local worker
 
 ## Canonical split
@@ -14,6 +14,8 @@ This repo treats Railway as the canonical Temporal runtime:
   Worker container build/runtime definition
 - `scripts/deploy_railway_worker.sh`
   Idempotent worker service create/deploy/env-sync helper
+- `scripts/verify_railway_worker.sh`
+  Fast preflight that auto-links the Railway project and confirms the worker service target exists
 
 ## Current recommended bootstrap
 
@@ -28,13 +30,21 @@ This repo treats Railway as the canonical Temporal runtime:
 4. Put that public `host:port` into:
    - root `.env.local` `TEMPORAL_ADDRESS`
    - Convex env `TEMPORAL_ADDRESS`
-5. Link the repo locally:
+5. Put these in `.env.local`:
 
    ```bash
-   railway link --project <project-id> --environment production
+   RAILWAY_PROJECT_ID=<your-railway-project-id>
+   RAILWAY_ENVIRONMENT=production
+   RAILWAY_WORKER_SERVICE_NAME=engine-temporal-worker
    ```
 
-6. Deploy the worker:
+6. Verify the Railway link/bootstrap:
+
+   ```bash
+   ./scripts/verify_railway_worker.sh
+   ```
+
+7. Deploy the worker:
 
    ```bash
    ./scripts/deploy_railway_worker.sh
@@ -62,6 +72,26 @@ RAILWAY_REDIS_URL_REFERENCE=${{Redis.REDIS_URL}}
 
 If your Railway Redis service uses a different service name or variable
 reference, override `RAILWAY_REDIS_URL_REFERENCE` in `.env.local`.
+
+The worker also requires:
+
+```bash
+MEDIACLOUD_API_KEY=...
+```
+
+because Media Cloud discovery now runs inside `engine-temporal` rather than in Convex actions.
+
+For the current wave, the worker deploy intentionally syncs only the provider/runtime keys
+that are on the active execution path:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY` when present
+- `OPENROUTER_API_KEY` when present
+- `MEDIACLOUD_API_KEY`
+- `CONVEX_URL`
+- `TEMPORAL_*`
+- `REDIS_*`
+- optional Axiom telemetry keys
 
 ## Publishing your own project template
 

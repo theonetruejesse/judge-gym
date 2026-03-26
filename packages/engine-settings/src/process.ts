@@ -138,6 +138,10 @@ export interface EvidenceTransformWorkflowInput {
   stages?: EvidenceTransformStageKey[];
 }
 
+export interface EvidenceAcquisitionWorkflowInput {
+  acquisitionRunId: string;
+}
+
 export interface SetPauseAfterInput<TStage extends string = string> {
   cmdId: string;
   pauseAfter: TStage | null;
