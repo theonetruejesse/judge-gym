@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "V4 Launch Campaign",
+    "slug": "v4-launch-campaign",
+    "objective": "Execute the locked V4 wave-1 study end to end: import Gilardi and Zheng into Convex, register paper-audit packages, create the headline experiments, run canaries, monitor stability, and continue iterating until the V4 launch cohort is scientifically and operationally ready.",
+    "status": "draft",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-launch-campaign"
+  },
+  "environment": {
+    "repoRoot": "/Users/jesselee/dev/research/jg/judge-gym",
+    "knownTools": [
+      "bun",
+      "uv",
+      "Convex own-dev and package APIs",
+      "Temporal worker runtime on Railway",
+      "Railway MCP plus linked sincere-freedom project",
+      "Media Cloud API key in local .env.local",
+      "deep-workflow",
+      "execute-workflow"
+    ],
+    "knownConstraints": [
+      "V4 matrix is already locked in docs/pilots/v4_specs.md and should not be reopened inside this workspace.",
+      "OpenAI is primary, with Anthropic and OpenRouter/Qwen as wave-1 controls.",
+      "Infrastructure is already hardened; this workspace starts from live-ready infra rather than greenfield runtime work.",
+      "bun dev should remain agent-owned during active launch loops so Convex and lab logs stay in agent context.",
+      "After runtime-affecting changes to apps/engine-temporal, shared runtime packages, Dockerfile, or railway.toml, Railway worker redeploy plus live verification is mandatory before resuming live runs."
+    ],
+    "unknowns": [
+      "How many canary/stability loops the first target import will require before the full headline cohort is safe to launch.",
+      "Whether Zheng pairwise packaging will need any narrow runtime refinements once real live runs begin.",
+      "What launch-time OpenRouter Qwen model id should be frozen at experiment instantiation."
+    ],
+    "notes": [
+      "Matrix spec workspace is terminally complete and the headline bundle is Gilardi plus Zheng.",
+      "Implementation-readiness workspace is terminally complete and left only live control-plane actions plus monitoring loops.",
+      "Infra-hardening workspace is terminally complete and proved Temporal-owned Media Cloud acquisition with a live smoke pass.",
+      "Local Gilardi and Zheng source bundles, import builders, and dry-run canaries already exist under scripts/v4."
+    ]
+  },
+  "objectiveModel": {
+    "terminalObjective": "Execute the locked V4 wave-1 study end to end: import Gilardi and Zheng into Convex, register paper-audit packages, create the headline experiments, run canaries, monitor stability, and continue iterating until the V4 launch cohort is scientifically and operationally ready.",
+    "successCriteria": [
+      "Gilardi and Zheng source bundles are imported into Convex as evidence universes and evidence sets with the intended pinned source views.",
+      "Paper-audit packages for Gilardi and Zheng are registered live and inspectable.",
+      "Target canaries run successfully through the live control plane with a documented monitoring/debug ladder.",
+      "The headline experiment rows for the locked V4 matrix are created with provider, compatibility, and evidence-view settings matching docs/pilots/v4_specs.md.",
+      "Launch readiness is backed by explicit promotion gates, telemetry, and blocker accounting rather than ad hoc judgment."
+    ],
+    "nonGoals": [
+      "Do not reopen V4 matrix design or provider-family research inside this workspace.",
+      "Do not re-enter infrastructure hardening except for narrow fixes exposed by live canaries.",
+      "Do not add Gemini, Grok, or appendix/watchlist providers to the headline launch loop.",
+      "Do not build a full generic pairwise engine unless a real Zheng blocker proves it necessary."
+    ],
+    "dependencyPolicy": [
+      "Treat docs/pilots/v4_specs.md as the live scientific contract for the headline wave.",
+      "Use the existing local source bundles and import builders as the baseline path before adding any new acquisition work.",
+      "Prefer live control-plane progress over more preparatory refactors unless a concrete blocker appears."
+    ],
+    "capabilityTiers": [
+      {
+        "tier": "T0",
+        "label": "Canary ready",
+        "definition": "Target packages, imports, and the first live canaries exist and are monitorable."
+      },
+      {
+        "tier": "T1",
+        "label": "Headline matrix instantiated",
+        "definition": "All live evidence/package/experiment rows for the 20 headline experiments are created."
+      },
+      {
+        "tier": "T2",
+        "label": "Launch stable",
+        "definition": "Canary and early cohort runs have cleared the monitoring/debug ladder and the headline study is operationally safe to continue."
+      }
+    ]
+  },
+  "strategy": {
+    "baselinePlan": [
+      "Start with the fastest trustworthy live baseline: import Gilardi and Zheng, register packages, and run narrow canaries before instantiating the full matrix.",
+      "Use progressive validation: dry-run bundle path is already done, so the next ladder is live import -> live package inspection -> target canary -> condition canary -> cohort launch.",
+      "Keep the first bounded workflow centered on live control-plane creation and monitoring contracts, not on speculative code changes.",
+      "Only widen into broader launch loops after the first live target canaries clear promotion gates."
+    ],
+    "telemetry": {
+      "historyPath": "telemetry/metrics.jsonl",
+      "leaderboardPath": "telemetry/leaderboard.json",
+      "trackedMetrics": [
+        "live_import_readiness",
+        "package_registration_readiness",
+        "canary_pass_rate",
+        "launch_blocker_count",
+        "stability_confidence"
+      ]
+    },
+    "progressionLadder": [
+      "environment discovery -> confirm live-ready baseline and remaining control-plane steps",
+      "target live setup -> import Gilardi and Zheng, register packages, create canaries",
+      "canary loop -> run, monitor, debug, and patch until target canaries are green",
+      "matrix instantiation -> create the 20 headline experiments",
+      "launch stability loop -> monitor early runs, heal blockers, and promote to full execution only when stable"
+    ],
+    "searchRegimes": [
+      {
+        "mode": "exploit",
+        "focus": "Use the existing locked spec and implementation substrate to progress the live study as directly as possible."
+      },
+      {
+        "mode": "explore",
+        "focus": "Only explore narrow fixes or run-ops improvements when real canaries expose a blocker."
+      }
+    ],
+    "pruneRules": [
+      "Prune speculative runtime refactors that are not demanded by a live canary or cohort blocker.",
+      "Prune appendix/watchlist execution until the headline Gilardi plus Zheng cohort is stable.",
+      "Prune any branch that reopens matrix design instead of advancing live launch readiness."
+    ],
+    "escalationRules": [
+      "Escalate from workspace planning into deep-workflow only when the next step is a bounded live-execution or debugging slice with concrete validators.",
+      "Escalate into deeper runtime changes only after a real canary reproduces a blocker with logs and a bounded write scope."
+    ],
+    "promotionRules": [
+      "Promote a target to matrix-ready only when its live canary passes and the monitoring/debug ladder is documented.",
+      "Promote the full headline cohort only when both Gilardi and Zheng baseline canaries are stable and blocker count is at or near zero.",
+      "Promote a runtime patch only if it improves canary pass rate or reduces launch blockers without reopening closed V4 design questions."
+    ],
+    "gitPolicy": {
+      "commitAfterLoop": true,
+      "branchStrategy": "same_branch_until_user_redirects"
+    },
+    "workflowRequestPolicy": {
+      "createRealRunFolders": true,
+      "maxOpenRuns": 1
+    }
+  },
+  "handoff": {
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows",
+    "runRoot": "runs/",
+    "kernelSkill": "deep-workflow",
+    "executorSkill": "execute-workflow",
+    "requestTemplatePath": "runs/_template_workflow_request.md"
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "telemetry/leaderboard.json"
+    ]
+  },
+  "policies": {
+    "maxConcurrentWorkflows": 1,
+    "reviewRequired": [
+      "Adding new headline providers or targets beyond the locked V4 spec",
+      "Changing the compatibility or evidence-view contract away from docs/pilots/v4_specs.md",
+      "Broad infrastructure redesign not forced by live launch blockers"
+    ],
+    "stopConditions": [
+      "Terminal objective met: live imports, packages, canaries, and the launch monitoring contract are all in place and stable enough to run the headline cohort.",
+      "Hard blocker: an external surface such as Convex, Railway, provider APIs, or source datasets becomes unavailable and prevents live execution."
+    ],
+    "budget": {
+      "primaryCostControl": "Use the narrowest live canaries that can falsify launch optimism before expanding to the full matrix.",
+      "executionScope": "One bounded launch workflow at a time, then direct implementation/monitoring until the next strategic blocker."
+    },
+    "continueUntilTerminal": true,
+    "blockerPolicy": "only_stop_for_real_external_blockers"
+  }
+}

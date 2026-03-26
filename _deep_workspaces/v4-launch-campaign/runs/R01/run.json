@@ -1,0 +1,14 @@
+{
+  "runId": "R01",
+  "title": "Compile V4 launch kernel",
+  "boundedObjective": "Compile the first bounded V4 launch workflow: live import Gilardi and Zheng assets into Convex, register paper-audit packages, create the first canary experiments, define the monitoring/debug ladder, and specify promotion gates from canary to full matrix execution.",
+  "status": "planned",
+  "createdAt": "2026-03-26T00:00:00Z",
+  "workflowRequestPath": "runs/R01/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": [
+    "Spec, implementation readiness, and infra hardening are all already terminally complete.",
+    "This run should start the live V4 execution layer rather than reopen platform work."
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "workspacePath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-launch-campaign",
+    "objective": "Execute the locked V4 wave-1 study end to end: import Gilardi and Zheng into Convex, register paper-audit packages, create the headline experiments, run canaries, monitor stability, and continue iterating until the V4 launch cohort is scientifically and operationally ready.",
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows"
+  },
+  "status": {
+    "workspace": "active",
+    "phase": "environment_discovery",
+    "activeRun": "R01",
+    "terminalObjectiveMet": false
+  },
+  "environment": {
+    "discovered": true,
+    "notes": [
+      "V4 matrix spec is already locked and should be treated as closed input, not active design work.",
+      "Implementation-readiness artifacts say only live control-plane actions remain: import bundles into Convex, register packages, create experiments, and optionally launch canaries.",
+      "Infra hardening is complete: Temporal-owned Media Cloud acquisition is live, Railway worker bootstrap is simplified, and the latest live acquisition smoke passed.",
+      "The remaining mission is a launch-and-monitor loop, which is exactly the kind of repeated bounded execution a workspace should own."
+    ]
+  },
+  "baselines": {
+    "current": {
+      "label": "terminal_ready_runtime_pre_launch",
+      "summary": "The repo has a locked V4 spec, live-ready runtime, local target bundles, and canary tooling. What remains is the live execution campaign: import, package registration, experiment creation, canary promotion, and monitored launch.",
+      "sourceArtifacts": [
+        "docs/pilots/v4_specs.md",
+        "_deep_workspaces/v4-implementation-readiness/worldview.json",
+        "_deep_workspaces/infra-readiness-hardening/worldview.json",
+        "scripts/v4/canary_gilardi.ts",
+        "scripts/v4/canary_zheng.ts"
+      ]
+    },
+    "history": [
+      {
+        "label": "terminal_ready_runtime_pre_launch",
+        "status": "active"
+      }
+    ]
+  },
+  "telemetry": {
+    "historyPath": "telemetry/metrics.jsonl",
+    "leaderboardPath": "telemetry/leaderboard.json",
+    "latest": {}
+  },
+  "workflowRuns": [
+    {
+      "runId": "R01",
+      "requestedObjective": "Compile the first bounded V4 launch workflow: live import Gilardi and Zheng assets into Convex, register paper-audit packages, create the first canary experiments, define the monitoring/debug ladder, and specify promotion gates from canary to full matrix execution.",
+      "workflowPath": null,
+      "status": "planned",
+      "measuredOutcome": {}
+    }
+  ],
+  "currentBest": {
+    "label": "terminal_ready_runtime_pre_launch",
+    "metrics": {
+      "live_import_readiness": 0.92,
+      "package_registration_readiness": 0.92,
+      "canary_pass_rate": 0.0,
+      "launch_blocker_count": 3,
+      "stability_confidence": 0.55
+    },
+    "artifactPath": "docs/pilots/v4_specs.md"
+  },
+  "bottlenecks": [
+    "The first live target imports and package registrations have not been executed yet.",
+    "Baseline canaries have not yet been run live under the locked V4 matrix contract.",
+    "The monitoring/debug ladder for the launch loop has not yet been exercised against real V4 canary runs."
+  ],
+  "decisions": [
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Use a dedicated V4 launch workspace instead of extending the closed spec or readiness workspaces, because the remaining work is repeated live execution and promotion/prune control."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Treat the existing runtime as sufficient; only pursue more runtime changes when a real canary exposes a bounded blocker."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Start with Gilardi and Zheng baseline canaries before any broader headline cohort launch."
+    }
+  ],
+  "nextActions": [
+    {
+      "type": "compile_workflow",
+      "runId": "R01",
+      "requestPath": "runs/R01/workflow_request.md"
+    }
+  ]
+}
