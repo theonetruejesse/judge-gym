@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r01",
+    "objective": "Execute the first live V4 launch loop: apply Gilardi and Zheng bundles into Convex, register paper-audit packages, create and launch baseline canary experiments, monitor their behavior, and write explicit promotion gates for moving from canaries to full headline matrix instantiation.",
+    "objectiveClass": "live_launch_execution",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {
+      "N01": {
+        "state": "completed",
+        "dependencies": [],
+        "requiredOutputs": [
+          "live_setup.md"
+        ],
+        "workspaceTask": "agents/N01/workspace/task.md",
+        "writeScope": "agents/N01/",
+        "claimedBy": "lead",
+        "blockedReason": null,
+        "lastUpdated": "2026-03-26T23:59:00.000000+00:00"
+      }
+    },
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Keep the experiment validator strict and fix the live bundle-apply surface instead of widening the schema for launch-only metadata."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Promote from baseline canary proving to full matrix launch planning after Gilardi and both Zheng canaries completed with zero failures."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md",
+    "runState": "runtime/run_state.json"
+  }
+}

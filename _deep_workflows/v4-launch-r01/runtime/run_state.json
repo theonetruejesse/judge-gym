@@ -1,0 +1,11 @@
+{
+  "updatedAt": "2026-03-26T23:51:48.543439+00:00",
+  "workflow": "v4-launch-r01",
+  "readyNodes": [
+    "N01"
+  ],
+  "inProgressNodes": [],
+  "completedNodes": [],
+  "blockedNodes": [],
+  "pendingNodes": []
+}

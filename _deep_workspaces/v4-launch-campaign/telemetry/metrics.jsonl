@@ -1,0 +1,1 @@
+{"timestamp":"2026-03-26T23:59:00Z","label":"baseline_live_canaries_passed","source":"R01","metrics":{"live_import_readiness":1,"package_registration_readiness":1,"canary_pass_rate":1,"launch_blocker_count":0,"stability_confidence":0.93}}

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "V4 Launch R01",
+    "slug": "v4-launch-r01",
+    "objective": "Execute the first live V4 launch loop: apply Gilardi and Zheng bundles into Convex, register paper-audit packages, create and launch baseline canary experiments, monitor their behavior, and write explicit promotion gates for moving from canaries to full headline matrix instantiation.",
+    "objectiveClass": "live_launch_execution",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r01"
+  },
+  "compile": {
+    "baseHint": "Use the locked V4 spec, the terminal implementation-readiness state, and the hardened infra/runtime baseline. Do not reopen design work; execute the first live setup loop.",
+    "taskSignals": [
+      "Local Gilardi and Zheng import bundles already exist.",
+      "Live Convex, Railway worker, and provider routing are already healthy.",
+      "The remaining work is control-plane creation, canary execution, and monitoring/promotion logic.",
+      "The first bounded run should stay narrow: baseline canaries first, then explicit promotion gates."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": true,
+      "allowLiveOps": true
+    },
+    "selectedPrimitives": [
+      "live_bundle_apply",
+      "canary_launch",
+      "monitoring_contract",
+      "promotion_gate"
+    ],
+    "notes": [
+      "Keep the first launch loop bounded to Gilardi baseline and Zheng baseline canaries.",
+      "Use existing scripts/v4 live paths rather than building a new launcher unless a real blocker appears."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "_deep_workspaces/v4-launch-campaign/runs/R01/workflow_request.md",
+      "docs/pilots/v4_specs.md",
+      "_deep_workspaces/v4-implementation-readiness/worldview.json",
+      "_deep_workspaces/infra-readiness-hardening/worldview.json",
+      "scripts/v4/apply_bundle.ts",
+      "scripts/v4/canary_gilardi.ts",
+      "scripts/v4/canary_zheng.ts",
+      "scripts/deploy_railway_worker.sh",
+      "scripts/verify_railway_worker.sh",
+      "apps/engine-convex/scripts/live_debug.ts"
+    ],
+    "sharedTools": [
+      "functions.exec_command",
+      "functions.apply_patch",
+      "functions.mcp__convex__status",
+      "functions.mcp__convex__run",
+      "functions.mcp__railway__list_deployments",
+      "functions.mcp__railway__get_logs"
+    ],
+    "sharedScripts": [],
+    "connectors": [
+      "Convex own-dev",
+      "Railway sincere-freedom"
+    ],
+    "env": [
+      "CONVEX_URL",
+      "TEMPORAL_ADDRESS",
+      "TEMPORAL_NAMESPACE",
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "OPENROUTER_API_KEY"
+    ]
+  },
+  "graph": {
+    "entryNodes": [
+      "N01"
+    ],
+    "nodes": [
+      {
+        "nodeId": "N01",
+        "kind": "validate",
+        "role": "live-setup-and-canaries"
+      }
+    ],
+    "edges": []
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [
+      "agents/N01/live_setup.md"
+    ],
+    "artifactTypes": [
+      "report",
+      "validation_result",
+      "decision"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when live Gilardi and Zheng baseline canaries are created, at least one canary path is run and monitored successfully, and promotion gates for matrix instantiation are explicit.",
+      "Stop early only for real external blockers such as provider failures, unavailable Railway/Convex, or broken live control-plane surfaces."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 2,
+    "retry": 0,
+    "budget": {
+      "primary": "Prefer narrow baseline canaries over broad cohort launch in R01.",
+      "secondary": "Only patch code when a live canary exposes a concrete blocker."
+    }
+  }
+}

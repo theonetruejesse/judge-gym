@@ -1,0 +1,15 @@
+{
+  "status": "bootstrapped",
+  "executionSubstrate": "rlm",
+  "generatedAt": "2026-03-26T23:51:48.542375+00:00",
+  "nodes": [
+    {
+      "nodeId": "N01",
+      "writeScope": "agents/N01",
+      "workspaceRoot": "agents/N01/workspace",
+      "delegateRoot": "agents/N01/delegates",
+      "canSpawnSubagents": false,
+      "maxSubagents": 0
+    }
+  ]
+}

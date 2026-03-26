@@ -138,8 +138,11 @@ Local paper-audit readiness flow:
 - `bun run v4:build:zheng`
 - `bun run v4:canary:gilardi`
 - `bun run v4:canary:zheng`
+- `bun run v4:canary:gilardi --live --start-run`
+- `bun run v4:canary:zheng --live --start-run`
+- `bun run v4:canary:zheng --multi-turn --live --start-run`
 
-These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts only when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and optional canary runs.
+These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
 
 ## Development Notes
 

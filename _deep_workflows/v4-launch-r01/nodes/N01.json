@@ -1,0 +1,52 @@
+{
+  "nodeId": "N01",
+  "kind": "validate",
+  "role": "live-setup-and-canaries",
+  "objective": "Apply the live Gilardi and Zheng bundles into Convex, register paper-audit packages, create and launch the baseline canary experiments, inspect their run state, and write explicit promotion gates for the next launch step.",
+  "inputs": [
+    "docs/pilots/v4_specs.md",
+    "_deep_workspaces/v4-launch-campaign/runs/R01/workflow_request.md",
+    "_deep_workspaces/v4-implementation-readiness/worldview.json",
+    "_deep_workspaces/infra-readiness-hardening/worldview.json",
+    "scripts/v4/canary_gilardi.ts",
+    "scripts/v4/canary_zheng.ts",
+    "apps/engine-convex/scripts/live_debug.ts"
+  ],
+  "dependencies": [],
+  "effects": [
+    "read_code",
+    "read_state",
+    "run_local_scripts",
+    "run_mutating_scripts",
+    "touch_live_ops",
+    "write_private_artifacts",
+    "write_shared_artifacts"
+  ],
+  "allowedTools": [
+    "functions.exec_command",
+    "functions.apply_patch",
+    "functions.mcp__convex__status",
+    "functions.mcp__convex__run",
+    "functions.mcp__railway__list_deployments",
+    "functions.mcp__railway__get_logs"
+  ],
+  "allowedScripts": [],
+  "writeScope": "agents/N01/",
+  "execution": {
+    "workspaceRoot": "workspace/",
+    "delegateRoot": "delegates/",
+    "allowWorkspaceScripts": true,
+    "canSpawnSubagents": false,
+    "maxSubagents": 0,
+    "subagentCommunication": "filesystem_handoff"
+  },
+  "requiredOutputs": [
+    "live_setup.md"
+  ],
+  "completionCriteria": [
+    "Gilardi and Zheng live bundle application succeeds.",
+    "Baseline canary experiment rows exist for both targets.",
+    "At least one live canary run is launched and inspected through a concrete monitoring/debug surface.",
+    "Promotion gates for moving from canaries to full matrix instantiation are written down."
+  ]
+}

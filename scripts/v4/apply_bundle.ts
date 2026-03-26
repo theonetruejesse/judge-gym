@@ -51,6 +51,7 @@ type ImportBundle = {
   }>;
   experiment_blueprints: Array<{
     experiment_tag: string;
+    package_tag?: string;
     study_kind: "paper_audit" | "benchmark";
     compatibility_mode: "paper_faithful" | "paper_translated" | "native" | "stress_test";
     rubric_source_kind: "generate" | "imported_rubric" | "imported_codebook" | "direct_labels";
@@ -128,13 +129,20 @@ export async function applyBundle(args: {
 
   const experiments = [];
   for (const blueprint of bundle.experiment_blueprints) {
+    const experimentConfig = {
+      study_kind: blueprint.study_kind,
+      compatibility_mode: blueprint.compatibility_mode,
+      rubric_source_kind: blueprint.rubric_source_kind,
+      task_contract: blueprint.task_contract,
+      output_contract: blueprint.output_contract,
+      rubric_config: blueprint.rubric_config,
+      scoring_config: blueprint.scoring_config,
+      paper_audit_package_id: packageResult.package_id,
+    };
     const experiment = await client.mutation(api.packages.lab.initExperiment, {
       experiment_tag: blueprint.experiment_tag,
       evidence_set_id: evidenceSet.evidence_set_id,
-      experiment_config: {
-        ...blueprint,
-        paper_audit_package_id: packageResult.package_id,
-      },
+      experiment_config: experimentConfig,
     });
     experiments.push(experiment);
   }
@@ -162,4 +170,3 @@ export async function applyBundle(args: {
     runs,
   };
 }
-

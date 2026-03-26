@@ -1,0 +1,14 @@
+{
+  "runId": "R02",
+  "title": "Launch V4 headline matrix",
+  "boundedObjective": "Instantiate the locked V4 headline matrix, launch the first cohort cells across the provider panel, and apply the monitored promotion/prune loop at matrix scale.",
+  "status": "planned",
+  "createdAt": "2026-03-26T23:59:00Z",
+  "workflowRequestPath": "runs/R02/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": [
+    "R01 proved the live canary path end to end.",
+    "R02 should focus on matrix instantiation and monitored launch, not more platform validation."
+  ]
+}
