@@ -1,0 +1,546 @@
+{
+  "disagreement_rows": [
+    {
+      "condition": "baseline",
+      "item_disagreement_rate": 0.20833333333333334,
+      "n_items": 24,
+      "panel_label_support": {
+        "Irrelevant": 12,
+        "Relevant": 17
+      },
+      "target": "gilardi",
+      "unanimous_truth_count": 23
+    },
+    {
+      "condition": "abstention_on",
+      "item_disagreement_rate": 0.20833333333333334,
+      "n_items": 24,
+      "panel_label_support": {
+        "Irrelevant": 12,
+        "Relevant": 17
+      },
+      "target": "gilardi",
+      "unanimous_truth_count": 23
+    },
+    {
+      "condition": "view_l2_neutralized",
+      "item_disagreement_rate": 0.08333333333333333,
+      "n_items": 24,
+      "panel_label_support": {
+        "Irrelevant": 8,
+        "Relevant": 18
+      },
+      "target": "gilardi",
+      "unanimous_truth_count": 23
+    },
+    {
+      "condition": "baseline",
+      "item_disagreement_rate": 0.15384615384615385,
+      "n_items": 13,
+      "panel_label_support": {
+        "A": 10,
+        "B": 5
+      },
+      "target": "zheng",
+      "unanimous_truth_count": null
+    },
+    {
+      "condition": "abstention_on",
+      "item_disagreement_rate": 0.15384615384615385,
+      "n_items": 13,
+      "panel_label_support": {
+        "A": 10,
+        "B": 5
+      },
+      "target": "zheng",
+      "unanimous_truth_count": null
+    }
+  ],
+  "experiment_summaries": [
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9166666666666666,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_baseline_gpt41",
+      "label_counts": {
+        "Irrelevant": 9,
+        "Relevant": 15
+      },
+      "mean_score_expert_agreement_prob": 0.6708333333333333,
+      "n_items": 24,
+      "provider": "gpt-4.1",
+      "run_id": "kx76dvnb56czb099ay5jc0s9s583qncx",
+      "stage_entropy": 0.954434002924965,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 1.0,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_baseline_gpt52",
+      "label_counts": {
+        "Irrelevant": 7,
+        "Relevant": 17
+      },
+      "mean_score_expert_agreement_prob": 0.6708333333333333,
+      "n_items": 24,
+      "provider": "gpt-5.2",
+      "run_id": "kx7d7a1zwbme3zc37cf2ms1rfh83qy11",
+      "stage_entropy": 0.8708644692353644,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7916666666666666,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_baseline_claude_sonnet4",
+      "label_counts": {
+        "Irrelevant": 12,
+        "Relevant": 12
+      },
+      "mean_score_expert_agreement_prob": 0.7125,
+      "n_items": 24,
+      "provider": "claude-sonnet-4",
+      "run_id": "kx78wgy9e2p81e744jg7h30sjh83qfx2",
+      "stage_entropy": 1.0,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9583333333333334,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_baseline_qwen",
+      "label_counts": {
+        "Irrelevant": 8,
+        "Relevant": 16
+      },
+      "mean_score_expert_agreement_prob": 0.6166666666666667,
+      "n_items": 24,
+      "provider": "qwen-current-text-flagship",
+      "run_id": "kx78mmajjq6x836tm8hh1edwes83q0eh",
+      "stage_entropy": 0.9182958340544896,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_baseline_gpt41",
+      "label_counts": {
+        "A": 9,
+        "B": 4
+      },
+      "mean_score_expert_agreement_prob": 0.9807692307692307,
+      "n_items": 13,
+      "provider": "gpt-4.1",
+      "run_id": "kx77tkb9vy5ek2bpvdynapth5n83q0k9",
+      "stage_entropy": 0.8904916402194913,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_baseline_gpt52",
+      "label_counts": {
+        "A": 10,
+        "B": 3
+      },
+      "mean_score_expert_agreement_prob": 0.823076923076923,
+      "n_items": 13,
+      "provider": "gpt-5.2",
+      "run_id": "kx7cb0avesrra0zths8bzkdp2x83qe9h",
+      "stage_entropy": 0.7793498372920851,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_baseline_claude_sonnet4",
+      "label_counts": {
+        "A": 8,
+        "B": 5
+      },
+      "mean_score_expert_agreement_prob": 0.8653846153846154,
+      "n_items": 13,
+      "provider": "claude-sonnet-4",
+      "run_id": "kx7e0brawtkfq4fkznfq4t75bn83p56r",
+      "stage_entropy": 0.9612366047228759,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "baseline",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_baseline_qwen",
+      "label_counts": {
+        "A": 9,
+        "B": 4
+      },
+      "mean_score_expert_agreement_prob": 0.9192307692307692,
+      "n_items": 13,
+      "provider": "qwen-current-text-flagship",
+      "run_id": "kx7betpy4mwddcqnv0vkweqy2s83qv2p",
+      "stage_entropy": 0.8904916402194913,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9166666666666666,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_abstention_on_gpt41",
+      "label_counts": {
+        "Irrelevant": 9,
+        "Relevant": 15
+      },
+      "mean_score_expert_agreement_prob": 0.7,
+      "n_items": 24,
+      "provider": "gpt-4.1",
+      "run_id": "kx7f52d3ctqxk0d6wr7q6s6vex83qjfd",
+      "stage_entropy": 0.954434002924965,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 1.0,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_abstention_on_gpt52",
+      "label_counts": {
+        "Irrelevant": 7,
+        "Relevant": 17
+      },
+      "mean_score_expert_agreement_prob": 0.6729166666666666,
+      "n_items": 24,
+      "provider": "gpt-5.2",
+      "run_id": "kx77wnd0skhhssbv8ytpzkpcms83qg9r",
+      "stage_entropy": 0.8708644692353644,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7916666666666666,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_abstention_on_claude_sonnet4",
+      "label_counts": {
+        "Irrelevant": 12,
+        "Relevant": 12
+      },
+      "mean_score_expert_agreement_prob": 0.7125,
+      "n_items": 24,
+      "provider": "claude-sonnet-4",
+      "run_id": "kx73rs8msxd6tgwn8fms5bbv1183q2c7",
+      "stage_entropy": 1.0,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9166666666666666,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "gilardi_relevance_v1_abstention_on_qwen",
+      "label_counts": {
+        "Irrelevant": 9,
+        "Relevant": 15
+      },
+      "mean_score_expert_agreement_prob": 0.5895833333333333,
+      "n_items": 24,
+      "provider": "qwen-current-text-flagship",
+      "run_id": "kx710n6cgbcv5r0fdhh94qh5th83ppty",
+      "stage_entropy": 0.954434002924965,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_abstention_on_gpt41",
+      "label_counts": {
+        "A": 8,
+        "B": 5
+      },
+      "mean_score_expert_agreement_prob": 0.9923076923076923,
+      "n_items": 13,
+      "provider": "gpt-4.1",
+      "run_id": "kx78bg0vfshkqh8896qmwekbv983q1gf",
+      "stage_entropy": 0.9612366047228759,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_abstention_on_gpt52",
+      "label_counts": {
+        "A": 10,
+        "B": 3
+      },
+      "mean_score_expert_agreement_prob": 0.8423076923076923,
+      "n_items": 13,
+      "provider": "gpt-5.2",
+      "run_id": "kx77s042adghvp2v056pck3sbx83qmhw",
+      "stage_entropy": 0.7793498372920851,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_abstention_on_claude_sonnet4",
+      "label_counts": {
+        "A": 9,
+        "B": 4
+      },
+      "mean_score_expert_agreement_prob": 0.8730769230769231,
+      "n_items": 13,
+      "provider": "claude-sonnet-4",
+      "run_id": "kx70c4579yssgsfxf75qfepy3h83q87w",
+      "stage_entropy": 0.8904916402194913,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": true,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.7692307692307693,
+      "condition": "abstention_on",
+      "evidence_view": "paper_original",
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_abstention_on_qwen",
+      "label_counts": {
+        "A": 8,
+        "B": 5
+      },
+      "mean_score_expert_agreement_prob": 0.9369230769230769,
+      "n_items": 13,
+      "provider": "qwen-current-text-flagship",
+      "run_id": "kx7an2pacrhc9dvhwz6k03dhw183pv72",
+      "stage_entropy": 0.9612366047228759,
+      "target": "zheng"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.875,
+      "condition": "view_l2_neutralized",
+      "evidence_view": "l2_neutralized",
+      "experiment_tag": "gilardi_relevance_v1_view_l2_neutralized_gpt41",
+      "label_counts": {
+        "Irrelevant": 8,
+        "Relevant": 16
+      },
+      "mean_score_expert_agreement_prob": 0.74375,
+      "n_items": 24,
+      "provider": "gpt-4.1",
+      "run_id": "kx756pkcv5tppkgeqqnqy3nbdn83qwy1",
+      "stage_entropy": 0.9182958340544896,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9583333333333334,
+      "condition": "view_l2_neutralized",
+      "evidence_view": "l2_neutralized",
+      "experiment_tag": "gilardi_relevance_v1_view_l2_neutralized_gpt52",
+      "label_counts": {
+        "Irrelevant": 6,
+        "Relevant": 18
+      },
+      "mean_score_expert_agreement_prob": 0.67875,
+      "n_items": 24,
+      "provider": "gpt-5.2",
+      "run_id": "kx7cqg7redfqahnyf9hxbmxy2583q6j0",
+      "stage_entropy": 0.8112781244591328,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9166666666666666,
+      "condition": "view_l2_neutralized",
+      "evidence_view": "l2_neutralized",
+      "experiment_tag": "gilardi_relevance_v1_view_l2_neutralized_claude_sonnet4",
+      "label_counts": {
+        "Irrelevant": 7,
+        "Relevant": 17
+      },
+      "mean_score_expert_agreement_prob": 0.6791666666666667,
+      "n_items": 24,
+      "provider": "claude-sonnet-4",
+      "run_id": "kx71amrny64cca0531pppf83sx83pr2d",
+      "stage_entropy": 0.8708644692353644,
+      "target": "gilardi"
+    },
+    {
+      "abstain_enabled": false,
+      "abstain_rate": 0.0,
+      "agreement_rate": 0.9166666666666666,
+      "condition": "view_l2_neutralized",
+      "evidence_view": "l2_neutralized",
+      "experiment_tag": "gilardi_relevance_v1_view_l2_neutralized_qwen",
+      "label_counts": {
+        "Irrelevant": 7,
+        "Relevant": 17
+      },
+      "mean_score_expert_agreement_prob": 0.5479166666666666,
+      "n_items": 24,
+      "provider": "qwen-current-text-flagship",
+      "run_id": "kx77h74qgwsjrs7ns7jgh0d3rd83qzyt",
+      "stage_entropy": 0.8708644692353644,
+      "target": "gilardi"
+    }
+  ],
+  "findings": [
+    {
+      "experiment_tag": "gilardi_relevance_v1_baseline_gpt52",
+      "kind": "best_agreement",
+      "value": 1.0
+    },
+    {
+      "experiment_tag": "zheng_mt_bench_pair_v2_v1_baseline_gpt41",
+      "kind": "worst_agreement",
+      "value": 0.7692307692307693
+    },
+    {
+      "kind": "strongest_l2_flip_rate",
+      "provider": "claude-sonnet-4",
+      "value": 0.20833333333333334
+    },
+    {
+      "kind": "weakest_l2_flip_rate",
+      "provider": "gpt-4.1",
+      "value": 0.041666666666666664
+    },
+    {
+      "kind": "zheng_baseline_tie_counts",
+      "providers": {
+        "claude-sonnet-4": 0,
+        "gpt-4.1": 0,
+        "gpt-5.2": 0,
+        "qwen-current-text-flagship": 0
+      }
+    }
+  ],
+  "paired_contrasts": [
+    {
+      "contrast": "baseline_vs_l2",
+      "flip_rate": 0.041666666666666664,
+      "mean_abstain_delta": 0,
+      "mean_agreement_delta": -0.041666666666666664,
+      "n_items": 24,
+      "provider": "gpt-4.1",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_l2",
+      "flip_rate": 0.041666666666666664,
+      "mean_abstain_delta": 0,
+      "mean_agreement_delta": -0.041666666666666664,
+      "n_items": 24,
+      "provider": "gpt-5.2",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_l2",
+      "flip_rate": 0.20833333333333334,
+      "mean_abstain_delta": 0,
+      "mean_agreement_delta": 0.125,
+      "n_items": 24,
+      "provider": "claude-sonnet-4",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_l2",
+      "flip_rate": 0.125,
+      "mean_abstain_delta": 0,
+      "mean_agreement_delta": -0.041666666666666664,
+      "n_items": 24,
+      "provider": "qwen-current-text-flagship",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.0,
+      "n_items": 24,
+      "provider": "gpt-4.1",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.0,
+      "n_items": 24,
+      "provider": "gpt-5.2",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.0,
+      "n_items": 24,
+      "provider": "claude-sonnet-4",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.041666666666666664,
+      "n_items": 24,
+      "provider": "qwen-current-text-flagship",
+      "target": "gilardi"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.07692307692307693,
+      "n_items": 13,
+      "provider": "gpt-4.1",
+      "target": "zheng"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.0,
+      "n_items": 13,
+      "provider": "gpt-5.2",
+      "target": "zheng"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.07692307692307693,
+      "n_items": 13,
+      "provider": "claude-sonnet-4",
+      "target": "zheng"
+    },
+    {
+      "contrast": "baseline_vs_abstention",
+      "flip_rate": 0.07692307692307693,
+      "n_items": 13,
+      "provider": "qwen-current-text-flagship",
+      "target": "zheng"
+    }
+  ]
+}

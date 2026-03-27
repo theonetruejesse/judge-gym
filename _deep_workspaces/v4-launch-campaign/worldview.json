@@ -7,7 +7,7 @@
   },
   "status": {
     "workspace": "active",
-    "phase": "headline_matrix_first_pass_completed",
+    "phase": "headline_matrix_first_pass_analyzed",
     "activeRun": null,
     "terminalObjectiveMet": false
   },
@@ -87,23 +87,37 @@
         "parser_robustness_bug_fixed": true,
         "headline_matrix_latest_runs_clean": true
       }
+    },
+    {
+      "runId": "R04",
+      "requestedObjective": "Analyze the first clean pass of the full 20-cell V4 headline matrix, summarize the most important geometry/provider findings, and define the monitored rerun or promotion policy for follow-on launch work.",
+      "workflowPath": "_deep_workflows/v4-launch-r04",
+      "status": "completed",
+      "measuredOutcome": {
+        "headline_experiments_analyzed": 20,
+        "headline_items_analyzed": 392,
+        "zheng_baseline_tie_count_panel": 0,
+        "observed_abstains": 0,
+        "targeted_rerun_plan_defined": true
+      }
     }
   ],
   "currentBest": {
-    "label": "headline_matrix_first_pass_completed",
+    "label": "headline_matrix_first_pass_analyzed",
     "metrics": {
       "headline_launch_readiness": 1.0,
       "headline_baseline_pass_rate": 1.0,
       "headline_matrix_pass_rate": 1.0,
       "launch_blocker_count": 0,
-      "stability_confidence": 0.98
+      "stability_confidence": 0.98,
+      "analysis_readiness": 1.0
     },
-    "artifactPath": "_deep_workflows/v4-launch-r03/synthesis/final_report.md"
+    "artifactPath": "_deep_workflows/v4-launch-r04/synthesis/final_report.md"
   },
   "bottlenecks": [
     "The Zheng single-turn GPT-4.1 baseline experiment row contains two completed runs because the initial canary tag matched the baseline tag before the tag policy was hardened.",
-    "Longer-horizon launch telemetry and promotion/prune policy still need to be applied now that the full headline matrix has completed its first clean pass.",
-    "The next campaign step should synthesize first-pass results and define rerun/promotion policy for any scientifically interesting or operationally unstable cells."
+    "The first-pass analysis indicates that the current abstention contract is weak on this matrix, so the next decision is whether to keep abstention as a negative-result headline claim or add a stronger translated abstention appendix lane later.",
+    "The next campaign step is targeted rerun execution on the cells that actually moved, not another blind full-matrix repeat."
   ],
   "decisions": [
     {
@@ -133,13 +147,17 @@
     {
       "timestamp": "2026-03-26",
       "statement": "The full 20-cell headline matrix has now completed one clean pass. Mild provider formatting drift in freeform label tasks should be handled by parser recovery rather than treated as a launch-stopping failure."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "First-pass analysis shows zero observed abstains across 392 responses and zero Zheng baseline ties across all four providers. The most important movement is the Gilardi raw-vs-l2 contrast, especially on Claude Sonnet 4."
     }
   ],
   "nextActions": [
     {
       "type": "compile_workflow",
-      "runId": "R04",
-      "requestPath": "runs/R04/workflow_request.md"
+      "runId": "R05",
+      "requestPath": "runs/R05/workflow_request.md"
     }
   ]
 }

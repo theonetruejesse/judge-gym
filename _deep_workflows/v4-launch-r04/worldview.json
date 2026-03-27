@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r04",
+    "objective": "Analyze the first clean pass of the full 20-cell V4 headline matrix, summarize the most important geometry/provider findings, and define the monitored rerun or promotion policy for follow-on launch work.",
+    "objectiveClass": "analysis_and_promotion",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {},
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Treat the first clean headline pass as analyzable signal, not just smoke. The matrix is coherent enough to drive targeted rerun decisions without another full blind repeat."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Zheng tie suppression now appears robust across the full provider panel because all four baseline providers produced zero ties on the 13-item slice."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "The current abstention intervention is not behaviorally active on this matrix: zero abstains across 392 responses means further exact repeats of the entire abstention panel are lower priority than targeted reruns on cells that actually moved."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Promote a targeted rerun cohort rather than a full-matrix repeat: Gilardi baseline/l2 for GPT-4.1, Claude Sonnet 4, and Qwen; Zheng baseline/abstention for GPT-4.1, Claude Sonnet 4, and Qwen."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}
