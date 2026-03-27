@@ -73,6 +73,22 @@ function resolveCreateArgs(
   };
 }
 
+function buildComparableExperimentShape(args: {
+  experiment_tag: string;
+  study_kind: z.infer<typeof ExperimentsTableSchema.shape.study_kind>;
+  evidence_source_kind: z.infer<typeof ExperimentsTableSchema.shape.evidence_source_kind>;
+  evidence_set_id: z.infer<typeof ExperimentsTableSchema.shape.evidence_set_id>;
+  paper_audit_package_id: z.infer<typeof ExperimentsTableSchema.shape.paper_audit_package_id>;
+  rubric_source_kind: z.infer<typeof ExperimentsTableSchema.shape.rubric_source_kind>;
+  compatibility_mode: z.infer<typeof ExperimentsTableSchema.shape.compatibility_mode>;
+  task_contract: z.infer<typeof ExperimentsTableSchema.shape.task_contract>;
+  output_contract: z.infer<typeof ExperimentsTableSchema.shape.output_contract>;
+  rubric_config: z.infer<typeof ExperimentsTableSchema.shape.rubric_config>;
+  scoring_config: z.infer<typeof ExperimentsTableSchema.shape.scoring_config>;
+}) {
+  return JSON.stringify(args);
+}
+
 export const createExperiment: ReturnType<typeof zInternalMutation> = zInternalMutation({
   args: CreateExperimentArgsSchema,
   returns: zid("experiments"),
@@ -194,16 +210,33 @@ export const upsertExperimentByTag: ReturnType<typeof zInternalMutation> = zInte
       };
     }
 
-    const unchanged = existing.study_kind === resolved.study_kind
-      && existing.evidence_source_kind === resolved.evidence_source_kind
-      && existing.evidence_set_id === resolved.evidence_set_id
-      && existing.paper_audit_package_id === resolved.paper_audit_package_id
-      && existing.rubric_source_kind === resolved.rubric_source_kind
-      && existing.compatibility_mode === resolved.compatibility_mode
-      && JSON.stringify(existing.task_contract) === JSON.stringify(resolved.task_contract)
-      && JSON.stringify(existing.output_contract) === JSON.stringify(resolved.output_contract)
-      && JSON.stringify(existing.rubric_config) === JSON.stringify(resolved.rubric_config)
-      && JSON.stringify(existing.scoring_config) === JSON.stringify(resolved.scoring_config);
+    const nextComparable = buildComparableExperimentShape({
+      experiment_tag: args.experiment_tag,
+      study_kind: resolved.study_kind,
+      evidence_source_kind: resolved.evidence_source_kind,
+      evidence_set_id: resolved.evidence_set_id,
+      paper_audit_package_id: resolved.paper_audit_package_id,
+      rubric_source_kind: resolved.rubric_source_kind,
+      compatibility_mode: resolved.compatibility_mode,
+      task_contract: resolved.task_contract,
+      output_contract: resolved.output_contract,
+      rubric_config: resolved.rubric_config,
+      scoring_config: resolved.scoring_config,
+    });
+    const currentComparable = buildComparableExperimentShape({
+      experiment_tag: existing.experiment_tag,
+      study_kind: existing.study_kind,
+      evidence_source_kind: existing.evidence_source_kind,
+      evidence_set_id: existing.evidence_set_id,
+      paper_audit_package_id: existing.paper_audit_package_id,
+      rubric_source_kind: existing.rubric_source_kind,
+      compatibility_mode: existing.compatibility_mode,
+      task_contract: existing.task_contract,
+      output_contract: existing.output_contract,
+      rubric_config: existing.rubric_config,
+      scoring_config: existing.scoring_config,
+    });
+    const unchanged = currentComparable === nextComparable;
     if (unchanged) {
       return {
         experiment_id: existing._id,

@@ -250,4 +250,139 @@ describe("experiment contract", () => {
     expect(evidenceRows[0]?.url).toBe("https://example.com/lab-row");
     expect(evidenceRows[0]?.source_name).toBe("Example Source");
   });
+
+  test("public upsert surfaces make V4 launch rerunnable", async () => {
+    const t = initTest();
+    const paperAuditPackage = await seedGilardiPackage(t);
+
+    const firstUniverse = await t.mutation(api.packages.evidence.upsertEvidenceUniverse, {
+      universe_tag: "v4-upsert-universe",
+      kind: "paper_audit",
+      title: "V4 upsert universe",
+    });
+    const secondUniverse = await t.mutation(api.packages.evidence.upsertEvidenceUniverse, {
+      universe_tag: "v4-upsert-universe",
+      kind: "paper_audit",
+      title: "V4 upsert universe",
+    });
+
+    expect(firstUniverse.action).toBe("created");
+    expect(secondUniverse.action).toBe("unchanged");
+    expect(secondUniverse.universe_id).toBe(firstUniverse.universe_id);
+
+    const imported = await t.action(internal.domain.evidence.evidence_service.importEvidenceItem, {
+      universe_id: firstUniverse.universe_id,
+      canonical_key: "upsert:item:001",
+      title: "Upsert imported row",
+      raw_text: "Upsert imported row text.",
+      source_record_kind: "paper_original",
+      pipeline_kind: "import",
+      pipeline_version: "upsert-v1",
+    });
+
+    const firstSet = await t.mutation(api.packages.evidence.upsertEvidenceSet, {
+      universe_id: firstUniverse.universe_id,
+      evidence_set_tag: "upsert-set",
+      title: "Upsert set",
+      source_kind: "literature_dataset",
+      quality_label: "high",
+    });
+    const secondSet = await t.mutation(api.packages.evidence.upsertEvidenceSet, {
+      universe_id: firstUniverse.universe_id,
+      evidence_set_tag: "upsert-set",
+      title: "Upsert set",
+      source_kind: "literature_dataset",
+      quality_label: "high",
+    });
+
+    expect(firstSet.action).toBe("created");
+    expect(secondSet.action).toBe("unchanged");
+    expect(secondSet.evidence_set_id).toBe(firstSet.evidence_set_id);
+
+    await t.mutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetItems, {
+      evidence_set_id: firstSet.evidence_set_id,
+      items: [
+        {
+          evidence_item_id: imported.evidence_item_id,
+          pinned_source_record_id: imported.source_record_id,
+          quality_label: "high",
+        },
+      ],
+    });
+
+    const firstExperiment = await t.mutation(api.packages.lab.upsertExperiment, {
+      evidence_set_id: firstSet.evidence_set_id,
+      experiment_tag: "v4_upsert_experiment",
+      experiment_config: {
+        study_kind: "paper_audit",
+        evidence_source_kind: "evidence_set",
+        paper_audit_package_id: paperAuditPackage.package_id,
+        compatibility_mode: "paper_faithful",
+        rubric_source_kind: "direct_labels",
+        task_contract: {
+          task_kind: "label_classification",
+          label_space_json: JSON.stringify(["relevant", "irrelevant"]),
+          instructions_json: JSON.stringify({ source: "package" }),
+          prompt_template_id: "gilardi_relevance_v1",
+        },
+        output_contract: {
+          kind: "label",
+          schema_version: "v1",
+          parser_key: "freeform_label_choice",
+        },
+        rubric_config: {
+          model: "gpt-4.1",
+          scale_size: 2,
+          concept: "policy relevance",
+        },
+        scoring_config: {
+          model: "gpt-4.1",
+          method: "single",
+          abstain_enabled: false,
+          evidence_view: "paper_original",
+          randomizations: [],
+          evidence_bundle_size: 1,
+        },
+      },
+    });
+    const secondExperiment = await t.mutation(api.packages.lab.upsertExperiment, {
+      evidence_set_id: firstSet.evidence_set_id,
+      experiment_tag: "v4_upsert_experiment",
+      experiment_config: {
+        study_kind: "paper_audit",
+        evidence_source_kind: "evidence_set",
+        paper_audit_package_id: paperAuditPackage.package_id,
+        compatibility_mode: "paper_faithful",
+        rubric_source_kind: "direct_labels",
+        task_contract: {
+          task_kind: "label_classification",
+          label_space_json: JSON.stringify(["relevant", "irrelevant"]),
+          instructions_json: JSON.stringify({ source: "package" }),
+          prompt_template_id: "gilardi_relevance_v1",
+        },
+        output_contract: {
+          kind: "label",
+          schema_version: "v1",
+          parser_key: "freeform_label_choice",
+        },
+        rubric_config: {
+          model: "gpt-4.1",
+          scale_size: 2,
+          concept: "policy relevance",
+        },
+        scoring_config: {
+          model: "gpt-4.1",
+          method: "single",
+          abstain_enabled: false,
+          evidence_view: "paper_original",
+          randomizations: [],
+          evidence_bundle_size: 1,
+        },
+      },
+    });
+
+    expect(firstExperiment.action).toBe("created");
+    expect(secondExperiment.action).not.toBe("conflict");
+    expect(secondExperiment.experiment_id).toBe(firstExperiment.experiment_id);
+  });
 });

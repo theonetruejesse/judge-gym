@@ -276,7 +276,7 @@ async function main() {
     evidence_items: pairEvidenceItems,
     experiment_blueprints: [
       {
-        experiment_tag: "zheng_mt_bench_pair_v2_v1_baseline_gpt41",
+        experiment_tag: "zheng_mt_bench_pair_v2_v1_canary_gpt41",
         package_tag: pairPackage.package_tag,
         study_kind: "benchmark",
         compatibility_mode: "paper_faithful",
@@ -323,7 +323,7 @@ async function main() {
     experiment_blueprints: [
       {
         ...pairBundle.experiment_blueprints[0],
-        experiment_tag: "zheng_mt_bench_pair_v2_multi_turn_v1_baseline_gpt41",
+        experiment_tag: "zheng_mt_bench_pair_v2_multi_turn_v1_canary_gpt41",
         package_tag: multiTurnPackage.package_tag,
       },
     ],
@@ -346,4 +346,3 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exit(1);
 });
-

@@ -7,7 +7,7 @@
   },
   "status": {
     "workspace": "active",
-    "phase": "baseline_canaries_passed",
+    "phase": "baseline_headline_cohort_passed",
     "activeRun": null,
     "terminalObjectiveMet": false
   },
@@ -57,23 +57,36 @@
         "baseline_canary_failures": 0,
         "promotion_ready": true
       }
+    },
+    {
+      "runId": "R02",
+      "requestedObjective": "Instantiate the locked V4 headline matrix, launch the first cohort cells across the provider panel, and apply the monitored promotion/prune loop at matrix scale.",
+      "workflowPath": "_deep_workflows/v4-launch-r02",
+      "status": "completed",
+      "measuredOutcome": {
+        "headline_experiments_created": 8,
+        "headline_runs_completed": 8,
+        "headline_run_failures": 0,
+        "queue_health_healthy": true,
+        "tag_conflict_bug_found": true,
+        "tag_conflict_bug_hardened": true
+      }
     }
   ],
   "currentBest": {
-    "label": "baseline_live_canaries_passed",
+    "label": "baseline_headline_cohort_passed",
     "metrics": {
-      "live_import_readiness": 1.0,
-      "package_registration_readiness": 1.0,
-      "canary_pass_rate": 1.0,
+      "headline_launch_readiness": 1.0,
+      "headline_baseline_pass_rate": 1.0,
       "launch_blocker_count": 0,
-      "stability_confidence": 0.93
+      "stability_confidence": 0.96
     },
-    "artifactPath": "_deep_workflows/v4-launch-r01/synthesis/final_report.md"
+    "artifactPath": "_deep_workflows/v4-launch-r02/synthesis/final_report.md"
   },
   "bottlenecks": [
-    "The full 20-experiment headline matrix has not been instantiated yet.",
-    "Cross-provider headline cells still need the same monitored launch loop used for the baseline canaries.",
-    "Longer-horizon launch telemetry and promotion/prune policy still need to be applied at full matrix scale."
+    "The abstention and Gilardi `l2_neutralized` headline cells have not been launched yet.",
+    "The Zheng single-turn GPT-4.1 baseline experiment row contains two completed runs because the initial canary tag matched the baseline tag before the tag policy was hardened.",
+    "Longer-horizon launch telemetry and promotion/prune policy still need to be applied to the remaining headline cells."
   ],
   "decisions": [
     {
@@ -91,13 +104,17 @@
     {
       "timestamp": "2026-03-26",
       "statement": "After the live launch-tool fix, Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries all completed with zero failures; the next campaign step is full matrix instantiation."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "The first full baseline provider cohort completed with zero failures across Gilardi and Zheng. Tag conflicts must now hard-fail, and Zheng canary tags were renamed to avoid reuse of headline experiment rows."
     }
   ],
   "nextActions": [
     {
       "type": "compile_workflow",
-      "runId": "R02",
-      "requestPath": "runs/R02/workflow_request.md"
+      "runId": "R03",
+      "requestPath": "runs/R03/workflow_request.md"
     }
   ]
 }

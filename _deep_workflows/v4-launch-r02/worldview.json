@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r02",
+    "objective": "Instantiate the locked V4 headline matrix with an idempotent control plane, launch the first cross-provider baseline cohort, and define promotion gates for the remaining headline cells.",
+    "objectiveClass": "unknown",
+    "operatingMode": "read_only_with_local_analysis",
+    "executionMode": "compile_only",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "draft",
+    "nodes": {},
+    "runtime": "pending",
+    "synthesis": "pending",
+    "validation": "pending"
+  },
+  "decisions": [],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

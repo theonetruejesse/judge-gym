@@ -146,6 +146,31 @@ export const initExperiment: ReturnType<typeof zMutation> = zMutation({
   },
 });
 
+export const upsertExperiment: ReturnType<typeof zMutation> = zMutation({
+  args: z.object({
+    experiment_tag: z.string(),
+    experiment_config: ExperimentConfigInputSchema,
+    evidence_set_id: zid("evidence_sets"),
+    force_reconfigure: z.boolean().optional(),
+  }),
+  returns: z.object({
+    experiment_id: zid("experiments"),
+    action: z.enum(["created", "updated", "unchanged", "conflict"]),
+  }),
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(
+      internal.domain.runs.experiments_repo.upsertExperimentByTag,
+      {
+        experiment_tag: args.experiment_tag,
+        evidence_set_id: args.evidence_set_id,
+        force_reconfigure: args.force_reconfigure ?? false,
+        ...args.experiment_config,
+      },
+    );
+    return result;
+  },
+});
+
 export const startExperimentRun: ReturnType<typeof zMutation> = zMutation({
   args: z.object({
     experiment_id: zid("experiments"),

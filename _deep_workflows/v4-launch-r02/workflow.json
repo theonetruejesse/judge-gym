@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "V4 Launch R02",
+    "slug": "v4-launch-r02",
+    "objective": "Instantiate the locked V4 headline matrix with an idempotent control plane, launch the first cross-provider baseline cohort, and define promotion gates for the remaining headline cells.",
+    "objectiveClass": "live_launch",
+    "operatingMode": "live_ops_with_validation",
+    "executionMode": "execute_and_monitor",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r02"
+  },
+  "compile": {
+    "baseHint": null,
+    "taskSignals": [],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [],
+    "notes": []
+  },
+  "bindings": {
+    "sharedInputs": [],
+    "sharedTools": [],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [],
+    "nodes": [],
+    "edges": []
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

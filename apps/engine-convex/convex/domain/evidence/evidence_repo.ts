@@ -192,6 +192,90 @@ export const createUniverse = zInternalMutation({
   },
 });
 
+export const getUniverseByTag = zInternalQuery({
+  args: z.object({
+    universe_tag: EvidenceUniverseTableSchema.shape.universe_tag,
+  }),
+  returns: EvidenceUniverseTableSchema.extend({
+    _id: zid("evidence_universes"),
+    _creationTime: z.number(),
+  }).nullable(),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("evidence_universes")
+      .withIndex("by_universe_tag", (q) => q.eq("universe_tag", args.universe_tag))
+      .first();
+  },
+});
+
+export const upsertUniverseByTag = zInternalMutation({
+  args: CreateUniverseArgsSchema,
+  returns: z.object({
+    universe_id: zid("evidence_universes"),
+    action: z.enum(["created", "updated", "unchanged"]),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("evidence_universes")
+      .withIndex("by_universe_tag", (q) => q.eq("universe_tag", args.universe_tag))
+      .first();
+    const now = Date.now();
+    const nextComparable = JSON.stringify({
+      universe_tag: args.universe_tag,
+      kind: args.kind,
+      title: args.title,
+      description: args.description ?? null,
+      citation_json: args.citation_json ?? null,
+      license_json: args.license_json ?? null,
+      default_locale: args.default_locale ?? null,
+      status: "start",
+    });
+
+    if (!existing) {
+      const universe_id = await ctx.db.insert("evidence_universes", {
+        universe_tag: args.universe_tag,
+        kind: args.kind,
+        title: args.title,
+        description: args.description ?? null,
+        citation_json: args.citation_json ?? null,
+        license_json: args.license_json ?? null,
+        default_locale: args.default_locale ?? null,
+        status: "start",
+        created_at_ms: now,
+        updated_at_ms: now,
+      });
+      return { universe_id, action: "created" as const };
+    }
+
+    const currentComparable = JSON.stringify({
+      universe_tag: existing.universe_tag,
+      kind: existing.kind,
+      title: existing.title,
+      description: existing.description ?? null,
+      citation_json: existing.citation_json ?? null,
+      license_json: existing.license_json ?? null,
+      default_locale: existing.default_locale ?? null,
+      status: existing.status,
+    });
+
+    if (currentComparable === nextComparable) {
+      return { universe_id: existing._id, action: "unchanged" as const };
+    }
+
+    await ctx.db.patch(existing._id, {
+      kind: args.kind,
+      title: args.title,
+      description: args.description ?? null,
+      citation_json: args.citation_json ?? null,
+      license_json: args.license_json ?? null,
+      default_locale: args.default_locale ?? null,
+      status: "start",
+      updated_at_ms: now,
+    });
+    return { universe_id: existing._id, action: "updated" as const };
+  },
+});
+
 export const createAcquisitionSpec = zInternalMutation({
   args: CreateAcquisitionSpecArgsSchema,
   returns: z.object({
@@ -570,6 +654,95 @@ export const createEvidenceSet = zInternalMutation({
       updated_at_ms: now,
     });
     return { evidence_set_id };
+  },
+});
+
+export const getEvidenceSetByTag = zInternalQuery({
+  args: z.object({
+    universe_id: zid("evidence_universes"),
+    evidence_set_tag: EvidenceSetsTableSchema.shape.evidence_set_tag,
+  }),
+  returns: EvidenceSetsTableSchema.extend({
+    _id: zid("evidence_sets"),
+    _creationTime: z.number(),
+  }).nullable(),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("evidence_sets")
+      .withIndex("by_universe_tag", (q) =>
+        q.eq("universe_id", args.universe_id).eq("evidence_set_tag", args.evidence_set_tag),
+      )
+      .first();
+  },
+});
+
+export const upsertEvidenceSetByTag = zInternalMutation({
+  args: CreateEvidenceSetArgsSchema,
+  returns: z.object({
+    evidence_set_id: zid("evidence_sets"),
+    action: z.enum(["created", "updated", "unchanged"]),
+  }),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("evidence_sets")
+      .withIndex("by_universe_tag", (q) =>
+        q.eq("universe_id", args.universe_id).eq("evidence_set_tag", args.evidence_set_tag),
+      )
+      .first();
+    const now = Date.now();
+    const nextComparable = JSON.stringify({
+      universe_id: args.universe_id,
+      evidence_set_tag: args.evidence_set_tag,
+      title: args.title,
+      description: args.description ?? null,
+      source_kind: args.source_kind,
+      quality_label: args.quality_label ?? "unknown",
+      selection_config_json: args.selection_config_json ?? null,
+      status: args.status ?? "start",
+    });
+
+    if (!existing) {
+      const evidence_set_id = await ctx.db.insert("evidence_sets", {
+        universe_id: args.universe_id,
+        evidence_set_tag: args.evidence_set_tag,
+        title: args.title,
+        description: args.description ?? null,
+        source_kind: args.source_kind,
+        quality_label: args.quality_label ?? "unknown",
+        selection_config_json: args.selection_config_json ?? null,
+        item_count: 0,
+        status: args.status ?? "start",
+        created_at_ms: now,
+        updated_at_ms: now,
+      });
+      return { evidence_set_id, action: "created" as const };
+    }
+
+    const currentComparable = JSON.stringify({
+      universe_id: existing.universe_id,
+      evidence_set_tag: existing.evidence_set_tag,
+      title: existing.title,
+      description: existing.description ?? null,
+      source_kind: existing.source_kind,
+      quality_label: existing.quality_label,
+      selection_config_json: existing.selection_config_json ?? null,
+      status: existing.status,
+    });
+
+    if (currentComparable === nextComparable) {
+      return { evidence_set_id: existing._id, action: "unchanged" as const };
+    }
+
+    await ctx.db.patch(existing._id, {
+      title: args.title,
+      description: args.description ?? null,
+      source_kind: args.source_kind,
+      quality_label: args.quality_label ?? "unknown",
+      selection_config_json: args.selection_config_json ?? null,
+      status: args.status ?? "start",
+      updated_at_ms: now,
+    });
+    return { evidence_set_id: existing._id, action: "updated" as const };
   },
 });
 

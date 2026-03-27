@@ -66,6 +66,9 @@ export async function applyBundle(args: {
   bundlePath: string;
   startRun?: boolean;
   targetCount?: number;
+  experimentTags?: string[];
+  forceReconfigure?: boolean;
+  allowConflicts?: boolean;
 }) {
   const convexUrl = process.env.CONVEX_URL;
   if (!convexUrl) {
@@ -74,14 +77,14 @@ export async function applyBundle(args: {
   const client = new ConvexHttpClient(convexUrl);
   const bundle = await readJson<ImportBundle>(args.bundlePath);
 
-  const universe = await client.mutation(api.packages.evidence.createEvidenceUniverse, {
+  const universe = await client.mutation(api.packages.evidence.upsertEvidenceUniverse, {
     universe_tag: bundle.universe.universe_tag,
     kind: bundle.universe.kind,
     title: bundle.universe.title,
     description: bundle.universe.description ?? null,
     citation_json: bundle.universe.citation_json ?? null,
   });
-  const evidenceSet = await client.mutation(api.packages.evidence.createEvidenceSet, {
+  const evidenceSet = await client.mutation(api.packages.evidence.upsertEvidenceSet, {
     universe_id: universe.universe_id,
     evidence_set_tag: bundle.evidence_set.evidence_set_tag,
     title: bundle.evidence_set.title,
@@ -128,7 +131,12 @@ export async function applyBundle(args: {
   });
 
   const experiments = [];
-  for (const blueprint of bundle.experiment_blueprints) {
+  const selectedBlueprints = args.experimentTags?.length
+    ? bundle.experiment_blueprints.filter((blueprint) =>
+      args.experimentTags!.includes(blueprint.experiment_tag),
+    )
+    : bundle.experiment_blueprints;
+  for (const blueprint of selectedBlueprints) {
     const experimentConfig = {
       study_kind: blueprint.study_kind,
       compatibility_mode: blueprint.compatibility_mode,
@@ -139,11 +147,18 @@ export async function applyBundle(args: {
       scoring_config: blueprint.scoring_config,
       paper_audit_package_id: packageResult.package_id,
     };
-    const experiment = await client.mutation(api.packages.lab.initExperiment, {
+    const experiment = await client.mutation(api.packages.lab.upsertExperiment, {
       experiment_tag: blueprint.experiment_tag,
       evidence_set_id: evidenceSet.evidence_set_id,
       experiment_config: experimentConfig,
+      force_reconfigure: args.forceReconfigure ?? false,
     });
+    if (experiment.action === "conflict" && !(args.allowConflicts ?? false)) {
+      throw new Error(
+        `Experiment tag conflict for ${blueprint.experiment_tag}. `
+        + "Re-run with a distinct tag or explicitly allow conflicts.",
+      );
+    }
     experiments.push(experiment);
   }
 
@@ -166,6 +181,7 @@ export async function applyBundle(args: {
     evidenceSet,
     packageResult,
     imported_count: imported.length,
+    selected_experiment_count: selectedBlueprints.length,
     experiments,
     runs,
   };

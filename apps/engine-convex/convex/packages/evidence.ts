@@ -42,6 +42,9 @@ const AcquisitionRunInputSchema = z.object({
 const CreateUniverseResultSchema = z.object({
   universe_id: zid("evidence_universes"),
 });
+const UpsertUniverseResultSchema = CreateUniverseResultSchema.extend({
+  action: z.enum(["created", "updated", "unchanged"]),
+});
 
 const CreateAcquisitionSpecResultSchema = z.object({
   acquisition_spec_id: zid("acquisition_specs"),
@@ -167,6 +170,9 @@ const EvidenceSetItemInputSchema = z.object({
 
 const CreateEvidenceSetResultSchema = z.object({
   evidence_set_id: zid("evidence_sets"),
+});
+const UpsertEvidenceSetResultSchema = CreateEvidenceSetResultSchema.extend({
+  action: z.enum(["created", "updated", "unchanged"]),
 });
 
 const CreateEvidenceSetFromAcquisitionRunArgsSchema = z.object({
@@ -345,6 +351,14 @@ export const createEvidenceUniverse: ReturnType<typeof zMutation> = zMutation({
   returns: CreateUniverseResultSchema,
   handler: async (ctx, args): Promise<z.infer<typeof CreateUniverseResultSchema>> => {
     return ctx.runMutation(internal.domain.evidence.evidence_repo.createUniverse, args);
+  },
+});
+
+export const upsertEvidenceUniverse: ReturnType<typeof zMutation> = zMutation({
+  args: EvidenceUniverseInputSchema,
+  returns: UpsertUniverseResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof UpsertUniverseResultSchema>> => {
+    return ctx.runMutation(internal.domain.evidence.evidence_repo.upsertUniverseByTag, args);
   },
 });
 
@@ -547,6 +561,14 @@ export const createEvidenceSet: ReturnType<typeof zMutation> = zMutation({
   returns: CreateEvidenceSetResultSchema,
   handler: async (ctx, args): Promise<z.infer<typeof CreateEvidenceSetResultSchema>> => {
     return ctx.runMutation(internal.domain.evidence.evidence_repo.createEvidenceSet, args);
+  },
+});
+
+export const upsertEvidenceSet: ReturnType<typeof zMutation> = zMutation({
+  args: EvidenceSetInputSchema,
+  returns: UpsertEvidenceSetResultSchema,
+  handler: async (ctx, args): Promise<z.infer<typeof UpsertEvidenceSetResultSchema>> => {
+    return ctx.runMutation(internal.domain.evidence.evidence_repo.upsertEvidenceSetByTag, args);
   },
 });
 
