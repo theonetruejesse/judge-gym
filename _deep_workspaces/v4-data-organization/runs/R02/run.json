@@ -1,0 +1,11 @@
+{
+  "runId": "R02",
+  "title": "Clean catalog anomalies and freeze conceptual manifest",
+  "boundedObjective": "Resolve the duplicate Gilardi catalog rows if they still matter, then define the first GPT-4.1-only native conceptual-study manifest and evidence-universe creation plan.",
+  "status": "planned",
+  "createdAt": "2026-03-27T21:01:14.796108+00:00",
+  "workflowRequestPath": "runs/R02/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": []
+}

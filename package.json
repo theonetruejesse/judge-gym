@@ -21,6 +21,7 @@
     "v4:build:gilardi": "bun scripts/v4/build_gilardi_import.ts",
     "v4:build:zheng": "bun scripts/v4/build_zheng_import.ts",
     "v4:build:headline": "bun scripts/v4/build_headline_bundles.ts",
+    "v4:inventory": "bun scripts/v4/export_inventory.ts",
     "v4:canary:gilardi": "bun scripts/v4/canary_gilardi.ts",
     "v4:canary:zheng": "bun scripts/v4/canary_zheng.ts",
     "v4:launch:headline": "bun scripts/v4/launch_headline_matrix.ts",

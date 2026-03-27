@@ -137,6 +137,7 @@ Local paper-audit readiness flow:
 - `bun run v4:build:gilardi`
 - `bun run v4:build:zheng`
 - `bun run v4:build:headline`
+- `bun run v4:inventory`
 - `bun run v4:canary:gilardi`
 - `bun run v4:canary:zheng`
 - `bun run v4:canary:gilardi --live --start-run`
@@ -146,6 +147,8 @@ Local paper-audit readiness flow:
 - `bun run v4:launch:headline --cohort=baseline --live --start-run`
 
 These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
+
+`bun run v4:inventory` exports the current live V4 catalog plus local source/build artifacts into `_local/v4_inventory/`. Use it before expanding the study surface so paper-audit runs, local bundles, and native conceptual-study queue work stay clearly separated.
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
 

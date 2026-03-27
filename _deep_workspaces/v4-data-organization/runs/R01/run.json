@@ -1,0 +1,11 @@
+{
+  "runId": "R01",
+  "title": "Build V4 data inventory and conceptual-launch map",
+  "boundedObjective": "Inventory the current live and local V4 artifacts, separate paper-audit assets from native conceptual-study surfaces, identify which conceptual setups can run now versus which are blocked on missing bundle/spec work, and produce implementation-facing manifests/docs for the next launch phase.",
+  "status": "planned",
+  "createdAt": "2026-03-27T20:56:27.638092+00:00",
+  "workflowRequestPath": "runs/R01/workflow_request.md",
+  "workflowPath": null,
+  "measuredOutcome": {},
+  "notes": []
+}

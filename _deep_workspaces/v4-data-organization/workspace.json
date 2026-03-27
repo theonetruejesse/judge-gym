@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "name": "V4 Data Organization",
+    "slug": "v4-data-organization",
+    "objective": "Organize the current V4 data and result surfaces across paper-audit and native conceptual-study lanes, identify which conceptual setups are runnable now versus blocked on missing bundle/spec work, and leave the repo ready for a controlled next launch phase before broader provider expansion.",
+    "status": "active",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-data-organization"
+  },
+  "environment": {
+    "repoRoot": "/Users/jesselee/dev/research/jg/judge-gym",
+    "knownTools": [
+      "bun",
+      "Convex own-dev via CONVEX_URL",
+      "scripts/run_convex.sh",
+      "deep-workflow validators"
+    ],
+    "knownConstraints": [
+      "Keep paper-audit launch state separate from native conceptual-study planning.",
+      "Do not expand provider families until the data surface is explicitly organized.",
+      "Semantic clustering remains unsupported for V4 evidence-set-backed runs."
+    ],
+    "unknowns": [
+      "Whether the duplicate Gilardi universe/set rows should be cleaned immediately or only after a dedicated integrity pass.",
+      "Which native conceptual evidence universe should be the first GPT-4.1-only launch target."
+    ],
+    "notes": [
+      "The V4 paper-audit matrix already exists and has completed launch plus GPT-4.1 rerun analysis.",
+      "The next requested move is not more literature-audit execution; it is organizing the current data and mapping the native conceptual lane."
+    ]
+  },
+  "objectiveModel": {
+    "terminalObjective": "Organize the current V4 data and result surfaces across paper-audit and native conceptual-study lanes, identify which conceptual setups are runnable now versus blocked on missing bundle/spec work, and leave the repo ready for a controlled next launch phase before broader provider expansion.",
+    "successCriteria": [
+      "Export a repeatable machine-readable V4 inventory from live Convex plus local source/build artifacts.",
+      "Publish a human-readable V4 data organization document that separates paper-audit assets from native conceptual-study readiness.",
+      "Record the concrete runnable-now versus blocked-now conceptual surfaces.",
+      "Leave the repo with a clear next queue for GPT-4.1-only native conceptual work."
+    ],
+    "nonGoals": [
+      "Do not launch new provider-family cohorts in this workspace.",
+      "Do not redefine the locked paper-audit V4 spec."
+    ],
+    "dependencyPolicy": [
+      "Prefer inventory and integrity-audit surfaces over new execution work.",
+      "Only propose conceptual launches that fit current GPT-4.1 budget constraints."
+    ],
+    "capabilityTiers": [
+      {
+        "label": "inventory",
+        "description": "Export and summarize the current live/local V4 study state."
+      },
+      {
+        "label": "readiness",
+        "description": "Map runnable conceptual-study cells versus blocked bundle/spec work."
+      }
+    ]
+  },
+  "strategy": {
+    "baselinePlan": [
+      "Use the current live Convex catalog plus local _local/v4_sources and _local/v4_builds as the baseline inventory surface.",
+      "Treat the existing V4 launch workspace as the paper-audit baseline and fork native conceptual organization into this workspace."
+    ],
+    "telemetry": {
+      "historyPath": "telemetry/metrics.jsonl",
+      "leaderboardPath": "telemetry/leaderboard.json",
+      "trackedMetrics": [
+        "live_experiment_count",
+        "duplicate_tag_count",
+        "conceptual_runnable_surface_count",
+        "conceptual_blocker_count"
+      ]
+    },
+    "progressionLadder": [
+      "inventory export",
+      "human-readable separation doc",
+      "conceptual readiness map",
+      "next-launch queue"
+    ],
+    "searchRegimes": [
+      "exploit the existing V4 launch outputs instead of expanding provider search",
+      "use cheap catalog audits before any more live runs"
+    ],
+    "pruneRules": [
+      "Do not open new provider or appendix branches until the inventory surface is explicit."
+    ],
+    "escalationRules": [
+      "Escalate to a cleanup pass only if the inventory reveals real catalog anomalies that threaten the next launch step."
+    ],
+    "promotionRules": [
+      "Promote this workspace to complete only once the repo has a repeatable inventory command and a concrete conceptual-study queue."
+    ],
+    "gitPolicy": {
+      "commitAfterLoop": true,
+      "branchStrategy": "same_branch_until_user_redirects"
+    },
+    "workflowRequestPolicy": {
+      "createRealRunFolders": true,
+      "maxOpenRuns": 1
+    }
+  },
+  "handoff": {
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows",
+    "runRoot": "runs/",
+    "kernelSkill": "deep-workflow",
+    "executorSkill": "execute-workflow",
+    "requestTemplatePath": "runs/_template_workflow_request.md"
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md",
+      "telemetry/leaderboard.json"
+    ]
+  },
+  "policies": {
+    "maxConcurrentWorkflows": 1,
+    "reviewRequired": [],
+    "stopConditions": [
+      "Stop only after the inventory artifacts exist and the next conceptual queue is explicit."
+    ],
+    "budget": {
+      "provider_budget_policy": "GPT-4.1 only for near-term conceptual launches"
+    },
+    "continueUntilTerminal": true,
+    "blockerPolicy": "only_stop_for_real_external_blockers"
+  }
+}

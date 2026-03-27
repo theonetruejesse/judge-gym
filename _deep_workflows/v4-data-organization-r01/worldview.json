@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-data-organization-r01",
+    "objective": "Inventory the current live and local V4 artifacts, separate paper-audit assets from native conceptual-study surfaces, identify which conceptual setups can run now versus which are blocked on missing bundle/spec work, and produce implementation-facing manifests/docs for the next launch phase.",
+    "objectiveClass": "inventory_and_readiness_audit",
+    "operatingMode": "bounded_code_write",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {},
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Organize V4 into three inventories: live paper-audit lane, local source/build lane, and native conceptual queue."
+    },
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Treat duplicate own-dev catalog rows as inventory findings to track before broader launch expansion, not as blockers for the current paper-audit read."
+    },
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Keep the native conceptual queue GPT-4.1-only until a first curated conceptual universe is frozen."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

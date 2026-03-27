@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "V4 Data Organization R01",
+    "slug": "v4-data-organization-r01",
+    "objective": "Inventory the current live and local V4 artifacts, separate paper-audit assets from native conceptual-study surfaces, identify which conceptual setups can run now versus which are blocked on missing bundle/spec work, and produce implementation-facing manifests/docs for the next launch phase.",
+    "objectiveClass": "inventory_and_readiness_audit",
+    "operatingMode": "bounded_code_write",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-data-organization-r01"
+  },
+  "compile": {
+    "baseHint": "Use the current live Convex catalog and local V4 source/build artifacts as the inventory baseline, then write repeatable export surfaces and a human-readable readiness split.",
+    "taskSignals": [
+      "The paper-audit launch lane is already complete and should be treated as a closed baseline.",
+      "The user wants native conceptual setups to be considered next, but only after the data is organized.",
+      "The repo already has local source/build bundles plus live experiment state, so the missing layer is inventory/readiness, not another launch runner."
+    ],
+    "constraints": {
+      "allowCodeWrites": true,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [
+      "seq",
+      "script",
+      "synthesize"
+    ],
+    "notes": [
+      "No subagents were required; the bounded work is a local export plus synthesis/documentation pass."
+    ]
+  },
+  "bindings": {
+    "sharedInputs": [
+      "docs/pilots/v4_specs.md",
+      "_deep_workflows/v4-launch-r04/synthesis/final_report.md",
+      "_deep_workflows/v4-launch-r05/synthesis/final_report.md",
+      "_local/v4_builds",
+      "_local/v4_sources"
+    ],
+    "sharedTools": [
+      "bun",
+      "scripts/run_convex.sh"
+    ],
+    "sharedScripts": [],
+    "connectors": [
+      "Convex own-dev"
+    ],
+    "env": [
+      "CONVEX_URL"
+    ]
+  },
+  "graph": {
+    "entryNodes": [],
+    "nodes": [],
+    "edges": []
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [],
+    "artifactTypes": [
+      "report",
+      "metric",
+      "decision"
+    ],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 2
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [
+      "Stop when the inventory export exists, the human-readable data split exists, and the next conceptual queue is explicit."
+    ],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {
+      "provider_budget_policy": "GPT-4.1 only for upcoming conceptual launches"
+    }
+  }
+}

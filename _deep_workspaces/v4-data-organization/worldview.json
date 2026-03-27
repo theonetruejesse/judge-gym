@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "workspacePath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workspaces/v4-data-organization",
+    "objective": "Organize the current V4 data and result surfaces across paper-audit and native conceptual-study lanes, identify which conceptual setups are runnable now versus blocked on missing bundle/spec work, and leave the repo ready for a controlled next launch phase before broader provider expansion.",
+    "workflowRoot": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows"
+  },
+  "status": {
+    "workspace": "active",
+    "phase": "inventory_completed",
+    "activeRun": "R02",
+    "terminalObjectiveMet": true
+  },
+  "environment": {
+    "discovered": true,
+    "notes": [
+      "Live own-dev contains 22 completed V4 experiments, including canaries and reruns.",
+      "The local source/build layer is already complete for Gilardi and Zheng.",
+      "The conceptual-study lane is runnable on the current substrate, but no native conceptual manifest or curated universe has been created yet.",
+      "The inventory surface exposed duplicate Gilardi universe/set tags and a small number of multi-run experiment rows."
+    ]
+  },
+  "baselines": {
+    "current": {
+      "label": "paper_audit_launch_plus_inventory",
+      "summary": "The V4 paper-audit lane is launched and analyzed. The repo now also has a repeatable inventory/export surface and an explicit native conceptual-study readiness map.",
+      "sourceArtifacts": [
+        "docs/pilots/v4_data_inventory.md",
+        "_local/v4_inventory/live_inventory.json",
+        "_local/v4_inventory/live_inventory.md"
+      ]
+    },
+    "history": [
+      {
+        "label": "paper_audit_launch_plus_inventory",
+        "status": "active"
+      }
+    ]
+  },
+  "telemetry": {
+    "historyPath": "telemetry/metrics.jsonl",
+    "leaderboardPath": "telemetry/leaderboard.json",
+    "latest": {
+      "ts": "2026-03-27T21:02:02.563891+00:00",
+      "label": "inventory_completed",
+      "source": "R01",
+      "metrics": {
+        "live_experiment_count": 22.0,
+        "duplicate_tag_count": 2.0,
+        "conceptual_runnable_surface_count": 6.0,
+        "conceptual_blocker_count": 4.0
+      },
+      "artifactPath": null
+    }
+  },
+  "workflowRuns": [
+    {
+      "runId": "R01",
+      "requestedObjective": "Inventory the current live and local V4 artifacts, separate paper-audit assets from native conceptual-study surfaces, identify which conceptual setups can run now versus which are blocked on missing bundle/spec work, and produce implementation-facing manifests/docs for the next launch phase.",
+      "workflowPath": "_deep_workflows/v4-data-organization-r01",
+      "status": "completed",
+      "measuredOutcome": {
+        "live_experiment_count": 22,
+        "duplicate_universe_tag_count": 1,
+        "duplicate_evidence_set_tag_count": 1,
+        "experiments_with_multiple_runs": 4,
+        "conceptual_runnable_surface_defined": true
+      }
+    },
+    {
+      "runId": "R02",
+      "requestedObjective": "Resolve the duplicate Gilardi catalog rows if they still matter, then define the first GPT-4.1-only native conceptual-study manifest and evidence-universe creation plan.",
+      "workflowPath": null,
+      "status": "planned",
+      "measuredOutcome": {}
+    }
+  ],
+  "currentBest": {
+    "label": "inventory_completed",
+    "metrics": {
+      "inventory_export_ready": 1,
+      "conceptual_readiness_defined": 1,
+      "catalog_anomalies_detected": 1,
+      "next_queue_defined": 1
+    },
+    "artifactPath": "docs/pilots/v4_data_inventory.md"
+  },
+  "bottlenecks": [
+    "Duplicate Gilardi universe/set tags should be cleaned before the next broader launch pass.",
+    "The native conceptual-study lane still lacks a frozen manifest and curated evidence universe.",
+    "Semantic cluster bundle strategies remain blocked in V4 evidence-set-backed runs."
+  ],
+  "decisions": [
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Use a separate workspace from the paper-audit launch campaign so data organization and native conceptual readiness do not get buried inside rerun/claim work."
+    },
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Treat the paper-audit lane, local source/build artifacts, and native conceptual-study queue as distinct inventories."
+    },
+    {
+      "timestamp": "2026-03-27",
+      "statement": "Do not broaden provider families until the native conceptual queue starts with a GPT-4.1-only launch slice."
+    }
+  ],
+  "nextActions": [
+    {
+      "type": "compile_workflow",
+      "runId": "R02",
+      "requestPath": "runs/R02/workflow_request.md"
+    }
+  ]
+}
