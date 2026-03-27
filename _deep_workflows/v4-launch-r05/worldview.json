@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r05",
+    "objective": "Execute the GPT-4.1-only targeted rerun cohort for V4: rerun Gilardi baseline and l2 plus Zheng baseline and abstention, then compare the reruns against the first-pass outputs.",
+    "objectiveClass": "rerun_and_compare",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {},
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Constrain the rerun budget to GPT-4.1 only. Repeat the four GPT-4.1 cells that either anchored the main claims or showed first-pass movement."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Treat the Zheng GPT-4.1 abstention effect as unstable unless it repeats. The rerun is the deciding check for whether that one-item movement is signal or noise."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "If Gilardi baseline and Zheng abstention repeat exactly while Zheng baseline or Gilardi l2 move by only one borderline item, promote the first-pass claims but describe those cells as near-boundary rather than fully deterministic."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

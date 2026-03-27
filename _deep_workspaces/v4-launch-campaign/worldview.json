@@ -7,7 +7,7 @@
   },
   "status": {
     "workspace": "active",
-    "phase": "headline_matrix_first_pass_analyzed",
+    "phase": "gpt41_rerun_completed",
     "activeRun": null,
     "terminalObjectiveMet": false
   },
@@ -100,24 +100,38 @@
         "observed_abstains": 0,
         "targeted_rerun_plan_defined": true
       }
+    },
+    {
+      "runId": "R05",
+      "requestedObjective": "Execute the GPT-4.1-only targeted rerun cohort for V4: rerun Gilardi baseline and l2 plus Zheng baseline and abstention, then compare the reruns against the first-pass outputs.",
+      "workflowPath": "_deep_workflows/v4-launch-r05",
+      "status": "completed",
+      "measuredOutcome": {
+        "rerun_cells_completed": 4,
+        "rerun_failures": 0,
+        "fully_stable_cells": 2,
+        "single_item_drift_cells": 2,
+        "gpt41_zheng_abstention_effect_repeated": false
+      }
     }
   ],
   "currentBest": {
-    "label": "headline_matrix_first_pass_analyzed",
+    "label": "gpt41_rerun_completed",
     "metrics": {
       "headline_launch_readiness": 1.0,
       "headline_baseline_pass_rate": 1.0,
       "headline_matrix_pass_rate": 1.0,
       "launch_blocker_count": 0,
       "stability_confidence": 0.98,
-      "analysis_readiness": 1.0
+      "analysis_readiness": 1.0,
+      "gpt41_rerun_cohort_pass_rate": 1.0
     },
-    "artifactPath": "_deep_workflows/v4-launch-r04/synthesis/final_report.md"
+    "artifactPath": "_deep_workflows/v4-launch-r05/synthesis/final_report.md"
   },
   "bottlenecks": [
     "The Zheng single-turn GPT-4.1 baseline experiment row contains two completed runs because the initial canary tag matched the baseline tag before the tag policy was hardened.",
-    "The first-pass analysis indicates that the current abstention contract is weak on this matrix, so the next decision is whether to keep abstention as a negative-result headline claim or add a stronger translated abstention appendix lane later.",
-    "The next campaign step is targeted rerun execution on the cells that actually moved, not another blind full-matrix repeat."
+    "The current abstention contract remains weak on this matrix, and the GPT-4.1 rerun does not rescue it as a stable effect.",
+    "The next campaign step is no longer more reruns by default; it is deciding how to write up the weak-abstention result and whether any appendix translated-prompt work is worth the budget."
   ],
   "decisions": [
     {
@@ -151,13 +165,17 @@
     {
       "timestamp": "2026-03-26",
       "statement": "First-pass analysis shows zero observed abstains across 392 responses and zero Zheng baseline ties across all four providers. The most important movement is the Gilardi raw-vs-l2 contrast, especially on Claude Sonnet 4."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "The GPT-4.1 rerun cohort stabilizes the main interpretation: Gilardi baseline is exact-repeat stable, Zheng abstention is exact-repeat stable, and the only remaining movement is one borderline Gilardi l2 item and one tie-adjacent Zheng baseline item."
     }
   ],
   "nextActions": [
     {
       "type": "compile_workflow",
-      "runId": "R05",
-      "requestPath": "runs/R05/workflow_request.md"
+      "runId": "R06",
+      "requestPath": "runs/R06/workflow_request.md"
     }
   ]
 }
