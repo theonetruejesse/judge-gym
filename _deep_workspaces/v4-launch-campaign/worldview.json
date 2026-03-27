@@ -7,7 +7,7 @@
   },
   "status": {
     "workspace": "active",
-    "phase": "baseline_headline_cohort_passed",
+    "phase": "headline_matrix_first_pass_completed",
     "activeRun": null,
     "terminalObjectiveMet": false
   },
@@ -71,22 +71,39 @@
         "tag_conflict_bug_found": true,
         "tag_conflict_bug_hardened": true
       }
+    },
+    {
+      "runId": "R03",
+      "requestedObjective": "Launch the remaining locked headline conditions after the baseline cohort: cross-provider abstention and Gilardi `l2_neutralized`, using the hardened tag policy and the same monitored promotion/prune loop.",
+      "workflowPath": "_deep_workflows/v4-launch-r03",
+      "status": "completed",
+      "measuredOutcome": {
+        "remaining_headline_experiments_launched": 12,
+        "remaining_headline_runs_completed": 12,
+        "remaining_headline_run_failures": 0,
+        "semantic_transform_precondition_detected": true,
+        "semantic_transform_precondition_resolved": true,
+        "parser_robustness_bug_found": true,
+        "parser_robustness_bug_fixed": true,
+        "headline_matrix_latest_runs_clean": true
+      }
     }
   ],
   "currentBest": {
-    "label": "baseline_headline_cohort_passed",
+    "label": "headline_matrix_first_pass_completed",
     "metrics": {
       "headline_launch_readiness": 1.0,
       "headline_baseline_pass_rate": 1.0,
+      "headline_matrix_pass_rate": 1.0,
       "launch_blocker_count": 0,
-      "stability_confidence": 0.96
+      "stability_confidence": 0.98
     },
-    "artifactPath": "_deep_workflows/v4-launch-r02/synthesis/final_report.md"
+    "artifactPath": "_deep_workflows/v4-launch-r03/synthesis/final_report.md"
   },
   "bottlenecks": [
-    "The abstention and Gilardi `l2_neutralized` headline cells have not been launched yet.",
     "The Zheng single-turn GPT-4.1 baseline experiment row contains two completed runs because the initial canary tag matched the baseline tag before the tag policy was hardened.",
-    "Longer-horizon launch telemetry and promotion/prune policy still need to be applied to the remaining headline cells."
+    "Longer-horizon launch telemetry and promotion/prune policy still need to be applied now that the full headline matrix has completed its first clean pass.",
+    "The next campaign step should synthesize first-pass results and define rerun/promotion policy for any scientifically interesting or operationally unstable cells."
   ],
   "decisions": [
     {
@@ -108,13 +125,21 @@
     {
       "timestamp": "2026-03-26",
       "statement": "The first full baseline provider cohort completed with zero failures across Gilardi and Zheng. Tag conflicts must now hard-fail, and Zheng canary tags were renamed to avoid reuse of headline experiment rows."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Semantic-view launch cohorts must verify transform coverage before live start. The Gilardi l2 cohort only launched after a targeted transform run generated full `l2_neutralized` coverage."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "The full 20-cell headline matrix has now completed one clean pass. Mild provider formatting drift in freeform label tasks should be handled by parser recovery rather than treated as a launch-stopping failure."
     }
   ],
   "nextActions": [
     {
       "type": "compile_workflow",
-      "runId": "R03",
-      "requestPath": "runs/R03/workflow_request.md"
+      "runId": "R04",
+      "requestPath": "runs/R04/workflow_request.md"
     }
   ]
 }

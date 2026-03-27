@@ -268,6 +268,63 @@ function decodeSingleToken(
   return decoded;
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tryDecodeMappedLabelFromText(
+  rawText: string,
+  labelMapping?: Record<string, number>,
+): { token: string; decoded: number } | null {
+  if (!labelMapping) {
+    return null;
+  }
+
+  const normalizedText = normalizeVerdictLine(rawText);
+  const exact = labelMapping[normalizedText];
+  if (exact !== undefined) {
+    return {
+      token: normalizedText,
+      decoded: exact,
+    };
+  }
+
+  const tokens = normalizedText
+    .split(/[^A-Za-z0-9_-]+/)
+    .map((token) => normalizeVerdictToken(token))
+    .filter((token) => token.length > 0);
+  for (const token of tokens) {
+    const mapped = labelMapping[token];
+    if (mapped !== undefined) {
+      return {
+        token,
+        decoded: mapped,
+      };
+    }
+  }
+
+  const loweredText = normalizedText.toLowerCase();
+  const sortedEntries = Object.entries(labelMapping)
+    .map(([label, decoded]) => ({
+      label: normalizeVerdictToken(label),
+      decoded,
+    }))
+    .filter((entry) => entry.label.length > 1)
+    .sort((left, right) => right.label.length - left.label.length);
+
+  for (const entry of sortedEntries) {
+    const pattern = new RegExp(`(^|[^a-z0-9_])${escapeRegex(entry.label.toLowerCase())}([^a-z0-9_]|$)`);
+    if (pattern.test(loweredText)) {
+      return {
+        token: entry.label,
+        decoded: entry.decoded,
+      };
+    }
+  }
+
+  return null;
+}
+
 function getVerdictLineCandidate(line: string): string | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
@@ -539,6 +596,15 @@ export function parseFreeformLabelChoice(
         abstained: false,
       };
     }
+  }
+
+  const mappedFromText = tryDecodeMappedLabelFromText(candidate, labelMapping);
+  if (mappedFromText) {
+    return {
+      rawVerdict: mappedFromText.token,
+      decodedScores: [mappedFromText.decoded],
+      abstained: false,
+    };
   }
 
   const tokenMatch = normalizedCandidate.match(/[A-Za-z0-9_-]+/);

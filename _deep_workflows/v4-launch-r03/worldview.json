@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "workflowPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r03",
+    "objective": "Launch the remaining locked headline conditions after the baseline cohort: cross-provider abstention and Gilardi l2_neutralized, using the hardened tag policy and the same monitored promotion/prune loop.",
+    "objectiveClass": "live_launch",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "executionSubstrate": "rlm"
+  },
+  "status": {
+    "workflow": "completed",
+    "nodes": {},
+    "runtime": "completed",
+    "synthesis": "completed",
+    "validation": "completed"
+  },
+  "decisions": [
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Treat missing semantic-view coverage as a launch precondition, not a live-run failure. Generate the required Gilardi l2 views before launching the semantic cohort."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Promote parser robustness as part of the launch contract after Claude Sonnet 4 emitted a prose-leading freeform label response that the original parser rejected. Patch the parser and rerun the affected experiment before closing the run."
+    },
+    {
+      "timestamp": "2026-03-26",
+      "statement": "Accept slower Qwen throughput as normal provider latency when the queue remains healthy and pending work continues to drain without failed requests."
+    }
+  ],
+  "artifacts": {
+    "workflow": "workflow.json",
+    "executionReport": "runtime/execution_report.md",
+    "trace": "runtime/trace.jsonl",
+    "finalReport": "synthesis/final_report.md",
+    "validationReport": "validation/validation_report.md"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "name": "V4 Launch R03",
+    "slug": "v4-launch-r03",
+    "objective": "Launch the remaining locked headline conditions after the baseline cohort: cross-provider abstention and Gilardi l2_neutralized, using the hardened tag policy and the same monitored promotion/prune loop.",
+    "objectiveClass": "live_launch",
+    "operatingMode": "live_ops_with_patch",
+    "executionMode": "compile_and_execute",
+    "status": "completed",
+    "rootPath": "/Users/jesselee/dev/research/jg/judge-gym/_deep_workflows/v4-launch-r03"
+  },
+  "compile": {
+    "baseHint": null,
+    "taskSignals": [],
+    "constraints": {
+      "allowCodeWrites": false,
+      "allowMutatingScripts": false,
+      "allowLiveOps": false
+    },
+    "selectedPrimitives": [],
+    "notes": []
+  },
+  "bindings": {
+    "sharedInputs": [],
+    "sharedTools": [],
+    "sharedScripts": [],
+    "connectors": [],
+    "env": []
+  },
+  "graph": {
+    "entryNodes": [],
+    "nodes": [],
+    "edges": []
+  },
+  "artifacts": {
+    "sharedOutputs": [
+      "synthesis/final_report.md",
+      "validation/validation_report.md"
+    ],
+    "perNodeOutputs": [],
+    "artifactTypes": [],
+    "requiredNodeArtifactsByKind": {
+      "script": [
+        "manifest.json",
+        "run_log.json"
+      ],
+      "query": [
+        "manifest.json",
+        "run_log.json"
+      ]
+    }
+  },
+  "runtime": {
+    "executionSubstrate": "rlm",
+    "contextRoot": "contexts/",
+    "runtimeRoot": "runtime/",
+    "tracePath": "runtime/trace.jsonl",
+    "executionReportPath": "runtime/execution_report.md",
+    "subagentCommunication": "filesystem_handoff",
+    "defaultWorkspaceRoot": "workspace/",
+    "defaultDelegateRoot": "delegates/",
+    "maxRecursionDepth": 2,
+    "maxSubagentsPerNode": 4
+  },
+  "policies": {
+    "mergeStrategy": "lead_synthesizes",
+    "stopConditions": [],
+    "approvalRequired": [],
+    "maxIterations": 1,
+    "retry": 0,
+    "budget": {}
+  }
+}

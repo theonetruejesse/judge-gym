@@ -212,6 +212,17 @@ describe("run parsers", () => {
     expect(parsed.reasoning).toBe("");
   });
 
+  test("recovers mapped labels from prose-leading freeform outputs", () => {
+    const parsed = parseFreeformLabelChoice("This article is relevant because it discusses policy implementation.", {
+      relevant: 1,
+      irrelevant: 2,
+    });
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.rawVerdict).toBe("relevant");
+    expect(parsed.decodedScores).toEqual([1]);
+  });
+
   test("dispatches MT-Bench bracket score responses", () => {
     const parsed = parseScoreResponse(
       [

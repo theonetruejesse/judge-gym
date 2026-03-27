@@ -149,6 +149,8 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
 
+For paper-audit label tasks that use `freeform_label_choice`, the parser accepts either a strict final `LABEL:` line or a prose final line that still contains one mapped label verbatim, which keeps launch canaries resilient to mild provider formatting drift.
+
 ## Development Notes
 
 - Root `.env.local` is the source of truth
