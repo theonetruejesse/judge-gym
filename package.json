@@ -25,6 +25,8 @@
     "v4:inventory": "bun scripts/v4/export_inventory.ts",
     "v4:build:native": "bun scripts/v4/build_native_conceptual_manifest.ts",
     "v4:launch:native": "bun scripts/v4/launch_native_conceptual_matrix.ts",
+    "v4:build:native-openai": "bun scripts/v4/build_native_openai_scale_manifests.ts",
+    "v4:launch:native-openai": "bun scripts/v4/launch_native_openai_scale.ts",
     "v4:canary:gilardi": "bun scripts/v4/canary_gilardi.ts",
     "v4:canary:zheng": "bun scripts/v4/canary_zheng.ts",
     "v4:launch:headline": "bun scripts/v4/launch_headline_matrix.ts",

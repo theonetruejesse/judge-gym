@@ -151,6 +151,9 @@ Local paper-audit readiness flow:
 - `bun run v4:launch:native`
 - `bun run v4:launch:native --live --start-run`
 - `bun run v4:launch:native --live --start-run --snapshot-set-id <set_id> --allow-existing-set`
+- `bun run v4:build:native-openai`
+- `bun run v4:launch:native-openai`
+- `bun run v4:launch:native-openai --live --allow-existing-set`
 - `cd apps/analysis && uv run judge-gym-analysis v4-native-gpt41 --refresh`
 
 These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
@@ -176,6 +179,10 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 7. optionally starts and waits on the live runs
 
 If acquisition has already completed, resume with `--snapshot-set-id <set_id> --allow-existing-set` to skip reacquisition and continue from the frozen snapshot set.
+
+`bun run v4:build:native-openai` emits the promoted OpenAI-scale native manifests: the five high-signal native lanes from the GPT-4.1 screen across `gpt-4.1`, `gpt-5.2`, `gpt-4.1-mini`, and `gpt-5.2-chat`.
+
+`bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.
 
 `uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
 
