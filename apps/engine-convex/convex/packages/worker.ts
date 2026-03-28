@@ -4,7 +4,7 @@ import { zAction, zInternalQuery, zMutation, zQuery } from "../utils/custom_fns"
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx, MutationCtx } from "../_generated/server";
-import { RunsTableSchema, RunStageSchema } from "../models/experiments";
+import { ExperimentsTableSchema, RunsTableSchema, RunStageSchema } from "../models/experiments";
 import { emitTraceEvent } from "../domain/telemetry/emit";
 import { ProcessSnapshotSchema } from "../domain/temporal/schemas";
 import {
@@ -550,6 +550,8 @@ export const getRunExecutionContext = zQuery({
   returns: z.object({
     run_id: zid("runs"),
     experiment_id: zid("experiments"),
+    experiment_tag: z.string().optional(),
+    study_kind: ExperimentsTableSchema.shape.study_kind.optional(),
     workflow_id: z.string().nullable(),
     workflow_run_id: z.string().nullable(),
     status: RunsTableSchema.shape.status,
@@ -563,9 +565,15 @@ export const getRunExecutionContext = zQuery({
     if (!run) {
       throw new Error("Run not found");
     }
+    const experiment = await ctx.db.get(run.experiment_id);
+    if (!experiment) {
+      throw new Error("Experiment not found");
+    }
     return {
       run_id,
       experiment_id: run.experiment_id,
+      experiment_tag: experiment.experiment_tag,
+      study_kind: experiment.study_kind,
       workflow_id: run.workflow_id ?? null,
       workflow_run_id: run.workflow_run_id ?? null,
       status: run.status,

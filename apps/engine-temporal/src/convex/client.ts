@@ -34,6 +34,8 @@ function assertRequiredProcessId(
 type RunExecutionContext = {
   run_id: string;
   experiment_id: string;
+  experiment_tag?: string;
+  study_kind?: "pilot" | "paper_audit" | "benchmark" | "regime_check";
   workflow_id: string | null;
   workflow_run_id: string | null;
   status: string;

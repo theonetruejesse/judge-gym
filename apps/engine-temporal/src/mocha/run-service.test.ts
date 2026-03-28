@@ -820,7 +820,7 @@ describe("run stage service", function () {
           ...DEFAULT_ENGINE_SETTINGS,
           llm: {
             ...DEFAULT_ENGINE_SETTINGS.llm,
-            preflightTimeoutMs: 25,
+            preflightTimeoutMs: 250,
             batching: {
               ...DEFAULT_ENGINE_SETTINGS.llm.batching,
               minBatchSize: 2,
@@ -2346,5 +2346,320 @@ describe("run stage service", function () {
       "batch executor unavailable",
       "batch executor unavailable",
     ]);
+  });
+
+  it("times out a stalled direct provider request instead of hanging the stage", async () => {
+    const finishedErrors: string[] = [];
+    let markFailureCalls = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            direct: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.direct,
+              requestTimeoutMs: 15,
+            },
+            retries: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.retries,
+              providerFailureMaxAttempts: 1,
+              unexpectedFailureMaxAttempts: 1,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_direct_request_timeout",
+              experiment_id: "exp_direct_request_timeout",
+              workflow_id: "run:run_direct_request_timeout",
+              workflow_run_id: "workflow-run-direct-request-timeout",
+              status: "running",
+              current_stage: "rubric_critic",
+              target_count: 1,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [{
+              target_type: "sample" as const,
+              target_id: "sample_1",
+              model: "gpt-5.2-chat",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            return { attempt_id: "attempt_direct_timeout" };
+          },
+          async recordLlmAttemptFinish({ error_message }) {
+            if (error_message) {
+              finishedErrors.push(error_message);
+            }
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            markFailureCalls += 1;
+            return null;
+          },
+          async finalizeRunStage() {
+            return {
+              total: 1,
+              completed: 0,
+              failed: 1,
+              has_pending: false,
+              halt_process: true,
+              terminal_execution_status: "failed" as const,
+              error_message: "direct request failed",
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          return new Promise<never>(() => {});
+        },
+      },
+      "run_direct_request_timeout",
+      "rubric_critic",
+    );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(markFailureCalls, 1);
+    assert.equal(finishedErrors.length, 1);
+    assert.match(finishedErrors[0] ?? "", /Timed out running direct request/);
+  });
+
+  it("times out a stalled batch attempt checkpoint page instead of hanging forever", async () => {
+    const processErrors: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            preflightTimeoutMs: 15,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+              maxBatchSize: 20,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_attempt_checkpoint_timeout",
+              experiment_id: "exp_batch_attempt_checkpoint_timeout",
+              workflow_id: "run:run_batch_attempt_checkpoint_timeout",
+              workflow_run_id: "workflow-run-batch-attempt-checkpoint-timeout",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            if (target_id === "target_2") {
+              return new Promise<never>(() => {});
+            }
+            return { attempt_id: `attempt_${target_id}` };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            throw new Error("applyRunStageResult should not be called");
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            throw new Error("finalizeRunStage should not be called");
+          },
+          async markRunProcessError({ error_message }) {
+            processErrors.push(error_message);
+            return null;
+          },
+          async ensureBatchExecution() {
+            return {
+              batch_execution_id: "batch_execution_checkpoint_timeout",
+              provider_batch_id: null,
+              status: "preparing",
+              output_file_id: null,
+              error_file_id: null,
+              attempt_recorded_count: 0,
+              attempt_records_json: null,
+            };
+          },
+          async finalizeBatchExecution() {
+            return null;
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat() {
+          throw new Error("runOpenAiBatchChat should not be called");
+        },
+      },
+      "run_batch_attempt_checkpoint_timeout",
+      "score_gen",
+    );
+
+    assert.equal(result.haltProcess, true);
+    assert.equal(result.terminalExecutionStatus, "failed");
+    assert.match(result.errorMessage ?? "", /Timed out checkpointing batch attempts|Timed out recording batch attempt start/);
+    assert.equal(processErrors.length, 1);
+  });
+
+  it("forces direct mode for native OpenAI regime checks instead of entering batching", async () => {
+    let directCalls = 0;
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_native_direct_only",
+              experiment_id: "exp_native_direct_only",
+              experiment_tag: "v4_native_fascism_baseline_source_gpt41",
+              study_kind: "regime_check" as const,
+              workflow_id: "run:run_native_direct_only",
+              workflow_run_id: "workflow-run-native-direct-only",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            return { attempt_id: `attempt_${target_id}` };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat() {
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+          async ensureBatchExecution() {
+            throw new Error("ensureBatchExecution should not be called");
+          },
+          async finalizeBatchExecution() {
+            throw new Error("finalizeBatchExecution should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          directCalls += 1;
+          return {
+            assistant_output: "VERDICT: A",
+            input_tokens: 1,
+            output_tokens: 1,
+            total_tokens: 2,
+          };
+        },
+        async runOpenAiBatchChat() {
+          throw new Error("runOpenAiBatchChat should not be called");
+        },
+      },
+      "run_native_direct_only",
+      "score_gen",
+    );
+
+    assert.equal(result.haltProcess, undefined);
+    assert.equal(result.terminalExecutionStatus, undefined);
+    assert.equal(directCalls, 2);
   });
 });

@@ -101,20 +101,35 @@ function getProcessHeartbeatIntervalMs(deps: RunStageDependencies) {
   return deps.processHeartbeatIntervalMs ?? DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS;
 }
 
+function shouldForceDirectExecution(args: {
+  experimentTag?: string;
+  studyKind?: string;
+  model: ModelType;
+}) {
+  const { provider } = getModelConfig(args.model);
+  if (provider !== "openai") {
+    return false;
+  }
+  if (args.experimentTag?.startsWith("v4_native_")) {
+    return true;
+  }
+  return args.studyKind === "regime_check";
+}
+
 function getLlmPreflightTimeoutMs(deps: RunStageDependencies) {
   return getSettings(deps).llm.preflightTimeoutMs;
 }
 
 function getBatchAttemptStartConcurrency(settings: EngineSettings) {
   return Math.max(
-    settings.llm.direct.maxConcurrentRequests,
-    Math.min(16, settings.llm.direct.maxConcurrentRequests * 4),
+    2,
+    Math.min(8, settings.llm.direct.maxConcurrentRequests * 2),
   );
 }
 
 function getBatchAttemptStartPageSize(settings: EngineSettings) {
   const concurrency = getBatchAttemptStartConcurrency(settings);
-  return Math.max(concurrency, Math.min(64, concurrency * 4));
+  return Math.max(concurrency, Math.min(32, concurrency * 2));
 }
 
 function getDefaultRunStageDependencies(): RunStageDependencies {
@@ -350,8 +365,12 @@ async function recordRunBatchAttemptStarts(args: {
 
   for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
     const page = pages[pageIndex]!;
-    const pageResults = await withPeriodicHeartbeat({
+    const pageResults = await withPreflightGuard({
       intervalMs: getProcessHeartbeatIntervalMs(args.deps),
+      timeoutMs: getLlmPreflightTimeoutMs(args.deps),
+      timeoutMessage:
+        `Timed out checkpointing batch attempts for ${args.stage} run ${args.runId} `
+        + `(page ${pageIndex + 1}/${pages.length})`,
       onHeartbeat: async () => {
         await args.deps.convex.recordProcessHeartbeat?.({
           process_kind: "run",
@@ -377,26 +396,32 @@ async function recordRunBatchAttemptStarts(args: {
         page,
         attemptStartConcurrency,
         async (input) => {
-          const { attempt_id } = await args.deps.convex.recordLlmAttemptStart({
-            attempt_key: [
-              "run",
-              args.runId,
-              args.stage,
-              input.target_id,
-              "batch",
-            ].join(":"),
-            process_kind: "run",
-            process_id: args.runId,
-            target_type: input.target_type,
-            target_id: input.target_id,
-            stage: args.stage,
-            provider: args.provider,
-            model: input.model,
-            operation_type: "batch",
-            workflow_id: args.workflowId,
-            system_prompt: input.system_prompt,
-            user_prompt: input.user_prompt,
-            metadata_json: input.metadata_json,
+          const { attempt_id } = await withTimeout({
+            timeoutMs: getLlmPreflightTimeoutMs(args.deps),
+            timeoutMessage:
+              `Timed out recording batch attempt start for ${args.stage} `
+              + `target ${input.target_id}`,
+            task: () => args.deps.convex.recordLlmAttemptStart({
+              attempt_key: [
+                "run",
+                args.runId,
+                args.stage,
+                input.target_id,
+                "batch",
+              ].join(":"),
+              process_kind: "run",
+              process_id: args.runId,
+              target_type: input.target_type,
+              target_id: input.target_id,
+              stage: args.stage,
+              provider: args.provider,
+              model: input.model,
+              operation_type: "batch",
+              workflow_id: args.workflowId,
+              system_prompt: input.system_prompt,
+              user_prompt: input.user_prompt,
+              metadata_json: input.metadata_json,
+            }),
           });
           return {
             input,
@@ -532,11 +557,17 @@ export async function runRunStageActivityWithDeps(
 
   try {
     for (const [model, groupInputs] of groups.entries()) {
-      const useBatching = shouldUseBatching({
-        batchable: isBatchableModel(model as any),
-        itemCount: groupInputs.length,
-        settings: resolvedSettings.llm.batching,
-      });
+      const useBatching = shouldForceDirectExecution({
+        experimentTag: run.experiment_tag,
+        studyKind: run.study_kind,
+        model,
+      })
+        ? false
+        : shouldUseBatching({
+          batchable: isBatchableModel(model as any),
+          itemCount: groupInputs.length,
+          settings: resolvedSettings.llm.batching,
+        });
 
       if (!useBatching) {
         const directResults = await processConcurrently(
@@ -736,26 +767,32 @@ async function executeRunChatAttempt(
 > {
   const settings = getSettings(deps);
   const { provider } = getModelConfig(args.input.model);
-  const { attempt_id } = await deps.convex.recordLlmAttemptStart({
-    attempt_key: [
-      "run",
-      args.runId,
-      args.stage,
-      args.input.target_id,
-      `attempt:${args.attemptOrdinal}`,
-    ].join(":"),
-    process_kind: "run",
-    process_id: args.runId,
-    target_type: args.input.target_type,
-    target_id: args.input.target_id,
-    stage: args.stage,
-    provider,
-    model: args.input.model,
-    operation_type: "chat",
-    workflow_id: args.workflowId,
-    system_prompt: args.input.system_prompt,
-    user_prompt: args.input.user_prompt,
-    metadata_json: args.input.metadata_json,
+  const { attempt_id } = await withTimeout({
+    timeoutMs: getLlmPreflightTimeoutMs(deps),
+    timeoutMessage:
+      `Timed out recording direct attempt start for ${args.stage} `
+      + `target ${args.input.target_id}`,
+    task: () => deps.convex.recordLlmAttemptStart({
+      attempt_key: [
+        "run",
+        args.runId,
+        args.stage,
+        args.input.target_id,
+        `attempt:${args.attemptOrdinal}`,
+      ].join(":"),
+      process_kind: "run",
+      process_id: args.runId,
+      target_type: args.input.target_type,
+      target_id: args.input.target_id,
+      stage: args.stage,
+      provider,
+      model: args.input.model,
+      operation_type: "chat",
+      workflow_id: args.workflowId,
+      system_prompt: args.input.system_prompt,
+      user_prompt: args.input.user_prompt,
+      metadata_json: args.input.metadata_json,
+    }),
   });
 
   const reservedDimensions = {
@@ -818,11 +855,17 @@ async function executeRunChatAttempt(
           }),
         });
       },
-      task: () => deps.runOpenAiChat({
-        model: args.input.model,
-        systemPrompt: args.input.system_prompt,
-        userPrompt: args.input.user_prompt,
-        timeoutMs: settings.llm.direct.requestTimeoutMs,
+      task: () => withTimeout({
+        timeoutMs: settings.llm.direct.requestTimeoutMs + 5_000,
+        timeoutMessage:
+          `Timed out running direct request for ${args.stage} `
+          + `target ${args.input.target_id}`,
+        task: () => deps.runOpenAiChat({
+          model: args.input.model,
+          systemPrompt: args.input.system_prompt,
+          userPrompt: args.input.user_prompt,
+          timeoutMs: settings.llm.direct.requestTimeoutMs,
+        }),
       }),
     });
     await deps.convex.applyRunStageResult({
