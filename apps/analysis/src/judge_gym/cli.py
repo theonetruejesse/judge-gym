@@ -11,6 +11,7 @@ from .export import ConvexAnalysisClient, export_experiments
 from .investigate_v3 import generate_v3_investigation
 from .mine_v3 import mine_v3_findings, write_mining_summary
 from .report_v3 import assemble_v3_report
+from .report_v4_native import generate_v4_native_report
 from .rubric_embeddings import DEFAULT_RUBRIC_EMBEDDING_MODEL
 from .report_pilot import generate_pilot_report
 
@@ -70,6 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
     aggregation_parser.add_argument("--cache-db", default=str(default_cache_path()))
     aggregation_parser.add_argument("--tables-dir")
     aggregation_parser.add_argument("--output-dir")
+
+    native_parser = subparsers.add_parser("v4-native-gpt41", help="Export and analyze the GPT-4.1 native V4 conceptual matrix")
+    native_parser.add_argument("--convex-url")
+    native_parser.add_argument("--cache-db", default=str(default_cache_path()))
+    native_parser.add_argument("--output-dir")
+    native_parser.add_argument("--refresh", action="store_true")
+    native_parser.add_argument("--page-size", type=int, default=200)
 
     return parser
 
@@ -219,6 +227,31 @@ def main(argv: list[str] | None = None) -> int:
                     "method_alignment": int(len(outputs.method_alignment)),
                     "contrast_sensitivity": int(len(outputs.contrast_sensitivity)),
                     "report_panel": int(len(outputs.report_panel)),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "v4-native-gpt41":
+        outputs = generate_v4_native_report(
+            convex_url=args.convex_url,
+            cache_db_path=args.cache_db,
+            output_dir=args.output_dir,
+            refresh=args.refresh,
+            page_size=args.page_size,
+        )
+        print(
+            json.dumps(
+                {
+                    "output_dir": str(outputs.output_dir),
+                    "report_path": str(outputs.report_path),
+                    "summary_json_path": str(outputs.summary_json_path),
+                    "experiment_metrics_path": str(outputs.experiment_metrics_path),
+                    "contrast_metrics_path": str(outputs.contrast_metrics_path),
+                    "item_deltas_path": str(outputs.item_deltas_path),
+                    "evidence_inventory_path": str(outputs.evidence_inventory_path),
                 },
                 indent=2,
                 sort_keys=True,

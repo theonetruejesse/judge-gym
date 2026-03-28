@@ -300,6 +300,47 @@ def mark_snapshot_completed(connection: sqlite3.Connection, snapshot_id: str) ->
     connection.commit()
 
 
+def delete_snapshots(
+    connection: sqlite3.Connection,
+    *,
+    deployment_url: str,
+    run_id: str,
+    export_schema_version: int,
+) -> None:
+    snapshot_rows = connection.execute(
+        """
+        SELECT snapshot_id
+        FROM export_snapshots
+        WHERE deployment_url = ?
+          AND run_id = ?
+          AND export_schema_version = ?
+        """,
+        (deployment_url, run_id, export_schema_version),
+    ).fetchall()
+    snapshot_ids = [str(row["snapshot_id"]) for row in snapshot_rows]
+    if not snapshot_ids:
+        return
+
+    placeholders = ", ".join(["?"] * len(snapshot_ids))
+    with connection:
+        for table in (
+            "analysis_artifacts",
+            "analysis_samples",
+            "analysis_evidence",
+            "analysis_rubrics",
+            "analysis_response_items",
+            "analysis_responses",
+        ):
+            connection.execute(
+                f"DELETE FROM {table} WHERE snapshot_id IN ({placeholders})",
+                snapshot_ids,
+            )
+        connection.execute(
+            f"DELETE FROM export_snapshots WHERE snapshot_id IN ({placeholders})",
+            snapshot_ids,
+        )
+
+
 def write_snapshot_dataset(
     connection: sqlite3.Connection,
     *,

@@ -151,6 +151,7 @@ Local paper-audit readiness flow:
 - `bun run v4:launch:native`
 - `bun run v4:launch:native --live --start-run`
 - `bun run v4:launch:native --live --start-run --snapshot-set-id <set_id> --allow-existing-set`
+- `cd apps/analysis && uv run judge-gym-analysis v4-native-gpt41 --refresh`
 
 These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
 
@@ -175,6 +176,8 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 7. optionally starts and waits on the live runs
 
 If acquisition has already completed, resume with `--snapshot-set-id <set_id> --allow-existing-set` to skip reacquisition and continue from the frozen snapshot set.
+
+`uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
 

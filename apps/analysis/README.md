@@ -84,6 +84,13 @@ uv run judge-gym-analysis v3-aggregation-sensitivity \
   --output-dir _outputs/v3/investigation/tables
 ```
 
+10. Generate the native GPT-4.1 V4 report from the live conceptual cohort:
+
+```bash
+cd apps/analysis
+uv run judge-gym-analysis v4-native-gpt41 --refresh
+```
+
 By default the cache lives at `apps/analysis/_cache/analysis.sqlite`, and generated artifacts are written under `apps/analysis/_outputs/v3/`.
 
 The cache persists both bundled response rows and an exploded `analysis_response_items` table. That makes clustering-aware follow-up analysis possible without re-querying Convex or rebuilding per-evidence rows from raw arrays each time.

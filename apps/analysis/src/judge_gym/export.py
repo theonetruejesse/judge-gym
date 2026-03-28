@@ -8,6 +8,7 @@ import httpx
 from .cache import (
     connect_cache,
     create_snapshot,
+    delete_snapshots,
     existing_snapshot_id,
     mark_snapshot_completed,
     write_snapshot_dataset,
@@ -43,7 +44,7 @@ class ConvexAnalysisClient:
         return response.json()["value"]
 
     def list_experiments(self) -> list[dict[str, Any]]:
-        return list(self.query("apps/analysis:listAnalysisExperiments", {}))
+        return list(self.query("packages/analysis:listAnalysisExperiments", {}))
 
     def get_manifest(
         self,
@@ -56,7 +57,7 @@ class ConvexAnalysisClient:
             args["experiment_tag"] = experiment_tag
         if run_id is not None:
             args["run_id"] = run_id
-        return dict(self.query("apps/analysis:getAnalysisManifest", args))
+        return dict(self.query("packages/analysis:getAnalysisManifest", args))
 
     def collect_dataset(
         self,
@@ -151,6 +152,13 @@ def export_experiments(
                         )
                     )
                     continue
+            else:
+                delete_snapshots(
+                    connection,
+                    deployment_url=deployment_url,
+                    run_id=run_id,
+                    export_schema_version=schema_version,
+                )
 
             snapshot_id = create_snapshot(
                 connection,
@@ -158,10 +166,10 @@ def export_experiments(
                 manifest=manifest,
             )
             dataset_map = {
-                "analysis_responses": "apps/analysis:listAnalysisResponses",
-                "analysis_rubrics": "apps/analysis:listAnalysisRubrics",
-                "analysis_evidence": "apps/analysis:listAnalysisEvidence",
-                "analysis_samples": "apps/analysis:listAnalysisSamples",
+                "analysis_responses": "packages/analysis:listAnalysisResponses",
+                "analysis_rubrics": "packages/analysis:listAnalysisRubrics",
+                "analysis_evidence": "packages/analysis:listAnalysisEvidence",
+                "analysis_samples": "packages/analysis:listAnalysisSamples",
             }
 
             datasets: dict[str, list[dict[str, Any]]] = {}

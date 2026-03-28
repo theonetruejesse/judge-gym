@@ -14,10 +14,10 @@ from judge_gym.export import export_experiments
 
 def build_transport() -> httpx.MockTransport:
     calls: dict[str, int] = {
-        "apps/analysis:listAnalysisResponses": 0,
-        "apps/analysis:listAnalysisRubrics": 0,
-        "apps/analysis:listAnalysisEvidence": 0,
-        "apps/analysis:listAnalysisSamples": 0,
+        "packages/analysis:listAnalysisResponses": 0,
+        "packages/analysis:listAnalysisRubrics": 0,
+        "packages/analysis:listAnalysisEvidence": 0,
+        "packages/analysis:listAnalysisSamples": 0,
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -31,7 +31,7 @@ def build_transport() -> httpx.MockTransport:
         path = data["path"]
         args = data["args"]
 
-        if path == "apps/analysis:getAnalysisManifest":
+        if path == "packages/analysis:getAnalysisManifest":
             return httpx.Response(
                 200,
                 json={
@@ -81,10 +81,10 @@ def build_transport() -> httpx.MockTransport:
                 },
             )
 
-        if path.startswith("apps/analysis:listAnalysis"):
+        if path.startswith("packages/analysis:listAnalysis"):
             calls[path] += 1
             cursor = ((args.get("pagination") or {}).get("cursor"))
-            if path == "apps/analysis:listAnalysisResponses":
+            if path == "packages/analysis:listAnalysisResponses":
                 page = [{
                     "response_id": "score_1" if cursor is None else "score_2",
                     "experiment_id": "exp_1",
@@ -135,7 +135,7 @@ def build_transport() -> httpx.MockTransport:
                 )
 
             dataset_map = {
-                "apps/analysis:listAnalysisRubrics": {
+                "packages/analysis:listAnalysisRubrics": {
                     "rubric_id": "rubric_1",
                     "experiment_id": "exp_1",
                     "experiment_tag": "exp-tag",
@@ -154,7 +154,7 @@ def build_transport() -> httpx.MockTransport:
                     "observability_score": 0.8,
                     "discriminability_score": 0.9,
                 },
-                "apps/analysis:listAnalysisEvidence": {
+                "packages/analysis:listAnalysisEvidence": {
                     "evidence_set_item_id": "esi_1",
                     "evidence_item_id": "ei_1",
                     "evidence_view_id": "view_1",
@@ -170,7 +170,7 @@ def build_transport() -> httpx.MockTransport:
                     "publish_date": "2026-03-24",
                     "ordinal": 1,
                 },
-                "apps/analysis:listAnalysisSamples": {
+                "packages/analysis:listAnalysisSamples": {
                     "sample_id": "sample_1",
                     "experiment_id": "exp_1",
                     "experiment_tag": "exp-tag",
@@ -236,6 +236,45 @@ class ExportPipelineTest(unittest.TestCase):
                     (snapshots[0].snapshot_id,),
                 ).fetchone()
                 self.assertEqual(row["status"], "completed")
+            finally:
+                connection.close()
+
+    def test_export_experiments_refresh_replaces_existing_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "cache.sqlite"
+            first = export_experiments(
+                experiment_tags=["exp-tag"],
+                deployment_url="https://example.convex.cloud",
+                cache_db_path=str(db_path),
+                page_size=1,
+                transport=build_transport(),
+            )
+            second = export_experiments(
+                experiment_tags=["exp-tag"],
+                deployment_url="https://example.convex.cloud",
+                cache_db_path=str(db_path),
+                refresh=True,
+                page_size=1,
+                transport=build_transport(),
+            )
+
+            self.assertEqual(len(first), 1)
+            self.assertEqual(len(second), 1)
+            self.assertNotEqual(first[0].snapshot_id, second[0].snapshot_id)
+
+            connection = connect_cache(str(db_path))
+            try:
+                snapshot_rows = connection.execute(
+                    "SELECT snapshot_id, status FROM export_snapshots",
+                ).fetchall()
+                self.assertEqual(len(snapshot_rows), 1)
+                self.assertEqual(snapshot_rows[0]["snapshot_id"], second[0].snapshot_id)
+                self.assertEqual(snapshot_rows[0]["status"], "completed")
+
+                response_count = connection.execute(
+                    "SELECT COUNT(*) AS count FROM analysis_responses",
+                ).fetchone()["count"]
+                self.assertEqual(response_count, 2)
             finally:
                 connection.close()
 
