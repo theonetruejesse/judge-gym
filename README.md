@@ -145,10 +145,36 @@ Local paper-audit readiness flow:
 - `bun run v4:canary:zheng --multi-turn --live --start-run`
 - `bun run v4:launch:headline --cohort=baseline`
 - `bun run v4:launch:headline --cohort=baseline --live --start-run`
+- `bun run v4:cleanup:catalog -- --dry-run`
+- `bun run v4:cleanup:catalog`
+- `bun run v4:build:native`
+- `bun run v4:launch:native`
+- `bun run v4:launch:native --live --start-run`
+- `bun run v4:launch:native --live --start-run --snapshot-set-id <set_id> --allow-existing-set`
 
 These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
 
 `bun run v4:inventory` exports the current live V4 catalog plus local source/build artifacts into `_local/v4_inventory/`. Use it before expanding the study surface so paper-audit runs, local bundles, and native conceptual-study queue work stay clearly separated.
+
+`bun run v4:cleanup:catalog` consolidates duplicate evidence-universe/evidence-set rows by tag, patches experiments to the canonical set, and removes duplicate catalog rows. Use `-- --dry-run` first on any non-empty own-dev deployment.
+
+`bun run v4:build:native` emits the current GPT-4.1 native conceptual manifest into `_local/v4_builds/native_concepts/`. The default manifest uses a shared Media Cloud universe for `fascism` and `illiberal_democracy`, curates a 48-item evidence set, and defines six GPT-4.1-only regime-check experiments:
+
+- baseline `source_text`
+- abstention-on `source_text`
+- `l2_neutralized`
+
+`bun run v4:launch:native` dry-runs the full native conceptual path. In live mode it:
+
+1. waits for Temporal queue readiness
+2. launches Media Cloud acquisition for the shared universe
+3. snapshots the acquisition into an evidence set
+4. curates the 48-item native set
+5. generates `l1_cleaned` and `l2_neutralized` views
+6. upserts the six GPT-4.1 native experiments
+7. optionally starts and waits on the live runs
+
+If acquisition has already completed, resume with `--snapshot-set-id <set_id> --allow-existing-set` to skip reacquisition and continue from the frozen snapshot set.
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
 

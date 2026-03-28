@@ -16,6 +16,7 @@ import {
   CampaignStateSchema,
   GetV3CampaignStatusReturnSchema,
 } from "./v3_campaign";
+import { CleanupDuplicateEvidenceCatalogRowsResultSchema } from "./danger";
 
 const AnalyzeStageSummarySchema = z.object({
   stage: z.string(),
@@ -224,6 +225,12 @@ const ResetProjectStateResultSchema = z.object({
       count: z.number(),
     })),
   }),
+});
+
+const CleanupDuplicateEvidenceCatalogRowsArgsSchema = z.object({
+  universe_tag: z.string(),
+  evidence_set_tag: z.string(),
+  dry_run: z.boolean().default(true),
 });
 
 export function buildV3CampaignSnapshot(args: {
@@ -528,6 +535,21 @@ export const resetProjectState: ReturnType<typeof zAction> = zAction({
       cancelled_processes,
       nuke,
     };
+  },
+});
+
+export const cleanupDuplicateEvidenceCatalogRows: ReturnType<typeof zAction> = zAction({
+  args: CleanupDuplicateEvidenceCatalogRowsArgsSchema,
+  returns: CleanupDuplicateEvidenceCatalogRowsResultSchema,
+  handler: async (ctx, args) => {
+    return ctx.runMutation(
+      internal.domain.maintenance.danger.cleanupDuplicateEvidenceCatalogRows,
+      {
+        universe_tag: args.universe_tag,
+        evidence_set_tag: args.evidence_set_tag,
+        isDryRun: args.dry_run,
+      },
+    );
   },
 });
 

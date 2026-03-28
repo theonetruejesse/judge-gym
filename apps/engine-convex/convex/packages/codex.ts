@@ -1,5 +1,6 @@
 export {
   analyzeProcessTelemetry,
+  cleanupDuplicateEvidenceCatalogRows,
   controlProcessExecution,
   getTemporalTaskQueueHealth,
   resetProjectState,

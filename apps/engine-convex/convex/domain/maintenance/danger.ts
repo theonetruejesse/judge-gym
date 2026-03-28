@@ -49,6 +49,19 @@ const RunDeleteSummarySchema = z.object({
 
 type RunDeleteSummary = z.infer<typeof RunDeleteSummarySchema>;
 
+export const CleanupDuplicateEvidenceCatalogRowsResultSchema = z.object({
+  universe_tag: z.string(),
+  evidence_set_tag: z.string(),
+  isDryRun: z.boolean(),
+  kept_universe_id: zid("evidence_universes"),
+  kept_evidence_set_id: zid("evidence_sets"),
+  patched_experiment_ids: z.array(zid("experiments")),
+  deleted_universe_ids: z.array(zid("evidence_universes")),
+  deleted_evidence_set_ids: z.array(zid("evidence_sets")),
+  deleted_evidence_set_item_count: z.number(),
+  notes: z.array(z.string()),
+});
+
 function zeroRunDeleteSummary(): RunDeleteSummary {
   return {
     runs: 0,
@@ -73,6 +86,36 @@ async function deleteDocs(
   for (const doc of docs) {
     await ctx.db.delete(doc._id);
   }
+}
+
+async function countUniverseArtifacts(
+  ctx: any,
+  universe_id: Doc<"evidence_universes">["_id"],
+) {
+  const [sets, items, specs, candidates] = await Promise.all([
+    ctx.db
+      .query("evidence_sets")
+      .withIndex("by_universe", (q: any) => q.eq("universe_id", universe_id))
+      .collect(),
+    ctx.db
+      .query("evidence_items")
+      .withIndex("by_universe", (q: any) => q.eq("universe_id", universe_id))
+      .collect(),
+    ctx.db
+      .query("acquisition_specs")
+      .withIndex("by_universe", (q: any) => q.eq("universe_id", universe_id))
+      .collect(),
+    ctx.db
+      .query("evidence_candidates")
+      .withIndex("by_universe_provider_external", (q: any) => q.eq("universe_id", universe_id))
+      .collect(),
+  ]);
+  return {
+    sets,
+    items,
+    specs,
+    candidates,
+  };
 }
 
 async function listRunArtifacts(
@@ -563,6 +606,158 @@ export const listExperimentRunIds = zInternalQuery({
       .withIndex("by_experiment", (q) => q.eq("experiment_id", args.experiment_id))
       .collect();
     return runs.map((run) => run._id);
+  },
+});
+
+export const cleanupDuplicateEvidenceCatalogRows = zInternalMutation({
+  args: z.object({
+    universe_tag: z.string(),
+    evidence_set_tag: z.string(),
+    isDryRun: z.boolean().default(true),
+  }),
+  returns: CleanupDuplicateEvidenceCatalogRowsResultSchema,
+  handler: async (ctx, args) => {
+    const universes = await ctx.db
+      .query("evidence_universes")
+      .withIndex("by_universe_tag", (q: any) => q.eq("universe_tag", args.universe_tag))
+      .collect();
+    if (universes.length === 0) {
+      throw new Error(`No evidence universes found for tag ${args.universe_tag}`);
+    }
+
+    const universeSummaries = await Promise.all(
+      universes.map(async (universe: Doc<"evidence_universes"> & { _id: any; _creationTime: number }) => {
+        const artifacts = await countUniverseArtifacts(ctx, universe._id);
+        return {
+          universe,
+          itemCount: artifacts.items.length,
+          setCount: artifacts.sets.length,
+          artifacts,
+        };
+      }),
+    );
+
+    const keptUniverse = universeSummaries
+      .slice()
+      .sort((left, right) => {
+        if (left.itemCount !== right.itemCount) {
+          return right.itemCount - left.itemCount;
+        }
+        if (left.setCount !== right.setCount) {
+          return right.setCount - left.setCount;
+        }
+        return left.universe._creationTime - right.universe._creationTime;
+      })[0];
+    if (!keptUniverse) {
+      throw new Error(`Unable to select canonical universe for ${args.universe_tag}`);
+    }
+
+    const evidenceSets = await ctx.db
+      .query("evidence_sets")
+      .withIndex("by_evidence_set_tag", (q: any) => q.eq("evidence_set_tag", args.evidence_set_tag))
+      .collect();
+    if (evidenceSets.length === 0) {
+      throw new Error(`No evidence sets found for tag ${args.evidence_set_tag}`);
+    }
+
+    const keptSet = evidenceSets
+      .slice()
+      .sort((left, right) => {
+        const leftInUniverse = left.universe_id === keptUniverse.universe._id ? 1 : 0;
+        const rightInUniverse = right.universe_id === keptUniverse.universe._id ? 1 : 0;
+        if (leftInUniverse !== rightInUniverse) {
+          return rightInUniverse - leftInUniverse;
+        }
+        if (left.item_count !== right.item_count) {
+          return right.item_count - left.item_count;
+        }
+        return left._creationTime - right._creationTime;
+      })[0];
+    if (!keptSet) {
+      throw new Error(`Unable to select canonical evidence set for ${args.evidence_set_tag}`);
+    }
+
+    const duplicateSets = evidenceSets.filter((setRow: Doc<"evidence_sets"> & { _id: any }) => setRow._id !== keptSet._id);
+    const duplicateSetIds = new Set(
+      duplicateSets.map((setRow: Doc<"evidence_sets"> & { _id: any }) => String(setRow._id)),
+    );
+    const patchedExperimentIds = [] as Array<Doc<"experiments">["_id"]>;
+    const deletedEvidenceSetIds = [] as Array<Doc<"evidence_sets">["_id"]>;
+    let deletedEvidenceSetItemCount = 0;
+    const notes = [] as string[];
+
+    for (const duplicateSet of duplicateSets) {
+      const experiments = await ctx.db
+        .query("experiments")
+        .withIndex("by_evidence_set", (q: any) => q.eq("evidence_set_id", duplicateSet._id))
+        .collect();
+      for (const experiment of experiments) {
+        patchedExperimentIds.push(experiment._id);
+        if (!args.isDryRun) {
+          await ctx.db.patch(experiment._id, { evidence_set_id: keptSet._id });
+        }
+      }
+
+      const setItems = await ctx.db
+        .query("evidence_set_items")
+        .withIndex("by_set", (q: any) => q.eq("evidence_set_id", duplicateSet._id))
+        .collect();
+      deletedEvidenceSetItemCount += setItems.length;
+      deletedEvidenceSetIds.push(duplicateSet._id);
+
+      if (!args.isDryRun) {
+        await deleteDocs(ctx, setItems as Array<{ _id: unknown }>);
+        await ctx.db.delete(duplicateSet._id);
+      }
+    }
+
+    const deletedUniverseIds = [] as Array<Doc<"evidence_universes">["_id"]>;
+    for (const summary of universeSummaries) {
+      if (summary.universe._id === keptUniverse.universe._id) {
+        continue;
+      }
+      const remainingArtifacts = await countUniverseArtifacts(ctx, summary.universe._id);
+
+      const remainingSetCount = remainingArtifacts.sets.filter(
+        (setRow: Doc<"evidence_sets"> & { _id: any }) => !duplicateSetIds.has(String(setRow._id)),
+      ).length;
+
+      if (
+        remainingSetCount > 0
+        || remainingArtifacts.items.length > 0
+        || remainingArtifacts.specs.length > 0
+        || remainingArtifacts.candidates.length > 0
+      ) {
+        notes.push(
+          `Retained universe ${summary.universe._id} because it still has dependent rows `
+          + `(`
+          + `sets=${remainingSetCount}, `
+          + `items=${remainingArtifacts.items.length}, `
+          + `specs=${remainingArtifacts.specs.length}, `
+          + `candidates=${remainingArtifacts.candidates.length}`
+          + `).`,
+        );
+        continue;
+      }
+
+      deletedUniverseIds.push(summary.universe._id);
+      if (!args.isDryRun) {
+        await ctx.db.delete(summary.universe._id);
+      }
+    }
+
+    return {
+      universe_tag: args.universe_tag,
+      evidence_set_tag: args.evidence_set_tag,
+      isDryRun: args.isDryRun,
+      kept_universe_id: keptUniverse.universe._id,
+      kept_evidence_set_id: keptSet._id,
+      patched_experiment_ids: patchedExperimentIds,
+      deleted_universe_ids: deletedUniverseIds,
+      deleted_evidence_set_ids: deletedEvidenceSetIds,
+      deleted_evidence_set_item_count: deletedEvidenceSetItemCount,
+      notes,
+    };
   },
 });
 
