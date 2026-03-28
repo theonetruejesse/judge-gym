@@ -528,22 +528,59 @@ async function main() {
     })),
   });
 
-  const transformRun = await client.mutation(api.packages.evidence_transform.createEvidenceTransformRun, {
-    evidence_set_id: curatedSet.evidence_set_id,
-    source_record_kind: manifest.transform.source_record_kind,
-    target_view_kinds: resolveTransformStages(manifest.transform.target_view_kinds),
-    model: manifest.transform.model,
-    prompt_version: manifest.transform.prompt_version,
+  const requiredViewKinds = resolveTransformStages(manifest.transform.target_view_kinds);
+  const transformCoverage = await client.query(
+    api.packages.evidence_transform.getEvidenceSetTransformCoverage,
+    {
+      evidence_set_id: curatedSet.evidence_set_id,
+    },
+  );
+  const sourceCoverage = transformCoverage.source_record_coverage.find(
+    (entry) => entry.record_kind === manifest.transform.source_record_kind,
+  ) ?? null;
+  const hasRequiredSourceCoverage = sourceCoverage?.missing_count === 0;
+  const hasRequiredViewCoverage = requiredViewKinds.every((viewKind) => {
+    const coverage = transformCoverage.view_coverage.find((entry) => entry.view_kind === viewKind) ?? null;
+    return coverage?.pending_count === 0 && coverage.error_count === 0;
   });
-  const transformWorkflow = await client.action(api.packages.evidence_transform.startEvidenceTransformRun, {
-    evidence_transform_run_id: transformRun.evidence_transform_run_id,
-  });
-  const transformSummary = await waitForTransformCompletion({
-    client,
-    evidenceTransformRunId: String(transformRun.evidence_transform_run_id),
-    pollMs: args.pollMs,
-    timeoutMs: args.transformTimeoutMs,
-  });
+
+  let transformRun = null;
+  let transformWorkflow = null;
+  let transformSummary = null;
+  if (!(hasRequiredSourceCoverage && hasRequiredViewCoverage)) {
+    transformRun = await client.mutation(api.packages.evidence_transform.createEvidenceTransformRun, {
+      evidence_set_id: curatedSet.evidence_set_id,
+      source_record_kind: manifest.transform.source_record_kind,
+      target_view_kinds: requiredViewKinds,
+      model: manifest.transform.model,
+      prompt_version: manifest.transform.prompt_version,
+    });
+    transformWorkflow = await client.action(api.packages.evidence_transform.startEvidenceTransformRun, {
+      evidence_transform_run_id: transformRun.evidence_transform_run_id,
+    });
+    transformSummary = await waitForTransformCompletion({
+      client,
+      evidenceTransformRunId: String(transformRun.evidence_transform_run_id),
+      pollMs: args.pollMs,
+      timeoutMs: args.transformTimeoutMs,
+    });
+  } else {
+    transformSummary = {
+      evidence_transform_run_id: null,
+      status: "skipped",
+      item_count: transformCoverage.item_count,
+      completed_count: transformCoverage.item_count,
+      pending_count: 0,
+      error_count: 0,
+      source_record_kind: manifest.transform.source_record_kind,
+      target_view_kinds: requiredViewKinds,
+      model: manifest.transform.model,
+      prompt_version: manifest.transform.prompt_version,
+      started_at_ms: null,
+      finished_at_ms: null,
+      last_error_message: null,
+    };
+  }
 
   const experiments = [];
   for (const blueprint of manifest.experiment_blueprints) {
@@ -558,7 +595,7 @@ async function main() {
         scoring_config: blueprint.scoring_config,
       },
     });
-    if (experiment.action === "conflict") {
+    if (experiment.action === "conflict" && !args.allowExistingSet) {
       throw new Error(`Experiment tag conflict for ${blueprint.experiment_tag}`);
     }
     experiments.push({
@@ -592,7 +629,7 @@ async function main() {
   await ensureDir(NATIVE_CONCEPTS_ROOT);
   await writeJson(curationReportPath, {
     manifest_tag: manifest.manifest_tag,
-    acquisition_run_id: acquisitionRun.acquisition_run_id,
+    acquisition_run_id: acquisitionRun?.acquisition_run_id ?? null,
     snapshot_evidence_set_id: snapshotSet.evidence_set_id,
     curated_evidence_set_id: curatedSet.evidence_set_id,
     selected_items: curatedItems.map((item) => ({
@@ -628,7 +665,11 @@ async function main() {
   }, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+    process.exit(1);
+  });
