@@ -52,6 +52,13 @@ type RunStageInput = {
   metadata_json: string | null;
 };
 
+type RunStageInputPage = {
+  items: RunStageInput[];
+  next_offset: number | null;
+  is_done: boolean;
+  total_count: number;
+};
+
 type EvidenceTransformRunExecutionContext = {
   evidence_transform_run_id: string;
   evidence_set_id: string;
@@ -343,9 +350,24 @@ export class ConvexWorkerClient {
     run_id: string;
     stage: RunStageKey;
   }) {
-    return this.client.action(workerApi.listRunStageInputs, args) as Promise<
-      RunStageInput[]
-    >;
+    const pageSize = 100;
+    const items: RunStageInput[] = [];
+
+    return (async () => {
+      let offset = 0;
+      while (true) {
+        const page = await this.client.action(workerApi.listRunStageInputs, {
+          ...args,
+          offset,
+          limit: pageSize,
+        }) as RunStageInputPage;
+        items.push(...page.items);
+        if (page.is_done || page.next_offset == null) {
+          return items;
+        }
+        offset = page.next_offset;
+      }
+    })();
   }
 
   markAcquisitionRunRunning(args: {

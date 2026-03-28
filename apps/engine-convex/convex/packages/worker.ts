@@ -362,6 +362,17 @@ const RunStageInputResultSchema = z.array(z.object({
 
 type RunStageInputResult = z.infer<typeof RunStageInputResultSchema>;
 
+const DEFAULT_RUN_STAGE_INPUT_PAGE_SIZE = 100;
+
+const RunStageInputPageResultSchema = z.object({
+  items: RunStageInputResultSchema,
+  next_offset: z.number().int().nonnegative().nullable(),
+  is_done: z.boolean(),
+  total_count: z.number().int().nonnegative(),
+});
+
+type RunStageInputPageResult = z.infer<typeof RunStageInputPageResultSchema>;
+
 type RunScoreStageTargetSeed = {
   target_id: string;
   sample_id: Id<"samples">;
@@ -397,6 +408,7 @@ type PaperAuditPackageSeed = {
 
 type PromptInputSeed = {
   kind: "prompt_inputs";
+  total_count: number;
   inputs: Array<{
     target_type: "sample";
     target_id: string;
@@ -411,10 +423,24 @@ type ScoreStageSeed = {
   kind: "score_stage_seed";
   config: ExperimentConfig;
   package: PaperAuditPackageSeed;
+  total_count: number;
   targets: RunScoreStageTargetSeed[];
 };
 
 type RunStageInputSeed = PromptInputSeed | ScoreStageSeed;
+
+function sliceOffsetPage<T>(rows: T[], offset: number, limit: number) {
+  const normalizedOffset = Math.max(0, offset);
+  const normalizedLimit = Math.max(1, limit);
+  const items = rows.slice(normalizedOffset, normalizedOffset + normalizedLimit);
+  const nextOffset = normalizedOffset + items.length;
+  return {
+    items,
+    next_offset: nextOffset < rows.length ? nextOffset : null,
+    is_done: nextOffset >= rows.length,
+    total_count: rows.length,
+  };
+}
 
 function buildPaperAuditScorePrompt(args: {
   packageSeed: NonNullable<PaperAuditPackageSeed>;
@@ -586,6 +612,8 @@ export const listRunStageInputSeed: ReturnType<typeof zInternalQuery> = zInterna
   args: z.object({
     run_id: zid("runs"),
     stage: RunStageInputSchema,
+    offset: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
   }),
   handler: async (ctx, args): Promise<RunStageInputSeed> => {
     const run = await ctx.db.get(args.run_id);
@@ -669,7 +697,12 @@ export const listRunStageInputSeed: ReturnType<typeof zInternalQuery> = zInterna
 
       return {
         kind: "prompt_inputs" as const,
-        inputs: results,
+        total_count: results.length,
+        inputs: sliceOffsetPage(
+          results,
+          args.offset ?? 0,
+          args.limit ?? DEFAULT_RUN_STAGE_INPUT_PAGE_SIZE,
+        ).items,
       };
     }
 
@@ -813,7 +846,12 @@ export const listRunStageInputSeed: ReturnType<typeof zInternalQuery> = zInterna
           rubric_seed: paperAuditPackage.rubric_seed ?? null,
         }
         : null,
-      targets,
+      total_count: targets.length,
+      targets: sliceOffsetPage(
+        targets,
+        args.offset ?? 0,
+        args.limit ?? DEFAULT_RUN_STAGE_INPUT_PAGE_SIZE,
+      ).items,
     };
   },
 });
@@ -822,12 +860,22 @@ export const listRunStageInputs = zAction({
   args: z.object({
     run_id: zid("runs"),
     stage: RunStageInputSchema,
+    offset: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
   }),
-  returns: RunStageInputResultSchema,
-  handler: async (ctx, args): Promise<RunStageInputResult> => {
+  returns: RunStageInputPageResultSchema,
+  handler: async (ctx, args): Promise<RunStageInputPageResult> => {
     const seed = await ctx.runQuery(internal.packages.worker.listRunStageInputSeed, args);
     if (seed.kind === "prompt_inputs") {
-      return seed.inputs;
+      return {
+        items: seed.inputs,
+        next_offset:
+          (args.offset ?? 0) + seed.inputs.length < seed.total_count
+            ? (args.offset ?? 0) + seed.inputs.length
+            : null,
+        is_done: (args.offset ?? 0) + seed.inputs.length >= seed.total_count,
+        total_count: seed.total_count,
+      };
     }
 
     const assetContentCache = new Map<string, Promise<string>>();
@@ -940,7 +988,15 @@ export const listRunStageInputs = zAction({
       });
     }
 
-    return results;
+    return {
+      items: results,
+      next_offset:
+        (args.offset ?? 0) + results.length < seed.total_count
+          ? (args.offset ?? 0) + results.length
+          : null,
+      is_done: (args.offset ?? 0) + results.length >= seed.total_count,
+      total_count: seed.total_count,
+    };
   },
 });
 

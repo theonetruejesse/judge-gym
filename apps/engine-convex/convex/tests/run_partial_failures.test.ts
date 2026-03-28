@@ -250,10 +250,11 @@ describe("run partial failure progression", () => {
     expect(finalized.has_pending).toBe(false);
     expect(finalized.halt_process).toBe(false);
 
-    const rubricCriticInputs = await t.action(api.packages.worker.listRunStageInputs, {
+    const rubricCriticInputPage = await t.action(api.packages.worker.listRunStageInputs, {
       run_id,
       stage: "rubric_critic",
     });
+    const rubricCriticInputs = rubricCriticInputPage.items;
     expect(rubricCriticInputs).toHaveLength(1);
     expect(rubricCriticInputs[0]?.target_id).toBe(String(succeededSampleId));
 

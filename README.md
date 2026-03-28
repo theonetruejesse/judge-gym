@@ -184,6 +184,8 @@ If acquisition has already completed, resume with `--snapshot-set-id <set_id> --
 
 `bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.
 
+The worker pages run-stage prompt inputs behind the Convex client during large score stages, so full-volume native launches can exceed one action payload without tripping Convex's 16 MiB response limit.
+
 `uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.

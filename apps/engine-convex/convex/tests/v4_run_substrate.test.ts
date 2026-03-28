@@ -289,10 +289,11 @@ describe("v4 run substrate", () => {
       ].join("\n"),
     });
 
-    const inputs = await t.action(api.packages.worker.listRunStageInputs, {
+    const inputPage = await t.action(api.packages.worker.listRunStageInputs, {
       run_id,
       stage: "score_gen",
     });
+    const inputs = inputPage.items;
 
     expect(inputs).toHaveLength(1);
     expect(inputs[0]?.target_type).toBe("sample_score_target");
@@ -329,16 +330,17 @@ describe("v4 run substrate", () => {
     expect(samples[0]?.rubric_id).toBeTruthy();
     expect(samples[0]?.rubric_critic_id).toBeTruthy();
 
-    const rubricInputs = await t.action(api.packages.worker.listRunStageInputs, {
+    const rubricInputPage = await t.action(api.packages.worker.listRunStageInputs, {
       run_id,
       stage: "rubric_gen",
     });
-    expect(rubricInputs).toHaveLength(0);
+    expect(rubricInputPage.items).toHaveLength(0);
 
-    const scoreInputs = await t.action(api.packages.worker.listRunStageInputs, {
+    const scoreInputPage = await t.action(api.packages.worker.listRunStageInputs, {
       run_id,
       stage: "score_gen",
     });
+    const scoreInputs = scoreInputPage.items;
     expect(scoreInputs).toHaveLength(1);
     expect(scoreInputs[0]?.system_prompt).toContain("Gilardi system prompt");
     expect(scoreInputs[0]?.user_prompt).toContain("Package-backed evidence text.");
