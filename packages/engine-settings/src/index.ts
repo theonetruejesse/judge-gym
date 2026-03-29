@@ -98,6 +98,7 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
       minBatchSize: 35,
       maxBatchSize: 500,
       maxBatchRequestBytes: 4_000_000,
+      maxEnqueuedInputTokensPerBatch: null,
       maxConcurrentBatches: 4,
       completionWindow: "24h",
       requestTimeoutMs: 120_000,

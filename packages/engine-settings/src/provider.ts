@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { QuotaDimension } from "./quota";
+import type { ProviderBatchConstraints } from "./batch";
 
 export const PROVIDERS = {
   openai: {
@@ -41,6 +42,12 @@ export const ProviderRateLimitSchema = z.object({
 });
 
 export type ProviderRateLimit = z.infer<typeof ProviderRateLimitSchema>;
+
+export const ProviderBatchConstraintsSchema = z.object({
+  maxRequestsPerBatch: z.number().int().positive().nullable().optional(),
+  maxBatchRequestBytes: z.number().int().positive().nullable().optional(),
+  maxEnqueuedInputTokensPerBatch: z.number().int().positive().nullable().optional(),
+});
 
 export const MODELS = [
   {
@@ -209,6 +216,10 @@ export const OpenAiProviderSettingsSchema = z.object({
     modelTypeSchema,
     ProviderRateLimitSchema,
   ).default({}),
+  modelBatchConstraintsOverrides: z.partialRecord(
+    modelTypeSchema,
+    ProviderBatchConstraintsSchema,
+  ).default({}),
 });
 
 export type OpenAiProviderSettings = z.infer<typeof OpenAiProviderSettingsSchema>;
@@ -219,6 +230,10 @@ export const AnthropicProviderSettingsSchema = z.object({
     modelTypeSchema,
     ProviderRateLimitSchema,
   ).default({}),
+  modelBatchConstraintsOverrides: z.partialRecord(
+    modelTypeSchema,
+    ProviderBatchConstraintsSchema,
+  ).default({}),
 });
 
 export type AnthropicProviderSettings = z.infer<typeof AnthropicProviderSettingsSchema>;
@@ -228,6 +243,10 @@ export const OpenRouterProviderSettingsSchema = z.object({
     modelTypeSchema,
     ProviderRateLimitSchema,
   ).default({}),
+  modelBatchConstraintsOverrides: z.partialRecord(
+    modelTypeSchema,
+    ProviderBatchConstraintsSchema,
+  ).default({}),
 });
 
 export type OpenRouterProviderSettings = z.infer<typeof OpenRouterProviderSettingsSchema>;
@@ -236,13 +255,16 @@ export const ProviderExecutionSettingsSchema = z.object({
   openai: OpenAiProviderSettingsSchema.default({
     tier: "tier_5",
     modelRateLimitOverrides: {},
+    modelBatchConstraintsOverrides: {},
   }),
   anthropic: AnthropicProviderSettingsSchema.default({
     tier: "tier_1",
     modelRateLimitOverrides: {},
+    modelBatchConstraintsOverrides: {},
   }),
   openrouter: OpenRouterProviderSettingsSchema.default({
     modelRateLimitOverrides: {},
+    modelBatchConstraintsOverrides: {},
   }),
 });
 
@@ -259,6 +281,15 @@ type TokenBucketPolicy = {
 };
 
 const MINUTE_MS = 60_000;
+
+const OPENAI_DEFAULT_BATCH_CONSTRAINTS: ProviderBatchConstraints = {
+  maxRequestsPerBatch: 50_000,
+  maxBatchRequestBytes: 200_000_000,
+};
+
+const ANTHROPIC_DEFAULT_BATCH_CONSTRAINTS: ProviderBatchConstraints = {
+  maxRequestsPerBatch: 100_000,
+};
 
 export function resolveProviderRateLimit(
   providerSettings: ProviderExecutionSettings,
@@ -287,6 +318,33 @@ export function resolveProviderRateLimit(
       };
     case "openrouter":
       return providerSettings.openrouter.modelRateLimitOverrides[model] ?? null;
+  }
+}
+
+export function resolveProviderBatchConstraints(
+  providerSettings: ProviderExecutionSettings,
+  provider: ProviderType,
+  model: ModelType,
+): ProviderBatchConstraints | null {
+  switch (provider) {
+    case "openai":
+      if (!isOpenAiModel(model)) {
+        return null;
+      }
+      return {
+        ...OPENAI_DEFAULT_BATCH_CONSTRAINTS,
+        ...(providerSettings.openai.modelBatchConstraintsOverrides[model] ?? {}),
+      };
+    case "anthropic":
+      if (!isAnthropicModel(model)) {
+        return null;
+      }
+      return {
+        ...ANTHROPIC_DEFAULT_BATCH_CONSTRAINTS,
+        ...(providerSettings.anthropic.modelBatchConstraintsOverrides[model] ?? {}),
+      };
+    case "openrouter":
+      return providerSettings.openrouter.modelBatchConstraintsOverrides[model] ?? null;
   }
 }
 

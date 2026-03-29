@@ -13,6 +13,7 @@ export const BatchSettingsSchema = z.object({
   minBatchSize: z.number().int().min(1).default(35),
   maxBatchSize: z.number().int().min(1).default(500),
   maxBatchRequestBytes: z.number().int().positive().default(4_000_000),
+  maxEnqueuedInputTokensPerBatch: z.number().int().positive().nullable().default(null),
   maxConcurrentBatches: z.number().int().min(1).default(4),
   completionWindow: z.enum(["24h"]).default("24h"),
   requestTimeoutMs: z.number().int().positive().default(120_000),
@@ -23,6 +24,12 @@ export const BatchSettingsSchema = z.object({
 });
 
 export type BatchSettings = z.infer<typeof BatchSettingsSchema>;
+
+export type ProviderBatchConstraints = {
+  maxRequestsPerBatch?: number | null;
+  maxBatchRequestBytes?: number | null;
+  maxEnqueuedInputTokensPerBatch?: number | null;
+};
 
 export const DEFAULT_BATCH_SETTINGS: BatchSettings = BatchSettingsSchema.parse({});
 
@@ -42,4 +49,27 @@ export function shouldUseBatching(args: {
   }
 
   return args.batchable && args.itemCount >= settings.minBatchSize;
+}
+
+export function resolveEffectiveBatchConstraints(args: {
+  settings?: BatchSettings;
+  providerConstraints?: ProviderBatchConstraints | null;
+}) {
+  const settings = args.settings ?? DEFAULT_BATCH_SETTINGS;
+  const providerConstraints = args.providerConstraints ?? null;
+
+  return {
+    maxBatchSize: Math.min(
+      settings.maxBatchSize,
+      providerConstraints?.maxRequestsPerBatch ?? Number.POSITIVE_INFINITY,
+    ),
+    maxBatchRequestBytes: Math.min(
+      settings.maxBatchRequestBytes,
+      providerConstraints?.maxBatchRequestBytes ?? Number.POSITIVE_INFINITY,
+    ),
+    maxEnqueuedInputTokensPerBatch: Math.min(
+      settings.maxEnqueuedInputTokensPerBatch ?? Number.POSITIVE_INFINITY,
+      providerConstraints?.maxEnqueuedInputTokensPerBatch ?? Number.POSITIVE_INFINITY,
+    ),
+  };
 }

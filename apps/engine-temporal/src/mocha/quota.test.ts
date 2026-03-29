@@ -1,6 +1,7 @@
 import assert from "assert";
 import { describe, it } from "mocha";
 import {
+  resolveProviderBatchConstraints,
   resolveProviderRateLimit,
   type ProviderExecutionSettings,
 } from "@judge-gym/engine-settings/provider";
@@ -51,13 +52,16 @@ describe("quota helpers", () => {
       openai: {
         tier: "tier_5",
         modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
       },
       anthropic: {
         tier: "tier_1",
         modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
       },
       openrouter: {
         modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
       },
     };
     const rateLimit = resolveProviderRateLimit(
@@ -78,6 +82,7 @@ describe("quota helpers", () => {
       openai: {
         tier: "tier_5",
         modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
       },
       anthropic: {
         tier: "tier_1",
@@ -87,9 +92,11 @@ describe("quota helpers", () => {
             inputTokensPerMinute: 60_000,
           },
         },
+        modelBatchConstraintsOverrides: {},
       },
       openrouter: {
         modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
       },
     };
     const rateLimit = resolveProviderRateLimit(
@@ -103,6 +110,48 @@ describe("quota helpers", () => {
       inputTokensPerMinute: 60_000,
       outputTokensPerMinute: 8_000,
     });
+  });
+
+  it("ships provider-derived batch constraints and allows overrides", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {
+          "gpt-4.1": {
+            maxEnqueuedInputTokensPerBatch: 2_000_000,
+          },
+        },
+      },
+      anthropic: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+
+    assert.deepEqual(
+      resolveProviderBatchConstraints(providerSettings, "openai", "gpt-4.1"),
+      {
+        maxRequestsPerBatch: 50_000,
+        maxBatchRequestBytes: 200_000_000,
+        maxEnqueuedInputTokensPerBatch: 2_000_000,
+      },
+    );
+    assert.deepEqual(
+      resolveProviderBatchConstraints(providerSettings, "anthropic", "claude-sonnet-4"),
+      {
+        maxRequestsPerBatch: 100_000,
+      },
+    );
+    assert.equal(
+      resolveProviderBatchConstraints(providerSettings, "openrouter", "qwen-current-text-flagship"),
+      null,
+    );
   });
 
   it("uses a stable text-to-token heuristic", () => {

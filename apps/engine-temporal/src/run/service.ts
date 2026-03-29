@@ -3,6 +3,8 @@ import {
   classifyTaskFailure,
   getModelConfig,
   isBatchableModel,
+  resolveEffectiveBatchConstraints,
+  resolveProviderBatchConstraints,
   type ModelType,
   resolveAttemptLimitForFailureClass,
   shouldUseBatching,
@@ -101,21 +103,6 @@ function getProcessHeartbeatIntervalMs(deps: RunStageDependencies) {
   return deps.processHeartbeatIntervalMs ?? DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS;
 }
 
-function shouldForceDirectExecution(args: {
-  experimentTag?: string;
-  studyKind?: string;
-  model: ModelType;
-}) {
-  const { provider } = getModelConfig(args.model);
-  if (provider !== "openai") {
-    return false;
-  }
-  if (args.experimentTag?.startsWith("v4_native_")) {
-    return true;
-  }
-  return args.studyKind === "regime_check";
-}
-
 function getLlmPreflightTimeoutMs(deps: RunStageDependencies) {
   return getSettings(deps).llm.preflightTimeoutMs;
 }
@@ -198,29 +185,41 @@ function chunkItemsByBudget<T>(args: {
   items: T[];
   maxItems: number;
   maxBytes: number;
+  maxTokens?: number;
   estimateBytes: (item: T) => number;
+  estimateTokens?: (item: T) => number;
 }): T[][] {
   if (args.items.length === 0) {
     return [];
   }
   const maxItems = args.maxItems > 0 ? args.maxItems : args.items.length;
   const maxBytes = args.maxBytes > 0 ? args.maxBytes : Number.POSITIVE_INFINITY;
+  const maxTokens =
+    typeof args.maxTokens === "number" && args.maxTokens > 0
+      ? args.maxTokens
+      : Number.POSITIVE_INFINITY;
   const chunks: T[][] = [];
   let current: T[] = [];
   let currentBytes = 0;
+  let currentTokens = 0;
 
   for (const item of args.items) {
     const estimatedBytes = Math.max(1, args.estimateBytes(item));
+    const estimatedTokens = Math.max(1, args.estimateTokens?.(item) ?? 1);
     const wouldOverflowItems = current.length >= maxItems;
     const wouldOverflowBytes =
       current.length > 0 && currentBytes + estimatedBytes > maxBytes;
-    if (wouldOverflowItems || wouldOverflowBytes) {
+    const wouldOverflowTokens =
+      current.length > 0 && currentTokens + estimatedTokens > maxTokens;
+    if (wouldOverflowItems || wouldOverflowBytes || wouldOverflowTokens) {
       chunks.push(current);
       current = [];
       currentBytes = 0;
+      currentTokens = 0;
     }
     current.push(item);
     currentBytes += estimatedBytes;
+    currentTokens += estimatedTokens;
   }
 
   if (current.length > 0) {
@@ -557,17 +556,21 @@ export async function runRunStageActivityWithDeps(
 
   try {
     for (const [model, groupInputs] of groups.entries()) {
-      const useBatching = shouldForceDirectExecution({
-        experimentTag: run.experiment_tag,
-        studyKind: run.study_kind,
+      const { provider } = getModelConfig(model);
+      const providerBatchConstraints = resolveProviderBatchConstraints(
+        resolvedSettings.providers,
+        provider,
         model,
-      })
-        ? false
-        : shouldUseBatching({
-          batchable: isBatchableModel(model as any),
-          itemCount: groupInputs.length,
-          settings: resolvedSettings.llm.batching,
-        });
+      );
+      const effectiveBatchConstraints = resolveEffectiveBatchConstraints({
+        settings: resolvedSettings.llm.batching,
+        providerConstraints: providerBatchConstraints,
+      });
+      const useBatching = shouldUseBatching({
+        batchable: isBatchableModel(model as any),
+        itemCount: groupInputs.length,
+        settings: resolvedSettings.llm.batching,
+      });
 
       if (!useBatching) {
         const directResults = await processConcurrently(
@@ -587,14 +590,16 @@ export async function runRunStageActivityWithDeps(
 
       const chunks = chunkItemsByBudget({
         items: groupInputs,
-        maxItems: resolvedSettings.llm.batching.maxBatchSize,
-        maxBytes: resolvedSettings.llm.batching.maxBatchRequestBytes,
+        maxItems: effectiveBatchConstraints.maxBatchSize,
+        maxBytes: effectiveBatchConstraints.maxBatchRequestBytes,
+        maxTokens: effectiveBatchConstraints.maxEnqueuedInputTokensPerBatch,
         estimateBytes: (input) => estimateBatchRequestBytes({
           model,
           systemPrompt: input.system_prompt,
           userPrompt: input.user_prompt,
           metadataJson: input.metadata_json,
         }),
+        estimateTokens: (input) => estimatePromptTokens(input),
       });
       for (
         let index = 0;

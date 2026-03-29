@@ -184,9 +184,11 @@ If acquisition has already completed, resume with `--snapshot-set-id <set_id> --
 
 `bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.
 
+Batch selection is now settings-driven: `llm.batching.minBatchSize` and `llm.batching.maxBatchSize` remain the local policy knobs, while provider/model ceilings cap the effective batch size and request budget. `llm.batching.maxEnqueuedInputTokensPerBatch` is the repo-level guardrail for large OpenAI-native batches.
+
 The worker pages run-stage prompt inputs behind the Convex client during large score stages, so full-volume native launches can exceed one action payload without tripping Convex's 16 MiB response limit.
 
-The worker also throttles batch attempt-start checkpoint fanout and applies outer timeouts to direct requests and batch checkpoint writes, which keeps large OpenAI-native cohorts from hanging indefinitely on a single stuck provider or Convex call.
+The worker also throttles batch attempt-start checkpoint fanout and applies outer timeouts to direct requests and batch checkpoint writes, which keeps large cohorts from hanging indefinitely on a single stuck provider or Convex call.
 
 `uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
 
