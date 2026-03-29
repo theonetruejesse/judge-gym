@@ -2261,12 +2261,16 @@ describe("run stage service", function () {
 
   it("surfaces stalled batch preparation as a run process error with the concrete cause", async () => {
     const heartbeatSteps: string[] = [];
+    const temporalHeartbeats: unknown[] = [];
     const finishedErrors: string[] = [];
     const processErrors: string[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
         processHeartbeatIntervalMs: 5,
+        temporalHeartbeat(details) {
+          temporalHeartbeats.push(details ?? null);
+        },
         settings: {
           ...DEFAULT_ENGINE_SETTINGS,
           llm: {
@@ -2376,6 +2380,7 @@ describe("run stage service", function () {
     assert.equal(result.terminalExecutionStatus, "failed");
     assert.match(result.errorMessage ?? "", /Timed out preparing batch execution/);
     assert.ok(heartbeatSteps.length >= 1);
+    assert.ok(temporalHeartbeats.length >= 1);
     assert.ok(
       heartbeatSteps.every((step) => step.startsWith("batch_preamble:")),
     );

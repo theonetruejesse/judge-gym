@@ -400,6 +400,21 @@ async function recordRunBatchAttemptStarts(args: {
           }),
         });
       },
+      temporalHeartbeat: args.deps.temporalHeartbeat,
+      temporalHeartbeatPayload: {
+        source: "batch_preamble",
+        step: "record_attempt_starts",
+        model: args.model,
+        item_count: args.inputs.length,
+        page_index: pageIndex + 1,
+        page_count: pages.length,
+        page_item_count: page.length,
+        started_count: startedAttemptsByTargetId.size,
+        batch_key: args.batchKey,
+        batch_execution_id: args.batchExecutionId,
+        attempt_start_concurrency: attemptStartConcurrency,
+        attempt_start_page_size: attemptStartPageSize,
+      },
       task: () => mapConcurrently(
         page,
         attemptStartConcurrency,
