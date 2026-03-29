@@ -10,6 +10,7 @@ import {
   shouldUseBatching,
   type EngineSettings,
 } from "@judge-gym/engine-settings";
+import { Context } from "@temporalio/activity";
 import type {
   RunStageKey,
   StageActivityResult,
@@ -57,6 +58,7 @@ type RunStageDependencies = {
   quota: QuotaStore;
   settings?: EngineSettings;
   processHeartbeatIntervalMs?: number;
+  temporalHeartbeat?: (details?: unknown) => void;
 };
 
 type RunAttemptFailureState = {
@@ -126,6 +128,13 @@ function getDefaultRunStageDependencies(): RunStageDependencies {
     runOpenAiBatchChat: runModelBatchChat,
     quota: getQuotaStore(),
     settings: DEFAULT_ENGINE_SETTINGS,
+    temporalHeartbeat: (details?: unknown) => {
+      try {
+        Context.current().heartbeat(details);
+      } catch {
+        // No live Temporal activity context in tests or direct callers.
+      }
+    },
   };
 }
 
@@ -456,6 +465,8 @@ async function recordRunBatchAttemptStarts(args: {
 async function withPeriodicHeartbeat<T>(args: {
   intervalMs: number;
   onHeartbeat?: (() => Promise<void> | void) | undefined;
+  temporalHeartbeat?: ((details?: unknown) => void) | undefined;
+  temporalHeartbeatPayload?: unknown;
   task: () => Promise<T>;
 }) {
   if (!args.onHeartbeat || args.intervalMs <= 0) {
@@ -467,7 +478,11 @@ async function withPeriodicHeartbeat<T>(args: {
     if (heartbeatInFlight) {
       return;
     }
-    heartbeatInFlight = Promise.resolve(args.onHeartbeat?.())
+    heartbeatInFlight = Promise.resolve()
+      .then(() => {
+        args.temporalHeartbeat?.(args.temporalHeartbeatPayload);
+      })
+      .then(() => args.onHeartbeat?.())
       .catch((error) => {
         console.warn("[run.stage] process heartbeat failed", String(error));
       })
@@ -516,11 +531,15 @@ async function withPreflightGuard<T>(args: {
   timeoutMs: number;
   timeoutMessage: string;
   onHeartbeat?: (() => Promise<void> | void) | undefined;
+  temporalHeartbeat?: ((details?: unknown) => void) | undefined;
+  temporalHeartbeatPayload?: unknown;
   task: () => Promise<T>;
 }) {
   return withPeriodicHeartbeat({
     intervalMs: args.intervalMs,
     onHeartbeat: args.onHeartbeat,
+    temporalHeartbeat: args.temporalHeartbeat,
+    temporalHeartbeatPayload: args.temporalHeartbeatPayload,
     task: () => withTimeout({
       timeoutMs: args.timeoutMs,
       timeoutMessage: args.timeoutMessage,
@@ -827,6 +846,14 @@ async function executeRunChatAttempt(
           }),
         });
       },
+      temporalHeartbeat: deps.temporalHeartbeat,
+      temporalHeartbeatPayload: {
+        source: "direct_preamble",
+        step: "quota_reserve",
+        attempt_id,
+        target_id: args.input.target_id,
+        model: args.input.model,
+      },
       task: () => deps.quota.reserve({
         reservationId: `run:${args.runId}:${args.stage}:${args.input.target_id}:${attempt_id}`,
         provider,
@@ -859,6 +886,13 @@ async function executeRunChatAttempt(
             model: args.input.model,
           }),
         });
+      },
+      temporalHeartbeat: deps.temporalHeartbeat,
+      temporalHeartbeatPayload: {
+        source: "direct_request",
+        attempt_id,
+        target_id: args.input.target_id,
+        model: args.input.model,
       },
       task: () => withTimeout({
         timeoutMs: settings.llm.direct.requestTimeoutMs + 5_000,
@@ -998,6 +1032,14 @@ async function processRunStageBatchChunk(
             }),
           });
         },
+        temporalHeartbeat: deps.temporalHeartbeat,
+        temporalHeartbeatPayload: {
+          source: "batch_preamble",
+          step: "ensure_batch_execution",
+          model: args.model,
+          item_count: args.inputs.length,
+          batch_key: batchKey,
+        },
         task: () => deps.convex.ensureBatchExecution!({
           batch_key: batchKey,
           process_kind: "run",
@@ -1051,6 +1093,14 @@ async function processRunStageBatchChunk(
           }),
         });
       },
+      temporalHeartbeat: deps.temporalHeartbeat,
+      temporalHeartbeatPayload: {
+        source: "batch_preamble",
+        step: "quota_reserve",
+        model: args.model,
+        item_count: startedAttempts.length,
+        batch_key: batchKey,
+      },
       task: () => deps.quota.reserve({
         reservationId: `run:${args.runId}:${args.stage}:batch:${startedAttempts.map((item) => item.attemptId).join(":")}`,
         provider,
@@ -1082,6 +1132,13 @@ async function processRunStageBatchChunk(
               batch_key: batchKey,
             }),
           });
+        },
+        temporalHeartbeat: deps.temporalHeartbeat,
+        temporalHeartbeatPayload: {
+          source: "batch_wait",
+          model: args.model,
+          item_count: startedAttempts.length,
+          batch_key: batchKey,
         },
         task: () => getBatchExecutor(deps)<RunBatchMetadata>({
           model: args.model,
@@ -1252,6 +1309,14 @@ async function processRunStageBatchChunk(
                 batch_key: batchKey,
               }),
             });
+          },
+          temporalHeartbeat: deps.temporalHeartbeat,
+          temporalHeartbeatPayload: {
+            source: "batch_preamble",
+            step: "recover_batch_execution",
+            model: args.model,
+            item_count: startedAttempts.length,
+            batch_key: batchKey,
           },
           task: () => deps.convex.ensureBatchExecution!({
             batch_key: batchKey,

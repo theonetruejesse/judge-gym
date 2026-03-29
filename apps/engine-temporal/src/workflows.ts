@@ -51,6 +51,7 @@ const {
   runRunStage,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  heartbeatTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityHeartbeatTimeoutMs / 1000)} seconds`,
   retry: {
     maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
   },
@@ -60,6 +61,7 @@ const {
   runEvidenceTransformStage,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  heartbeatTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityHeartbeatTimeoutMs / 1000)} seconds`,
   retry: {
     maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
   },
@@ -69,6 +71,7 @@ const {
   runEvidenceAcquisitionCycle,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityStartToCloseMs / 1000)} seconds`,
+  heartbeatTimeout: `${Math.ceil(DEFAULT_ENGINE_SETTINGS.temporal.activityHeartbeatTimeoutMs / 1000)} seconds`,
   retry: {
     maximumAttempts: DEFAULT_ENGINE_SETTINGS.temporal.stageActivityMaxAttempts,
   },

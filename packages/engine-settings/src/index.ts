@@ -21,6 +21,7 @@ export const EngineSettingsSchema = z.object({
   temporal: z.object({
     retryDelayMs: z.number().int().positive().default(5_000),
     activityStartToCloseMs: z.number().int().positive().default(26 * 60 * 60 * 1_000),
+    activityHeartbeatTimeoutMs: z.number().int().positive().default(2 * 60 * 1_000),
     projectionActivityStartToCloseMs: z.number().int().positive().default(5 * 60 * 1_000),
     stageActivityMaxAttempts: z.number().int().min(1).default(1),
     taskQueues: z.object({
@@ -29,6 +30,7 @@ export const EngineSettingsSchema = z.object({
   }).default({
     retryDelayMs: 5_000,
     activityStartToCloseMs: 26 * 60 * 60 * 1_000,
+    activityHeartbeatTimeoutMs: 2 * 60 * 1_000,
     projectionActivityStartToCloseMs: 5 * 60 * 1_000,
     stageActivityMaxAttempts: 1,
     taskQueues: {
@@ -81,6 +83,7 @@ export const ENGINE_SETTINGS_CONFIG: EngineSettings = {
   temporal: {
     retryDelayMs: 5_000,
     activityStartToCloseMs: 26 * 60 * 60 * 1_000,
+    activityHeartbeatTimeoutMs: 2 * 60 * 1_000,
     projectionActivityStartToCloseMs: 5 * 60 * 1_000,
     stageActivityMaxAttempts: 1,
     taskQueues: {

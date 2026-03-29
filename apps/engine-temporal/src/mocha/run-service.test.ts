@@ -1767,10 +1767,14 @@ describe("run stage service", function () {
 
   it("emits periodic run heartbeats while a direct request is in flight", async () => {
     const heartbeatSources: string[] = [];
+    const temporalHeartbeats: unknown[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
         processHeartbeatIntervalMs: 5,
+        temporalHeartbeat(details) {
+          temporalHeartbeats.push(details ?? null);
+        },
         quota: buildQuota(),
         convex: {
           async getRunExecutionContext() {
@@ -1844,15 +1848,20 @@ describe("run stage service", function () {
 
     assert.equal(result.summary, "run_stage:rubric_critic:success=1:failed=0:completed=1");
     assert.ok(heartbeatSources.length >= 1);
+    assert.ok(temporalHeartbeats.length >= 1);
     assert.ok(heartbeatSources.every((source) => source === "direct_request"));
   });
 
   it("emits periodic run heartbeats while batch completion is still pending", async () => {
     const heartbeatSources: string[] = [];
+    const temporalHeartbeats: unknown[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
         processHeartbeatIntervalMs: 5,
+        temporalHeartbeat(details) {
+          temporalHeartbeats.push(details ?? null);
+        },
         settings: {
           ...DEFAULT_ENGINE_SETTINGS,
           llm: {
@@ -1989,6 +1998,7 @@ describe("run stage service", function () {
 
     assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
     assert.ok(heartbeatSources.length >= 1);
+    assert.ok(temporalHeartbeats.length >= 1);
     assert.ok(heartbeatSources.every((source) => source === "batch_wait"));
   });
 
