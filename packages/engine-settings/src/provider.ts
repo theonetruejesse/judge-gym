@@ -192,10 +192,7 @@ const OPENAI_TIER_LIMITS: Record<
   tier_5: OPENAI_TIER_5_MODEL_LIMITS,
 };
 
-// Anthropic publishes Tier 1 standard limits for Sonnet 4 at 50 RPM,
-// 30k input TPM, and 8k output TPM. Higher standard tiers are representable
-// in settings but currently rely on explicit overrides until their defaults
-// are bundled into the repo policy table.
+// Anthropic publishes standard Sonnet 4.x limits by usage tier.
 const ANTHROPIC_TIER_1_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimit> = {
   "claude-sonnet-4": {
     requestsPerMinute: 50,
@@ -204,10 +201,37 @@ const ANTHROPIC_TIER_1_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimi
   },
 };
 
+const ANTHROPIC_TIER_2_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimit> = {
+  "claude-sonnet-4": {
+    requestsPerMinute: 1_000,
+    inputTokensPerMinute: 450_000,
+    outputTokensPerMinute: 90_000,
+  },
+};
+
+const ANTHROPIC_TIER_3_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimit> = {
+  "claude-sonnet-4": {
+    requestsPerMinute: 2_000,
+    inputTokensPerMinute: 800_000,
+    outputTokensPerMinute: 160_000,
+  },
+};
+
+const ANTHROPIC_TIER_4_MODEL_LIMITS: Record<AnthropicModelType, ProviderRateLimit> = {
+  "claude-sonnet-4": {
+    requestsPerMinute: 4_000,
+    inputTokensPerMinute: 2_000_000,
+    outputTokensPerMinute: 400_000,
+  },
+};
+
 const ANTHROPIC_TIER_LIMITS: Partial<
   Record<AnthropicTier, Partial<Record<AnthropicModelType, ProviderRateLimit>>>
 > = {
   tier_1: ANTHROPIC_TIER_1_MODEL_LIMITS,
+  tier_2: ANTHROPIC_TIER_2_MODEL_LIMITS,
+  tier_3: ANTHROPIC_TIER_3_MODEL_LIMITS,
+  tier_4: ANTHROPIC_TIER_4_MODEL_LIMITS,
 };
 
 export const OpenAiProviderSettingsSchema = z.object({

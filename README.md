@@ -88,6 +88,8 @@ Provider support:
 
 Wave-1 OpenRouter control is `qwen-current-text-flagship`, currently pinned to `qwen/qwen3-next-80b-a3b-instruct` until launch-time provider freeze.
 
+Bundled provider ceilings now include Anthropic Claude Sonnet 4 standard tiers `tier_1` through `tier_4`; batch execution policy remains separately configurable in `engine-settings` and is capped by provider/model ceilings at runtime.
+
 Batch/provider lifecycle is persisted in `llm_batch_executions`, including provider-specific artifacts such as Anthropic batch `results_url`.
 
 ## Lab UI

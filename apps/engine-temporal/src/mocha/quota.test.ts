@@ -77,6 +77,96 @@ describe("quota helpers", () => {
     });
   });
 
+  it("ships Anthropic Tier 2 defaults for Claude Sonnet 4", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_2",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "anthropic",
+      "claude-sonnet-4",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 1_000,
+      inputTokensPerMinute: 450_000,
+      outputTokensPerMinute: 90_000,
+    });
+  });
+
+  it("ships Anthropic Tier 3 defaults for Claude Sonnet 4", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_3",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "anthropic",
+      "claude-sonnet-4",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 2_000,
+      inputTokensPerMinute: 800_000,
+      outputTokensPerMinute: 160_000,
+    });
+  });
+
+  it("ships Anthropic Tier 4 defaults for Claude Sonnet 4", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_5",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_4",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "anthropic",
+      "claude-sonnet-4",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 4_000,
+      inputTokensPerMinute: 2_000_000,
+      outputTokensPerMinute: 400_000,
+    });
+  });
+
   it("lets Anthropic overrides win over bundled tier defaults", () => {
     const providerSettings: ProviderExecutionSettings = {
       openai: {
