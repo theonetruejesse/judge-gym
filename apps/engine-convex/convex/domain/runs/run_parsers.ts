@@ -329,7 +329,7 @@ function getVerdictLineCandidate(line: string): string | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
   const match = trimmed.match(
-    /^(?:[-*]\s*)?(?:\*\*+|`+|["'])*VERDICT(?:\*\*+|`+|["'])*\s*:\s*(.+)$/i,
+    /^(?:[-*]\s*)?(?:\*\*+|`+|["'])*(?:[^:\n]*:\s*)*VERDICT(?:\*\*+|`+|["'])*\s*:\s*(.*)$/i,
   );
   return match?.[1] ?? null;
 }
@@ -428,6 +428,29 @@ export function parseSubsetVerdict(
     )
     : null;
 
+  const decodeMappedLabelsFromText = () => {
+    if (!labelMapping) {
+      return [] as number[];
+    }
+    const decoded = Object.entries(labelMapping)
+      .filter(([label]) => {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(`(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`, "i");
+        return regex.test(raw);
+      })
+      .map(([, value]) => value);
+    return Array.from(new Set(decoded));
+  };
+
+  if (cleaned.length === 0) {
+    const inferred = decodeMappedLabelsFromText();
+    return {
+      rawVerdict: inferred.length > 0 ? inferred.join(", ") : "",
+      decodedScores: inferred,
+      abstained: false,
+    };
+  }
+
   if (loweredMapping) {
     const matches = [...cleaned.matchAll(/[A-Za-z0-9]+/g)]
       .map((match) => match[0] ?? "")
@@ -472,10 +495,26 @@ export function parseSubsetVerdict(
   }
 
   if (labelMapping && unknownToken) {
+    const inferred = decodeMappedLabelsFromText();
+    if (inferred.length > 0) {
+      return {
+        rawVerdict: verdictLine,
+        decodedScores: inferred,
+        abstained: false,
+      };
+    }
     throw new Error(`Unrecognized verdict label: ${verdictLine}`);
   }
 
   if (decoded.length === 0) {
+    const inferred = decodeMappedLabelsFromText();
+    if (inferred.length > 0) {
+      return {
+        rawVerdict: verdictLine,
+        decodedScores: inferred,
+        abstained: false,
+      };
+    }
     throw new Error(`Unrecognized verdict label: ${verdictLine}`);
   }
 

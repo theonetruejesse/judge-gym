@@ -136,6 +136,45 @@ describe("run parsers", () => {
     expect(parsed.decodedScores).toEqual([4, 6]);
   });
 
+  test("accepts prefixed final-decision verdict lines for subset verdicts", () => {
+    const parsed = parseSubsetVerdict(
+      [
+        "Reasoning goes here.",
+        "Final decision: VERDICT: XAKOz6",
+      ].join("\n"),
+      { XAKOz6: 3 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.decodedScores).toEqual([3]);
+  });
+
+  test("treats an explicitly blank subset verdict as an empty selection", () => {
+    const parsed = parseSubsetVerdict(
+      [
+        "The evidence does not support any rubric stage.",
+        "VERDICT:",
+      ].join("\n"),
+      { StageA: 1, StageB: 2 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.decodedScores).toEqual([]);
+  });
+
+  test("recovers subset labels from reasoning text when the verdict line is malformed", () => {
+    const parsed = parseSubsetVerdict(
+      [
+        "Only XAKOz6 is supported by the evidence.",
+        "VERDICT: IlU0dT",
+      ].join("\n"),
+      { XAKOz6: 3, vuQQ0e: 1 },
+    );
+
+    expect(parsed.abstained).toBe(false);
+    expect(parsed.decodedScores).toEqual([3]);
+  });
+
   test("parses LABEL-prefixed single-choice outputs", () => {
     const parsed = parseLabelChoice(
       [
