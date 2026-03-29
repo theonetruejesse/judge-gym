@@ -2002,6 +2002,155 @@ describe("run stage service", function () {
     assert.ok(heartbeatSources.every((source) => source === "batch_wait"));
   });
 
+  it("emits periodic run heartbeats while batch results are being applied", async () => {
+    const heartbeatSources: string[] = [];
+    const temporalHeartbeats: unknown[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        temporalHeartbeat(details) {
+          temporalHeartbeats.push(details ?? null);
+        },
+        settings: {
+          ...DEFAULT_ENGINE_SETTINGS,
+          llm: {
+            ...DEFAULT_ENGINE_SETTINGS.llm,
+            batching: {
+              ...DEFAULT_ENGINE_SETTINGS.llm.batching,
+              minBatchSize: 2,
+            },
+          },
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_batch_apply_heartbeat",
+              experiment_id: "exp_batch_apply_heartbeat",
+              workflow_id: "run:run_batch_apply_heartbeat",
+              workflow_run_id: "workflow-run-batch-apply-heartbeat",
+              status: "running",
+              current_stage: "score_gen",
+              target_count: 2,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            return [
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_1",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-1",
+                metadata_json: null,
+              },
+              {
+                target_type: "sample_score_target" as const,
+                target_id: "target_2",
+                model: "gpt-4.1",
+                system_prompt: "system",
+                user_prompt: "user-2",
+                metadata_json: null,
+              },
+            ];
+          },
+          async recordLlmAttemptStart({ target_id }) {
+            return { attempt_id: `attempt_${target_id}` };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSources.push(payload?.source ?? "unknown");
+            return null;
+          },
+          async applyRunStageResult() {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 2,
+              completed: 2,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          throw new Error("runOpenAiChat should not be called");
+        },
+        async runOpenAiBatchChat() {
+          return {
+            batchId: "batch_apply_heartbeat",
+            outputFileId: "file_out",
+            errorFileId: null,
+            succeeded: [
+              {
+                customId: "attempt_target_1",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_1",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-1",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_target_1",
+                },
+                batchId: "batch_apply_heartbeat",
+                assistant_output: "ok-1",
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+              },
+              {
+                customId: "attempt_target_2",
+                metadata: {
+                  input: {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_2",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user-2",
+                    metadata_json: null,
+                  },
+                  attemptId: "attempt_target_2",
+                },
+                batchId: "batch_apply_heartbeat",
+                assistant_output: "ok-2",
+                input_tokens: 10,
+                output_tokens: 5,
+                total_tokens: 15,
+              },
+            ],
+            failed: [],
+          } as any;
+        },
+      },
+      "run_batch_apply_heartbeat",
+      "score_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:score_gen:success=2:failed=0:completed=2");
+    assert.ok(heartbeatSources.includes("batch_apply"));
+    assert.ok(temporalHeartbeats.length >= 1);
+  });
+
   it("times out a stalled direct preflight while emitting heartbeats", async () => {
     const heartbeatSteps: string[] = [];
     const finishedErrors: string[] = [];

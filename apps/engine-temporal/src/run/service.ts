@@ -1208,50 +1208,77 @@ async function processRunStageBatchChunk(
         });
       }
 
-      for (const item of batch.succeeded) {
-        try {
-          await deps.convex.applyRunStageResult({
-            run_id: args.runId,
-            target_id: item.metadata.input.target_id,
+      await withPeriodicHeartbeat({
+        intervalMs: getProcessHeartbeatIntervalMs(deps),
+        onHeartbeat: async () => {
+          await deps.convex.recordProcessHeartbeat?.({
+            process_kind: "run",
+            process_id: args.runId,
             stage: args.stage,
-            attempt_id: item.metadata.attemptId,
-            output: item.assistant_output,
+            payload_json: JSON.stringify({
+              source: "batch_apply",
+              model: args.model,
+              item_count: startedAttempts.length,
+              batch_key: batchKey,
+              applied_success_count: successCount,
+              pending_failure_count: batch.failed.length,
+            }),
           });
-          await deps.convex.recordLlmAttemptFinish({
-            attempt_id: item.metadata.attemptId,
-            status: "succeeded",
-            assistant_output: item.assistant_output,
-            input_tokens: item.input_tokens,
-            output_tokens: item.output_tokens,
-            total_tokens: item.total_tokens,
-          });
-          successCount += 1;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          await deps.convex.recordLlmAttemptFinish({
-            attempt_id: item.metadata.attemptId,
-            status: "failed",
-            error_message: message,
-          });
-          failureStates.set(item.metadata.input.target_id, {
-            attemptId: item.metadata.attemptId,
-            message,
-            attemptsUsed: 1,
-            maxAttempts: resolveAttemptLimitForFailureClass(
-              classifyTaskFailure(error),
-              settings.llm.retries,
-            ),
-          });
-        }
-      }
+        },
+        temporalHeartbeat: deps.temporalHeartbeat,
+        temporalHeartbeatPayload: {
+          source: "batch_apply",
+          model: args.model,
+          item_count: startedAttempts.length,
+          batch_key: batchKey,
+        },
+        task: async () => {
+          for (const item of batch.succeeded) {
+            try {
+              await deps.convex.applyRunStageResult({
+                run_id: args.runId,
+                target_id: item.metadata.input.target_id,
+                stage: args.stage,
+                attempt_id: item.metadata.attemptId,
+                output: item.assistant_output,
+              });
+              await deps.convex.recordLlmAttemptFinish({
+                attempt_id: item.metadata.attemptId,
+                status: "succeeded",
+                assistant_output: item.assistant_output,
+                input_tokens: item.input_tokens,
+                output_tokens: item.output_tokens,
+                total_tokens: item.total_tokens,
+              });
+              successCount += 1;
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              await deps.convex.recordLlmAttemptFinish({
+                attempt_id: item.metadata.attemptId,
+                status: "failed",
+                error_message: message,
+              });
+              failureStates.set(item.metadata.input.target_id, {
+                attemptId: item.metadata.attemptId,
+                message,
+                attemptsUsed: 1,
+                maxAttempts: resolveAttemptLimitForFailureClass(
+                  classifyTaskFailure(error),
+                  settings.llm.retries,
+                ),
+              });
+            }
+          }
 
-      for (const item of batch.failed) {
-        await handleRunBatchFailureItem(
-          deps,
-          failureStates,
-          item,
-        );
-      }
+          for (const item of batch.failed) {
+            await handleRunBatchFailureItem(
+              deps,
+              failureStates,
+              item,
+            );
+          }
+        },
+      });
     }
   } catch (error) {
     const reservedDimensions = {
