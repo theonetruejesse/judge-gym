@@ -490,13 +490,15 @@ async function withPeriodicHeartbeat<T>(args: {
 
   let heartbeatInFlight: Promise<void> | null = null;
   const timer = setInterval(() => {
-    if (heartbeatInFlight) {
+    try {
+      args.temporalHeartbeat?.(args.temporalHeartbeatPayload);
+    } catch (error) {
+      console.warn("[run.stage] temporal heartbeat failed", String(error));
+    }
+    if (!args.onHeartbeat || heartbeatInFlight) {
       return;
     }
     heartbeatInFlight = Promise.resolve()
-      .then(() => {
-        args.temporalHeartbeat?.(args.temporalHeartbeatPayload);
-      })
       .then(() => args.onHeartbeat?.())
       .catch((error) => {
         console.warn("[run.stage] process heartbeat failed", String(error));
