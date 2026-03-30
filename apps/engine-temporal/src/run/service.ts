@@ -571,10 +571,38 @@ export async function runRunStageActivityWithDeps(
   assertRequiredProcessId(runId, "runId");
   const { convex } = deps;
   const resolvedSettings = getSettings(deps);
-  const run = await convex.getRunExecutionContext(runId);
-  const inputs = await convex.listRunStageInputs({
-    run_id: runId,
-    stage,
+  const { run, inputs } = await withPreflightGuard({
+    intervalMs: getProcessHeartbeatIntervalMs(deps),
+    timeoutMs: getLlmPreflightTimeoutMs(deps),
+    timeoutMessage: `Timed out bootstrapping ${stage} for run ${runId}`,
+    onHeartbeat: async () => {
+      await convex.recordProcessHeartbeat?.({
+        process_kind: "run",
+        process_id: runId,
+        stage,
+        payload_json: JSON.stringify({
+          source: "stage_bootstrap",
+          step: "load_context_and_inputs",
+          run_id: runId,
+          stage,
+        }),
+      });
+    },
+    temporalHeartbeat: deps.temporalHeartbeat,
+    temporalHeartbeatPayload: {
+      source: "stage_bootstrap",
+      step: "load_context_and_inputs",
+      run_id: runId,
+      stage,
+    },
+    task: async () => {
+      const run = await convex.getRunExecutionContext(runId);
+      const inputs = await convex.listRunStageInputs({
+        run_id: runId,
+        stage,
+      });
+      return { run, inputs };
+    },
   });
 
   let successCount = 0;
@@ -677,9 +705,36 @@ export async function runRunStageActivityWithDeps(
     };
   }
 
-  const finalized = await convex.finalizeRunStage({
-    run_id: runId,
-    stage,
+  const finalized = await withPreflightGuard({
+    intervalMs: getProcessHeartbeatIntervalMs(deps),
+    timeoutMs: getLlmPreflightTimeoutMs(deps),
+    timeoutMessage: `Timed out finalizing ${stage} for run ${runId}`,
+    onHeartbeat: async () => {
+      await convex.recordProcessHeartbeat?.({
+        process_kind: "run",
+        process_id: runId,
+        stage,
+        payload_json: JSON.stringify({
+          source: "stage_finalize",
+          step: "finalize_stage",
+          run_id: runId,
+          stage,
+          success_count: successCount,
+          failure_count: failureCount,
+        }),
+      });
+    },
+    temporalHeartbeat: deps.temporalHeartbeat,
+    temporalHeartbeatPayload: {
+      source: "stage_finalize",
+      step: "finalize_stage",
+      run_id: runId,
+      stage,
+    },
+    task: () => convex.finalizeRunStage({
+      run_id: runId,
+      stage,
+    }),
   });
 
   if (finalized.has_pending) {

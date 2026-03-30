@@ -1852,6 +1852,93 @@ describe("run stage service", function () {
     assert.ok(heartbeatSources.every((source) => source === "direct_request"));
   });
 
+  it("emits periodic run heartbeats while stage bootstrap is loading inputs", async () => {
+    const heartbeatSources: string[] = [];
+    const temporalHeartbeats: unknown[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        temporalHeartbeat(details) {
+          temporalHeartbeats.push(details ?? null);
+        },
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_bootstrap_heartbeat",
+              experiment_id: "exp_bootstrap_heartbeat",
+              workflow_id: "run:run_bootstrap_heartbeat",
+              workflow_run_id: "workflow-run-bootstrap-heartbeat",
+              status: "running",
+              current_stage: "rubric_gen",
+              target_count: 1,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputs() {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+            return [{
+              target_type: "sample" as const,
+              target_id: "sample_1",
+              model: "gpt-4.1",
+              system_prompt: "system",
+              user_prompt: "user",
+              metadata_json: null,
+            }];
+          },
+          async recordLlmAttemptStart() {
+            return { attempt_id: "attempt_bootstrap_heartbeat" };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSources.push(payload?.source ?? "unknown");
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 1,
+              completed: 1,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat() {
+          return {
+            assistant_output: "ok",
+            input_tokens: 10,
+            output_tokens: 10,
+            total_tokens: 20,
+          };
+        },
+      },
+      "run_bootstrap_heartbeat",
+      "rubric_gen",
+    );
+
+    assert.equal(result.summary, "run_stage:rubric_gen:success=1:failed=0:completed=1");
+    assert.ok(heartbeatSources.length >= 1);
+    assert.ok(temporalHeartbeats.length >= 1);
+    assert.ok(heartbeatSources.every((source) => source === "stage_bootstrap"));
+  });
+
   it("emits periodic run heartbeats while batch completion is still pending", async () => {
     const heartbeatSources: string[] = [];
     const temporalHeartbeats: unknown[] = [];
