@@ -2025,6 +2025,125 @@ describe("run stage service", function () {
     assert.ok(heartbeatSources.every((source) => source === "stage_bootstrap"));
   });
 
+  it("processes paged stage inputs while emitting bootstrap heartbeats between pages", async () => {
+    const heartbeatSteps: string[] = [];
+    const seenTargets: string[] = [];
+
+    const result = await runRunStageActivityWithDeps(
+      {
+        processHeartbeatIntervalMs: 5,
+        quota: buildQuota(),
+        convex: {
+          async getRunExecutionContext() {
+            return {
+              run_id: "run_paged_stage_inputs",
+              experiment_id: "exp_paged_stage_inputs",
+              workflow_id: "run:run_paged_stage_inputs",
+              workflow_run_id: "workflow-run-paged-stage-inputs",
+              status: "running",
+              current_stage: "score_critic",
+              target_count: 3,
+              completed_count: 0,
+              pause_after: null,
+            };
+          },
+          async listRunStageInputPage({ offset }: { offset?: number; }) {
+            await new Promise((resolve) => setTimeout(resolve, 15));
+            if ((offset ?? 0) === 0) {
+              return {
+                items: [
+                  {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_1",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user 1",
+                    metadata_json: null,
+                  },
+                  {
+                    target_type: "sample_score_target" as const,
+                    target_id: "target_2",
+                    model: "gpt-4.1",
+                    system_prompt: "system",
+                    user_prompt: "user 2",
+                    metadata_json: null,
+                  },
+                ],
+                next_offset: 2,
+                is_done: false,
+                total_count: 3,
+              };
+            }
+            return {
+              items: [
+                {
+                  target_type: "sample_score_target" as const,
+                  target_id: "target_3",
+                  model: "gpt-4.1",
+                  system_prompt: "system",
+                  user_prompt: "user 3",
+                  metadata_json: null,
+                },
+              ],
+              next_offset: null,
+              is_done: true,
+              total_count: 3,
+            };
+          },
+          async listRunStageInputs() {
+            throw new Error("legacy aggregate loader should not be called");
+          },
+          async recordLlmAttemptStart({ target_id }: { target_id: string; }) {
+            seenTargets.push(target_id);
+            return { attempt_id: `attempt_${target_id}` };
+          },
+          async recordLlmAttemptFinish() {
+            return null;
+          },
+          async recordProcessHeartbeat({ payload_json }: { payload_json?: string | null; }) {
+            const payload = payload_json ? JSON.parse(payload_json) : null;
+            heartbeatSteps.push(payload?.step ?? "unknown");
+            return null;
+          },
+          async applyRunStageResult() {
+            return null;
+          },
+          async markRunStageFailure() {
+            throw new Error("markRunStageFailure should not be called");
+          },
+          async finalizeRunStage() {
+            return {
+              total: 3,
+              completed: 3,
+              failed: 0,
+              has_pending: false,
+              halt_process: false,
+              terminal_execution_status: null,
+              error_message: null,
+            };
+          },
+          async markRunProcessError() {
+            throw new Error("markRunProcessError should not be called");
+          },
+        },
+        async runOpenAiChat({ userPrompt }) {
+          return {
+            assistant_output: `VERDICT: ${userPrompt}`,
+            input_tokens: 10,
+            output_tokens: 10,
+            total_tokens: 20,
+          };
+        },
+      },
+      "run_paged_stage_inputs",
+      "score_critic",
+    );
+
+    assert.equal(result.summary, "run_stage:score_critic:success=3:failed=0:completed=3");
+    assert.deepEqual(seenTargets, ["target_1", "target_2", "target_3"]);
+    assert.ok(heartbeatSteps.includes("load_input_page"));
+  });
+
   it("emits periodic run heartbeats while batch completion is still pending", async () => {
     const heartbeatSources: string[] = [];
     const temporalHeartbeats: unknown[] = [];

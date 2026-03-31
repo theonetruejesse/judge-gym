@@ -92,7 +92,7 @@ Bundled provider ceilings now include Anthropic Claude Sonnet 4 standard tiers `
 
 Batch/provider lifecycle is persisted in `llm_batch_executions`, including provider-specific artifacts such as Anthropic batch `results_url`.
 
-Temporal run/transform/acquisition activities now use a real activity heartbeat timeout in addition to Convex-side process heartbeats, and the Temporal heartbeat path is decoupled from Convex heartbeat writes. Long-running stage bootstrap, batch preparation, batch waits, batch-result application, and stage finalization now recover correctly after worker restarts or slow observability writes instead of stalling until the full activity `startToClose` window.
+Temporal run/transform/acquisition activities now use a real activity heartbeat timeout in addition to Convex-side process heartbeats, and the Temporal heartbeat path is decoupled from Convex heartbeat writes. Run stages also page Convex stage inputs instead of materializing the full stage payload up front, so long `score_critic` bootstrap work can keep heartbeating while input pages load. Long-running stage bootstrap, batch preparation, batch waits, batch-result application, and stage finalization now recover correctly after worker restarts or slow observability writes instead of stalling until the full activity `startToClose` window.
 
 ## Lab UI
 

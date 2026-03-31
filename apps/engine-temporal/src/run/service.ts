@@ -52,6 +52,7 @@ type RunStageDependencies = {
     recordBatchExecutionPreparationProgress?: ConvexWorkerClient["recordBatchExecutionPreparationProgress"];
     bindBatchExecutionSubmitted?: ConvexWorkerClient["bindBatchExecutionSubmitted"];
     finalizeBatchExecution?: ConvexWorkerClient["finalizeBatchExecution"];
+    listRunStageInputPage?: ConvexWorkerClient["listRunStageInputPage"];
   };
   runOpenAiChat: typeof runModelChat;
   runOpenAiBatchChat?: typeof runModelBatchChat;
@@ -90,6 +91,12 @@ type RunBatchMetadata = {
 };
 
 type RunBatchResult = Awaited<ReturnType<typeof runModelBatchChat<RunBatchMetadata>>>;
+type RunStageInputPage = {
+  items: RunStageInput[];
+  next_offset: number | null;
+  is_done: boolean;
+  total_count: number;
+};
 
 const DEFAULT_PROCESS_HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -573,10 +580,10 @@ export async function runRunStageActivityWithDeps(
   assertRequiredProcessId(runId, "runId");
   const { convex } = deps;
   const resolvedSettings = getSettings(deps);
-  const { run, inputs } = await withPreflightGuard({
+  const run = await withPreflightGuard({
     intervalMs: getProcessHeartbeatIntervalMs(deps),
     timeoutMs: getLlmPreflightTimeoutMs(deps),
-    timeoutMessage: `Timed out bootstrapping ${stage} for run ${runId}`,
+    timeoutMessage: `Timed out loading run context for ${stage} run ${runId}`,
     onHeartbeat: async () => {
       await convex.recordProcessHeartbeat?.({
         process_kind: "run",
@@ -584,7 +591,7 @@ export async function runRunStageActivityWithDeps(
         stage,
         payload_json: JSON.stringify({
           source: "stage_bootstrap",
-          step: "load_context_and_inputs",
+          step: "load_context",
           run_id: runId,
           stage,
         }),
@@ -593,32 +600,27 @@ export async function runRunStageActivityWithDeps(
     temporalHeartbeat: deps.temporalHeartbeat,
     temporalHeartbeatPayload: {
       source: "stage_bootstrap",
-      step: "load_context_and_inputs",
+      step: "load_context",
       run_id: runId,
       stage,
     },
-    task: async () => {
-      const run = await convex.getRunExecutionContext(runId);
-      const inputs = await convex.listRunStageInputs({
-        run_id: runId,
-        stage,
-      });
-      return { run, inputs };
-    },
+    task: () => convex.getRunExecutionContext(runId),
   });
 
   let successCount = 0;
   let failureCount = 0;
+  const workflowId = run.workflow_id ?? `run:${runId}`;
+  const pageSize = 100;
 
-  const groups = new Map<ModelType, RunStageInput[]>();
-  for (const input of inputs) {
-    const key = input.model;
-    const group = groups.get(key) ?? [];
-    group.push(input);
-    groups.set(key, group);
-  }
+  const processInputPage = async (inputs: RunStageInput[]) => {
+    const groups = new Map<ModelType, RunStageInput[]>();
+    for (const input of inputs) {
+      const key = input.model;
+      const group = groups.get(key) ?? [];
+      group.push(input);
+      groups.set(key, group);
+    }
 
-  try {
     for (const [model, groupInputs] of groups.entries()) {
       const { provider } = getModelConfig(model);
       const providerBatchConstraints = resolveProviderBatchConstraints(
@@ -644,7 +646,7 @@ export async function runRunStageActivityWithDeps(
             runId,
             stage,
             input,
-            workflowId: run.workflow_id ?? `run:${runId}`,
+            workflowId,
           }),
         );
         successCount += directResults.successCount;
@@ -678,7 +680,7 @@ export async function runRunStageActivityWithDeps(
           slice.map((chunk) => processRunStageBatchChunk(deps, {
             runId,
             stage,
-            workflowId: run.workflow_id ?? `run:${runId}`,
+            workflowId,
             model,
             inputs: chunk,
           })),
@@ -688,6 +690,86 @@ export async function runRunStageActivityWithDeps(
           failureCount += result.failureCount;
         }
       }
+    }
+  };
+
+  try {
+    if (convex.listRunStageInputPage) {
+      let offset = 0;
+      while (true) {
+        const page = await withPreflightGuard({
+          intervalMs: getProcessHeartbeatIntervalMs(deps),
+          timeoutMs: getLlmPreflightTimeoutMs(deps),
+          timeoutMessage:
+            `Timed out loading ${stage} page at offset ${offset} for run ${runId}`,
+          onHeartbeat: async () => {
+            await convex.recordProcessHeartbeat?.({
+              process_kind: "run",
+              process_id: runId,
+              stage,
+              payload_json: JSON.stringify({
+                source: "stage_bootstrap",
+                step: "load_input_page",
+                run_id: runId,
+                stage,
+                offset,
+                limit: pageSize,
+              }),
+            });
+          },
+          temporalHeartbeat: deps.temporalHeartbeat,
+          temporalHeartbeatPayload: {
+            source: "stage_bootstrap",
+            step: "load_input_page",
+            run_id: runId,
+            stage,
+            offset,
+            limit: pageSize,
+          },
+          task: () => convex.listRunStageInputPage!({
+            run_id: runId,
+            stage,
+            offset,
+            limit: pageSize,
+          }) as Promise<RunStageInputPage>,
+        });
+        await processInputPage(page.items);
+        if (page.is_done || page.next_offset == null) {
+          break;
+        }
+        offset = page.next_offset;
+      }
+    } else {
+      const inputs = await withPreflightGuard({
+        intervalMs: getProcessHeartbeatIntervalMs(deps),
+        timeoutMs: getLlmPreflightTimeoutMs(deps),
+        timeoutMessage: `Timed out loading stage inputs for ${stage} run ${runId}`,
+        onHeartbeat: async () => {
+          await convex.recordProcessHeartbeat?.({
+            process_kind: "run",
+            process_id: runId,
+            stage,
+            payload_json: JSON.stringify({
+              source: "stage_bootstrap",
+              step: "load_context_and_inputs",
+              run_id: runId,
+              stage,
+            }),
+          });
+        },
+        temporalHeartbeat: deps.temporalHeartbeat,
+        temporalHeartbeatPayload: {
+          source: "stage_bootstrap",
+          step: "load_context_and_inputs",
+          run_id: runId,
+          stage,
+        },
+        task: () => convex.listRunStageInputs({
+          run_id: runId,
+          stage,
+        }),
+      });
+      await processInputPage(inputs);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

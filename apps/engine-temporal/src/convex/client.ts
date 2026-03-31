@@ -348,6 +348,15 @@ export class ConvexWorkerClient {
     return this.client.mutation(workerApi.projectProcessState, input);
   }
 
+  listRunStageInputPage(args: {
+    run_id: string;
+    stage: RunStageKey;
+    offset?: number;
+    limit?: number;
+  }) {
+    return this.client.action(workerApi.listRunStageInputs, args) as Promise<RunStageInputPage>;
+  }
+
   listRunStageInputs(args: {
     run_id: string;
     stage: RunStageKey;
@@ -358,11 +367,11 @@ export class ConvexWorkerClient {
     return (async () => {
       let offset = 0;
       while (true) {
-        const page = await this.client.action(workerApi.listRunStageInputs, {
+        const page = await this.listRunStageInputPage({
           ...args,
           offset,
           limit: pageSize,
-        }) as RunStageInputPage;
+        });
         items.push(...page.items);
         if (page.is_done || page.next_offset == null) {
           return items;
