@@ -695,13 +695,12 @@ export async function runRunStageActivityWithDeps(
 
   try {
     if (convex.listRunStageInputPage) {
-      let offset = 0;
       while (true) {
         const page = await withPreflightGuard({
           intervalMs: getProcessHeartbeatIntervalMs(deps),
           timeoutMs: getLlmPreflightTimeoutMs(deps),
           timeoutMessage:
-            `Timed out loading ${stage} page at offset ${offset} for run ${runId}`,
+            `Timed out loading remaining ${stage} inputs for run ${runId}`,
           onHeartbeat: async () => {
             await convex.recordProcessHeartbeat?.({
               process_kind: "run",
@@ -712,7 +711,7 @@ export async function runRunStageActivityWithDeps(
                 step: "load_input_page",
                 run_id: runId,
                 stage,
-                offset,
+                offset: 0,
                 limit: pageSize,
               }),
             });
@@ -723,21 +722,20 @@ export async function runRunStageActivityWithDeps(
             step: "load_input_page",
             run_id: runId,
             stage,
-            offset,
+            offset: 0,
             limit: pageSize,
           },
           task: () => convex.listRunStageInputPage!({
             run_id: runId,
             stage,
-            offset,
+            offset: 0,
             limit: pageSize,
           }) as Promise<RunStageInputPage>,
         });
-        await processInputPage(page.items);
-        if (page.is_done || page.next_offset == null) {
+        if (page.items.length === 0) {
           break;
         }
-        offset = page.next_offset;
+        await processInputPage(page.items);
       }
     } else {
       const inputs = await withPreflightGuard({

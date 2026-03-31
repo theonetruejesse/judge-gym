@@ -2028,6 +2028,8 @@ describe("run stage service", function () {
   it("processes paged stage inputs while emitting bootstrap heartbeats between pages", async () => {
     const heartbeatSteps: string[] = [];
     const seenTargets: string[] = [];
+    const pendingTargetIds = ["target_1", "target_2", "target_3"];
+    const pageOffsets: number[] = [];
 
     const result = await runRunStageActivityWithDeps(
       {
@@ -2048,46 +2050,21 @@ describe("run stage service", function () {
             };
           },
           async listRunStageInputPage({ offset }: { offset?: number; }) {
+            pageOffsets.push(offset ?? 0);
             await new Promise((resolve) => setTimeout(resolve, 15));
-            if ((offset ?? 0) === 0) {
-              return {
-                items: [
-                  {
-                    target_type: "sample_score_target" as const,
-                    target_id: "target_1",
-                    model: "gpt-4.1",
-                    system_prompt: "system",
-                    user_prompt: "user 1",
-                    metadata_json: null,
-                  },
-                  {
-                    target_type: "sample_score_target" as const,
-                    target_id: "target_2",
-                    model: "gpt-4.1",
-                    system_prompt: "system",
-                    user_prompt: "user 2",
-                    metadata_json: null,
-                  },
-                ],
-                next_offset: 2,
-                is_done: false,
-                total_count: 3,
-              };
-            }
+            const ids = pendingTargetIds.slice(0, 2);
             return {
-              items: [
-                {
-                  target_type: "sample_score_target" as const,
-                  target_id: "target_3",
-                  model: "gpt-4.1",
-                  system_prompt: "system",
-                  user_prompt: "user 3",
-                  metadata_json: null,
-                },
-              ],
-              next_offset: null,
-              is_done: true,
-              total_count: 3,
+              items: ids.map((id) => ({
+                target_type: "sample_score_target" as const,
+                target_id: id,
+                model: "gpt-4.1" as const,
+                system_prompt: "system",
+                user_prompt: `user ${id}`,
+                metadata_json: null,
+              })),
+              next_offset: ids.length > 0 ? ids.length : null,
+              is_done: ids.length >= pendingTargetIds.length,
+              total_count: pendingTargetIds.length,
             };
           },
           async listRunStageInputs() {
@@ -2106,6 +2083,7 @@ describe("run stage service", function () {
             return null;
           },
           async applyRunStageResult() {
+            pendingTargetIds.shift();
             return null;
           },
           async markRunStageFailure() {
@@ -2141,6 +2119,7 @@ describe("run stage service", function () {
 
     assert.equal(result.summary, "run_stage:score_critic:success=3:failed=0:completed=3");
     assert.deepEqual(seenTargets, ["target_1", "target_2", "target_3"]);
+    assert.deepEqual(pageOffsets, [0, 0, 0]);
     assert.ok(heartbeatSteps.includes("load_input_page"));
   });
 
