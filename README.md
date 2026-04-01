@@ -159,6 +159,7 @@ Local paper-audit readiness flow:
 - `bun run v4:launch:native-openai`
 - `bun run v4:launch:native-openai --live --allow-existing-set`
 - `cd apps/analysis && uv run judge-gym-analysis v4-native-gpt41 --refresh`
+- `cd apps/analysis && uv run judge-gym-analysis v4-native-openai --refresh`
 
 These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
 
@@ -195,6 +196,8 @@ The worker pages run-stage prompt inputs behind the Convex client during large s
 The worker also throttles batch attempt-start checkpoint fanout and applies outer timeouts to direct requests and batch checkpoint writes, which keeps large cohorts from hanging indefinitely on a single stuck provider or Convex call.
 
 `uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
+
+`uv run judge-gym-analysis v4-native-openai --refresh` exports the canonical 30-sample native OpenAI matrix using the committed run manifest at `docs/pilots/v4_native_openai_canonical_runs.json` and writes the baseline cross-model report under `apps/analysis/_outputs/v4/native_openai_scale/`.
 
 The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
 

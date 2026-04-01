@@ -29,11 +29,9 @@ from .report_v4_native import (
 
 CANONICAL_OPENAI_MATRIX_PATH = (
     repo_root()
-    / "_local"
-    / "v4_builds"
-    / "native_concepts"
-    / "openai_scale"
-    / "canonical_runs.json"
+    / "docs"
+    / "pilots"
+    / "v4_native_openai_canonical_runs.json"
 )
 
 
@@ -124,6 +122,9 @@ def generate_v4_native_openai_report(
         responses=responses,
         experiments=pulled.experiments,
     )
+    if not experiment_metrics.empty:
+        experiment_metrics["model"] = experiment_metrics["experiment_tag"].apply(_model_key_from_tag)
+        experiment_metrics["condition_key"] = experiment_metrics["experiment_tag"].apply(_condition_key_from_tag)
     contrast_specs = _contrast_specs(canonical_rows)
     contrast_metrics = _build_contrast_metrics(
         responses=responses,

@@ -1,0 +1,115 @@
+{
+  "generated_at": "2026-04-01T01:45:00Z",
+  "matrix_kind": "v4_native_openai_scale",
+  "target_count": 30,
+  "evidence_set_tag": "v4_native_concepts_shared_v1_set",
+  "notes": [
+    "Canonical runs are the completed 30-sample artifacts for the promoted native OpenAI matrix.",
+    "These rows should be preferred over latest-run semantics when later validation runs use smaller target counts."
+  ],
+  "canonical_runs": [
+    {
+      "experiment_tag": "v4_native_fascism_baseline_source_gpt41",
+      "experiment_id": "jh7cgerqjydvgfhvx5e26tg2zx83sfnm",
+      "canonical_run_id": "kx760t5xs6t7gvzskmt56d76fd83r56x",
+      "latest_run_id": "kx7a1r5kednk4gawyw71sdh9r583y793",
+      "latest_target_count": 3,
+      "note": "Latest run is a 3-sample validation run; canonical run is the completed 30-sample cohort."
+    },
+    {
+      "experiment_tag": "v4_native_fascism_abstention_source_gpt41",
+      "experiment_id": "jh743f6ygjbpk8arny3mk22rdd83s43z",
+      "canonical_run_id": "kx7efq30y3p4b3xpagkdak9y0d83sqs9"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_view_l2_neutralized_gpt41",
+      "experiment_id": "jh75qzrj14nht1s243saef668983rmeh",
+      "canonical_run_id": "kx7a64sqh7k91snpv6875b75rd83rc3k"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_baseline_source_gpt41",
+      "experiment_id": "jh785xcyrqtjbt1sbr4c4ebzv183rerb",
+      "canonical_run_id": "kx72gncjr78veze3srjsxgwzvs83srqe"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_view_l2_neutralized_gpt41",
+      "experiment_id": "jh7798swb5v427r913kyqzpzj183rg0v",
+      "canonical_run_id": "kx7e2jnbygcmgfpkj5mr50ttwh83swmd"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_baseline_source_gpt52",
+      "experiment_id": "jh7axwahvcrb54bwrb47vw166983rxsy",
+      "canonical_run_id": "kx7b5xk7ybjkecj61tf0bbmkfs83rzhx"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_abstention_source_gpt52",
+      "experiment_id": "jh7fd1g1nfngjdqxv054c3gncs83rvj7",
+      "canonical_run_id": "kx75chr9m9c4ppfqf80k3jw6nx83rr0m"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_view_l2_neutralized_gpt52",
+      "experiment_id": "jh72wczxpx60c1mcbghrhq21ex83r0h4",
+      "canonical_run_id": "kx7201c69qypheh7nv6mmm22tx83sscv"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_baseline_source_gpt52",
+      "experiment_id": "jh7a3jbbgawg669fszb7kg3n8d83rqxg",
+      "canonical_run_id": "kx7b7b7v3497gqrysg5dv27wk583sgvp"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_view_l2_neutralized_gpt52",
+      "experiment_id": "jh73gvej3rmtfbxxy0949xct8583rnbn",
+      "canonical_run_id": "kx7awyyd58wky5xntz1t6yqyvx83rw8z"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_baseline_source_gpt41mini",
+      "experiment_id": "jh763wt4rj8164ba2t7hkmnt8183rwjh",
+      "canonical_run_id": "kx74md6hj678a0fgmkpqcab0th83sgdg"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_abstention_source_gpt41mini",
+      "experiment_id": "jh7f4hh82r83g61bjsnjvwvnbx83rs7g",
+      "canonical_run_id": "kx7e99g1q2n087y3tdw4yr2pen83r48y"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_view_l2_neutralized_gpt41mini",
+      "experiment_id": "jh7aghjs3gn7t6w87yyhzjjdzd83rj3q",
+      "canonical_run_id": "kx7c6mpj61a8s2xe4nrmr87xp5840qam"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_baseline_source_gpt41mini",
+      "experiment_id": "jh7a9apvrsvsnnrf0mccxcx67n83sna1",
+      "canonical_run_id": "kx7af7jc0nfq9bbjb03f2n6rxx83rtz8"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_view_l2_neutralized_gpt41mini",
+      "experiment_id": "jh766q7941hb63zwsz62nq54wx83s0nr",
+      "canonical_run_id": "kx7b0vsfya5tj2t3n21rvawjes83s9j9"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_baseline_source_gpt52chat",
+      "experiment_id": "jh70kgkewrkfa3gbx1tr3wfaxn83rszd",
+      "canonical_run_id": "kx7d6c2s800xyhf3wn1rccnb7d83srrw"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_abstention_source_gpt52chat",
+      "experiment_id": "jh76ppmtce87dgwy37hap7ysqh83sw84",
+      "canonical_run_id": "kx7ape65r1qjh3fq5ryar3ga5183rmpn"
+    },
+    {
+      "experiment_tag": "v4_native_fascism_view_l2_neutralized_gpt52chat",
+      "experiment_id": "jh7b5e2vqbf2yj33qxjna3m73n83sm7g",
+      "canonical_run_id": "kx70zse12h1qqtr7ejgfgqw4w183sgat"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_baseline_source_gpt52chat",
+      "experiment_id": "jh7dvndjcakhdn9bd08mz6vyx583sets",
+      "canonical_run_id": "kx7d99z3x9m36v3bbctvazvah583stq0"
+    },
+    {
+      "experiment_tag": "v4_native_illiberal_democracy_view_l2_neutralized_gpt52chat",
+      "experiment_id": "jh72k47a1p89dawe7qfjttk8a983stkw",
+      "canonical_run_id": "kx7ahe0x1dph6ry88e2b1r7jk583s3hz"
+    }
+  ]
+}

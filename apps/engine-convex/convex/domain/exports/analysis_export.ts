@@ -520,14 +520,17 @@ export const listAnalysisResponses = zInternalQuery({
     const manifest = await resolveManifest(ctx, { run_id: args.run_id });
     const { experiment, normalizedExperiment, run } = manifest;
     const pagination = args.pagination ?? {};
+    const limit = pagination.limit ?? DEFAULT_PAGE_LIMIT;
     const { samples, sampleOrdinalById, rubricCriticBySampleId } = await buildSampleContext(ctx, run._id);
     const sampleById = new Map(samples.map((sample) => [String(sample._id), sample]));
-    const scores = sortByCreationTime(
-      await ctx.db
-        .query("scores")
-        .withIndex("by_run", (q) => q.eq("run_id", run._id))
-        .collect(),
-    );
+    const scorePage = await ctx.db
+      .query("scores")
+      .withIndex("by_run", (q) => q.eq("run_id", run._id))
+      .paginate({
+        cursor: pagination.cursor ?? null,
+        numItems: limit,
+      });
+    const scores = sortByCreationTime(scorePage.page);
     const scoreCritics = sortByCreationTime(
       await ctx.db
         .query("score_critics")
@@ -615,7 +618,12 @@ export const listAnalysisResponses = zInternalQuery({
       };
     }));
 
-    return slicePage(rows, pagination);
+    return {
+      page: rows,
+      continue_cursor: scorePage.continueCursor,
+      is_done: scorePage.isDone,
+      total_count: manifest.counts.responses,
+    };
   },
 });
 

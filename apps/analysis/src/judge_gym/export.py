@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
 import httpx
@@ -42,12 +43,28 @@ class ConvexAnalysisClient:
         self._client.close()
 
     def query(self, function_name: str, args: dict[str, Any]) -> Any:
-        response = self._client.post(
-            "/api/query",
-            json={"path": function_name, "args": args},
-        )
-        response.raise_for_status()
-        return response.json()["value"]
+        retries = 3
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                response = self._client.post(
+                    "/api/query",
+                    json={"path": function_name, "args": args},
+                )
+                response.raise_for_status()
+                return response.json()["value"]
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code not in {502, 503, 504} or attempt >= retries:
+                    raise
+                last_error = error
+            except httpx.HTTPError as error:
+                if attempt >= retries:
+                    raise
+                last_error = error
+            time.sleep(1.5 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Unreachable query retry state")
 
     def list_experiments(self) -> list[dict[str, Any]]:
         return list(self.query("packages/analysis:listAnalysisExperiments", {}))
@@ -74,11 +91,23 @@ class ConvexAnalysisClient:
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         cursor: str | None = None
+        current_page_size = page_size
         while True:
-            payload = self.query(
-                function_name,
-                {"run_id": run_id, "pagination": {"limit": page_size, "cursor": cursor}},
-            )
+            try:
+                payload = self.query(
+                    function_name,
+                    {"run_id": run_id, "pagination": {"limit": current_page_size, "cursor": cursor}},
+                )
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code not in {500, 502, 503, 504} or current_page_size <= 10:
+                    raise
+                current_page_size = max(10, current_page_size // 2)
+                continue
+            except httpx.HTTPError:
+                if current_page_size <= 10:
+                    raise
+                current_page_size = max(10, current_page_size // 2)
+                continue
             rows.extend(payload["page"])
             if payload["is_done"]:
                 break

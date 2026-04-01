@@ -11,7 +11,7 @@ It separates:
 
 The machine-readable export lives in [_local/v4_inventory/live_inventory.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_inventory/live_inventory.json) and the generated quick summary lives in [_local/v4_inventory/live_inventory.md](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_inventory/live_inventory.md).
 
-For the native OpenAI scale matrix, canonical analysis should use [_local/v4_builds/native_concepts/openai_scale/canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_builds/native_concepts/openai_scale/canonical_runs.json) instead of blindly following each experiment's latest run.
+For the native OpenAI scale matrix, canonical analysis should use [v4_native_openai_canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v4_native_openai_canonical_runs.json) instead of blindly following each experiment's latest run.
 
 ## Current Study Buckets
 

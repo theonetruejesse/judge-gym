@@ -96,7 +96,7 @@ The launcher reuses the latest frozen native snapshot set by default and starts 
 
 ## Canonical Analysis Baseline
 
-Use the canonical run manifest at [_local/v4_builds/native_concepts/openai_scale/canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_builds/native_concepts/openai_scale/canonical_runs.json) when analyzing this matrix.
+Use the canonical run manifest at [v4_native_openai_canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/docs/pilots/v4_native_openai_canonical_runs.json) when analyzing this matrix.
 
 This matters because validation or smoke reruns can create later smaller runs on an experiment tag. The canonical manifest pins the intended completed `30`-sample run for each promoted cell.
 
