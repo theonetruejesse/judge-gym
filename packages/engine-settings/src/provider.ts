@@ -143,7 +143,7 @@ export function providerSupportsBatching(provider: ProviderType): boolean {
   return getProviderBatchMode(provider) === "native";
 }
 
-export const OpenAiTierSchema = z.enum(["tier_2", "tier_5"]);
+export const OpenAiTierSchema = z.enum(["tier_1", "tier_2", "tier_5"]);
 export type OpenAiTier = z.infer<typeof OpenAiTierSchema>;
 export const AnthropicTierSchema = z.enum([
   "tier_1",
@@ -161,6 +161,29 @@ function isOpenAiModel(model: ModelType): model is OpenAiModelType {
 function isAnthropicModel(model: ModelType): model is AnthropicModelType {
   return MODEL_BY_ID[model].provider === "anthropic";
 }
+
+const OPENAI_TIER_1_MODEL_LIMITS: Record<OpenAiModelType, ProviderRateLimit> = {
+  "gpt-4.1": {
+    requestsPerMinute: 500,
+    inputTokensPerMinute: 1_500_000,
+    outputTokensPerMinute: 1_500_000,
+  },
+  "gpt-4.1-mini": {
+    requestsPerMinute: 1_500,
+    inputTokensPerMinute: 7_500_000,
+    outputTokensPerMinute: 7_500_000,
+  },
+  "gpt-5.2": {
+    requestsPerMinute: 750,
+    inputTokensPerMinute: 2_000_000,
+    outputTokensPerMinute: 2_000_000,
+  },
+  "gpt-5.2-chat": {
+    requestsPerMinute: 750,
+    inputTokensPerMinute: 2_000_000,
+    outputTokensPerMinute: 2_000_000,
+  },
+};
 
 // OpenAI's public docs expose the usage tier ladder, but model-specific rate
 // limits are resolved from the org limits page rather than a stable public
@@ -217,6 +240,7 @@ const OPENAI_TIER_LIMITS: Record<
   OpenAiTier,
   Record<OpenAiModelType, ProviderRateLimit>
 > = {
+  tier_1: OPENAI_TIER_1_MODEL_LIMITS,
   tier_2: OPENAI_TIER_2_MODEL_LIMITS,
   tier_5: OPENAI_TIER_5_MODEL_LIMITS,
 };
@@ -264,7 +288,7 @@ const ANTHROPIC_TIER_LIMITS: Partial<
 };
 
 export const OpenAiProviderSettingsSchema = z.object({
-  tier: OpenAiTierSchema.default("tier_2"),
+  tier: OpenAiTierSchema.default("tier_1"),
   modelRateLimitOverrides: z.partialRecord(
     modelTypeSchema,
     ProviderRateLimitSchema,
@@ -306,7 +330,7 @@ export type OpenRouterProviderSettings = z.infer<typeof OpenRouterProviderSettin
 
 export const ProviderExecutionSettingsSchema = z.object({
   openai: OpenAiProviderSettingsSchema.default({
-    tier: "tier_2",
+    tier: "tier_1",
     modelRateLimitOverrides: {},
     modelBatchConstraintsOverrides: {},
   }),

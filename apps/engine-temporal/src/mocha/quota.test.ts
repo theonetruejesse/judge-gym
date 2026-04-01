@@ -43,8 +43,38 @@ describe("quota helpers", () => {
       },
     );
 
-    assert.equal(policy?.capacity, 3_000);
-    assert.equal(policy?.rate, 3_000);
+    assert.equal(policy?.capacity, 1_500);
+    assert.equal(policy?.rate, 1_500);
+  });
+
+  it("ships conservative OpenAI Tier 1 defaults", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "openai",
+      "gpt-4.1",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 500,
+      inputTokensPerMinute: 1_500_000,
+      outputTokensPerMinute: 1_500_000,
+    });
   });
 
   it("ships conservative OpenAI Tier 2 defaults", () => {
