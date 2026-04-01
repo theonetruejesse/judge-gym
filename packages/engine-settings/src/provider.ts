@@ -143,7 +143,7 @@ export function providerSupportsBatching(provider: ProviderType): boolean {
   return getProviderBatchMode(provider) === "native";
 }
 
-export const OpenAiTierSchema = z.enum(["tier_5"]);
+export const OpenAiTierSchema = z.enum(["tier_2", "tier_5"]);
 export type OpenAiTier = z.infer<typeof OpenAiTierSchema>;
 export const AnthropicTierSchema = z.enum([
   "tier_1",
@@ -161,6 +161,34 @@ function isOpenAiModel(model: ModelType): model is OpenAiModelType {
 function isAnthropicModel(model: ModelType): model is AnthropicModelType {
   return MODEL_BY_ID[model].provider === "anthropic";
 }
+
+// OpenAI's public docs expose the usage tier ladder, but model-specific rate
+// limits are resolved from the org limits page rather than a stable public
+// table. These tier_2 defaults are intentionally conservative and can be
+// overridden per model when the project wants to mirror dashboard ceilings
+// exactly.
+const OPENAI_TIER_2_MODEL_LIMITS: Record<OpenAiModelType, ProviderRateLimit> = {
+  "gpt-4.1": {
+    requestsPerMinute: 1_000,
+    inputTokensPerMinute: 3_000_000,
+    outputTokensPerMinute: 3_000_000,
+  },
+  "gpt-4.1-mini": {
+    requestsPerMinute: 3_000,
+    inputTokensPerMinute: 15_000_000,
+    outputTokensPerMinute: 15_000_000,
+  },
+  "gpt-5.2": {
+    requestsPerMinute: 1_500,
+    inputTokensPerMinute: 4_000_000,
+    outputTokensPerMinute: 4_000_000,
+  },
+  "gpt-5.2-chat": {
+    requestsPerMinute: 1_500,
+    inputTokensPerMinute: 4_000_000,
+    outputTokensPerMinute: 4_000_000,
+  },
+};
 
 const OPENAI_TIER_5_MODEL_LIMITS: Record<OpenAiModelType, ProviderRateLimit> = {
   "gpt-4.1": {
@@ -189,6 +217,7 @@ const OPENAI_TIER_LIMITS: Record<
   OpenAiTier,
   Record<OpenAiModelType, ProviderRateLimit>
 > = {
+  tier_2: OPENAI_TIER_2_MODEL_LIMITS,
   tier_5: OPENAI_TIER_5_MODEL_LIMITS,
 };
 
@@ -235,7 +264,7 @@ const ANTHROPIC_TIER_LIMITS: Partial<
 };
 
 export const OpenAiProviderSettingsSchema = z.object({
-  tier: OpenAiTierSchema.default("tier_5"),
+  tier: OpenAiTierSchema.default("tier_2"),
   modelRateLimitOverrides: z.partialRecord(
     modelTypeSchema,
     ProviderRateLimitSchema,
@@ -277,7 +306,7 @@ export type OpenRouterProviderSettings = z.infer<typeof OpenRouterProviderSettin
 
 export const ProviderExecutionSettingsSchema = z.object({
   openai: OpenAiProviderSettingsSchema.default({
-    tier: "tier_5",
+    tier: "tier_2",
     modelRateLimitOverrides: {},
     modelBatchConstraintsOverrides: {},
   }),

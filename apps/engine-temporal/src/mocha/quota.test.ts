@@ -43,8 +43,38 @@ describe("quota helpers", () => {
       },
     );
 
-    assert.equal(policy?.capacity, 30_000);
-    assert.equal(policy?.rate, 30_000);
+    assert.equal(policy?.capacity, 3_000);
+    assert.equal(policy?.rate, 3_000);
+  });
+
+  it("ships conservative OpenAI Tier 2 defaults", () => {
+    const providerSettings: ProviderExecutionSettings = {
+      openai: {
+        tier: "tier_2",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      anthropic: {
+        tier: "tier_1",
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+      openrouter: {
+        modelRateLimitOverrides: {},
+        modelBatchConstraintsOverrides: {},
+      },
+    };
+    const rateLimit = resolveProviderRateLimit(
+      providerSettings,
+      "openai",
+      "gpt-4.1",
+    );
+
+    assert.deepEqual(rateLimit, {
+      requestsPerMinute: 1_000,
+      inputTokensPerMinute: 3_000_000,
+      outputTokensPerMinute: 3_000_000,
+    });
   });
 
   it("ships Anthropic Tier 1 defaults for Claude Sonnet 4", () => {
