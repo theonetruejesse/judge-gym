@@ -65,6 +65,11 @@ function buildBlueprints(model: NativeOpenRouterProvider): NativeConceptualManif
     study_kind: "regime_check" as const,
     compatibility_mode: "native" as const,
     rubric_source_kind: "generate" as const,
+    output_contract: {
+      kind: "structured_json" as const,
+      parser_key: "structured_json" as const,
+      schema_version: "v1",
+    },
     rubric_config: {
       model,
       scale_size: 4,

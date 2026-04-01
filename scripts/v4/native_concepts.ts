@@ -121,6 +121,17 @@ export type NativeConceptualManifest = {
     study_kind: "regime_check";
     compatibility_mode: "native";
     rubric_source_kind: "generate";
+    task_contract?: {
+      task_kind: "stage_judgment" | "label_classification" | "ordinal_scoring";
+      label_space_json?: string | null;
+      instructions_json?: string | null;
+      prompt_template_id?: string | null;
+    };
+    output_contract?: {
+      kind: "verdict_line" | "structured_json" | "label";
+      parser_key: "subset_verdict" | "single_verdict" | "structured_json" | "label_choice";
+      schema_version: string;
+    };
     rubric_config: {
       model: NativeScaledProvider;
       scale_size: 4;

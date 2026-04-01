@@ -193,13 +193,15 @@ If acquisition has already completed, resume with `--snapshot-set-id <set_id> --
 
 `bun run v4:build:native-openrouter` emits the first non-OpenAI native confirmation manifests for `qwen-current-text-flagship` and `kimi-current-text-flagship`.
 
-`bun run v4:launch:native-openrouter` reuses the latest frozen native snapshot set, upserts the promoted native experiments for those OpenRouter models, and launches a smaller confirmation cohort at `10` matched samples per experiment by default.
+`bun run v4:launch:native-openrouter` reuses the latest frozen native snapshot set, force-reconfigures the promoted native experiments for those OpenRouter models when `--allow-existing-set` is present, and launches a smaller confirmation cohort at `10` matched samples per experiment by default. Those manifests now use the `structured_json` output contract to reduce provider-specific verdict-line drift.
 
 Batch selection is now settings-driven: `llm.batching.minBatchSize` and `llm.batching.maxBatchSize` remain the local policy knobs, while provider/model ceilings cap the effective batch size and request budget. `llm.batching.maxEnqueuedInputTokensPerBatch` is the repo-level guardrail for large OpenAI-native batches.
 
 The worker pages run-stage prompt inputs behind the Convex client during large score stages, so full-volume native launches can exceed one action payload without tripping Convex's 16 MiB response limit.
 
 The worker also throttles batch attempt-start checkpoint fanout and applies outer timeouts to direct requests and batch checkpoint writes, which keeps large cohorts from hanging indefinitely on a single stuck provider or Convex call.
+
+Direct-provider request patience is set to `300s` by default. That higher ceiling is mainly for the current OpenRouter confirmation lane, where Qwen and Kimi can take materially longer than the OpenAI direct path on long subset prompts.
 
 `uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
 

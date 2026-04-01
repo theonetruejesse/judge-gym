@@ -587,10 +587,13 @@ async function main() {
     const experiment = await client.mutation(api.packages.lab.upsertExperiment, {
       experiment_tag: blueprint.experiment_tag,
       evidence_set_id: curatedSet.evidence_set_id,
+      force_reconfigure: args.allowExistingSet,
       experiment_config: {
         study_kind: blueprint.study_kind,
         compatibility_mode: blueprint.compatibility_mode,
         rubric_source_kind: blueprint.rubric_source_kind,
+        task_contract: blueprint.task_contract,
+        output_contract: blueprint.output_contract,
         rubric_config: blueprint.rubric_config,
         scoring_config: blueprint.scoring_config,
       },

@@ -61,7 +61,7 @@ export const EngineSettingsSchema = z.object({
     batching: DEFAULT_BATCH_SETTINGS,
     direct: {
       maxConcurrentRequests: 4,
-      requestTimeoutMs: 120_000,
+      requestTimeoutMs: 300_000,
     },
     retries: DEFAULT_RETRY_SETTINGS,
   }),
