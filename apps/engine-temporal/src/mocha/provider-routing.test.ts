@@ -39,7 +39,9 @@ describe("provider routing", () => {
   it("resolves provider metadata for the new models", () => {
     assert.equal(getProviderForModel("claude-sonnet-4"), "anthropic");
     assert.equal(getProviderForModel("qwen-current-text-flagship"), "openrouter");
+    assert.equal(getProviderForModel("kimi-current-text-flagship"), "openrouter");
     assert.equal(getProviderModel("qwen-current-text-flagship"), "qwen/qwen3-next-80b-a3b-instruct");
+    assert.equal(getProviderModel("kimi-current-text-flagship"), "moonshotai/kimi-k2-0905");
     assert.equal(getProviderModel("claude-sonnet-4"), "claude-sonnet-4-20250514");
   });
 
@@ -50,6 +52,7 @@ describe("provider routing", () => {
     assert.equal(providerSupportsBatching("openrouter"), false);
     assert.equal(isBatchableModel("claude-sonnet-4"), true);
     assert.equal(isBatchableModel("qwen-current-text-flagship"), false);
+    assert.equal(isBatchableModel("kimi-current-text-flagship"), false);
   });
 
   it("dispatches direct chat calls to Anthropic", async () => {

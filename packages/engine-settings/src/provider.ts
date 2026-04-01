@@ -88,6 +88,13 @@ export const MODELS = [
     provider_model: "qwen/qwen3-next-80b-a3b-instruct",
     batchable: false,
   },
+  {
+    id: "kimi-current-text-flagship",
+    provider: "openrouter",
+    // Non-thinking Kimi control lane for the first native OpenRouter pass.
+    provider_model: "moonshotai/kimi-k2-0905",
+    batchable: false,
+  },
 ] as const;
 
 export type ModelDefinition = (typeof MODELS)[number];

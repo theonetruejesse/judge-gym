@@ -157,6 +157,8 @@ Local paper-audit readiness flow:
 - `bun run v4:launch:native --live --start-run --snapshot-set-id <set_id> --allow-existing-set`
 - `bun run v4:build:native-openai`
 - `bun run v4:launch:native-openai`
+- `bun run v4:build:native-openrouter`
+- `bun run v4:launch:native-openrouter`
 - `bun run v4:launch:native-openai --live --allow-existing-set`
 - `cd apps/analysis && uv run judge-gym-analysis v4-native-gpt41 --refresh`
 - `cd apps/analysis && uv run judge-gym-analysis v4-native-openai --refresh`
@@ -188,6 +190,10 @@ If acquisition has already completed, resume with `--snapshot-set-id <set_id> --
 `bun run v4:build:native-openai` emits the promoted OpenAI-scale native manifests: the five high-signal native lanes from the GPT-4.1 screen across `gpt-4.1`, `gpt-5.2`, `gpt-4.1-mini`, and `gpt-5.2-chat`.
 
 `bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.
+
+`bun run v4:build:native-openrouter` emits the first non-OpenAI native confirmation manifests for `qwen-current-text-flagship` and `kimi-current-text-flagship`.
+
+`bun run v4:launch:native-openrouter` reuses the latest frozen native snapshot set, upserts the promoted native experiments for those OpenRouter models, and launches a smaller confirmation cohort at `10` matched samples per experiment by default.
 
 Batch selection is now settings-driven: `llm.batching.minBatchSize` and `llm.batching.maxBatchSize` remain the local policy knobs, while provider/model ceilings cap the effective batch size and request budget. `llm.batching.maxEnqueuedInputTokensPerBatch` is the repo-level guardrail for large OpenAI-native batches.
 

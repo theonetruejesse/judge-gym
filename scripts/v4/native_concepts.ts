@@ -14,6 +14,10 @@ export const NATIVE_OPENAI_PROVIDERS = [
   "gpt-4.1-mini",
   "gpt-5.2-chat",
 ] as const;
+export const NATIVE_OPENROUTER_PROVIDERS = [
+  "qwen-current-text-flagship",
+  "kimi-current-text-flagship",
+] as const;
 export const NATIVE_CONCEPTS = [
   {
     key: "fascism",
@@ -31,12 +35,16 @@ export type NativeConceptCondition =
   | "abstention_source"
   | "view_l2_neutralized";
 export type NativeOpenAIProvider = (typeof NATIVE_OPENAI_PROVIDERS)[number];
+export type NativeOpenRouterProvider = (typeof NATIVE_OPENROUTER_PROVIDERS)[number];
+export type NativeScaledProvider = NativeOpenAIProvider | NativeOpenRouterProvider;
 
-const NATIVE_MODEL_TAG_SUFFIX: Record<NativeOpenAIProvider, string> = {
+const NATIVE_MODEL_TAG_SUFFIX: Record<NativeScaledProvider, string> = {
   "gpt-4.1": "gpt41",
   "gpt-5.2": "gpt52",
   "gpt-4.1-mini": "gpt41mini",
   "gpt-5.2-chat": "gpt52chat",
+  "qwen-current-text-flagship": "qwen",
+  "kimi-current-text-flagship": "kimi",
 };
 
 export const PROMOTED_NATIVE_LANES: ReadonlyArray<{
@@ -50,14 +58,14 @@ export const PROMOTED_NATIVE_LANES: ReadonlyArray<{
   { concept: "illiberal_democracy", condition: "view_l2_neutralized" },
 ] as const;
 
-export function nativeModelTagSuffix(model: NativeOpenAIProvider) {
+export function nativeModelTagSuffix(model: NativeScaledProvider) {
   return NATIVE_MODEL_TAG_SUFFIX[model];
 }
 
 export function nativeConceptExperimentTag(args: {
   concept: NativeConceptKey;
   condition: NativeConceptCondition;
-  model?: NativeOpenAIProvider;
+  model?: NativeScaledProvider;
 }) {
   return `v4_native_${args.concept}_${args.condition}_${nativeModelTagSuffix(args.model ?? "gpt-4.1")}`;
 }
@@ -65,7 +73,7 @@ export function nativeConceptExperimentTag(args: {
 export type NativeConceptualManifest = {
   manifest_tag: string;
   title: string;
-  provider: NativeOpenAIProvider;
+  provider: NativeScaledProvider;
   concepts: Array<{
     key: NativeConceptKey;
     label: string;
@@ -104,7 +112,7 @@ export type NativeConceptualManifest = {
   transform: {
     source_record_kind: "source_text";
     target_view_kinds: ["l2_neutralized"];
-    model: NativeOpenAIProvider;
+    model: NativeScaledProvider;
     prompt_version: "semantic-transform-v1";
   };
   experiment_blueprints: Array<{
@@ -114,12 +122,12 @@ export type NativeConceptualManifest = {
     compatibility_mode: "native";
     rubric_source_kind: "generate";
     rubric_config: {
-      model: NativeOpenAIProvider;
+      model: NativeScaledProvider;
       scale_size: 4;
       concept: string;
     };
     scoring_config: {
-      model: NativeOpenAIProvider;
+      model: NativeScaledProvider;
       method: "subset";
       abstain_enabled: boolean;
       evidence_view: "source_text" | "l2_neutralized";
