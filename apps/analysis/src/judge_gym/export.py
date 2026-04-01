@@ -23,6 +23,12 @@ class ExportedSnapshot:
     manifest: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ExportTarget:
+    experiment_tag: str | None = None
+    run_id: str | None = None
+
+
 class ConvexAnalysisClient:
     def __init__(self, deployment_url: str, *, transport: httpx.BaseTransport | None = None):
         self.deployment_url = deployment_url.rstrip("/")
@@ -117,9 +123,9 @@ def build_response_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return item_rows
 
 
-def export_experiments(
+def _export_targets(
     *,
-    experiment_tags: list[str],
+    targets: list[ExportTarget],
     deployment_url: str,
     cache_db_path: str | None = None,
     refresh: bool = False,
@@ -131,8 +137,12 @@ def export_experiments(
     snapshots: list[ExportedSnapshot] = []
 
     try:
-        for experiment_tag in experiment_tags:
-            manifest = client.get_manifest(experiment_tag=experiment_tag)
+        for target in targets:
+            manifest = client.get_manifest(
+                experiment_tag=target.experiment_tag,
+                run_id=target.run_id,
+            )
+            experiment_tag = str(manifest["experiment"]["experiment_tag"])
             run_id = str(manifest["run"]["run_id"])
             schema_version = int(manifest["export_schema_version"])
             if not refresh:
@@ -207,3 +217,41 @@ def export_experiments(
         connection.close()
 
     return snapshots
+
+
+def export_experiments(
+    *,
+    experiment_tags: list[str],
+    deployment_url: str,
+    cache_db_path: str | None = None,
+    refresh: bool = False,
+    page_size: int = 200,
+    transport: httpx.BaseTransport | None = None,
+) -> list[ExportedSnapshot]:
+    return _export_targets(
+        targets=[ExportTarget(experiment_tag=experiment_tag) for experiment_tag in experiment_tags],
+        deployment_url=deployment_url,
+        cache_db_path=cache_db_path,
+        refresh=refresh,
+        page_size=page_size,
+        transport=transport,
+    )
+
+
+def export_runs(
+    *,
+    run_ids: list[str],
+    deployment_url: str,
+    cache_db_path: str | None = None,
+    refresh: bool = False,
+    page_size: int = 200,
+    transport: httpx.BaseTransport | None = None,
+) -> list[ExportedSnapshot]:
+    return _export_targets(
+        targets=[ExportTarget(run_id=run_id) for run_id in run_ids],
+        deployment_url=deployment_url,
+        cache_db_path=cache_db_path,
+        refresh=refresh,
+        page_size=page_size,
+        transport=transport,
+    )

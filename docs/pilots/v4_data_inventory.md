@@ -11,6 +11,8 @@ It separates:
 
 The machine-readable export lives in [_local/v4_inventory/live_inventory.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_inventory/live_inventory.json) and the generated quick summary lives in [_local/v4_inventory/live_inventory.md](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_inventory/live_inventory.md).
 
+For the native OpenAI scale matrix, canonical analysis should use [_local/v4_builds/native_concepts/openai_scale/canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_builds/native_concepts/openai_scale/canonical_runs.json) instead of blindly following each experiment's latest run.
+
 ## Current Study Buckets
 
 ### Paper-Audit Lane
@@ -111,3 +113,5 @@ The inventory export currently flags a few catalog anomalies in own-dev:
 - universe/set count mismatches on the duplicate Gilardi canary rows
 
 These do not block the current paper-audit results, but they are exactly why we needed an explicit inventory surface before expanding the launch scope.
+
+Update: the known duplicate Gilardi universe/set rows have already been cleaned out of own-dev. The remaining hygiene issue is organizational rather than destructive cleanup: use the canonical native OpenAI run manifest for analysis so later validation runs do not shadow the intended 30-sample artifacts.

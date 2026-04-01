@@ -93,3 +93,15 @@ bun run v4:launch:native-openai --live --allow-existing-set
 ```
 
 The launcher reuses the latest frozen native snapshot set by default and starts `30`-sample runs unless overridden.
+
+## Canonical Analysis Baseline
+
+Use the canonical run manifest at [_local/v4_builds/native_concepts/openai_scale/canonical_runs.json](/Users/jesselee/dev/research/jg/judge-gym/_local/v4_builds/native_concepts/openai_scale/canonical_runs.json) when analyzing this matrix.
+
+This matters because validation or smoke reruns can create later smaller runs on an experiment tag. The canonical manifest pins the intended completed `30`-sample run for each promoted cell.
+
+Generate the baseline OpenAI matrix analysis with:
+
+```bash
+uv run judge-gym-analysis v4-native-openai --refresh
+```

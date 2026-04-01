@@ -9,7 +9,7 @@ import httpx
 
 from judge_gym.cache import connect_cache
 from judge_gym.datasets import load_snapshot_bundle
-from judge_gym.export import export_experiments
+from judge_gym.export import export_experiments, export_runs
 
 
 def build_transport() -> httpx.MockTransport:
@@ -277,6 +277,26 @@ class ExportPipelineTest(unittest.TestCase):
                 self.assertEqual(response_count, 2)
             finally:
                 connection.close()
+
+    def test_export_runs_supports_explicit_run_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "cache.sqlite"
+            snapshots = export_runs(
+                run_ids=["run_1"],
+                deployment_url="https://example.convex.cloud",
+                cache_db_path=str(db_path),
+                page_size=1,
+                transport=build_transport(),
+            )
+
+            self.assertEqual(len(snapshots), 1)
+            self.assertEqual(snapshots[0].run_id, "run_1")
+
+            bundle = load_snapshot_bundle(
+                snapshot_ids=[snapshots[0].snapshot_id],
+                cache_db_path=str(db_path),
+            )
+            self.assertEqual(bundle.experiment_tags, ["exp-tag"])
 
 
 if __name__ == "__main__":
