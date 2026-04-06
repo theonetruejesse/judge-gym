@@ -187,6 +187,8 @@ These scripts fetch public upstream artifacts into `_local/`, build local import
 
 If acquisition has already completed, resume with `--snapshot-set-id <set_id> --allow-existing-set` to skip reacquisition and continue from the frozen snapshot set.
 
+`bun run v4:build:native-boundary` emits the sharper U.S. fascism-boundary manifest used for the next native evidence-set refresh. It keeps the U.S. National Media Cloud collection, adds institutional/political anchor terms, applies entertainment spillover penalties, and enforces six bucket quotas so the curated 48-item set is more diagnostic than the earlier broad native screen.
+
 `bun run v4:build:native-openai` emits the promoted OpenAI-scale native manifests: the five high-signal native lanes from the GPT-4.1 screen across `gpt-4.1`, `gpt-5.2`, `gpt-4.1-mini`, and `gpt-5.2-chat`.
 
 `bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.

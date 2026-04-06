@@ -108,6 +108,22 @@ export type NativeConceptualManifest = {
     min_char_count: number;
     max_char_count: number;
     required_record_kind: "source_text";
+    keyword_score_boosts?: Array<{
+      label: string;
+      score: number;
+      terms: string[];
+    }>;
+    keyword_score_penalties?: Array<{
+      label: string;
+      score: number;
+      terms: string[];
+    }>;
+    bucket_quotas?: Array<{
+      key: string;
+      title: string;
+      quota: number;
+      terms: string[];
+    }>;
   };
   transform: {
     source_record_kind: "source_text";

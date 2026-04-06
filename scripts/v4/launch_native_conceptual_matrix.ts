@@ -245,6 +245,7 @@ type HydratedSnapshotItem = {
   source_text: string;
   char_count: number;
   score: number;
+  buckets: string[];
 };
 
 function scoreSnapshotItem(item: Omit<HydratedSnapshotItem, "score">) {
@@ -265,10 +266,51 @@ function scoreSnapshotItem(item: Omit<HydratedSnapshotItem, "score">) {
   return score;
 }
 
+function includesAnyTerm(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term.toLowerCase()));
+}
+
+function deriveBuckets(args: {
+  item: Omit<HydratedSnapshotItem, "score" | "buckets">;
+  bucketQuotas: NativeConceptualManifest["curation"]["bucket_quotas"];
+}) {
+  if (!args.bucketQuotas?.length) {
+    return [] as string[];
+  }
+  const haystack = `${args.item.title ?? ""}\n${args.item.source_text}`.toLowerCase();
+  return args.bucketQuotas
+    .filter((bucket) => includesAnyTerm(haystack, bucket.terms))
+    .map((bucket) => bucket.key);
+}
+
+function applyManifestScoreAdjustments(args: {
+  item: Omit<HydratedSnapshotItem, "score" | "buckets">;
+  baseScore: number;
+  boosts: NativeConceptualManifest["curation"]["keyword_score_boosts"];
+  penalties: NativeConceptualManifest["curation"]["keyword_score_penalties"];
+}) {
+  let score = args.baseScore;
+  const haystack = `${args.item.title ?? ""}\n${args.item.source_text}`.toLowerCase();
+
+  for (const boost of args.boosts ?? []) {
+    if (includesAnyTerm(haystack, boost.terms)) {
+      score += boost.score;
+    }
+  }
+  for (const penalty of args.penalties ?? []) {
+    if (includesAnyTerm(haystack, penalty.terms)) {
+      score -= penalty.score;
+    }
+  }
+
+  return score;
+}
+
 function curateSnapshotItems(args: {
   items: HydratedSnapshotItem[];
   targetCount: number;
   maxItemsPerSource: number;
+  bucketQuotas?: NativeConceptualManifest["curation"]["bucket_quotas"];
 }) {
   const sorted = args.items
     .slice()
@@ -287,18 +329,40 @@ function curateSnapshotItems(args: {
   const selected: HydratedSnapshotItem[] = [];
   const sourceCounts = new Map<string, number>();
   const seenItemIds = new Set<string>();
+  const bucketCounts = new Map<string, number>();
 
-  for (const item of sorted) {
-    if (selected.length >= args.targetCount) break;
-    if (seenItemIds.has(item.evidence_item_id)) continue;
+  const trySelect = (item: HydratedSnapshotItem) => {
+    if (selected.length >= args.targetCount) return false;
+    if (seenItemIds.has(item.evidence_item_id)) return false;
     const sourceKey = item.source_name ?? item.source_url ?? "unknown";
     const sourceCount = sourceCounts.get(sourceKey) ?? 0;
     if (sourceCount >= args.maxItemsPerSource) {
-      continue;
+      return false;
     }
     selected.push(item);
     seenItemIds.add(item.evidence_item_id);
     sourceCounts.set(sourceKey, sourceCount + 1);
+    for (const bucket of item.buckets) {
+      bucketCounts.set(bucket, (bucketCounts.get(bucket) ?? 0) + 1);
+    }
+    return true;
+  };
+
+  if (args.bucketQuotas?.length) {
+    for (const bucket of args.bucketQuotas) {
+      const candidates = sorted.filter((item) => item.buckets.includes(bucket.key));
+      for (const item of candidates) {
+        if ((bucketCounts.get(bucket.key) ?? 0) >= bucket.quota) {
+          break;
+        }
+        trySelect(item);
+      }
+    }
+  }
+
+  for (const item of sorted) {
+    if (selected.length >= args.targetCount) break;
+    trySelect(item);
   }
 
   if (selected.length < args.targetCount) {
@@ -479,8 +543,21 @@ async function main() {
       source_text: sourceRecord.content,
       char_count: charCount,
       score: 0,
-    } satisfies Omit<HydratedSnapshotItem, "score"> & { score: number; };
-    candidate.score = scoreSnapshotItem(candidate);
+      buckets: [] as string[],
+    } satisfies Omit<HydratedSnapshotItem, "score" | "buckets"> & {
+      score: number;
+      buckets: string[];
+    };
+    candidate.buckets = deriveBuckets({
+      item: candidate,
+      bucketQuotas: manifest.curation.bucket_quotas,
+    });
+    candidate.score = applyManifestScoreAdjustments({
+      item: candidate,
+      baseScore: scoreSnapshotItem(candidate),
+      boosts: manifest.curation.keyword_score_boosts,
+      penalties: manifest.curation.keyword_score_penalties,
+    });
     hydratedCandidates.push(candidate);
   }
 
@@ -488,6 +565,7 @@ async function main() {
     items: hydratedCandidates,
     targetCount: targetSetSize,
     maxItemsPerSource: manifest.curation.max_items_per_source,
+    bucketQuotas: manifest.curation.bucket_quotas,
   });
   if (curatedItems.length < targetSetSize) {
     throw new Error(
@@ -509,6 +587,7 @@ async function main() {
       max_items_per_source: manifest.curation.max_items_per_source,
       min_char_count: manifest.curation.min_char_count,
       max_char_count: manifest.curation.max_char_count,
+      bucket_quotas: manifest.curation.bucket_quotas ?? null,
     }),
   });
 
@@ -524,6 +603,7 @@ async function main() {
         score: item.score,
         source_name: item.source_name,
         char_count: item.char_count,
+        buckets: item.buckets,
       }),
     })),
   });
@@ -642,6 +722,7 @@ async function main() {
       publish_date: item.publish_date,
       char_count: item.char_count,
       score: item.score,
+      buckets: item.buckets,
     })),
   });
 
