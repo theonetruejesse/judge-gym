@@ -1,255 +1,182 @@
-# judge-gym
+# Judge-Gym
 
-Open-source LLM-as-judge regime engine.
+A research engine for treating LLM judges as measurement instruments.
 
-The repo is now a greenfield V4 system. The old window / `window_runs` / `evidences` / Firecrawl path is gone. Evidence acquisition is Media Cloud-first, storage-backed, and evidence-set-driven.
+Judge-Gym makes evaluator configuration explicit—model, rubric construction, scale, abstention, evidence representation, sampling, and aggregation—then measures how those choices change the geometry of judgment. The project grew through four pilots from exploratory notebooks into a Temporal-backed evaluation system with frozen evidence sets, matched experimental cohorts, and committed analysis artifacts.
 
-## Stack
+**Completed evidence:** V3 retained 32 controlled cells × 30 matched samples; V4 expanded the promoted native matrix to 20 cells across four OpenAI model variants and 48 evidence items, producing 28,800 item-level scores.
 
-- `apps/engine-convex`: Convex backend, schema, worker APIs, evidence acquisition, experiment/run orchestration
-- `apps/engine-temporal`: Temporal worker for run execution, Media Cloud acquisition, and semantic evidence transforms
-- `apps/lab`: Next.js UI for evidence universes, evidence sets, and experiments
-- `packages/engine-settings`: shared provider/runtime settings
-- `packages/engine-prompts`: shared run prompt/config contracts
-- `apps/analysis`: Python analysis/export consumers
+> This repository studies evaluator sensitivity. It does not claim to identify ground truth for contested political concepts or validate any model as the correct judge.
 
-## Current Architecture
+## Start here
 
-### Evidence
+- [V3 final results](docs/pilots/v3_final_results.md) — the completed matched-ablation pilot and its scientific caveats
+- [V4 native OpenAI report](apps/analysis/_outputs/v4/native_openai_scale/report.md) — the 20-cell, four-model matrix
+- [V4 boundary-set design](docs/pilots/v4_native_fascism_boundary_set.md) — acquisition and curation for a frozen 48-item evidence set
+- [Agentic engineering retrospective](docs/agentic-engineering-retrospective.md) — campaign state machines, live debugging, bounded recovery, and the Convex → Temporal migration
+- [Inspect existing results offline](docs/reproduce_existing_results.md) — use committed reports, tables, and figures without provider credentials or paid calls
+- [Incident postmortem](docs/post_mortem.md) — the telemetry contention failure that forced clearer system boundaries
 
-The evidence path is:
+## Research progression
 
-1. create an `evidence_universe`
-2. define an `acquisition_spec`
-3. execute an `acquisition_run`
-4. ingest Media Cloud discovery into `evidence_candidates`
-5. hydrate candidates into canonical `evidence_items`
-6. persist original documents as `evidence_source_records`
-7. execute `evidence_transform_runs` to generate semantic/derived `evidence_views`
-8. freeze reusable `evidence_sets`
+### V1 — distribution exploration
 
-Large payloads live in Convex storage and are referenced through `evidence_assets`.
+Twelve models generated their own evaluative rubrics and repeatedly scored a small shared evidence set. The pilot exposed large differences in score utilization and self-reported certainty, but left major prompt, evidence, and aggregation confounds uncontrolled.
 
-Core tables:
+### V2 — instrument prototype
 
-- `evidence_universes`
-- `acquisition_specs`
-- `acquisition_runs`
-- `evidence_candidates`
-- `evidence_items`
-- `evidence_source_records`
-- `evidence_views`
-- `evidence_transform_runs`
-- `evidence_assets`
-- `evidence_sets`
-- `evidence_set_items`
-- `paper_audit_packages`
+The project moved from point scores to set-valued verdicts, abstention, critic stages, and geometry-oriented summaries. This established the engine’s core object of study: not a single score, but the distribution of evaluator behavior under a declared configuration.
 
-### Experiments
+### V3 — controlled matched ablations
 
-Experiments are evidence-set-native.
+V3 retained **32 completed experiment cells**, each with **30 matched samples**, across 14 reported families. The frozen analysis contract contains 28 registered contrasts and reports all 28 as fully matched through exported signatures. Four earlier bundle cells were excluded because their grouping policies were not scientifically comparable.
 
-- `packages/lab:initExperiment` requires `evidence_set_id`
-- experiments store V4 study metadata:
-  - `study_kind`
-  - `evidence_source_kind`
-  - `rubric_source_kind`
-  - `compatibility_mode`
-  - `task_contract`
-  - `output_contract`
-- run creation freezes score-target inputs from `evidence_set_items`
-- score-stage prompt building reads storage-backed content assets
-
-### Runtime
-
-Live workflows:
-
-- `RunWorkflow` with:
-  - `rubric_gen`
-  - `rubric_critic`
-  - `score_gen`
-  - `score_critic`
-- `EvidenceAcquisitionWorkflow` for:
-  - Media Cloud page discovery
-  - URL hydration on the worker
-  - persistence back into Convex evidence tables/storage
-- `EvidenceTransformWorkflow` with:
-  - `l1_cleaned`
-  - `l2_neutralized`
-  - `l3_abstracted`
+The cleanest result was the abstention intervention. For GPT-5.2, enabling abstention changed the aggregate abstention rate by **+0.438** (95% bootstrap CI **0.377–0.497**). Related cells showed that scale size often changed expression and occupancy without clearly changing measured certainty, while evidence grouping changed observed geometry and diagnostic conflict.
 
-Convex owns the control plane and storage persistence. Railway/Temporal owns long-running external I/O, including Media Cloud discovery and URL hydration. Semantic transforms read from `evidence_source_records` and write back into `evidence_views`. Raw/paper-original source records stay decoupled from the semantic ladder.
+See [the final V3 result note](docs/pilots/v3_final_results.md) for exact evidence classes and limitations. In particular, the promoted V3 `a5` contrast does **not** isolate concept framing from model identity and is not presented as a causal concept-framing result.
 
-Provider support:
+### V4 — evidence-set-native evaluation
 
-- OpenAI direct + native batch
-- Anthropic direct + native batch
-- OpenRouter direct
+V4 replaced mutable window/pool/bundle inputs with:
 
-Wave-1 OpenRouter control is `qwen-current-text-flagship`, currently pinned to `qwen/qwen3-next-80b-a3b-instruct` until launch-time provider freeze.
+1. canonical source records;
+2. semantic evidence views;
+3. explicitly curated, frozen evidence sets;
+4. experiment and run contracts bound to those sets.
 
-Bundled provider ceilings now include Anthropic Claude Sonnet 4 standard tiers `tier_1` through `tier_4`. OpenAI now defaults to `tier_1` with conservative bundled model ceilings, and batch execution policy remains separately configurable in `engine-settings` and is capped by provider/model ceilings at runtime.
+The promoted native OpenAI matrix contains:
 
-Batch/provider lifecycle is persisted in `llm_batch_executions`, including provider-specific artifacts such as Anthropic batch `results_url`.
+- 20 experiment cells;
+- four model variants;
+- 30 matched samples per cell;
+- 48 frozen evidence items;
+- 28,800 item-level scores.
 
-Temporal run/transform/acquisition activities now use a real activity heartbeat timeout in addition to Convex-side process heartbeats, and the Temporal heartbeat path is decoupled from Convex heartbeat writes. Run stages also page Convex stage inputs instead of materializing the full stage payload up front, so long `score_critic` bootstrap work can keep heartbeating while input pages load. Long-running stage bootstrap, batch preparation, batch waits, batch-result application, and stage finalization now recover correctly after worker restarts or slow observability writes instead of stalling until the full activity `startToClose` window.
+V4 is both a larger study and an architectural correction: experimental inputs became inspectable, reusable, and versioned independently of the execution machinery.
 
-## Lab UI
+## System architecture
 
-The lab now has two primary authoring surfaces:
+```text
+Media Cloud discovery
+        │
+        ▼
+Convex control plane and storage
+  evidence universes → candidates → source records
+        │
+        ▼
+Temporal / Railway execution plane
+  acquisition → semantic transforms → run stages
+        │
+        ▼
+Frozen evidence sets
+  source_text | l1_cleaned | l2_neutralized | l3_abstracted
+        │
+        ▼
+Experiment cohorts
+  rubric_gen → rubric_critic → score_gen → score_critic
+        │
+        ▼
+Committed analysis exports
+  reports | CSV tables | JSON contracts | figures
+```
 
-- `/editor/evidence`: Media Cloud query form for creating evidence universes and frozen evidence sets
-- `/editor/evidence`: Media Cloud query form for creating universes and launching acquisition workflows
-- `/editor/experiment`: experiment creation from curated evidence sets
+### Ownership boundaries
 
-The home page lists:
+- `apps/engine-convex` — schemas, control-plane APIs, experiment state, bounded operational projections, storage persistence
+- `apps/engine-temporal` — durable long-running execution, provider calls, acquisition, and semantic transforms
+- `apps/lab` — authoring and inspection for evidence universes, evidence sets, experiments, and runs
+- `apps/analysis` — frozen exports, statistical summaries, figures, and reports
+- `packages/engine-prompts` — shared prompt and output contracts
+- `packages/engine-settings` — shared provider/runtime policy
 
-- experiments
-- evidence universes
+## Agent-operated engineering campaigns
 
-The evidence detail page inspects:
+Judge-Gym’s engineering process became part of the system itself. Campaigns used versioned manifests, explicit state machines, forensic snapshots, bug ledgers, and scientific-validity gates. The live-debug surface exposed process health, stuck-work classification, trace tails, queue state, and deliberately bounded repair controls.
 
-- acquisition runs
-- evidence sets
-- universe items
-- source records / raw storage-backed content
-- generated views
-- transform coverage per evidence set
-- semantic transform run launch + progress
+The operating rule was not “heal until green.” One dry-run-first repair could test a recovery hypothesis. If the same failure recurred, the campaign preserved evidence and converted it into a minimal code-level hypothesis, followed by local validation, worker deployment, queue verification, clean reset, and live rerun.
 
-## Validation
+That distinction—technical completion versus scientifically usable evidence—was a first-class campaign invariant. Read the [engineering retrospective](docs/agentic-engineering-retrospective.md) for concrete files, commits, and limitations.
 
-After Convex changes:
+## The Convex → Temporal migration
 
-- `bun run validate:convex`
+An early architecture placed execution, control state, and high-volume telemetry too close together inside Convex. The project postmortem reports that a shared telemetry sequence counter became an optimistic-concurrency hotspot; retries and reconciliation amplified the workload during an unattended run.
 
-Useful checks:
+The remediation was architectural:
 
-- `bun run typecheck`
-- `cd apps/engine-convex && bun run test -- evidence_package evidence_repo worker_idempotency telemetry_observability`
-- `cd apps/engine-temporal && bun run test`
+- durable workflow execution moved to Temporal;
+- Convex remained the control plane and bounded operational projection;
+- telemetry moved toward asynchronous Axiom export with a small local mirror;
+- live debugging and repair were rewritten around Temporal workflow state;
+- provider work ran in a deployable Railway worker.
 
-Smoke flow:
+The exact incident totals in the postmortem are repository-authored operational records rather than independently preserved billing exports. The counter removal, telemetry redesign, and execution migration are corroborated by the implementation history.
 
-- `cd apps/engine-convex && bun run v4:smoke`
-- `bun run infra:smoke:acquisition`
+## Repository map
 
-Local paper-audit readiness flow:
+```text
+apps/
+  analysis/          committed reports, figures, tables, and analysis code
+  engine-convex/     control plane, storage, telemetry projection, debug APIs
+  engine-temporal/   durable workflows, activities, provider execution
+  lab/               Next.js experiment and evidence-set UI
+packages/
+  engine-prompts/    prompt and output contracts
+  engine-settings/   provider and runtime policy
+docs/
+  pilots/            study designs, final results, and canonical run manifests
+  post_mortem.md     operational incident analysis
+_deep_workflows/     structured planning, execution, validation, and synthesis records
+_blueprints/         architecture and research contracts
+```
 
-- `bun run v4:fetch:gilardi`
-- `bun run v4:fetch:zheng`
-- `bun run v4:build:gilardi`
-- `bun run v4:build:zheng`
-- `bun run v4:build:headline`
-- `bun run v4:inventory`
-- `bun run v4:canary:gilardi`
-- `bun run v4:canary:zheng`
-- `bun run v4:canary:gilardi --live --start-run`
-- `bun run v4:canary:zheng --live --start-run`
-- `bun run v4:canary:zheng --multi-turn --live --start-run`
-- `bun run v4:launch:headline --cohort=baseline`
-- `bun run v4:launch:headline --cohort=baseline --live --start-run`
-- `bun run v4:cleanup:catalog -- --dry-run`
-- `bun run v4:cleanup:catalog`
-- `bun run v4:build:native`
-- `bun run v4:launch:native`
-- `bun run v4:launch:native --live --start-run`
-- `bun run v4:launch:native --live --start-run --snapshot-set-id <set_id> --allow-existing-set`
-- `bun run v4:build:native-openai`
-- `bun run v4:launch:native-openai`
-- `bun run v4:build:native-openrouter`
-- `bun run v4:launch:native-openrouter`
-- `bun run v4:launch:native-openai --live --allow-existing-set`
-- `cd apps/analysis && uv run judge-gym-analysis v4-native-gpt41 --refresh`
-- `cd apps/analysis && uv run judge-gym-analysis v4-native-openai --refresh`
+## Inspecting the evidence without running the platform
 
-These scripts fetch public upstream artifacts into `_local/`, build local import bundles for the locked V4 targets, and dry-run the final bundle application path without issuing live Convex mutations. Use `--live` on the canary scripts when you are ready to create the real universes, evidence sets, paper-audit packages, experiments, and launch canary runs against the deployed Temporal worker. The live launch path is validated for Gilardi, Zheng single-turn, and Zheng multi-turn baseline canaries.
+The public artifact is designed to be useful without Convex, Temporal, Railway, Media Cloud, or model-provider credentials. The committed V3/V4 output directories contain the reports, tables, figures, contracts, and summaries used in the writeups.
 
-`bun run v4:inventory` exports the current live V4 catalog plus local source/build artifacts into `_local/v4_inventory/`. Use it before expanding the study surface so paper-audit runs, local bundles, and native conceptual-study queue work stay clearly separated.
+Follow [the offline inspection guide](docs/reproduce_existing_results.md). Do not run scripts with `--live`, `--start-run`, or `--refresh` unless you explicitly intend to access deployed infrastructure or providers.
 
-`bun run v4:cleanup:catalog` consolidates duplicate evidence-universe/evidence-set rows by tag, patches experiments to the canonical set, and removes duplicate catalog rows. Use `-- --dry-run` first on any non-empty own-dev deployment.
+## Development validation
 
-`bun run v4:build:native` emits the current GPT-4.1 native conceptual manifest into `_local/v4_builds/native_concepts/`. The default manifest uses a shared Media Cloud universe for `fascism` and `illiberal_democracy`, curates a 48-item evidence set, and defines six GPT-4.1-only regime-check experiments:
+Runtime development uses Bun and Python analysis uses `uv`.
 
-- baseline `source_text`
-- abstention-on `source_text`
-- `l2_neutralized`
+```bash
+bun install
+bun run typecheck
+bun run validate:convex
+cd apps/engine-temporal && bun run test
+```
 
-`bun run v4:launch:native` dry-runs the full native conceptual path. In live mode it:
+Targeted Convex tests:
 
-1. waits for Temporal queue readiness
-2. launches Media Cloud acquisition for the shared universe
-3. snapshots the acquisition into an evidence set
-4. curates the 48-item native set
-5. generates `l1_cleaned` and `l2_neutralized` views
-6. upserts the six GPT-4.1 native experiments
-7. optionally starts and waits on the live runs
+```bash
+cd apps/engine-convex
+bun run test -- evidence_package evidence_repo worker_idempotency telemetry_observability
+```
 
-If acquisition has already completed, resume with `--snapshot-set-id <set_id> --allow-existing-set` to skip reacquisition and continue from the frozen snapshot set.
+These checks validate the codebase; they are not required to read the committed research outputs.
 
-`bun run v4:build:native-boundary` emits the sharper U.S. fascism-boundary manifest used for the next native evidence-set refresh. It keeps the U.S. National Media Cloud collection, adds institutional/political anchor terms, applies entertainment spillover penalties, and enforces six bucket quotas so the curated 48-item set is more diagnostic than the earlier broad native screen.
+## Scope and limitations
 
-`bun run v4:build:native-openai` emits the promoted OpenAI-scale native manifests: the five high-signal native lanes from the GPT-4.1 screen across `gpt-4.1`, `gpt-5.2`, `gpt-4.1-mini`, and `gpt-5.2-chat`.
+- The studies characterize evaluator behavior; they do not establish external truth or human validity.
+- V3 is OpenAI-heavy and pilot-scale.
+- Matching is validated through exported signatures, not a claim about hidden provider internals.
+- Belief-function conflict metrics are diagnostics, not headline endpoints.
+- V4’s political evidence sets are narrow, time-bound measurement substrates—not representative samples of all political discourse.
+- Some historical campaign artifacts survive in Git history rather than remaining runnable on the current architecture.
 
-`bun run v4:launch:native-openai` reuses the latest frozen native snapshot set, upserts the promoted OpenAI native experiments, and launches the full-volume cohort at `30` matched samples per experiment by default.
+## Historical milestones
 
-`bun run v4:build:native-openrouter` emits the first non-OpenAI native confirmation manifests for `qwen-current-text-flagship` and `kimi-current-text-flagship`.
+The repository preserves named milestones for the major architectural eras:
 
-`bun run v4:launch:native-openrouter` reuses the latest frozen native snapshot set, force-reconfigures the promoted native experiments for those OpenRouter models when `--allow-existing-set` is present, and launches a smaller confirmation cohort at `10` matched samples per experiment by default. Those manifests now use the `structured_json` output contract to reduce provider-specific verdict-line drift.
+- `v0-convex-baseline`
+- `v1-refactor-v2`
+- `v2-temporal-baseline`
+- `v3-complete`
+- `v4-evidence-set-cutover`
+- `v4-current`
 
-Batch selection is now settings-driven: `llm.batching.minBatchSize` and `llm.batching.maxBatchSize` remain the local policy knobs, while provider/model ceilings cap the effective batch size and request budget. `llm.batching.maxEnqueuedInputTokensPerBatch` is the repo-level guardrail for large OpenAI-native batches.
+The disconnected former public history is retained under `archive/public-main-pre-v4` and `legacy-public-main`; the alternative 58-commit refactor side line is retained under `archive/refactor-everything`.
 
-The worker pages run-stage prompt inputs behind the Convex client during large score stages, so full-volume native launches can exceed one action payload without tripping Convex's 16 MiB response limit.
+## Status
 
-The worker also throttles batch attempt-start checkpoint fanout and applies outer timeouts to direct requests and batch checkpoint writes, which keeps large cohorts from hanging indefinitely on a single stuck provider or Convex call.
-
-Direct-provider request patience is set to `300s` by default. That higher ceiling is mainly for the current OpenRouter confirmation lane, where Qwen and Kimi can take materially longer than the OpenAI direct path on long subset prompts.
-
-`uv run judge-gym-analysis v4-native-gpt41 --refresh` exports the completed six-cell GPT-4.1 native conceptual cohort into the local analysis cache and writes the first-pass geometry/contrast report under `apps/analysis/_outputs/v4/native_gpt41/`.
-
-`uv run judge-gym-analysis v4-native-openai --refresh` exports the canonical 30-sample native OpenAI matrix using the committed run manifest at `docs/pilots/v4_native_openai_canonical_runs.json` and writes the baseline cross-model report under `apps/analysis/_outputs/v4/native_openai_scale/`.
-
-The headline launcher is idempotent around evidence/package creation, but it now fails fast on experiment-tag conflicts so canary tags and cohort tags do not silently share the same experiment row.
-
-For paper-audit label tasks that use `freeform_label_choice`, the parser accepts either a strict final `LABEL:` line or a prose final line that still contains one mapped label verbatim, which keeps launch canaries resilient to mild provider formatting drift.
-
-## Development Notes
-
-- Root `.env.local` is the source of truth
-- Use `bun install` from repo root
-- Deploy the Temporal worker after runtime-affecting worker changes before resuming real external runs
-- Railway worker bootstrap is: Temporal template project + Redis service + public TCP proxy on `7233` + `MEDIACLOUD_API_KEY` + `RAILWAY_PROJECT_ID` in `.env.local` + `bun run infra:verify:railway` + `./scripts/deploy_railway_worker.sh`
-
-## Debug Surfaces
-
-Convex debug packages:
-
-- `packages/codex:getProcessHealth`
-- `packages/codex:getStuckWork`
-- `packages/codex:autoHealProcess`
-- `packages/codex:tailTrace`
-- `packages/codex:analyzeProcessTelemetry`
-- `packages/codex:listBatchReconciliationStatus`
-
-CLI wrappers:
-
-- `bun run debug:watch -- --run <run_id>`
-- `bun run debug:stuck`
-- `bun run debug:heal -- --run <run_id>`
-- `bun run debug:tail -- --run <run_id>`
-- `bun run debug:analyze -- --run <run_id>`
-- `bun run debug:batches -- --run <run_id>`
-
-## What Was Removed
-
-Removed from the live repo path:
-
-- `windows`
-- `window_runs`
-- `evidences`
-- Firecrawl-backed discovery
-- pool and bundle-plan experiment inputs
-- `WindowWorkflow`
-- window-specific lab/editor flows
-
-Historical V3 materials still exist under docs, campaigns, and analysis artifacts where they are part of research history, but they are no longer runtime dependencies.
+The experimental campaign is complete for portfolio/research-archive purposes. The repository remains a record of the instrument, the completed V3/V4 studies, and the engineering lessons required to run agent-operated evaluation infrastructure safely.

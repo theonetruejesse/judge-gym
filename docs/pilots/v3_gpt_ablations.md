@@ -91,17 +91,11 @@ The abstention toggle is the cleanest replicated intervention in the full pilot 
 
 Abstention changes the operating regime, not just the formatting of the answer.
 
-### Finding 2: Concept framing is one of the strongest movers
+### Required correction: `a5` does not isolate concept framing
 
-The `fascism -> illiberal democracy` swap is one of the largest matched shifts in the matrix.
+The registered `a5` contrast compares `v3_a5_gpt_4_1_illiberal_democracy` with `v3_a5_gpt_5_2_illiberal_democracy`. Both cells use the same concept while model identity changes. The reported deltas—mean subset size `-0.439`, expected stage `-0.384`, and abstain rate `+0.332`—therefore cannot be attributed to a `fascism -> illiberal democracy` intervention.
 
-| Metric           |    Delta |
-| ---------------- | -------: |
-| Mean subset size | `-0.439` |
-| Expected stage   | `-0.384` |
-| Abstain rate     | `+0.332` |
-
-This is a real semantic framing effect, not a small prompt perturbation.
+These values remain useful as a descriptive cross-model comparison within the illiberal-democracy condition, but they are not evidence of a causal concept-framing effect. A symmetric same-model concept ablation would be required to support that claim.
 
 ### Finding 3: Model placement matters
 
@@ -152,12 +146,14 @@ For bundle-5 `gpt-5.2`, random `l2 -> semantic cluster l2` changes:
 
 For `gpt-4.1`, clustering also changes the regime:
 
-| Metric           | Random L2 | Clustered L2 |    Delta |
-| ---------------- | --------: | -----------: | -------: |
-| Abstain rate     |   `0.050` |      `0.075` | `+0.025` |
-| Singleton rate   |   `0.351` |      `0.523` | `+0.172` |
-| Mean subset size |   `1.781` |      `1.586` | `-0.195` |
-| TBM conflict     |   `0.530` |      `0.717` | `+0.187` |
+The canonical matched effect table reports:
+
+| Endpoint | Matched Delta | 95% CI | Usable Pairs |
+| --- | ---: | ---: | ---: |
+| Abstain rate | `+0.025` | `-0.075` to `+0.125` | 30 |
+| Singleton rate | `+0.158` | `+0.014` to `+0.305` | 29 |
+| Mean subset size | `-0.181` | `-0.385` to `+0.012` | 29 |
+| TBM conflict | `+0.187` | `-0.024` to `+0.398` | 30 |
 
 This is a methodological result as much as a model result: bundle construction is part of the measurement instrument.
 
@@ -167,8 +163,8 @@ Even after correcting the bundle comparison surface, `l3` is not a first-order l
 
 | Comparison                     | Abstain Delta | Subset Size Delta | TBM Conflict Delta |
 | ------------------------------ | ------------: | ----------------: | -----------------: |
-| `gpt-4.1` clustered `l2 -> l3` |      `+0.017` |          `+0.084` |           `-0.195` |
-| `gpt-5.2` clustered `l2 -> l3` |      `+0.025` |          `+0.019` |           ~`0.000` |
+| `gpt-4.1` clustered `l2 -> l3` |      `+0.017` |          `+0.057` |           `-0.195` |
+| `gpt-5.2` clustered `l2 -> l3` |      `+0.025` |          `+0.022` |           ~`0.000` |
 
 The current read is that `l3` is a modest reframing, not a dominant intervention in this matrix.
 

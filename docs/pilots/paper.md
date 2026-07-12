@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This paper studies how large language models behave when they are used as judges over contested political concepts rather than over tasks with a stable ground truth. The central claim is that judge behavior is strongly configuration-sensitive. Changing abstention policy, concept framing, model placement within the pipeline, scale size, evidence representation, or evidence grouping can produce meaningfully different evaluative regimes. To study this, we built `judge-gym`, a design-space engine that turns judge configuration into an experimental surface instead of a hard-coded benchmark pipeline. Across two pilots, we find that the most stable description of model behavior is not a single scalar score but a geometry: abstention rate, scale occupancy, subset breadth, expected stage, stage entropy, and related summaries. The strongest empirical results are that abstention is a real behavioral lever, concept framing is one of the largest movers in the matrix, model placement inside the rubric/scoring pipeline matters, and bundle construction is part of the measurement instrument rather than an irrelevant implementation detail. We also find that unusual judge behavior is not unitary. Some configurations exhibit genuine adjudicative compression, while others produce interior concentration with low abstention and broad mid-scale use. The practical conclusion is that LLM-as-Judge systems for contested concepts should be treated as configurable measurement regimes, not as neutral drop-in evaluators.
+This paper studies how large language models behave when they are used as judges over contested political concepts rather than over tasks with a stable ground truth. The central claim is that judge behavior is strongly configuration-sensitive. Changing abstention policy, model placement within the pipeline, scale size, evidence representation, or evidence grouping can produce meaningfully different evaluative regimes; concept framing remains an important but not cleanly isolated hypothesis in the V3 matrix. To study this, we built `judge-gym`, a design-space engine that turns judge configuration into an experimental surface instead of a hard-coded benchmark pipeline. Across two pilots, we find that the most stable description of model behavior is not a single scalar score but a geometry: abstention rate, scale occupancy, subset breadth, expected stage, stage entropy, and related summaries. The strongest empirical results are that abstention is a real behavioral lever, model placement inside the rubric/scoring pipeline matters, and bundle construction is part of the measurement instrument rather than an irrelevant implementation detail. We also find that unusual judge behavior is not unitary. Some configurations exhibit genuine adjudicative compression, while others produce interior concentration with low abstention and broad mid-scale use. The practical conclusion is that LLM-as-Judge systems for contested concepts should be treated as configurable measurement regimes, not as neutral drop-in evaluators.
 
 ## 1. Introduction
 
@@ -97,11 +97,11 @@ The abstention toggle is one of the strongest and cleanest interventions in the 
 
 The important implication is that abstention cannot be treated as a cosmetic feature or a nuisance control. It is part of the measurement regime. Turning it on changes how the judge occupies the space of possible verdicts.
 
-### 6.2. Concept Framing Is One of the Largest Movers
+### 6.2. The Current Concept Contrast Is Confounded
 
-The concept swap from fascism to illiberal democracy produces one of the largest matched shifts in the matrix. It changes abstention, subset breadth, and expected stage together. That coherence makes it one of the strongest findings in the current project.
+The registered `a5` contrast does not compare fascism with illiberal democracy within the same model. It compares GPT-4.1 with GPT-5.2 inside the illiberal-democracy condition. Its large shifts therefore combine model identity with the condition and cannot be interpreted as an isolated concept-framing effect.
 
-This result matters because it shows that concept framing is not a shallow wording tweak. The choice of conceptual frame is one of the main determinants of evaluative behavior. For contested-concept measurement, concept engineering is not a peripheral concern. It is central.
+Concept framing remains an important axis for the research program, but the V3 export does not support the earlier causal headline. A symmetric same-model concept ablation is required before treating concept engineering as a demonstrated first-order lever.
 
 ### 6.3. Model Placement Inside the Pipeline Matters
 
@@ -128,7 +128,7 @@ This changes how the project should be interpreted going forward. Evidence bundl
 
 ### 6.6. `l3` Remains Weaker Than Expected
 
-The expectation going into V3 was that abstracted evidence might materially change the geometry of judgment. In the current matrix, that effect is weaker than expected. Once the corrected clustering surface is in place, `l3` still moves the regime modestly, but it does not move it at the level of abstention, concept framing, or model placement.
+The expectation going into V3 was that abstracted evidence might materially change the geometry of judgment. In the current matrix, that effect is weaker than expected. Once the corrected clustering surface is in place, `l3` still moves the regime modestly, but it is smaller than the clean same-model abstention effect and the joint role-placement contrast. No valid ranking against concept framing is available because the registered `a5` contrast is confounded.
 
 This does not mean `l3` is useless. It means it is not a first-order driver in the current setup. It remains worth keeping in the design space, especially for future cross-provider comparisons, but the present evidence does not support treating it as a dominant intervention.
 
@@ -160,7 +160,7 @@ This is not a rejection of belief-function thinking. It is a narrowing of role. 
 
 The most important conceptual result of the pilots is that LLM-as-Judge behavior over contested concepts should be treated as a configurable measurement regime. Once that framing is adopted, several puzzles become easier to interpret.
 
-Why does the same model family sometimes look compressed and sometimes look expressive? Because the model label alone is not the operative object. The operative object is the configured regime. Why do bundle comparisons matter so much? Because the way evidence is grouped changes the measurement instrument itself. Why does concept framing move so much? Because contested concepts are not neutral class names. They shape the evaluative surface the model is asked to inhabit.
+Why does the same model family sometimes look compressed and sometimes look expressive? Because the model label alone is not the operative object. The operative object is the configured regime. Why do bundle comparisons matter so much? Because the way evidence is grouped changes the measurement instrument itself. Concept framing may also shape the evaluative surface, but V3 does not isolate that effect cleanly enough to rank it among the demonstrated levers.
 
 The project therefore shifts from a search for the best judge in the abstract to a search for a stable and interpretable measurement framework. That is a more demanding goal, but it is also the only framing that matches the empirical behavior we have observed.
 
@@ -188,7 +188,7 @@ First, the provider family should expand. The current project is strong enough t
 
 Second, the window and bundle process should be standardized more aggressively. Bundle plans should be first-class measurement objects. Random baselines, semantic clusters, and projected abstraction bundles should be reusable plans defined over a shared evidence universe. That would make matching provable rather than merely plausible.
 
-Third, concept-space exploration should become more explicit. The current concept result is already strong enough to justify treating conceptual engineering as part of the experimental program. A future pass should move from isolated concept swaps to a small engineered family of related successor concepts and test whether some of them induce more stable geometries than inherited political labels do.
+Third, concept-space exploration should become more explicit. A future pass should use symmetric same-model concept contrasts over a small engineered family of related successor concepts, rather than infer a framing effect from a cross-model comparison.
 
 Fourth, the analysis stack should continue to formalize its own outputs. Pre-registered primary endpoints, standard multiplicity control, stronger verdict-geometry certainty tables, and a tighter split between report-grade and exploratory figures would make the system more legible and easier to extend.
 
@@ -196,7 +196,7 @@ Fourth, the analysis stack should continue to formalize its own outputs. Pre-reg
 
 The main result of this project is not that one model won a benchmark. The main result is that contested-concept LLM judging is configuration-sensitive in ways that are empirically large, methodologically important, and analytically tractable.
 
-Across the current pilots, several findings now look robust enough to carry forward: abstention is a real behavioral lever, concept framing is one of the strongest movers, model placement matters, compression is real but not universal, and bundle construction is part of the instrument. These findings support a shift in how LLM-as-Judge systems should be studied in politically and conceptually contested settings.
+Across the current pilots, several findings now look robust enough to carry forward: abstention is a real behavioral lever, configured model placement matters, compression is real but not universal, and bundle construction is part of the instrument. Concept framing remains a hypothesis requiring a properly isolated follow-up. These findings support a shift in how LLM-as-Judge systems should be studied in politically and conceptually contested settings.
 
 The project is therefore best understood as the construction of a measurement framework. The framework is not finished. But it is far enough along to support a clear conclusion: if contested-concept judging is going to be studied seriously, it has to be studied as a design space, not as a single frozen evaluator.
 
