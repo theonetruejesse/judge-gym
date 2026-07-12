@@ -5,7 +5,7 @@
 1. I treated the final V3 result as one combined pilot line: the original V3 matrix plus the corrected follow-up runs that repaired the invalid early bundle comparisons.
 2. The final analyzed slice contains `32` completed experiments with `30` matched samples each.
 3. The primary unit of comparison is the matched `sample_ordinal`, not pooled raw response averages.
-4. The analysis uses the frozen contract in [\_blueprints/v3-analysis-process/analysis_contract.json](/Users/jesselee/dev/research/jg/judge-gym/_blueprints/v3-analysis-process/analysis_contract.json) and the regenerated output bundle in [investigation](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation).
+4. The analysis uses the frozen contract in [analysis_contract.json](../../_blueprints/v3-analysis-process/analysis_contract.json) and the curated public [investigation report](../../apps/analysis/_outputs/v3/investigation/report.md).
 5. Four original legacy bundle experiments were explicitly excluded from scientific interpretation because their grouping policy was not comparable across models:
    - `v3_a6_gpt_4_1_bundle_5_l2`
    - `v3_a6_gpt_5_2_bundle_5_l2`
@@ -44,7 +44,7 @@ The analysis stack uses:
 - stage entropy
 - expert-agreement confidence
 - matched family deltas with multiplicity control
-- local semantic rubric embeddings
+- exploratory local semantic rubric embeddings (not included in the curated public evidence bundle)
 - aggregation sensitivity panels
 
 The current methodological hierarchy is:
@@ -64,8 +64,8 @@ The original V3 bundle families were not cleanly comparable across models, so th
 | `a1` abstention toggle            | `v3_a1_gpt_4_1_abstain_false`, `v3_a1_gpt_4_1_abstain_true`, `v3_a1_gpt_5_2_abstain_false`, `v3_a1_gpt_5_2_abstain_true`                     | test whether abstention changes judge regime     |
 | `a2` `l3` evidence view           | `v3_a2_gpt_4_1_l3`, `v3_a2_gpt_5_2_l3`                                                                                                       | test abstracted evidence representation          |
 | `a3` 5-point scale                | `v3_a3_gpt_4_1_scale_5`, `v3_a3_gpt_5_2_scale_5`                                                                                             | test larger ordinal scale                        |
-| `a4` rubric/scoring role swap     | `v3_a4_rubric_gpt_4_1_scoring_gpt_5_2`, `v3_a4_rubric_gpt_5_2_scoring_gpt_4_1`                                                               | test model placement in the pipeline             |
-| `a5` concept framing              | `v3_a5_gpt_4_1_illiberal_democracy`, `v3_a5_gpt_5_2_illiberal_democracy`                                                                     | test semantic concept swap                       |
+| `a4` joint role-assignment swap   | `v3_a4_rubric_gpt_4_1_scoring_gpt_5_2`, `v3_a4_rubric_gpt_5_2_scoring_gpt_4_1`                                                               | compare two linked rubric/scorer assignments     |
+| `a5` confounded cross-model pair  | `v3_a5_gpt_4_1_illiberal_democracy`, `v3_a5_gpt_5_2_illiberal_democracy`                                                                     | descriptive comparison; not a concept swap       |
 | `b1` small/chat family            | `v3_b1_gpt_4_1_mini_abstain_false`, `v3_b1_gpt_4_1_mini_abstain_true`, `v3_b1_gpt_5_2_chat_abstain_false`, `v3_b1_gpt_5_2_chat_abstain_true` | test smaller/chat variants under the same regime |
 | `d1` control                      | `v3_d1_control_gpt_4_1`, `v3_d1_control_gpt_5_2`                                                                                             | anchor condition                                 |
 | `c1` corrected bundle random `l2` | `v3_1_c1_gpt_4_1_bundle_5_random_l2`, `v3_1_c1_gpt_5_2_bundle_5_random_l2`                                                                   | clean random bundle baseline                     |
@@ -97,16 +97,16 @@ The registered `a5` contrast compares `v3_a5_gpt_4_1_illiberal_democracy` with `
 
 These values remain useful as a descriptive cross-model comparison within the illiberal-democracy condition, but they are not evidence of a causal concept-framing effect. A symmetric same-model concept ablation would be required to support that claim.
 
-### Finding 3: Model placement matters
+### Finding 3: Joint role assignment matters
 
-The rubric/scoring role swap changes the regime materially.
+The joint rubric/scoring role swap changes the regime materially, but it changes both placements simultaneously and the generated rubric may mediate the result.
 
 | Metric                                  |    Delta |
 | --------------------------------------- | -------: |
 | Abstain rate                            | `-0.263` |
 | Mean score expert-agreement probability | `+0.176` |
 
-So model identity is not the only issue; model placement inside the pipeline matters too.
+The defensible claim is that the configured role assignment matters. This design does not isolate the rubric-generator effect from the scorer effect.
 
 ### Finding 4: Adjudicative compression is real, but not universal
 
@@ -159,7 +159,7 @@ This is a methodological result as much as a model result: bundle construction i
 
 ### Finding 6: `l3` remains weaker than expected
 
-Even after correcting the bundle comparison surface, `l3` is not a first-order lever on the level of `a1`, `a4`, or `a5`.
+Even after correcting the bundle comparison surface, `l3` is modest relative to the clean same-model `a1` abstention effect and the joint `a4` role-assignment contrast. No valid ranking against concept framing is available.
 
 | Comparison                     | Abstain Delta | Subset Size Delta | TBM Conflict Delta |
 | ------------------------------ | ------------: | ----------------: | -----------------: |
@@ -197,15 +197,15 @@ The follow-up panel shows the smaller/chat variants are distinct regimes, not si
 
 The `gpt-5.2-chat` clustered bundle condition is one of the stronger wins in the whole follow-up.
 
-### Finding 9: Rubric semantics move less than scoring behavior
+### Exploratory note: rubric semantics
 
-The local semantic embedding pass shows:
+The local semantic embedding pass suggested:
 
 - high full-rubric similarity across matched contrasts
 - larger differences at the stage level, especially upper stages
 - no evidence that most interventions are wholesale rubric rewrites
 
-So many of the behavioral shifts in V3 are happening in scoring behavior and evidence interaction, not just in radically different rubric semantics.
+Those exploratory embedding tables are not included in the curated public evidence bundle, so this is not promoted as an independently reusable public result. The public bundle supports the behavioral and geometry claims above.
 
 ### Finding 10: Geometry-first summaries are more stable than global belief aggregation
 
@@ -229,7 +229,7 @@ The practical implication is:
 
 The main lesson from V3 is that the configured judge regime matters more than any isolated scalar summary. The pilot now supports a more precise interpretation than the earlier exploratory passes.
 
-First, abstention, concept framing, and model placement are the strongest clean interventions in the matrix. These are not small presentation tweaks. They materially alter how the judge occupies the verdict space.
+First, abstention is the clearest clean same-model intervention. The joint role-assignment contrast also changes the regime, but does not isolate one role. The registered `a5` pair does not identify concept framing.
 
 Second, the corrected bundle families changed the methodological story. The project can no longer treat evidence grouping as a neutral preprocessing choice. Bundle policy shapes the measurement surface itself. That is why the corrected `c1` through `c7` panel belongs in the main scientific story rather than being treated as a side operational note.
 
@@ -243,31 +243,28 @@ Fourth, the current evidence narrows the role of aggregation. Geometry-first sum
 
 These are the figures a collaborator should look at first:
 
-1. [hero_contrast_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png)
-2. [hero_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_bundle_strategy_heatmap.png)
-3. [hero_scale_probe_profile.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/curated/hero_scale_probe_profile.png)
-4. [a1_abstain_toggle_verdict_distribution.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/a1_abstain_toggle_verdict_distribution.png)
-5. [a5_concept_swap_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/a5_concept_swap_heatmap.png)
-6. [c1_bundle_strategy_heatmap.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/c1_bundle_strategy_heatmap.png)
-7. [c2_bundle_5_cluster_l2_v2_tbm_belief.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_belief_heatmaps/c2_bundle_5_cluster_l2_v2_tbm_belief.png)
-8. [c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/c7_bundle_5_cluster_l2_scale_9_verdict_distribution_geometry_bucketed.png)
+1. [hero_contrast_heatmap.png](../../apps/analysis/_outputs/v3/investigation/figures/curated/hero_contrast_heatmap.png)
+2. [hero_bundle_strategy_heatmap.png](../../apps/analysis/_outputs/v3/investigation/figures/curated/hero_bundle_strategy_heatmap.png)
+3. [hero_scale_probe_profile.png](../../apps/analysis/_outputs/v3/investigation/figures/curated/hero_scale_probe_profile.png)
+4. [a1_abstain_toggle_verdict_distribution.png](../../apps/analysis/_outputs/v3/investigation/figures/family_verdict_heatmaps/a1_abstain_toggle_verdict_distribution.png)
+5. [a4_model_swap_heatmap.png](../../apps/analysis/_outputs/v3/investigation/figures/family_effect_heatmaps/a4_model_swap_heatmap.png) — joint assignment, not isolated role attribution
+6. [scale_certainty_effects.png](../../apps/analysis/_outputs/v3/investigation/figures/scale_certainty_effects.png)
 
 ### Canonical Tables
 
 These are the main tables backing the report:
 
-- [family_effects.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/family_effects.csv)
-- [family_effects_qvalues.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/family_effects_qvalues.csv)
-- [experiment_geometry.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/experiment_geometry.csv)
-- [mine_v3_summary.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/mine_v3_summary.md)
-- [aggregation_sensitivity_report_panel.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/aggregation_sensitivity_report_panel.csv)
-- [sample_instability.csv](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/tables/sample_instability.csv)
+- [family_effects.csv](../../apps/analysis/_outputs/v3/investigation/tables/family_effects.csv)
+- [family_effects_qvalues.csv](../../apps/analysis/_outputs/v3/investigation/tables/family_effects_qvalues.csv)
+- [experiment_geometry.csv](../../apps/analysis/_outputs/v3/investigation/tables/experiment_geometry.csv)
+- [aggregation_sensitivity_report_panel.csv](../../apps/analysis/_outputs/v3/investigation/tables/aggregation_sensitivity_report_panel.csv)
+- [sample_instability.csv](../../apps/analysis/_outputs/v3/investigation/tables/sample_instability.csv)
 
 ### Main Output Bundle
 
-- [report.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/report.md)
-- [summary.json](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/summary.json)
-- [v3_contract_report.md](/Users/jesselee/dev/research/jg/judge-gym/apps/analysis/_outputs/v3/investigation/v3_contract_report.md)
+- [report.md](../../apps/analysis/_outputs/v3/investigation/report.md)
+- [summary.json](../../apps/analysis/_outputs/v3/investigation/summary.json)
+- [v3_contract_report.md](../../apps/analysis/_outputs/v3/investigation/v3_contract_report.md)
 
 ## Limitations
 
@@ -275,7 +272,7 @@ These are the main tables backing the report:
 - The strongest claims are about geometry and matched intervention effects, not about human validity or external truth.
 - Conflict metrics remain diagnostic rather than headline endpoints.
 - The certainty layer still needs a direct verdict-geometry treatment: abstain, singleton stage, adjacent subset, non-adjacent subset, and broad subset.
-- The rubric embedding layer is now real, but motif-level rubric analysis and concept-space structure are still future work.
+- The exploratory rubric-embedding layer was generated locally but is not part of the curated public evidence bundle; reusable rubric-semantic analysis remains future work.
 
 ## Future Work and V4 Recommendations
 
@@ -329,7 +326,7 @@ These are the main tables backing the report:
 
 The final V3 read is:
 
-1. `a1`, `a4`, and `a5` are the strongest clean hits.
+1. `a1` is the clearest clean same-model hit; `a4` is a joint role-assignment effect; `a5` is confounded and descriptive only.
 2. Clustering strategy is part of the instrument, not a minor implementation detail.
 3. `l3` remains weaker than expected in the current matrix.
 4. Scale size changes expressivity more than certainty.

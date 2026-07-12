@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This paper studies how large language models behave when they are used as judges over contested political concepts rather than over tasks with a stable ground truth. The central claim is that judge behavior is strongly configuration-sensitive. Changing abstention policy, model placement within the pipeline, scale size, evidence representation, or evidence grouping can produce meaningfully different evaluative regimes; concept framing remains an important but not cleanly isolated hypothesis in the V3 matrix. To study this, we built `judge-gym`, a design-space engine that turns judge configuration into an experimental surface instead of a hard-coded benchmark pipeline. Across two pilots, we find that the most stable description of model behavior is not a single scalar score but a geometry: abstention rate, scale occupancy, subset breadth, expected stage, stage entropy, and related summaries. The strongest empirical results are that abstention is a real behavioral lever, model placement inside the rubric/scoring pipeline matters, and bundle construction is part of the measurement instrument rather than an irrelevant implementation detail. We also find that unusual judge behavior is not unitary. Some configurations exhibit genuine adjudicative compression, while others produce interior concentration with low abstention and broad mid-scale use. The practical conclusion is that LLM-as-Judge systems for contested concepts should be treated as configurable measurement regimes, not as neutral drop-in evaluators.
+This paper studies how large language models behave when they are used as judges over contested political concepts rather than over tasks with a stable ground truth. The central claim is that judge behavior is strongly configuration-sensitive. Changing abstention policy, joint rubric/scorer role assignment, scale size, evidence representation, or evidence grouping can produce meaningfully different evaluative regimes; concept framing remains an important but not cleanly isolated hypothesis in the V3 matrix. To study this, we built `judge-gym`, a design-space engine that turns judge configuration into an experimental surface instead of a hard-coded benchmark pipeline. Across two pilots, we find that the most stable description of model behavior is not a single scalar score but a geometry: abstention rate, scale occupancy, subset breadth, expected stage, stage entropy, and related summaries. The strongest empirical results are that abstention is a real behavioral lever, joint rubric/scorer role assignment matters, and bundle construction is part of the measurement instrument rather than an irrelevant implementation detail. We also find that unusual judge behavior is not unitary. Some configurations exhibit genuine adjudicative compression, while others produce interior concentration with low abstention and broad mid-scale use. The practical conclusion is that LLM-as-Judge systems for contested concepts should be treated as configurable measurement regimes, not as neutral drop-in evaluators.
 
 ## 1. Introduction
 
@@ -40,7 +40,7 @@ We therefore treat the judge as a configurable measurement regime. The point is 
 - scoring method
 - randomization and ordering controls
 
-The engine implements a multi-stage pipeline:
+In the V3-era system evaluated in this paper, the engine implemented a multi-stage pipeline:
 
 1. collect evidence into reusable pools and windows
 2. generate rubrics per sample
@@ -48,7 +48,7 @@ The engine implements a multi-stage pipeline:
 4. score evidence against the rubric
 5. critique scores and compute experiment-level summaries
 
-The important design choice is that the engine treats these settings as an experimental matrix. That makes it possible to compare regimes at matched sample grain instead of only at pooled response grain.
+The important design choice is that the engine treats these settings as an experimental matrix. That makes it possible to compare regimes at matched sample grain instead of only at pooled response grain. The later V4 runtime replaced mutable pool/window/bundle inputs with canonical source records, semantic views, and frozen evidence sets; see the repository README for the active architecture.
 
 ## 4. Measurement Framework
 
@@ -65,7 +65,7 @@ The current analysis framework is built around geometry-first summaries. These a
 These metrics are complemented by several secondary layers:
 
 - matched family deltas with uncertainty estimates
-- local semantic rubric embeddings
+- exploratory local semantic rubric embeddings
 - aggregation sensitivity panels
 - evidence- and sample-level instability summaries
 
@@ -103,9 +103,9 @@ The registered `a5` contrast does not compare fascism with illiberal democracy w
 
 Concept framing remains an important axis for the research program, but the V3 export does not support the earlier causal headline. A symmetric same-model concept ablation is required before treating concept engineering as a demonstrated first-order lever.
 
-### 6.3. Model Placement Inside the Pipeline Matters
+### 6.3. Joint Role Assignment Inside the Pipeline Matters
 
-The rubric/scoring role swap shows that model identity is not the whole story. Which model generates the rubric and which model applies it affects abstention and confidence materially. That means pipeline placement is a first-class experimental axis. The configured pair matters, not just the individual model labels.
+The rubric/scoring role swap shows that the configured pair matters, not just the individual model labels. But the contrast changes both assignments simultaneously, and the generated rubric may mediate the downstream result. It therefore supports a joint role-assignment effect rather than isolated attribution to the rubric generator or scorer.
 
 ### 6.4. Compression Is Real, but It Is Not the Only Non-Smooth Regime
 
@@ -144,9 +144,9 @@ The follow-up panel shows that `gpt-4.1-mini` and `gpt-5.2-chat` are not simply 
 
 This matters for study design. If smaller/chat models are treated only as cheaper proxies, the resulting comparison misses the fact that they may be operating under different behavioral regimes altogether.
 
-### 6.9. Rubric Semantics Matter, but They Are Not the Whole Story
+### 6.9. Rubric Semantics: Exploratory Evidence
 
-The rubric analysis now includes real local semantic embeddings. The main result is that matched contrasts often retain high full-rubric similarity, while larger differences emerge at the stage level, especially toward the upper part of the scale.
+An exploratory local embedding pass suggested that matched contrasts often retain high full-rubric similarity, while larger differences emerge at the stage level, especially toward the upper part of the scale. The embedding tables are not included in the curated public evidence bundle, so this is not promoted as an independently reusable public result.
 
 That means many behavioral shifts cannot be explained by wholesale rubric rewrites. A significant share of the action is happening in scoring behavior and evidence interaction. The rubric layer is part of the explanation, but not the whole explanation.
 
@@ -196,7 +196,7 @@ Fourth, the analysis stack should continue to formalize its own outputs. Pre-reg
 
 The main result of this project is not that one model won a benchmark. The main result is that contested-concept LLM judging is configuration-sensitive in ways that are empirically large, methodologically important, and analytically tractable.
 
-Across the current pilots, several findings now look robust enough to carry forward: abstention is a real behavioral lever, configured model placement matters, compression is real but not universal, and bundle construction is part of the instrument. Concept framing remains a hypothesis requiring a properly isolated follow-up. These findings support a shift in how LLM-as-Judge systems should be studied in politically and conceptually contested settings.
+Across the current pilots, several findings now look robust enough to carry forward: abstention is a real behavioral lever, joint rubric/scorer role assignment matters, compression is real but not universal, and bundle construction is part of the instrument. Concept framing remains a hypothesis requiring a properly isolated follow-up. These findings support a shift in how LLM-as-Judge systems should be studied in politically and conceptually contested settings.
 
 The project is therefore best understood as the construction of a measurement framework. The framework is not finished. But it is far enough along to support a clear conclusion: if contested-concept judging is going to be studied seriously, it has to be studied as a design space, not as a single frozen evaluator.
 

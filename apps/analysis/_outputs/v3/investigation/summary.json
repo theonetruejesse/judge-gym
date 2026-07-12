@@ -34,7 +34,8 @@
     "v3_1_c7_gpt_4_1_bundle_5_cluster_l2_scale_9",
     "v3_1_c7_gpt_5_2_bundle_5_cluster_l2_scale_9"
   ],
-  "figure_count": 76,
+  "full_generation_figure_count": 76,
+  "public_bundle_figure_count": 8,
   "matched_contrast_count": 28,
   "snapshot_ids": [
     "62a5ed3fcf4b45e2a90658e6f6914d07",
@@ -70,5 +71,7 @@
     "0d8a39d4098e48f288de2bfb2e7194bc",
     "609aa6d8aadd48c3bbb3bb2f2fa4387d"
   ],
-  "table_count": 32
+  "full_generation_table_count": 32,
+  "public_bundle_csv_table_count": 8,
+  "publication_note": "The public repository contains a curated subset of the full local generation directory. Counts prefixed full_generation describe the original local run; public_bundle counts describe tracked V3 artifacts."
 }

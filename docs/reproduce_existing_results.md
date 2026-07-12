@@ -62,6 +62,8 @@ Start with:
 - [Matched item deltas](../apps/analysis/_outputs/v4/native_openai_scale/item_deltas.csv)
 - [Evidence inventory](../apps/analysis/_outputs/v4/native_openai_scale/evidence_inventory.csv)
 
+The evidence inventory is provenance metadata, not a committed copy of the 48 frozen source texts. The public bundle supports result and score inspection, but does not independently reproduce the exact evidence content.
+
 The [canonical run manifest](pilots/v4_native_openai_canonical_runs.json) pins the
 intended run for each matrix cell. The [V4 study note](pilots/v4_native_openai_scale.md)
 describes the design. Use the manifest for provenance and the exported CSV/JSON
