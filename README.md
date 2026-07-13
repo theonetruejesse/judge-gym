@@ -99,7 +99,9 @@ That distinction—technical completion versus scientifically usable evidence—
 
 ## The Convex → Temporal migration
 
-An early architecture placed execution, control state, and high-volume telemetry too close together inside Convex. The project postmortem reports that a shared telemetry sequence counter became an optimistic-concurrency hotspot; retries and reconciliation amplified the workload during an unattended run.
+Convex was a reasonable prototype default: the initial implementation used its Agent, Workflow, and Rate Limiter components while the research pipeline and Lab interface were still being discovered. The boundary changed as experiment-level orchestration moved through an external tracker, a Lab supervisor, provider batch ledgers, and eventually custom scheduler, lease, retry, and reconciliation machinery. At that point Convex was serving as both product store and a distributed execution runtime.
+
+The project postmortem records the sharpest failure of that arrangement: a shared telemetry sequence counter became an optimistic-concurrency hotspot, and retries and reconciliation amplified the workload during an unattended development run.
 
 The remediation was architectural:
 
@@ -108,6 +110,8 @@ The remediation was architectural:
 - telemetry moved toward asynchronous Axiom export with a small local mirror;
 - live debugging and repair were rewritten around Temporal workflow state;
 - provider work ran in a deployable Railway worker.
+
+Temporal did not remove the need for idempotency, cross-system reconciliation, provider quota accounting, bounded callbacks, or campaign stop conditions. V3 became runnable only after those seams were hardened with durable batch identity, paged checkpoints, projection heartbeats, callback-safe resets, worker-version checks, and a manifest-scoped operating contract.
 
 The exact incident totals in the postmortem are repository-authored operational records rather than independently preserved billing exports. The counter removal, telemetry redesign, and execution migration are corroborated by the implementation history.
 

@@ -10,6 +10,14 @@ This retrospective separates three kinds of claims throughout:
 
 That distinction matters. Agentic operation can make a system easier to inspect and repair; it does not make the system autonomous by assertion, nor does a technically completed run automatically produce scientifically usable evidence.
 
+## 0. A reasonable prototype default accumulated too many kinds of ownership
+
+**Implemented mechanism.** Judge-Gym began as a Convex-native research engine. Its initial blueprint and first implementation mounted Convex Agent, Workflow, and Rate Limiter components; Agent threads preserved LLM interactions while retryable workflows executed individual pipeline stages. The first architectural seam appeared when a local Bun tracker subscribed to Convex status and advanced the overall experiment with process-local deduplication. Later iterations moved orchestration among a Lab supervisor, normalized request and batch ledgers, service modules, durable process workflows, scheduler scans, leases, and reconciliation. By the mature Convex era, the backend owned both domain state and a custom distributed execution substrate.
+
+**Operational evidence.** The history records several incompatible ownership models rather than one clean linear implementation: the initial stage workflows, the external experiment tracker, the 95-file domain/platform reset, provider-native submit/poll/finalize flows, and the later scheduler/job/batch runtime. The Temporal architecture audit subsequently catalogued queue tables, locks and leases, retries, reconciliation, and process routing as workflow-runtime responsibilities the application had rebuilt inside Convex.
+
+**Retrospective lesson.** The original choice was not an obvious mistake. A familiar product backend with useful durable primitives was a reasonable way to discover the research and interface before funding a separate infrastructure project. The boundary changed when long-running provider I/O, execution truth, retries, scheduler ownership, telemetry, and agent-operated recovery accumulated beside product state. The lesson is to recognize when incremental fixes are clarifying a prototype and when they are compensating for a missing owner.
+
 ## 1. The live-debug surface became a control plane
 
 **Implemented mechanism.** Judge-Gym acquired a narrow, scriptable debug interface rather than relying on ad hoc database inspection. The current `live_debug.ts` wrapper exposes process watch, stuck-work discovery, trace tailing and analysis, execution inspection, Temporal task-queue health, campaign snapshots, and explicit control actions. Mutating actions are named and bounded: pause, resume, cancel, or `repair_bounded` with an allowlisted operation such as reprojection or clearing a pause marker. Calls go through the repository's Convex runner, so operators and agents use the same supported entry point.
